@@ -33,6 +33,8 @@
 //! The complex `std::atan` is `catan` from `xsf/complex.rs`, which is a translation of FreeBSD's
 //! `catan`, so it isn't bit-identical to the glibc one that is used by g++.
 
+use core::cell::Cell;
+
 use super::arithmetic::{comp_horner, dot2, ndot2, nsum2, ocrt};
 use super::common::{ExitStatus, config, constants, is_horrible, is_troublesome, sort_by};
 use super::rc::rc;
@@ -45,8 +47,8 @@ use crate::xsf::c64::C64;
 use crate::xsf::complex::atanh;
 
 mod rjimpl {
+    use super::{Cell, pow2, rc, rf, rj_nested};
     use super::{ExitStatus, Num, argcheck, config, is_horrible, is_troublesome, ndot2, nsum2};
-    use super::{pow2, rc, rf, rj};
 
     // Unlike in xsf, also if `r` underflows to 0 (it is a ratio of positive numbers)
     #[inline]
@@ -163,7 +165,14 @@ mod rjimpl {
 
     /* Cauchy principal value dispatcher
      * Ref[1], Eq. 2.26 */
-    pub(super) fn rj_cpv_dispatch(x: f64, y: f64, z: f64, p: f64, rerr: f64) -> (ExitStatus, f64) {
+    pub(super) fn rj_cpv_dispatch(
+        x: f64,
+        y: f64,
+        z: f64,
+        p: f64,
+        rerr: f64,
+        left: &Cell<Option<u32>>,
+    ) -> (ExitStatus, f64) {
         /* Retry with principal value evaluation, valid for reals. */
         let mut xct1 = [x, y, -p, z];
         let mut xct2 = [0.0; 4];
@@ -174,7 +183,7 @@ mod rjimpl {
 
         let mut status = ExitStatus::Success;
         let mut status_tmp;
-        (status_tmp, xct2[0]) = rj(x, y, z, pn, rerr, false);
+        (status_tmp, xct2[0]) = rj_nested(x, y, z, pn, rerr, false, left);
         if is_horrible(status_tmp) {
             return (status_tmp, 0.0);
         } else if is_troublesome(status_tmp) {
@@ -405,6 +414,7 @@ fn rj_duplicated<T: Num>(
     h: f64,
     rerr: f64,
     noasymp: bool,
+    left: &Cell<Option<u32>>,
 ) -> (ExitStatus, T) {
     // `sqrt(a) h`, exact for subnormal `a` if `h = 1 / 2`
     let sq = [x, y, z].map(|a| a.sqrt() * h);
@@ -440,7 +450,7 @@ fn rj_duplicated<T: Num>(
     let dup = [xyz[0], xyz[1], xyz[2], pd];
     let lost_imag = realness(dup).0 && dup.iter().any(|a| a.imag() != 0.0);
     if h < 1.0 && (0..3).any(|i| (lost_imag || rounded(i)) && cancels(i)) {
-        return rj_duplicated(x, y, z, p, 1.0, rerr, noasymp);
+        return rj_duplicated(x, y, z, p, 1.0, rerr, noasymp, left);
     }
     // NaN if the unquartered duplicated arguments overflow
     if h >= 1.0 && !(xyz.iter().all(|a| a.is_finite()) && pd.is_finite()) {
@@ -459,7 +469,7 @@ fn rj_duplicated<T: Num>(
         return (ExitStatus::PrecLoss, T::NAN);
     }
     let (status_rc, res_rc) = rc(T::from(1.0), u, rerr);
-    let (mut status, res) = rj(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp);
+    let (mut status, res) = rj_nested(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp, left);
     // NaN if rounding made two of the duplicated arguments 0, i.e. a pole
     if status == ExitStatus::Singular {
         return (ExitStatus::PrecLoss, T::NAN);
@@ -471,9 +481,32 @@ fn rj_duplicated<T: Num>(
     (status, res * c + (res_rc * (3.0 * c) / d1 / d23).ldexp(-de))
 }
 
+/// The most evaluations that a call of [`rj`] nests, i.e. its rescalings, duplication steps and
+/// real fallbacks: a hard bound on the recursion. A huge `p` next to tiny `x, y, z` takes 384
+/// steps, which quarter it from at most 2^1024 to 2^256.
+const MAX_NESTED: u32 = 512;
+
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
+    rj_nested(x, y, z, p, rerr, noasymp, &Cell::new(Some(MAX_NESTED)))
+}
+
+/// [`rj`] with the number of evaluations that are `left` of [`MAX_NESTED`], `None` if it ran out
+fn rj_nested<T: Num>(
+    x: T,
+    y: T,
+    z: T,
+    p: T,
+    rerr: f64,
+    noasymp: bool,
+    left: &Cell<Option<u32>>,
+) -> (ExitStatus, T) {
     if argcheck::invalid_rerr(rerr, 1.0e-4) {
         return (ExitStatus::BadRerr, T::NAN);
+    }
+    // Unlike in xsf, NaN if none is left
+    left.set(left.get().and_then(|n| n.checked_sub(1)));
+    if left.get().is_none() {
+        return (ExitStatus::PrecLoss, T::NAN);
     }
 
     // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
@@ -494,7 +527,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 s
             }
         });
-        let (status, res) = rj(x, y, z, p, rerr, noasymp);
+        let (status, res) = rj_nested(x, y, z, p, rerr, noasymp, left);
         (status, res * f * f * f)
     };
     if let Some(f) = common::scale_factor(&args, min) {
@@ -505,14 +538,16 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         sort_by(&mut xyz, rjimpl::rcmp);
         rjimpl::good_args(xyz[0], xyz[1], xyz[2], p, &mut rjimpl::ArgCases::default())
     };
-    let mut out = rj_unscaled(x, y, z, p, rerr, noasymp);
+    let mut out = rj_unscaled(x, y, z, p, rerr, noasymp, left);
     for flush_re in [false, true] {
         if out.1.is_finite() || (flush_re && !in_domain()) {
             break;
         }
         out = common::relaxed_scale_factor(&args, flush_re, min).map_or(out, rescaled);
     }
-    out
+    // NaN as well if a fallback made up for an evaluation that ran out, like the asymptotic one
+    // for a huge `z`
+    left.get().map_or((ExitStatus::PrecLoss, T::NAN), |_| out)
 }
 
 /// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size
@@ -529,7 +564,15 @@ fn realness<T: Num>(args: [T; 4]) -> (bool, f64) {
     (real, min)
 }
 
-fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
+fn rj_unscaled<T: Num>(
+    x: T,
+    y: T,
+    z: T,
+    p: T,
+    rerr: f64,
+    noasymp: bool,
+    left: &Cell<Option<u32>>,
+) -> (ExitStatus, T) {
     use rjimpl::AsymFlag;
 
     let (real, min) = realness([x, y, z, p]);
@@ -558,7 +601,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
             let yr = ym.real();
             let zr = zm.real();
             let pr = p.real();
-            let (status, tmpres) = rjimpl::rj_cpv_dispatch(xr, yr, zr, pr, rerr);
+            let (status, tmpres) = rjimpl::rj_cpv_dispatch(xr, yr, zr, pr, rerr, left);
             let res = if is_horrible(status) {
                 T::NAN
             } else {
@@ -574,7 +617,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
     // duplication step first raises the tiny one
     if common::needs_duplication(&[xm, ym, zm, p], min) {
-        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp);
+        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp, left);
     }
 
     // Unlike in xsf, also for complex input with `p` tiny relative to `x, y, z`, where the loop's
@@ -585,7 +628,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // (not if rounding moves the shifted arguments out of the domain, e.g. a real part to below 0)
     let tiny_p = |a: &T| p.max_norm() <= config::ASYM_ZERO_UL * a.max_norm();
     if !real && [xm, ym, zm].iter().all(tiny_p) {
-        let (status, res) = rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp);
+        let (status, res) = rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp, left);
         if status != ExitStatus::BadArgs {
             return (status, res);
         }
@@ -645,7 +688,8 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
                     // overflows.
                     rjimpl::rc_rescaled(xct1, pr, pr + lamt, r)
                 };
-                (status, xct2[1]) = rj(xr + lamt, yr + lamt, zr + lamt, pr + lamt, r, false);
+                (status, xct2[1]) =
+                    rj_nested(xr + lamt, yr + lamt, zr + lamt, pr + lamt, r, false, left);
                 if status_tmp != ExitStatus::Success {
                     status = status_tmp;
                 }
@@ -671,7 +715,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
             },
             AsymFlag::Tinyx => {
                 /* Ref[2], Eq. 18.27.15 <https://dlmf.nist.gov/19.27.E15> */
-                (status, tmpres) = rj(0.0, yr, zr, pr, rerr, false);
+                (status, tmpres) = rj_nested(0.0, yr, zr, pr, rerr, false, left);
                 tmpres -= 3.0 * xr.sqrt() / (config.h * pr);
             },
             AsymFlag::Tinyy => {
@@ -709,7 +753,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
                 tt = 3.0 / zr.sqrt();
                 tmpres *= tt;
                 /* Also try if direct computation gives reasonable approx. */
-                let (status_direct, tmp_direct) = rj(xr, yr, zr, pr, rerr * 0.5, true);
+                let (status_direct, tmp_direct) = rj_nested(xr, yr, zr, pr, rerr * 0.5, true, left);
                 let asym = tmpres + tt * 0.3 * rt_h;
                 // Unlike in xsf (scipy/xsf#376), `asym` is also used if `tmp_direct` is NaN, unless
                 // `tmpres` is 0 or subnormal (e.g. if `rc` overflows), or `asym` is not finite
@@ -802,7 +846,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // Unlike in xsf, the step also comes first for complex arguments if both `delta` and `s^2`
     // underflow: the loop's `R_C` terms need both, the step's neither
     if !real && delta.too_small() && (sm * sm).too_small() {
-        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp);
+        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp, left);
     }
     /* next */
     ellint_rj_updt!();
@@ -968,6 +1012,23 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
 #[cfg(test)]
 mod tests {
     use super::rjimpl::rc_term;
+    use super::{Cell, ExitStatus, Num, pow2, rj_nested};
+
+    /// Whether `rj` nests `n` evaluations: it is finite with that many, and NaN with fewer
+    fn nests<T: Num>(x: T, y: T, z: T, p: T, n: u32) -> bool {
+        let rj = |n| rj_nested(x, y, z, p, 5e-16, false, &Cell::new(Some(n)));
+        let ran_out = |n| matches!(rj(n), (ExitStatus::PrecLoss, res) if res.abs().is_nan());
+        rj(n).1.is_finite() && (0..n).all(ran_out)
+    }
+
+    #[test]
+    fn test_rj_nested() {
+        // 4 duplication steps quarter a huge `p` next to tiny `x, y, z` to 2^256
+        let t = f64::MIN_POSITIVE;
+        assert!(nests(t, t, t, pow2(264), 5));
+        // the asymptotic fallback for a huge `z` doesn't make up for its direct evaluation
+        assert!(nests(1.0, 1.0, 1e50, 1.0, 2));
+    }
 
     #[test]
     fn test_rc_term() {
