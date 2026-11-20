@@ -405,19 +405,31 @@ fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checke
     if is_normal(ratio) {
         term * ratio
     } else {
-        pfq_rescaled_next(a, b, n, z, term, term * ratio)
+        pfq_rescaled_next(a, b, n, z, term).unwrap_or_else(|| term * ratio)
     }
 }
 
+/// `pfq_next`, but `None` where `t_{n+1}` is not normal, as the fallback of `pfq_next` then has
+/// more rounding errors
+fn pfq_normal_next(a: &[f64], b: &[f64], n: f64, z: f64, term: f64, checked: bool) -> Option<f64> {
+    let ratio = pfq_ratio::<f64>(a, b, n, checked) * z;
+    let next = if is_normal(ratio) {
+        term * ratio
+    } else {
+        pfq_rescaled_next(a, b, n, z, term)?
+    };
+    next.is_normal().then_some(next)
+}
+
 /// `pfq_next` from the mantissas and exponents of its factors, as `t_{n+1} / t_n` can over- or
-/// underflow where `t_{n+1}` is normal; or `next`, as computed, if `t_{n+1}` is not normal either
+/// underflow where `t_{n+1}` is normal; `None` if `t_{n+1}` is not normal either
 #[cold]
 #[inline(never)]
-fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, next: T) -> T {
+fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T) -> Option<T> {
     let (ratio, e) = pfq_frexp_ratio::<T>(a, b, n);
     let ((zm, ze), (tm, te)) = (frexp_f64(z), term.frexp());
     let rescaled = ldexp_i64(tm * (ratio * T::from_f64(zm)), e + i64::from(ze + te));
-    if is_normal(rescaled) { rescaled } else { next }
+    is_normal(rescaled).then_some(rescaled)
 }
 
 /// The terms `t_1, t_2, ...` of the series after `t_0 = 1`, in the arithmetic of `T`
@@ -929,7 +941,11 @@ fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     };
     let methods = methods.iter().chain(&last).chain(inside);
     let y = methods.fold(None, |y, method| y.or_better(|| method(a, b, z).map(Estimate::absolute)));
-    y.or_better(|| (!polynomial).then(|| pfq_overflow(a.as_ref(), b.as_ref(), z))?)
+    if polynomial {
+        y
+    } else {
+        y.or_better(|| pfq_overflow(a.as_ref(), b.as_ref(), z))
+    }
 }
 
 /// Most terms that `pfq_overflow` follows
@@ -950,39 +966,35 @@ fn pfq_overflow(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     }
     let (settled, checked) = (pfq_settled(a, b), pfq_extreme(a, b));
     let roundings = pfq_ratio_roundings(a, b) + 1.0;
-    // t_n and the sum of the sizes of the terms from `settled` on, both in units of 2^e, and that
-    // of the terms before
-    let (mut t, mut after, mut e, mut before) = (1.0_f64, 0.0, 0, 0.0);
-    for n in (0..PFQ_OVERFLOW_MAXITER).map(f64::from) {
-        if n < settled {
-            before += t.abs();
-        } else {
-            // the sum in [1/2, 1), exactly, and t with it, which is exact unless it underflows
-            let (m, k) = frexp_f64(after + t.abs());
-            (t, after, e) = (ldexp_f64(t, -k), m, e + k);
-            if !t.is_normal() {
-                return None;
-            }
-            // (a bound of the relative rounding errors, with a factor 2 to spare)
-            let err = (n + 1.0) * roundings * f64::EPSILON;
-            let (low, high) = (after * (1.0 - err), before * (1.0 + err));
-            // (`low 2^e >= 2^1025` by its exponent, as it can be beyond `f64`)
-            if high <= pow2(1023) && frexp_f64(low).1 + e > 1025 {
-                return Some(Estimate::exact(f64::INFINITY.copysign(t)));
-            }
-        }
-        // as `pfq_next`, but `None` where its ratio and rescaled term are not normal, as its
-        // fallback then has more rounding errors
-        let ratio = pfq_ratio::<f64>(a, b, n, checked) * z;
-        let next = if is_normal(ratio) {
-            t * ratio
-        } else {
-            pfq_rescaled_next(a, b, n, z, t, f64::NAN)
-        };
-        if !next.is_normal() {
+    let next = |n, term| pfq_normal_next(a, b, n, z, term, checked);
+    let indices = (0..PFQ_OVERFLOW_MAXITER).map(f64::from);
+
+    // the sum of the sizes of the terms before `settled`, and the first term after them
+    let (before, mut t) = indices
+        .clone()
+        .take_while(|&n| n < settled)
+        .try_fold((0.0, 1.0), |(sum, t): (f64, f64), n| Some((sum + t.abs(), next(n, t)?)))?;
+
+    // the sum of the sizes of the terms from `settled` on, and `t`, both in units of `2^e`
+    let mut after = 0.0;
+    let mut e = 0;
+    for n in indices.skip_while(|&n| n < settled) {
+        // the sum in [1/2, 1), exactly, and t with it, which is exact unless it underflows
+        let (m, k) = frexp_f64(after + t.abs());
+        after = m;
+        e += k;
+        t = ldexp_f64(t, -k);
+        if !t.is_normal() {
             return None;
         }
-        if n >= settled && next.abs() < t.abs() {
+        // (a bound of the relative rounding errors, with a factor 2 to spare)
+        let err = (n + 1.0) * roundings * f64::EPSILON;
+        // (`after 2^e >= 2^1025` by its exponent, as it can be beyond `f64`)
+        if before * (1.0 + err) <= pow2(1023) && frexp_f64(after * (1.0 - err)).1 + e > 1025 {
+            return Some(Estimate::exact(f64::INFINITY.copysign(t)));
+        }
+        let next = next(n, t)?;
+        if next.abs() < t.abs() {
             // the rest is at most a geometric series (the computed `rho` can be below the exact
             // bound, which only costs a result)
             let rho = pfq_ratio_bound(a, b, z, n + 1.0);
