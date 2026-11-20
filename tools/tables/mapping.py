@@ -1933,34 +1933,39 @@ I_BUNI_FLOOR: Final = Floor(
 
 def _seri_floor(a: tuple[float, ...]) -> float:
     """eps max(|v ln(w / 2)|, ln Gamma(|v| + 1)), with w = z or -z in Re w >= 0: the change of
-    the exponent v ln(w / 2) - ln Gamma(|v| + 1) of `seri` by an ulp of its largest term."""
+    the exponent v ln(w / 2) - ln Gamma(|v| + 1) of `seri` by about an ulp of its largest term."""
     v, x, y = abs(a[0]), a[1], a[2]
     w = complex(x, y) if x >= 0 else complex(-x, -y)
-    return sys.float_info.epsilon * max(abs(v * cmath.log(w / 2)), math.lgamma(v + 1))
+    # as AMOS, ln(w) - ln(2), as w / 2 can underflow
+    ln = cmath.log(w) - math.log(2)
+    return sys.float_info.epsilon * max(abs(v * ln), math.lgamma(v + 1))
 
 
 I_SERI_FLOOR: Final = Floor(
     lambda a: any(a[1:]) and _amos_seri(abs(a[0]), math.hypot(*a[1:])),
     _seri_floor,
-    "AMOS's power series (`seri`) scales by e^(v ln(z / 2) - ln Gamma(v + 1)), whose terms take"
-    " the platform's `log`, so an ulp of the largest can differ (3.5e-14 = 128 eps of ln Gamma"
-    " at I_82.89(3.35) on macOS and Windows, where Linux has 6.5e-15)",
+    "AMOS's power series (`seri`) scales by e^(v ln(z / 2) - ln Gamma(v + 1)), whose terms"
+    " depend on the platform's libm, so the exponent can differ in its last bit (2.8e-14 = 128"
+    " eps, an ulp of -243.6, from Linux to macOS and Windows at I_82.89(3.35))",
 )
 
 
 def _reflection_floor(a: tuple[float, ...]) -> float:
-    """0.3 max(|v|, 1) eps |K_-v / I_v|, at least the floors of I_-v: the change of s K_-v in
-    I_v = I_-v + s K_-v (DLMF 10.27.2) by that of s = 2 / pi sin(-v pi), relative to I_v. For
+    """0.3 max(|v|, 1) eps |K_-v / I_v|, at least the floors of I_-v (that of `seri` times the
+    share |I_-v / I_v| of I_-v in I_v): the change of s K_-v in I_v = I_-v + s K_-v (DLMF
+    10.27.2) by that of s = 2 / pi sin(-v pi), relative to I_v. For
     Re z < 0, it takes the upper bound |K_-v(w)| + pi |I_-v(w)| of |K_-v(z)|, with w = -z
     (DLMF 10.34.2). 0.3 rounds up the 0.22 that the failing rows need."""
     v, x, y = a
     with flint.ctx.workprec(128):
         w, nu = flint.acb(abs(x), y), flint.arb(-v)
-        k = abs(w.bessel_k(nu)) + flint.arb.pi() * abs(w.bessel_i(nu)) * (x < 0)
-        ratio = float((k / abs(_i_ball(a))).mid())
+        i_v, i_nu = abs(_i_ball(a)), abs(w.bessel_i(nu))
+        k = abs(w.bessel_k(nu)) + flint.arb.pi() * i_nu * (x < 0)
+        ratio, share = float((k / i_v).mid()), float((i_nu / i_v).mid())
     tol = 0.3 * max(-v, 1) * sys.float_info.epsilon * ratio
-    methods = (I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR)
-    return max([tol, *(f.at(a) for f in methods if f.when(a))])
+    seri = I_SERI_FLOOR.at(a) * share if I_SERI_FLOOR.when(a) else 0
+    methods = (f.at(a) for f in (I_MLRI_FLOOR, I_BUNI_FLOOR) if f.when(a))
+    return max(tol, seri, *methods)
 
 
 I_REFLECTION_FLOOR: Final = Floor(
