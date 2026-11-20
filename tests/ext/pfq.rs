@@ -386,11 +386,27 @@ fn test_hyp3f2_underflow() {
     assert_eq!(hyp3f2(1e-320, 1.0, 1.0, 2.0, 2.0, 0.5), 1.0);
     // the first term underflows, and later ones are large
     assert!(hyp3f2(1e-200, 1e-200, 500.0, 1.0, 1.0, 0.9).is_nan());
-    // the first terms are negligible, and later ones overflow
-    assert!(hyp3f2(1e-30, 1e-30, 500.0, 1.0, 1.0, 0.9).is_nan());
+    // the first terms are negligible, and later ones overflow, as does the sum (Arb: 5.0e432)
+    assert_eq!(hyp3f2(1e-30, 1e-30, 500.0, 1.0, 1.0, 0.9), f64::INFINITY);
     // the same at z = -1, where the series is summed by the sequence transformation
     assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 1e300, -1.0), 1.0);
     assert!(hyp3f2(1e-200, 1e-200, -1500.5, 1.0, 1.0, -1.0).is_nan());
+}
+
+#[test]
+fn test_hyp3f2_overflow() {
+    // the sum overflows near z = 1, with the sign of the terms from where b_2 + n > 0 on (Arb:
+    // 2.8e361 and -3.5e358; the others are above partial sums of 1e331 in Arb)
+    assert_eq!(hyp3f2(90.5, 90.5, 0.25, 13.5, -47.75, 0.95), f64::INFINITY);
+    assert_eq!(hyp3f2(90.5, 90.5, 0.25, 13.5, -46.25, 0.95), f64::NEG_INFINITY);
+    assert_eq!(hyp3f2(50.0, 50.0, 50.0, 1.0, 1.0, 0.999_999), f64::INFINITY);
+    let (a, b) = ([30.5, 20.25, 10.75, 5.5, 1.25], [-40.5, -30.25, 2.5, 3.5]);
+    assert_eq!(hyppfq(&a, &b, 0.9999), Some(f64::INFINITY));
+    // the terms shrink fast after a large t_1, but the sum is about 1 (Arb: |F - 1| < 5e-250)
+    for a2 in [1e-150, -1e-150] {
+        let y = hyppfq(&[1e300, a2, 1.0], &[1e100, 1e100], 2e-200);
+        assert!(y.is_none_or(|y| (y - 1.0).abs() < 1e-13), "{y:?}");
+    }
 }
 
 /// Asserts that `hyp2f2` is within a relative error of `1e-13` of `expected`
