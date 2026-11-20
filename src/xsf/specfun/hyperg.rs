@@ -1,5 +1,5 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
-//! (scipy/xsf@6406578).
+//! (scipy/xsf@da3630b).
 
 use core::cell::LazyCell;
 use core::f64::consts::{FRAC_PI_2, LN_2, PI};
@@ -173,13 +173,9 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
         return (1.0 + z / b) * z.exp();
     }
     if (a == 1.0) && (b == 2.0) {
-        // Unlike in xsf, `expm1` near 0, where `exp(z) - 1` cancels (not beyond, where it can
-        // overflow, or cancel in its `cos(y) - 1`)
-        let em1 = if z.norm() < 1.0 {
-            cexpm1(z)
-        } else {
-            z.exp() - 1.0
-        };
+        // `expm1` only near 0: `exp(z) - 1` cancels there, but `expm1` overflows for large Re z
+        let near_zero = z.re.abs() < 1.0 && z.im.abs() < 1.0;
+        let em1 = if near_zero { cexpm1(z) } else { z.exp() - 1.0 };
         return em1 / z;
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
