@@ -658,7 +658,14 @@ fn test_elliprj_wide_span() {
 
 #[test]
 fn test_elliprj_wide_span_complex() {
+    let x = c64(-1e70, 1e-100);
+    let p2 = |k: i32| 2.0_f64.powi(k);
+    let t = ONE * p2(-300);
+    let w = c64(-p2(900), 1.0);
+    let [x1, x2, x3] = [(300, -100), (300, -900), (-150, -460)].map(|(j, k)| c64(-p2(j), p2(k)));
     let x8 = c64(-3.404_076_565_287_425e255, 3.569_679_440_543_941e-182);
+    let v = c64(-1e215, 1e-99);
+    let s = f64::from_bits(1);
     let actual = [
         xsf::elliprj(c64(1e-60, 1e-60), c64(3e142, 3.5e142), c64(1e120, 3e120), c64(3e112, 9e112)),
         xsf::elliprj(
@@ -671,6 +678,22 @@ fn test_elliprj_wide_span_complex() {
         xsf::elliprj(ZERO, ONE * 1e-130, ONE * 1e80, c64(-1e75, 1e74)),
         // the duplicated `p` has a tiny imaginary part, which mustn't prevent the downscaling
         xsf::elliprj(ONE * 1e-130, ONE * 1e150, ONE * 1e72, c64(-5e-82, -5e-81)),
+        // `p = x` near the negative real axis, where `p + lam` of the duplication step cancels
+        xsf::elliprj(x, x.conj(), ONE * 1e-170, x),
+        // also with a huge `sqrt(p)` over a tiny square root sum, a quotient that overflows for `v`
+        xsf::elliprj(w, w.conj(), t, w),
+        xsf::elliprj(v, v.conj(), ONE * 1e-296, v),
+        // a slightly cancelling `p + lam` keeps the tiny `Im p`
+        xsf::elliprj(c64(-3e-214, 7e-51), c64(-3e-214, -7e-51), ONE * 2e237, c64(-4e95, -2e-90)),
+        xsf::elliprj(x1, x1.conj(), t, c64(-1.25 * p2(300), p2(-200))),
+        // the `R_C` term of the duplication step overflows if divided by the tiniest factor first
+        xsf::elliprj(x2, x2.conj(), t, x2),
+        // `p = x`, where `delta = 0` at any scale
+        xsf::elliprj(x3, x3.conj(), ONE * p2(-750), x3),
+        // also with a subnormal `Im z`, which is in the domain as long as it isn't upscaled
+        xsf::elliprj(x3, x3.conj(), c64(p2(-750), s), x3),
+        // `delta` underflows to 0 or is subnormal, but is normal once the arguments are upscaled
+        xsf::elliprj(x3, x3.conj(), ONE * p2(-750), c64(x3.re, x3.im.next_up())),
         // a subnormal square root sum of the duplication step
         xsf::elliprj(x8, x8.conj(), ONE * 2.726_537_368_598_458_6e-132, x8),
     ];
@@ -680,6 +703,15 @@ fn test_elliprj_wide_span_complex() {
         c64(1.470_038_697_995_964_6e-202, 3.995_469_583_856_571_3e-203),
         c64(-7.026_491_305_778_003e-113, -7.482_776_732_461_581e-114),
         c64(4.460_686_995_705_570_6e-71, 4.929_003_648_729_797_4e-71),
+        c64(-5.872_783_610_260_013e-103, -2.999_999_999_999_999_7e65),
+        c64(0.0, -1.031_865_770_122_304_8e-135),
+        c64(-3.43e-320, -9.486_832_980_505_139e-9),
+        c64(-2.820_053_088_338_412_6e-212, 2.634_305_524_140_272_6e-214),
+        c64(-1.142_299_594_953_818_3e-132, -5.798_932_689_929_481e-135),
+        c64(1.234_608_741_757_442e-43, -1.776_715_956_459_856_7e226),
+        c64(2.285_460_988_448_679e87, -3.374_185_345_907_397_3e161),
+        c64(2.285_460_988_448_679e87, -3.374_185_345_907_397_3e161),
+        c64(3.489_340_983_474_825e87, -3.374_185_345_907_397_3e161),
         c64(4.413_282_569_619_264e-140, -1.440_430_726_332_907_9e54),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
@@ -688,12 +720,18 @@ fn test_elliprj_wide_span_complex() {
 #[test]
 fn test_elliprj_tiny_square_root_sum() {
     let x = c64(-8.492_010_046_825_438e99, 4.925_013_126_945_802e-253);
+    let x1 = c64(-0.5, f64::from_bits(4));
     let actual = [
         // `sqrt(p) / 2` over the tiny `sqrt(p) + sqrt(x)` of the duplication step overflows
         xsf::elliprj(x, x.conj(), ONE * 7.564_518_093_696_574e-224, c64(x.re, -x.im / 2.0)),
+        // `sqrt(x) + sqrt(y)` is subnormal at any scale, in the duplicated `x` and `y` too
+        xsf::elliprj(x1, x1.conj(), ONE * 2.0_f64.powi(800), x1),
     ];
     // Arb
-    let expected = [c64(9.383_207_441_725_736e-76, 7.992_940_847_747_7e202)];
+    let expected = [
+        c64(9.383_207_441_725_736e-76, 7.992_940_847_747_7e202),
+        c64(-1.986_267_058_634_141_7e-96, -5.878_659_972_788_811e202),
+    ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
