@@ -663,7 +663,12 @@ fn test_elliprj_wide_span_complex() {
     let t = ONE * p2(-300);
     let w = c64(-p2(900), 1.0);
     let [x1, x2, x3] = [(300, -100), (300, -900), (-150, -460)].map(|(j, k)| c64(-p2(j), p2(k)));
+    let x4 = c64(-1.75 * p2(-207), 1.125 * p2(-412));
+    let x5 = c64(-p2(-28), p2(-519));
+    let x6 = c64(-p2(24), 1.916_433_886_452_932_6e-261);
+    let x7 = c64(-1.871_947_571_772_804e-21, 7.334_545_347_385_581e-291);
     let x8 = c64(-3.404_076_565_287_425e255, 3.569_679_440_543_941e-182);
+    let x9 = c64(-p2(-60), 1.25 * p2(-848));
     let v = c64(-1e215, 1e-99);
     let s = f64::from_bits(1);
     let actual = [
@@ -678,6 +683,25 @@ fn test_elliprj_wide_span_complex() {
         xsf::elliprj(ZERO, ONE * 1e-130, ONE * 1e80, c64(-1e75, 1e74)),
         // the duplicated `p` has a tiny imaginary part, which mustn't prevent the downscaling
         xsf::elliprj(ONE * 1e-130, ONE * 1e150, ONE * 1e72, c64(-5e-82, -5e-81)),
+        // tiny arguments next to a larger one, where `delta` underflows (#1655)
+        xsf::elliprj(
+            c64(4.111_978_644_178_181e-155, -5.905_609_635_520_994e72),
+            c64(6.526_168_150_887_142e-140, 3.950_623_117_497_389_6e-196),
+            c64(1.056_940_585_316_440_9e-284, -1.029_633_047_706_145_6e-256),
+            c64(8.319_008_270_198_852e-254, -1.881_357_037_524_383_9e-261),
+        ),
+        xsf::elliprj(
+            c64(7.880_448_859_174_146e-106, 2.019_480_815_864_376_2e-212),
+            c64(2.416_079_673_010_958_7e-291, 2.343_972_336_601_560_3e-244),
+            c64(1.003_671_132_383_083_1e-160, -1.199_478_819_847_264_8e-15),
+            c64(1.504_115_561_441_218e-232, -8.063_479_214_635_844e-270),
+        ),
+        xsf::elliprj(
+            c64(8.845_099_372_497_506e-180, -5.343_768_257_914_506e-286),
+            c64(1.858_782_969_335_321_4e-173, 3.985_589_097_049_306e-6),
+            c64(7.453_035_834_548_298e-260, -6.874_725_959_934_287e-181),
+            c64(2.258_262_926_985_609e-167, 1.507_805_556_876_459e-293),
+        ),
         // `p = x` near the negative real axis, where `p + lam` of the duplication step cancels
         xsf::elliprj(x, x.conj(), ONE * 1e-170, x),
         // also with a huge `sqrt(p)` over a tiny square root sum, a quotient that overflows for `v`
@@ -692,10 +716,32 @@ fn test_elliprj_wide_span_complex() {
         xsf::elliprj(x3, x3.conj(), ONE * p2(-750), x3),
         // also with a subnormal `Im z`, which is in the domain as long as it isn't upscaled
         xsf::elliprj(x3, x3.conj(), c64(p2(-750), s), x3),
+        // and with an `s^2` of the loop that underflows at any scale
+        xsf::elliprj(x7, x7.conj(), ONE * 1.547_841_309_340_748_8e-15, x7),
         // `delta` underflows to 0 or is subnormal, but is normal once the arguments are upscaled
         xsf::elliprj(x3, x3.conj(), ONE * p2(-750), c64(x3.re, x3.im.next_up())),
+        xsf::elliprj(x4, x4.conj(), ONE * p2(-850), c64(x4.re, x4.im / 8.0)),
+        xsf::elliprj(x5, x5.conj(), ONE * p2(-628), c64(x5.re, -x5.im / 8.0)),
+        // the product of two tiny factors of `delta` underflows before the huge one
+        xsf::elliprj(
+            x6,
+            x6.conj(),
+            ONE * 1.020_561_412_397_825_7e-44,
+            c64(x6.re, 5.218_315_697_306_068e-261),
+        ),
+        // or is subnormal, also if the last factor makes `delta` normal
+        xsf::elliprj(x9, x9.conj(), ZERO, c64(x9.re, 0.75 * x9.im)),
         // a subnormal square root sum of the duplication step
         xsf::elliprj(x8, x8.conj(), ONE * 2.726_537_368_598_458_6e-132, x8),
+        // `delta` and `s^2` of the loop overflow, in the right half-plane
+        xsf::elliprj(
+            c64(1.0, -1.0),
+            c64(1e-308, -3.0 * p2(358)),
+            c64(1.0, -p2(359)),
+            c64(1.0, p2(314)),
+        ),
+        // subnormal arguments, where the product of their square root sums would be subnormal
+        xsf::elliprj(I * 1e65, ONE * s, ONE * 2.0 * s, ONE * 3.0 * s),
     ];
     // Arb
     let expected = [
@@ -703,6 +749,9 @@ fn test_elliprj_wide_span_complex() {
         c64(1.470_038_697_995_964_6e-202, 3.995_469_583_856_571_3e-203),
         c64(-7.026_491_305_778_003e-113, -7.482_776_732_461_581e-114),
         c64(4.460_686_995_705_570_6e-71, 4.929_003_648_729_797_4e-71),
+        c64(1.803_132_905_404_062_6e160, 1.859_820_912_247_241e160),
+        c64(2.794_562_084_032_514e176, 2.794_558_943_206_208e176),
+        c64(7.033_083_592_633_553e170, -6.879_496_782_700_67e170),
         c64(-5.872_783_610_260_013e-103, -2.999_999_999_999_999_7e65),
         c64(0.0, -1.031_865_770_122_304_8e-135),
         c64(-3.43e-320, -9.486_832_980_505_139e-9),
@@ -711,8 +760,15 @@ fn test_elliprj_wide_span_complex() {
         c64(1.234_608_741_757_442e-43, -1.776_715_956_459_856_7e226),
         c64(2.285_460_988_448_679e87, -3.374_185_345_907_397_3e161),
         c64(2.285_460_988_448_679e87, -3.374_185_345_907_397_3e161),
+        c64(2.035_188_486_092_850_5e28, -1.039_643_822_894_742_4e298),
         c64(3.489_340_983_474_825e87, -3.374_185_345_907_397_3e161),
+        c64(-2.741_580_245_462_780_4e95, -4.454_929_293_580_444e155),
+        c64(-2.251_135_237_744_843e15, 1.228_958_694_522_29e161),
+        c64(-1.345_154_158_350_593_6e-8, -2.503_882_255_550_643e257),
+        c64(-1.014_312_557_716_746_1e30, -5.284_903_246_867_195e264),
         c64(4.413_282_569_619_264e-140, -1.440_430_726_332_907_9e54),
+        c64(1.268_243_976_859_445_2e-155, 1.268_243_587_482_952_2e-155),
+        c64(3.188_107_080_038_646_5e290, -3.188_107_080_038_646_5e290),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
@@ -721,16 +777,19 @@ fn test_elliprj_wide_span_complex() {
 fn test_elliprj_tiny_square_root_sum() {
     let x = c64(-8.492_010_046_825_438e99, 4.925_013_126_945_802e-253);
     let x1 = c64(-0.5, f64::from_bits(4));
+    let x2 = c64(-2.500_350_457_769_907_7e58, 2.344_608_882_961_892_2e-300);
     let actual = [
         // `sqrt(p) / 2` over the tiny `sqrt(p) + sqrt(x)` of the duplication step overflows
         xsf::elliprj(x, x.conj(), ONE * 7.564_518_093_696_574e-224, c64(x.re, -x.im / 2.0)),
         // `sqrt(x) + sqrt(y)` is subnormal at any scale, in the duplicated `x` and `y` too
         xsf::elliprj(x1, x1.conj(), ONE * 2.0_f64.powi(800), x1),
+        xsf::elliprj(x2, x2.conj(), ONE * 1.842_999_700_315_177_4e-290, x2),
     ];
     // Arb
     let expected = [
         c64(9.383_207_441_725_736e-76, 7.992_940_847_747_7e202),
         c64(-1.986_267_058_634_141_7e-96, -5.878_659_972_788_811e202),
+        c64(0.058_606_435_074_860_28, -8.091_898_117_828_573e270),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
@@ -774,15 +833,18 @@ fn test_elliprj_subnormal_imag() {
     let (m, s) = (f64::MIN_POSITIVE, f64::from_bits(1));
     let x = c64(-p2(-30), 4.342_393_763_554_186_5e-272);
     let x1 = c64(-1.231_626_472_742_281_6e226, 5.530_266_466_854_912e-223);
+    let x2 = c64(-1.892_873_431_416_007_7e206, 6.975_985_885_499_649e-178);
     let actual = [
         // quartered, the duplicated arguments get subnormal imaginary parts, which count as 0
         xsf::elliprj(x, x.conj(), ONE * 7.834_207_360_637_343e168, c64(x.re.next_down(), x.im)),
         xsf::elliprj(x1, x1.conj(), ZERO, c64(x1.re, -2.018_394_559_566_016e-223)),
+        xsf::elliprj(x2, x2.conj(), ONE * 4.124_929_518_853_05e207, x2),
     ];
     // Arb
     let expected = [
         c64(-2.947_533_875_963_715_5e-57, -8.141_477_836_328_409e-60),
         c64(4.243_660_222_025_578_4e-75, 6.285_526_858_619_49e109),
+        c64(-8.074_964_604_501_736e-165, -6.547_336_703_589_425e73),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
