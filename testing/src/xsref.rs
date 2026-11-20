@@ -437,11 +437,13 @@ fn rtol_ill_conditioned(name: &str, x: &[f64]) -> f64 {
 
 /// The orders of the complex `cyl_bessel_i` test cases where xsf overflows and the reference
 /// isn't finite
-const BESSEL_I_OVERFLOWS: [f64; 4] = [
+const BESSEL_I_OVERFLOWS: [f64; 6] = [
+    -3_924.611_809_854_627_6,
     -3_335.494_571_461_091,
     -2_788.048_924_847_581_5,
     -2_668.868_419_500_347_5,
     -1_132.109_773_438_097_1,
+    1_490.491_370_199_187_7,
 ];
 
 #[inline]

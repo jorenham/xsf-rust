@@ -867,6 +867,130 @@ fn test_bessel_amos_i_near_overflow() {
 }
 
 #[test]
+fn test_bessel_amos_i_leading_exponential_overflow() {
+    // the leading exponentials exceed `f64::MAX`, unlike the values (Arb)
+    let actual = [
+        xsf::bessel_i(54.099_467_124_448_5, c64(711.854_673_618_246_2, 0.0)),
+        xsf::bessel_i(1_490.491_370_199_187_7, c64(-1_431.443_889_835_916_7, 0.0)),
+        xsf::bessel_i(-3_924.611_809_854_627_6, c64(-3_014.674_352_211_202, 0.0)),
+    ];
+    let expected = [
+        c64(2.731_246_300_865_973e306, 0.0),
+        c64(4.494_375_122_683_454e304, 1.657_342_432_873_988e306),
+        c64(-2.999_368_964_669_362e306, -8.184_750_647_701_384e306),
+    ];
+    // AMOS loses some accuracy at these large orders, also below the overflow threshold
+    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+
+    // Arb: besselk(100.25, -712.2989872200264 + 1500j), whose pi I term exceeds `f64::MAX`
+    // by its leading exponential only
+    let k = xsf::bessel_k(100.25, c64(-712.298_987_220_026_4, 1500.0));
+    let expected = c64(-8.786_131_234_745_587e306, -1.649_448_687_188_380_2e307);
+    np_assert_allclose!(&[k], &[expected], rtol = 1e-12);
+}
+
+#[test]
+fn test_bessel_amos_i_overflow_by_series() {
+    // the value overflows, unlike its estimates without the series (Arb: Re I = 1.7977398e308)
+    let i = xsf::bessel_i(100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
+    assert_eq!(i, c64(f64::INFINITY, f64::NEG_INFINITY));
+    // the value before the rotation to z overflows (Arb: |I| = 1.7977003e308), but not its parts
+    // (both 1.27e308), as in xsf
+    let i = xsf::bessel_i(1500.25, c64(-1_440.844_949_792_818_9, 0.0));
+    assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
+    // the exponent has a rounding error of about 1 (DLMF 10.41.3: -2.28e308 (1 + i))
+    let i = xsf::bessel_i(2_060_697_274_498_541.2, c64(-1_365_713_557_945_105.0, 0.0));
+    assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
+}
+
+/// Whether each part of `y` is within AMOS's error of that of the exact value `2 half` (halved to
+/// stay finite), or overflows where that error can reach `f64::MAX`. The error is at most
+/// `4 max(v, |z|) eps |2 half|`, an empirical margin (Arb: at most 1.96 times
+/// `max(v, |z|) eps` in the larger part, at 684 values of orders up to 19520.5).
+fn is_near(y: Complex64, half: Complex64, v: f64, z: Complex64) -> bool {
+    let tol = 4.0 * v.max(z.norm()) * f64::EPSILON * half.norm();
+    let near = |x: f64, h: f64| {
+        if x.is_infinite() {
+            x.is_sign_negative() == h.is_sign_negative() && h.abs() + tol >= f64::MAX / 2.0
+        } else {
+            (x / 2.0 - h).abs() <= tol
+        }
+    };
+    near(y.re, half.re) && near(y.im, half.im)
+}
+
+#[test]
+fn test_bessel_amos_i_overflow_by_rounding() {
+    // within the error of `f64::MAX` (Arb, halved: above it by 8.9e-12, 2.4e-12, 3.4e-12, and
+    // 1.8e-12)
+    let cases = [
+        (32_767.75, c64(22_114.649_592_571_113, 0.0), c64(8.988_465_674_391_864e307, 0.0)),
+        (32_767.75, c64(22_114.649_592_571_11, 0.0), c64(8.988_465_674_333_41e307, 0.0)),
+        (
+            32_766.999_999_9,
+            c64(-22_114.152_585_700_04, 0.0),
+            c64(-8.988_465_674_341_9e307, 2.823_831_274_836_541e301),
+        ),
+        (
+            385.75,
+            c64(716.044_300_663_177_6, 32_760.175_578_041_82),
+            c64(4.098_878_142_447_121e307, 8.988_465_674_327_425e307),
+        ),
+    ];
+    for (v, z, half) in cases {
+        let i = xsf::bessel_i(v, z);
+        assert!(is_near(i, half, v, z), "I({v}, {z}) = {i}");
+    }
+    // further below `f64::MAX`, the parts are finite (Arb)
+    let actual = [
+        xsf::bessel_i(32_767.75, c64(22_114.649_592_571_088, 0.0)),
+        xsf::bessel_i(32_766.999_999_9, c64(-22_114.152_585_700_012, 0.0)),
+    ];
+    let expected = [
+        c64(1.797_693_134_796_537_6e308, 0.0),
+        c64(-1.797_693_134_774_854e308, 5.647_662_549_379_259e301),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-10);
+}
+
+#[test]
+fn test_bessel_amos_overflow_by_rotation() {
+    // one part overflows once rotated to z (Arb)
+    let i = xsf::bessel_i(4.25, c64(-714.1, -49.5));
+    let j = xsf::bessel_j(4.25, c64(-49.5, 714.1));
+    assert_eq!((i.im, j.re), (f64::NEG_INFINITY, f64::INFINITY));
+    let i2 = xsf::bessel_i(69.25, c64(-717.43, -0.75));
+    let j2 = xsf::bessel_j(69.25, c64(-1.17, 717.39));
+    assert_eq!((i2.re, j2.re), (f64::NEG_INFINITY, f64::NEG_INFINITY));
+    // within the error of `f64::MAX` once rotated to z (Arb, halved: above it by 4.9e-12, with
+    // parts below 0.913 f64::MAX before)
+    let (v, z) = (32_767.75, c64(-22_114.530_640_552_63, 95.5));
+    let i3 = xsf::bessel_i(v, z);
+    let half = c64(-2.614_861_393_023_947e307, -8.988_465_674_355_52e307);
+    assert!(is_near(i3, half, v, z), "{i3}");
+    np_assert_allclose!(
+        &[i.re, j.im, i2.im, j2.im],
+        &[
+            -2.744_727_787_941_251e306,
+            -7.849_902_985_860_507e307,
+            6.434_107_269_133_3e306,
+            6.608_834_223_121_121e305,
+        ],
+        rtol = 1e-12
+    );
+}
+
+#[test]
+fn test_bessel_amos_k_overflow_by_continuation() {
+    // within the error of `f64::MAX` by the continuation to Re z < 0 (Arb, halved: below it by
+    // 2.2e-12), where the real part has the error of AMOS's phase, as further below `f64::MAX`
+    let (v, z) = (673.851_921_288_337_3, c64(-716.234_998_021_642, 8_699.109_351_368_823));
+    let k = xsf::bessel_k(v, z);
+    let half = c64(8.863_697_362_548_706e306, 8.988_465_674_291_945e307);
+    assert!(is_near(k, half, v, z), "{k}");
+}
+
+#[test]
 fn test_bessel_amos_subnormal_order() {
     // Arb: besselj(-5e-324, 1e-200) = 1 + 4.6e-321, bessely(5e-324, 0.5 + 0.5j),
     // hankel1(1e-320, -1 + 1j), and besseli(-5e-324, 2)
