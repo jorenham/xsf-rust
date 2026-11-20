@@ -650,6 +650,7 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("exp1", &[x, y]) => xsf::exp1(c(x, y)),
         ("expi", &[x, y]) => xsf::expi(c(x, y)),
         ("lambertw", &[x, y]) => xsf::lambertw(c(x, y), 0, 1e-8),
+        ("lambertw", &[x, y, k, tol]) => xsf::lambertw(c(x, y), k as isize, tol),
         ("hyp1f1", &[a, b, x, y]) => xsf::hyp1f1(a, b, c(x, y)),
         ("hyp2f1", &[a, b, cc, x, y]) => xsf::hyp2f1(a, b, cc, c(x, y)),
         ("bessel_j", &[v, x, y]) => xsf::bessel_j(v, c(x, y)),
