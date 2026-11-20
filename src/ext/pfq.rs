@@ -466,7 +466,7 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
 /// The series in double-double with up to `PFQ_LONG_MAXITER` terms, if it is accurate, as near
 /// `z = 1` it can need more than `pfq_series`, and an `f64` sum can drop its small terms
 fn pfq_series_long(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> Option<(f64, f64)> {
-    let (y, err, _) = pfq_sum::<Dd>(a, b, z, PFQ_LONG_MAXITER);
+    let (y, err, ..) = pfq_sum::<Dd>(a, b, z, PFQ_LONG_MAXITER);
     let y = (f64::from(y), err);
     Estimate::absolute(y).is_accurate().then_some(y)
 }
@@ -480,19 +480,25 @@ const PFQ_UNIT: f64 = pow2(-400);
 /// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
 /// largest of them
 fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
-    let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
+    let (y, err, tails, _) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     // (not in double-double, whose `EPSILON` leaves room for many more parameters)
     let err = err * pfq_rounding_scale(a.as_ref(), b.as_ref());
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
-        let (y, err, tails) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
+        let (y, err, tails, _) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
         (f64::from(y), err, tails)
     }
 }
 
+/// Maximum number of roundings of a ratio `t_{k+1} / t_k`: each `a_i + k` and `b_j + k`, the
+/// product, the quotient, and the factors `z` and `t_k`
+fn pfq_ratio_roundings(a: &[f64], b: &[f64]) -> f64 {
+    2.0 * (a.len() + b.len()) as f64 + 3.0
+}
+
 /// `pfq_series_tails` in the arithmetic of `T`, with at most `maxiter` terms, and with the sum
-/// in that arithmetic
+/// in that arithmetic, and the number of terms after `t_0` that it added
 ///
 /// The rounding error of each ratio `t_{n+1} / t_n` affects the terms after it, which sum to
 /// `s - s_n` for the partial sum `s_n` and the sum `s`. These errors are added in quadrature,
@@ -503,7 +509,7 @@ fn pfq_sum<T: SeriesReal>(
     b: &impl AsRef<[f64]>,
     z: f64,
     maxiter: u32,
-) -> (T, f64, f64) {
+) -> (T, f64, f64, f64) {
     let terms = pfq_terms::<T>(a.as_ref(), b.as_ref(), z);
     pfq_sum_terms(a, b, z, maxiter, terms, f64::EPSILON)
 }
@@ -518,7 +524,7 @@ fn pfq_sum_terms<T: SeriesReal>(
     maxiter: u32,
     mut terms: impl Iterator<Item = T>,
     tol: f64,
-) -> (T, f64, f64) {
+) -> (T, f64, f64, f64) {
     // generic over the storage of the parameters, as the sum is faster if it is compiled for
     // the numbers of parameters of its caller
     let (a, b) = (a.as_ref(), b.as_ref());
@@ -532,9 +538,7 @@ fn pfq_sum_terms<T: SeriesReal>(
     let (mut sum1, mut sum2, mut unit) = (0.0, 0.0_f64, 1.0);
     // the sum of |t_k|, in units of `unit`
     let mut abs1 = 1.0;
-    // the roundings of a ratio t_(k+1) / t_k: each a_i + k and b_j + k, the product and the
-    // quotient
-    let ratio_roundings = 2.0 * (a.len() + b.len()) as f64 + 3.0;
+    let ratio_roundings = pfq_ratio_roundings(a, b);
     // the rounding error, and the root of the sum of (s - s_n)^2
     let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64, unit: f64, abs1: f64| {
         // accurate enough for an estimate, relative to s so that its parts don't overflow
@@ -568,10 +572,12 @@ fn pfq_sum_terms<T: SeriesReal>(
         if n == degree {
             // the series terminated
             let (rounding, tails) = estimates(n, s, sum1, sum2, unit, abs1);
-            return (sum, rounding, tails);
+            return (sum, rounding, tails, n);
         }
         // t_(n+1)
-        let Some(term) = terms.next() else { break };
+        let Some(term) = terms.next() else {
+            return (sum, f64::INFINITY, f64::INFINITY, n);
+        };
         let t = term.to_f64();
         abs1 += t.abs() * unit;
         sum = sum + term;
@@ -582,11 +588,11 @@ fn pfq_sum_terms<T: SeriesReal>(
             let tail = t.abs() * rho / (1.0 - rho);
             if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
                 let (rounding, tails) = estimates(n, s, sum1, sum2, unit, abs1);
-                return (sum, rounding + tail, tails);
+                return (sum, rounding + tail, tails, n + 1.0);
             }
         }
     }
-    (sum, f64::INFINITY, f64::INFINITY)
+    (sum, f64::INFINITY, f64::INFINITY, f64::from(maxiter))
 }
 
 /// Weniger's delta transformation of the series, and an estimate of its absolute error
@@ -2429,7 +2435,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     }
     // a polynomial is short enough for double-double
     let polynomial = degree.is_finite().then(|| {
-        let (y, err, _) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
+        let (y, err, ..) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
         Estimate::absolute((f64::from(y), err))
     });
     if polynomial.is_some_and(Estimate::is_accurate) {
@@ -2683,7 +2689,7 @@ mod tests {
     #[test]
     fn test_pfq_sum_rescales_repeatedly() {
         // the partial sum jumps from 1 to 1e300, whose square needs two rescalings
-        let (y, err, tails) =
+        let (y, err, tails, _) =
             pfq_sum_terms::<f64>(&[-1.0], &[1.0], 1.0, 2, [1e300].into_iter(), 1e-13);
         assert_eq!(y, 1e300);
         assert!(err.is_finite() && tails.is_finite());
