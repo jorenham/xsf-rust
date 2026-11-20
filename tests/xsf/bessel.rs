@@ -903,28 +903,43 @@ fn test_bessel_amos_i_overflow_by_series() {
     assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
 }
 
-/// Whether `x` overflows to the infinity of the sign of `max`, or is within AMOS's error near
-/// `f64::MAX` of `max`: `4 max(v, |z|) eps` relative, an empirical margin (Arb: at most
-/// `1.96 max(v, |z|) eps`, at 684 values of orders up to 19520.5).
-fn is_near_max(x: f64, max: f64, v: f64, z: Complex64) -> bool {
-    let rtol = 4.0 * v.max(z.norm()) * f64::EPSILON;
-    (x.is_infinite() && x.is_sign_negative() == max.is_sign_negative())
-        || (x / max - 1.0).abs() <= rtol
+/// Whether each part of `y` is within AMOS's error of that of the exact value `2 half` (halved to
+/// stay finite), or overflows where that error can reach `f64::MAX`. The error is at most
+/// `4 max(v, |z|) eps |2 half|`, an empirical margin (Arb: at most 1.96 times
+/// `max(v, |z|) eps` in the larger part, at 684 values of orders up to 19520.5).
+fn is_near(y: Complex64, half: Complex64, v: f64, z: Complex64) -> bool {
+    let tol = 4.0 * v.max(z.norm()) * f64::EPSILON * half.norm();
+    let near = |x: f64, h: f64| {
+        if x.is_infinite() {
+            x.is_sign_negative() == h.is_sign_negative() && h.abs() + tol >= f64::MAX / 2.0
+        } else {
+            (x / 2.0 - h).abs() <= tol
+        }
+    };
+    near(y.re, half.re) && near(y.im, half.im)
 }
 
 #[test]
 fn test_bessel_amos_i_overflow_by_rounding() {
-    // within the error of `f64::MAX` (Arb: above it by 8.9e-12, 2.4e-12, 3.4e-12, and 1.8e-12)
+    // within the error of `f64::MAX` (Arb, halved: above it by 8.9e-12, 2.4e-12, 3.4e-12, and
+    // 1.8e-12)
     let cases = [
-        (32_767.75, c64(22_114.649_592_571_113, 0.0), f64::MAX),
-        (32_767.75, c64(22_114.649_592_571_11, 0.0), f64::MAX),
-        (32_766.999_999_9, c64(-22_114.152_585_700_04, 0.0), -f64::MAX),
-        (385.75, c64(716.044_300_663_177_6, 32_760.175_578_041_82), f64::MAX),
+        (32_767.75, c64(22_114.649_592_571_113, 0.0), c64(8.988_465_674_391_864e307, 0.0)),
+        (32_767.75, c64(22_114.649_592_571_11, 0.0), c64(8.988_465_674_333_41e307, 0.0)),
+        (
+            32_766.999_999_9,
+            c64(-22_114.152_585_700_04, 0.0),
+            c64(-8.988_465_674_341_9e307, 2.823_831_274_836_541e301),
+        ),
+        (
+            385.75,
+            c64(716.044_300_663_177_6, 32_760.175_578_041_82),
+            c64(4.098_878_142_447_121e307, 8.988_465_674_327_425e307),
+        ),
     ];
-    for (v, z, max) in cases {
+    for (v, z, half) in cases {
         let i = xsf::bessel_i(v, z);
-        let part = if z.im == 0.0 { i.re } else { i.im };
-        assert!(is_near_max(part, max, v, z), "I({v}, {z}) = {i}");
+        assert!(is_near(i, half, v, z), "I({v}, {z}) = {i}");
     }
     // further below `f64::MAX`, the parts are finite (Arb)
     let actual = [
@@ -947,12 +962,12 @@ fn test_bessel_amos_overflow_by_rotation() {
     let i2 = xsf::bessel_i(69.25, c64(-717.43, -0.75));
     let j2 = xsf::bessel_j(69.25, c64(-1.17, 717.39));
     assert_eq!((i2.re, j2.re), (f64::NEG_INFINITY, f64::NEG_INFINITY));
-    // within the error of `f64::MAX` once rotated to z (Arb: -5.2297228e307 - inf i, above it by
-    // 4.9e-12, with parts below 0.913 f64::MAX before)
+    // within the error of `f64::MAX` once rotated to z (Arb, halved: above it by 4.9e-12, with
+    // parts below 0.913 f64::MAX before)
     let (v, z) = (32_767.75, c64(-22_114.530_640_552_63, 95.5));
     let i3 = xsf::bessel_i(v, z);
-    assert!(is_near_max(i3.im, -f64::MAX, v, z), "{i3}");
-    np_assert_allclose!(&[i3.re], &[-5.229_722_786_047_894e307], rtol = 1e-10);
+    let half = c64(-2.614_861_393_023_947e307, -8.988_465_674_355_52e307);
+    assert!(is_near(i3, half, v, z), "{i3}");
     np_assert_allclose!(
         &[i.re, j.im, i2.im, j2.im],
         &[
@@ -963,6 +978,16 @@ fn test_bessel_amos_overflow_by_rotation() {
         ],
         rtol = 1e-12
     );
+}
+
+#[test]
+fn test_bessel_amos_k_overflow_by_continuation() {
+    // within the error of `f64::MAX` by the continuation to Re z < 0 (Arb, halved: below it by
+    // 2.2e-12), where the real part has the error of AMOS's phase, as further below `f64::MAX`
+    let (v, z) = (673.851_921_288_337_3, c64(-716.234_998_021_642, 8_699.109_351_368_823));
+    let k = xsf::bessel_k(v, z);
+    let half = c64(8.863_697_362_548_706e306, 8.988_465_674_291_945e307);
+    assert!(is_near(k, half, v, z), "{k}");
 }
 
 #[test]
