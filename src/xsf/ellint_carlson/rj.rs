@@ -400,7 +400,21 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // `sqrt(p) / 2`, exact for subnormal `p`
     let sp = p.sqrt() * 0.5;
     let p4 = p * 0.25;
-    let pd = p4 + common::lambda([x, y, z], sq);
+    let mut pd = p4 + common::lambda([x, y, z], sq);
+    // Like in the loop, from the nearest shifted argument if it cancels, but only the parts that
+    // cancel themselves: in the other one, the shift can lose a tiny part of `p`, and with it the
+    // side of the branch cut that `p` is on
+    if pd.abs() < p4.abs() {
+        let pl = common::add_lambda_p(p4, xyz4, xyz);
+        let cancels = |part: fn(T) -> f64| part(pd).abs() < part(p4).abs();
+        let re = if cancels(T::real) {
+            pl.real()
+        } else {
+            pd.real()
+        };
+        let imag_source = if cancels(T::imag) { pl } else { pd };
+        pd = imag_source + -imag_source.real() + re;
+    }
     // `d / 8 = d1 d23 2^de` and `2 beta / d` with all factors as `frexp`, so that no partial
     // product or quotient under- or overflows (near the branch cut, a factor of `d` and `p + lam`
     // can be tiny next to a huge `sqrt(p)`)
@@ -415,6 +429,10 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     }
     let (status_rc, res_rc) = rc(T::from(1.0), u, rerr);
     let (mut status, res) = rj(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp);
+    // NaN if rounding made two of the duplicated arguments 0, i.e. a pole
+    if status == ExitStatus::Singular {
+        return (ExitStatus::PrecLoss, T::NAN);
+    }
     if status_rc != ExitStatus::Success {
         status = status_rc;
     }
