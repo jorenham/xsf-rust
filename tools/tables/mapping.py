@@ -1856,26 +1856,39 @@ def _i_nan(a: tuple[float, ...]) -> bool:
     return v < 0 or _i_log(a) - abs(x) < -AMOS_ELIM
 
 
-def _i_inf_parts(a: tuple[float, ...]) -> tuple[float, float] | None:
-    """The signs of the parts of I_v(x) where it overflows for x < 0 and a non-integer v > 0,
-    which xsf multiplies by inf (like those of e^-|x| I_v(x), DLMF 10.34.1)."""
+def _i_part_overflows(a: tuple[float, ...]) -> bool:
+    """Whether one part of I_v(z) overflows, but not the other, off the real axis or for a
+    non-integer v at x < 0 (else xsf has `inf + 0i`)."""
     v, x, y = a
-    if y != 0 or x >= 0 or v < 0 or v.is_integer() or not _i_overflows(a):
-        return None
-    z = _i_ball(a)
-    return math.copysign(1, float(z.real.mid())), math.copysign(1, float(z.imag.mid()))
+    if y == 0 and (x >= 0 or v.is_integer()):
+        return False
+    i = _i_ball(a)
+    return math.isinf(float(i.real.mid())) != math.isinf(float(i.imag.mid()))
 
 
-I_INF_PARTS: Final = tuple(
-    Rule(
-        lambda a, s=s: _i_inf_parts(a) == s,
-        complex(s[0] * math.inf, s[1] * math.inf),
-        "xsf multiplies the parts of e^-|x| I_v(x) by inf where I_v(x) overflows for x < 0 and"
-        " a non-integer v > 0 (`ierr = 2`), also a finite part",
-    )
-    for s in ((1, 1), (1, -1), (-1, 1), (-1, -1))
+def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
+    """Whether the K_-v(z) of xsf's reflection for a non-integer v < 0 (DLMF 10.27.2) overflows,
+    which makes its I_v(z) NaN where a part of it overflows."""
+    v, x, y = a
+    if v >= 0 or v.is_integer():
+        return False
+    with flint.ctx.workprec(128):
+        k = flint.acb(x, y).bessel_k(flint.arb(-v))
+    return float(abs(k).log().mid()) > LOG_MAX
+
+
+I_PART_OVERRIDES: Final = (
+    Override(
+        lambda a: a[0] >= 0 and _i_part_overflows(a),
+        "xsf multiplies both parts of e^-|Re z| I_v(z) by inf where one part of I_v(z) overflows"
+        " (`ierr = 2`)",
+    ),
+    Override(
+        lambda a: _k_reflection_overflows(a) and _i_part_overflows(a),
+        "xsref has the finite part where the other part of I_v(z) overflows, but xsf is NaN"
+        " there, by the K_-v(z) of its reflection (DLMF 10.27.2)",
+    ),
 )
-
 
 # the v, x where xsf's I_v(x) is inf or NaN by AMOS's overflow estimates, but finite
 I_XSF_OVERFLOWS: Final = frozenset(
@@ -2047,8 +2060,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     complex(math.inf, 0),
                     "xsf returns inf where I_v(x) overflows for x > 0 (`ierr = 2`)",
                 ),
-                *I_INF_PARTS,
-                overrides=(I_OVERRIDE,),
+                overrides=(I_OVERRIDE, *I_PART_OVERRIDES),
                 floors=(I_REFLECTION_FLOOR, I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
             ),
             entry("je"),

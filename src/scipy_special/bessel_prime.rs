@@ -71,7 +71,8 @@ pub fn bessel_y_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
 #[doc(alias = "ivp")]
 #[inline]
 pub fn bessel_i_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
-    bessel_diff_formula(v, n, |v| z.bessel_i(v), 1.0)
+    // as in xsf, as a sum with a finite and an overflowing part can be inf where xsf is NaN
+    bessel_diff_formula(v, n, |v| z.bessel_i_xsf(v), 1.0)
 }
 
 /// Compute the $n$th derivative of [`bessel_k(v, z)`](crate::bessel_k) w.r.t. `z`

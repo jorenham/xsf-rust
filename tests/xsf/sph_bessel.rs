@@ -173,6 +173,16 @@ fn test_sph_bessel_complex_overflow() {
     }
 }
 
+/// As in xsf where the cylindrical `I` overflows in a part (`ierr = 2`): the exact `Im i_0` and
+/// `Im i_0'` are about 6.27e306, but `sqrt(pi / (2 z))` would mix the finite part of `I` with the
+/// overflowing one
+#[test]
+fn test_sph_bessel_i_complex_overflow() {
+    let z = num_complex::c64(716.0, 0.1);
+    let (i, di) = (xsf::sph_bessel_i(0, z), xsf::sph_bessel_i_prime(0, z));
+    xsref::np_assert_allclose!(&[i.re, i.im, di.re, di.im], &[f64::INFINITY, f64::NAN].repeat(2));
+}
+
 #[test]
 fn test_sph_bessel_small_x_underflow() {
     // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x) etc.

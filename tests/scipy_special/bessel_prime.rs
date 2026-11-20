@@ -44,6 +44,14 @@ fn test_bessel_i_prime() {
     xsref::np_assert_allclose!(&[x], &[y], atol = ATOL);
 }
 
+/// As in xsf where `I` overflows in a part (`ierr = 2`): the exact `Re I_250'` is 1.5958e308, but
+/// the sum would mix the finite part of `I_249` with the overflowing one
+#[test]
+fn test_bessel_i_prime_overflow() {
+    let di = xsf::bessel_i_prime(250.0, num_complex::c64(754.9, 0.001), 1);
+    assert!(di.re.is_nan() && di.im.is_nan(), "{di}");
+}
+
 /// Translated from `scipy.special.tests.test_basic.TestBessel.test_kvp_v0n1`
 #[test]
 fn test_bessel_k_prime_v0n1() {

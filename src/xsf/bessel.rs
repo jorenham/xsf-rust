@@ -34,6 +34,8 @@ pub trait BesselArg:
     fn bessel_y(self, v: f64) -> Self;
     fn bessel_ye(self, v: f64) -> Self;
     fn bessel_i(self, v: f64) -> Self;
+    /// `bessel_i` as in xsf, where the overflow of a part makes both inf or NaN
+    fn bessel_i_xsf(self, v: f64) -> Self;
     fn bessel_ie(self, v: f64) -> Self;
     fn bessel_k(self, v: f64) -> Self;
     fn bessel_ke(self, v: f64) -> Self;
@@ -59,6 +61,10 @@ impl BesselArg for f64 {
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
         crate::xsf::cephes::iv(v, self)
+    }
+    #[inline]
+    fn bessel_i_xsf(self, v: f64) -> Self {
+        self.bessel_i(v)
     }
     #[inline]
     fn bessel_ie(self, v: f64) -> Self {
@@ -93,6 +99,10 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
+        self.via(|z| cyl_bessel_i_amos(v, z, true))
+    }
+    #[inline]
+    fn bessel_i_xsf(self, v: f64) -> Self {
         self.via(|z| cyl_bessel_i_c64(v, z))
     }
     #[inline]
@@ -327,7 +337,42 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
     res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
-pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
+/// The smallest part of `e^-|Re z| I_v(z)`, relative to `|I_v(z)|`, kept for `Re z < 0`, where AMOS
+/// rotates it from `-z` (DLMF 10.34.1) with an error relative to `|I_v(z)|`.
+const I_ROTATED_PART_MIN: f64 = 1.0 / 16.0;
+
+/// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
+///
+/// xsf multiplies both parts of `e^-|Re z| I_v(z)` by inf, which also loses a part below
+/// `f64::MAX`. So this unscales each normal part instead, unless the rotation for `Re z < 0`
+/// cancelled it.
+fn cyl_bessel_i_overflow(v: f64, z: C64) -> C64 {
+    let ie = cyl_bessel_ie_c64(v, z);
+    let cy = ie.mul_exp(z.re.abs());
+    let min = if z.re < 0.0 {
+        I_ROTATED_PART_MIN * ie.norm()
+    } else {
+        0.0
+    };
+    // as in xsf for a part that lost its digits to underflow or cancellation
+    let part = |p: f64, y: f64| {
+        if p.is_normal() && p.abs() >= min {
+            y
+        } else {
+            p * f64::INFINITY
+        }
+    };
+    c64(part(ie.re, cy.re), part(ie.im, cy.im))
+}
+
+pub(crate) fn cyl_bessel_i_c64(v: f64, z: C64) -> C64 {
+    cyl_bessel_i_amos(v, z, false)
+}
+
+/// With `by_part`, unlike in xsf, a part below `f64::MAX` stays finite where the other overflows.
+/// Only for the value of `bessel_i`, as a sum of such values (e.g. a derivative) can be inf where
+/// xsf is NaN.
+fn cyl_bessel_i_amos(mut v: f64, z: C64, by_part: bool) -> C64 {
     let kode = 1;
     let mut sign = 1.0;
 
@@ -348,6 +393,8 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
                 cy.re = f64::INFINITY;
             }
             cy.im = 0.0;
+        } else if by_part {
+            cy = cyl_bessel_i_overflow(v, z);
         } else {
             cy = cyl_bessel_ie_c64(v * sign, z);
             cy.re *= f64::INFINITY;
