@@ -1065,6 +1065,9 @@ pub fn bessel_i1e(x: f64) -> f64 {
 ///
 /// Corresponds to [`scipy.special.iv`][scipy].
 ///
+/// Near overflow, also well below `f64::MAX`, a part of a complex result can be infinite, NaN or 0
+/// although it is finite and nonzero. The scaled [`bessel_ie`] avoids most of these cases.
+///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.iv.html
 ///
 /// # See also
