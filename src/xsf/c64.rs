@@ -319,9 +319,9 @@ impl_op!(
 );
 
 /// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
-/// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
-/// the intermediate results don't lose precision by becoming subnormal, and finite operands are
-/// halved if a sum of the algorithm overflows.
+/// `|b|^2` in the naive formula. For a tiny `b`, the operands are first scaled by the same power
+/// of 2, so that the intermediate results don't lose precision by becoming subnormal, and finite
+/// operands are halved if a sum of the algorithm overflows.
 ///
 /// This replaces the complex division in C++, i.e. GCC's `__divdc3`. Like `__divdc3`, it recovers
 /// the infinities and zeros that would otherwise be computed as NaN + NaN i (C99 Annex G).
@@ -329,9 +329,12 @@ impl_op!(
 /// R. L. Smith, "Algorithm 116: Complex division", Communications of the ACM 5(8), 1962.
 fn div(mut a: C64, mut b: C64) -> C64 {
     const TWO_M400: f64 = pow2(-400);
+    const TWO_424: f64 = pow2(424);
     const TWO_600: f64 = pow2(600);
 
-    if b.re.abs().max(b.im.abs()) < TWO_M400 {
+    // Not for an `a` of 2^424 or more, which the scaling would overflow: its quotient is only
+    // finite for a `b` of about 2^-600 or more, where nothing significant is subnormal.
+    if b.re.abs().max(b.im.abs()) < TWO_M400 && a.re.abs().max(a.im.abs()) < TWO_424 {
         a *= TWO_600;
         b *= TWO_600;
     }
@@ -494,6 +497,14 @@ mod tests {
         // not halved otherwise, which would lose the sign of the zero
         let w = c64(-1.0, 0.0) / c64(max, -(2.0_f64.powi(-50)));
         assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
+    }
+
+    #[test]
+    fn test_div_huge_by_tiny() {
+        // the quotient is finite, but the dividend is too large to scale with the tiny divisor
+        let w = c64(2.492_731_184_530_717e161, 0.0) / (c64(1.0, 1.0) * 3.909_421_989_208_248e-130);
+        // Arb
+        assert_eq!(w, c64(3.188_107_080_038_646_5e290, -3.188_107_080_038_646_5e290));
     }
 
     #[test]
