@@ -31,13 +31,22 @@
 //! `F` follows in `m` steps from the series at that parameter plus `m`, `m + 1` and `m + 2`, in
 //! double-double, in which each of those is exact.
 //!
+//! For `z < 0` it also cancels at large upper parameters `a > 0`, and less at `a - m`. The last
+//! relation then gives `F(a)` in `m` steps up from the series at `a - m`, `a - m - 1` and
+//! `a - m - 2`. The limiting characteristic roots of a step up, for large `w` and fixed other
+//! parameters, are 1, 1 and `1 / (1 - z)`: none is above 1, but the repeated root at 1 leaves
+//! room for the errors to grow. For more than one large `a_i`, the starts of the steps in one
+//! come from the steps in the next, not from the series.
+//!
 //! The steps can make the errors of the series and their own rounding errors larger by many
 //! orders of magnitude, so the error of the result is estimated. An error `e` of the F at `k`
 //! steps from the result adds `g_k e` to it, where the `g_k` follow from the adjoint recurrence,
 //! upwards from `g_0 = 1`. The estimate is not a bound, as the `g_k` are computed in `f64` from
 //! the rounded coefficients.
 
-use core::iter::zip;
+use core::array::from_fn;
+use core::cell::Cell;
+use core::iter::{once, zip};
 
 use super::{
     Dd, Estimate, PFQ_DD_MAXITER, PFQ_MAXITER, Params, SeriesReal, descending, first_zero,
@@ -51,6 +60,19 @@ use super::{
 /// Of 7136 results on 91004 points, 426 are from the last one and 537 from the one before it,
 /// and 8192 would give 273 more (measured).
 const RECURRENCE_STARTS: [u32; 10] = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
+
+/// Smallest upper parameter `a` that the recurrence goes up in: in a step from `a - 1`, `a - 2`
+/// and `a - 3`, which are not negative, as a step up divides by the `c_0` of the lowest one,
+/// which is small near -1 and -2
+const RAISED_MIN: f64 = 3.0;
+
+/// Most steps of the recurrences up in the upper parameters plus terms of the series that they
+/// start from, of all numbers of steps that are tried together: up in three of them, each try
+/// is 13 recurrences from 27 series, which can take much longer than the other methods
+///
+/// Of 1927 results on 126504 points, 1880 are within it, and twice as much gives 37 more
+/// (measured).
+const RAISED_WORK: u32 = 2 * PFQ_MAXITER;
 
 /// Bound of the rounding error of a step, relative to the sizes of the terms of its sum:
 /// `Dd::EPSILON` for each of its at most 17 inexact operations in a row (`u - 1`, `u - 2`,
@@ -92,23 +114,25 @@ fn upper_coefficients<T: SeriesReal>(w: T, e: [T; 2], h: [T; 2], z: T, minus: f6
 
 /// The series in double-double for the ratios `ratio(n)` of its terms, which can be those of
 /// more exact parameters than `a` and `b`, and an estimate of its absolute error, or `None` if
-/// it is not accurate
+/// it is not accurate within `maxiter` terms
 fn recurrence_start(
     a: [f64; 3],
     b: [f64; 3],
     z: f64,
+    maxiter: u32,
     ratio: impl Fn(f64) -> Dd,
 ) -> Option<(Dd, f64)> {
     let terms = pfq_terms_of(first_zero(&a), z, |n, t: Dd| t * (ratio(n) * Dd::new(z)));
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
-    let (y, err, _) = pfq_sum_terms(&a, &b, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);
+    let (y, err, _) = pfq_sum_terms(&a, &b, z, maxiter, terms, Dd::EPSILON);
     let accurate = Estimate::absolute((y.hi, err)).is_accurate();
     accurate.then_some((y, err))
 }
 
-/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, the part of the estimate of its
-/// absolute error from the rounding errors, and that estimate, or `None` if a start is `None`
+/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, in double-double, the part of the
+/// estimate of its absolute error from the rounding errors of the steps, and that estimate, or
+/// `None` if a start is `None`
 ///
 /// `step(k)` gives the `c_i` of the relation `c_0 F_{k+3} + c_1 F_{k+2} + c_2 F_{k+1} + c_3 F_k
 /// = 0` between the F at `k` steps from the result, and the sizes of the terms of each `c_i`.
@@ -116,7 +140,7 @@ fn recurrence_from(
     m: u32,
     start: impl Fn(f64) -> Option<(Dd, f64)>,
     step: impl Fn(f64) -> ([Dd; 4], [f64; 4]),
-) -> Option<(f64, f64, f64)> {
+) -> Option<(Dd, f64, f64)> {
     let start = |k: u32| start(f64::from(m + k));
     let starts = [start(0)?, start(1)?, start(2)?];
     // `[F_{k+1}, F_{k+2}, F_{k+3}]` for the next step `k`
@@ -138,24 +162,24 @@ fn recurrence_from(
         f = [next, f[0], f[1]];
     }
     // the `g_k` of the three F above each step, upwards from the result, and the bound of the
-    // rounding errors, which starts with that of the result
-    let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.5 * f64::EPSILON * f[0].hi.abs());
+    // rounding errors
+    let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.0);
     for (factors, bound) in steps.iter().rev() {
         rounding += g[0].abs() * bound;
         g = [g[0] * factors[0] + g[1], g[0] * factors[1] + g[2], g[0] * factors[2]];
     }
     let series: f64 = zip(g, starts).map(|(g, (_, err))| g.abs() * err).sum();
-    Some((f[0].hi, rounding, rounding + series))
+    Some((f[0], rounding, rounding + series))
 }
 
 /// `recurrence_from` in the lower parameter `bj`, where `other` is the other one
-fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(f64, f64, f64)> {
+fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(Dd, f64, f64)> {
     let checked = pfq_extreme(&a, &[bj, other, 1.0]);
     let start = |k: f64| {
         // the terms for `u` itself, which `pfq_terms` would round
         let u = Dd::new(bj) + k;
         let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
-        recurrence_start(a, [u.hi, other, 1.0], z, ratio)
+        recurrence_start(a, [u.hi, other, 1.0], z, PFQ_DD_MAXITER, ratio)
     };
     let step = |k: f64| {
         // F(b_j + k) from the relation at b = b_j + k + 3
@@ -169,44 +193,99 @@ fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<
     recurrence_from(m, start, step)
 }
 
+/// `upper_coefficients` of the relation in the upper parameter `a[i]` at `a = w - 1`, and the
+/// sizes of their terms
+fn upper_step(a: [f64; 3], i: usize, b: [f64; 2], z: f64, w: Dd) -> ([Dd; 4], [f64; 4]) {
+    let others = [a[(i + 1) % 3], a[(i + 2) % 3]];
+    let size = |v: f64| v.abs() + w.hi.abs();
+    (
+        upper_coefficients(w, b.map(|bj| bj - w), others.map(|ai| w - ai), Dd::new(z), -1.0),
+        upper_coefficients(w.hi.abs(), b.map(size), others.map(size), z.abs(), 1.0),
+    )
+}
+
 /// `recurrence_from` down in the upper parameter `a[i]`, where `b` are the lower ones
-fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Option<(f64, f64, f64)> {
+fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Option<(Dd, f64, f64)> {
     let (others, b1) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[0], b[1], 1.0]);
     let checked = pfq_extreme(&a, &b1);
     let start = |k: f64| {
         // the terms for `u` itself, as for a lower parameter
         let u = Dd::new(a[i]) + k;
         let ratio = |n| pfq_ratio::<Dd>(&others, &b1, n, checked) * (u + n);
-        recurrence_start([u.hi, others[0], others[1]], b1, z, ratio)
+        recurrence_start([u.hi, others[0], others[1]], b1, z, PFQ_DD_MAXITER, ratio)
+    };
+    // F(a_i + k) from the relation at a = a_i + k
+    recurrence_from(m, start, |k| upper_step(a, i, b, z, Dd::new(a[i]) + (k + 1.0)))
+}
+
+/// F and an estimate of its absolute error by `recurrence_from` up in each upper parameter from
+/// `a[i]` on that is at least `RAISED_MIN`, in at most `m` steps, or by the series if there is
+/// none, where `b` are the lower parameters
+///
+/// It is `None` if a series is not accurate, or if `work` runs out: what is left of
+/// `RAISED_WORK`.
+fn raised_recurrence(
+    a: [f64; 3],
+    i: usize,
+    b: [f64; 2],
+    z: f64,
+    m: u32,
+    work: &Cell<u32>,
+) -> Option<(Dd, f64)> {
+    let Some(i) = (i..3).find(|&i| a[i] >= RAISED_MIN) else {
+        let b1 = [b[0], b[1], 1.0];
+        let checked = pfq_extreme(&a, &b1);
+        // one of the work for each term, of which there are at most `maxiter`
+        let maxiter = PFQ_DD_MAXITER.min(work.get());
+        let ratio = |n| {
+            work.set(work.get() - 1);
+            pfq_ratio::<Dd>(&a, &b1, n, checked)
+        };
+        return recurrence_start(a, b1, z, maxiter, ratio);
+    };
+    // (so that the lowest start is not negative)
+    let m = m.min(a[i] as u32 - 2);
+    work.set(work.get().checked_sub(m)?);
+    let start = |k: f64| {
+        // exact: a_i < 2^53 and the integer k <= a_i are multiples of the spacing of the
+        // `f64` at a_i, and so is a_i - k, which is in [0, a_i]
+        let lowered = from_fn(|j| if j == i { a[i] - k } else { a[j] });
+        raised_recurrence(lowered, i + 1, b, z, m, work)
     };
     let step = |k: f64| {
-        // F(a_i + k) from the relation at a = a_i + k
-        let w = Dd::new(a[i]) + (k + 1.0);
-        let size = |v: f64| v.abs() + w.hi.abs();
-        (
-            upper_coefficients(w, b.map(|bj| bj - w), others.map(|ai| w - ai), Dd::new(z), -1.0),
-            upper_coefficients(w.hi.abs(), b.map(size), others.map(size), z.abs(), 1.0),
-        )
+        // F(a_i - k) from the relation at a = a_i - k - 3, whose F are in the reverse order
+        let (mut c, mut sizes) = upper_step(a, i, b, z, Dd::new(a[i]) - (k + 2.0));
+        c.reverse();
+        sizes.reverse();
+        (c, sizes)
     };
-    recurrence_from(m, start, step)
+    let (y, _, err) = recurrence_from(m, start, step)?;
+    Some((y, err))
+}
+
+/// `y` as `f64` and the estimate `err` of its absolute error plus its rounding, if that is
+/// accurate
+fn accurate(y: Dd, err: f64) -> Option<(f64, f64)> {
+    let y = (y.hi, err + 0.5 * f64::EPSILON * y.hi.abs());
+    Estimate::absolute(y).is_accurate().then_some(y)
 }
 
 /// The first accurate result of `run(m)` for the `m` of `starts`, which ascend, and the estimate
 /// of its absolute error
 fn recurrence_first(
     starts: impl IntoIterator<Item = u32>,
-    run: impl Fn(u32) -> Option<(f64, f64, f64)>,
+    run: impl Fn(u32) -> Option<(Dd, f64, f64)>,
 ) -> Option<(f64, f64)> {
     for m in starts {
         // (a series that is not accurate may be for a larger `m`)
         let Some((y, rounding, err)) = run(m) else {
             continue;
         };
-        if Estimate::absolute((y, err)).is_accurate() {
-            return Some((y, err));
+        if let Some(result) = accurate(y, err) {
+            return Some(result);
         }
         // a larger `m` ends with the same steps, after more of them
-        if !Estimate::absolute((y, rounding)).is_accurate() {
+        if accurate(y, rounding).is_none() {
             break;
         }
     }
@@ -216,8 +295,8 @@ fn recurrence_first(
 /// 3F2 for `|z| < 1` by the recurrence in a parameter, and an estimate of its absolute error,
 /// or `None` if it is not 3F2 or not accurate
 pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    // `a` and `b` are in descending order, and `b` has the 1 of `n!`
     let a: [f64; 3] = a.as_ref().try_into().ok()?;
-    // `b` is in descending order, and has the 1 of `n!`
     let &([1.0, large, small] | [large, 1.0, small] | [large, small, 1.0]) = b.as_ref() else {
         return None;
     };
@@ -231,11 +310,24 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
         let run = |m| upper_recurrence(a, i, [large, small], z, m);
         recurrence_first(offsets.map(|p| steps - p), run)
     };
-    // first in the smaller lower parameter, and last in the negative upper ones, in at most as
-    // many steps as the series has terms
+    let raised = || {
+        if z >= 0.0 || !(RAISED_MIN..f64::from(PFQ_MAXITER)).contains(&a[0]) {
+            return None;
+        }
+        // first in all steps of the largest upper parameter, `a[0]`, then in fewer, which make
+        // the errors less large and the series cancel more, while there is work left
+        let longest = a[0] as u32 - 2;
+        let fewer = RECURRENCE_STARTS.into_iter().rev().filter(|&m| m < longest);
+        let work = Cell::new(RAISED_WORK);
+        let tries = once(longest).chain(fewer).take_while(|_| work.get() > 0);
+        let run = |m| raised_recurrence(a, 0, [large, small], z, m, &work);
+        tries.filter_map(run).find_map(|(y, err)| accurate(y, err))
+    };
+    // first in the smaller lower parameter, then in the negative upper ones, and last up in the
+    // large upper ones for z < 0, each in at most as many steps as the series has terms
     let mut negative = (0..3).filter(|&i| (-f64::from(PFQ_MAXITER)..0.0).contains(&a[i]));
     let lowers = [(small, large), (large, small)].into_iter().find_map(lower);
-    lowers.or_else(|| negative.find_map(upper))
+    lowers.or_else(|| negative.find_map(upper)).or_else(raised)
 }
 
 #[cfg(test)]
@@ -276,5 +368,34 @@ mod tests {
             let result = recurrence_first([m], |m| upper_recurrence(a, 2, [b1, b2], z, m));
             assert_estimate(result, a, descending([b1, b2, 1.0]), z);
         }
+    }
+
+    #[test]
+    fn test_raised_recurrence_estimate() {
+        // up in one, two and three upper parameters, in at most `m` steps each; the last one
+        // from F = 1 at a_3 = 0
+        for (a, [b1, b2], z, m) in [
+            ([12.5, 0.75, 0.25], [2.5, 1.5], -0.5, 8),
+            ([14.25, 9.5, 0.5], [0.75, -2.25], -0.3, 16),
+            ([8.5, 6.25, 4.0], [3.5, 1.25], -0.9, 4),
+        ] {
+            let result = raised_recurrence(a, 0, [b1, b2], z, m, &Cell::new(RAISED_WORK));
+            let result = result.and_then(|(y, err)| accurate(y, err));
+            assert_estimate(result, a, descending([b1, b2, 1.0]), z);
+        }
+    }
+
+    #[test]
+    fn test_raised_recurrence_work() {
+        // the work that it takes is enough, and one less is not
+        let run = |work| {
+            let work = Cell::new(work);
+            let result = raised_recurrence([12.5, 0.75, 0.25], 0, [2.5, 1.5], -0.5, 8, &work);
+            (result.map(|(y, err)| (y.hi.to_bits(), err.to_bits())), work.get())
+        };
+        let (expected, left) = run(RAISED_WORK);
+        assert!(expected.is_some());
+        assert_eq!(run(RAISED_WORK - left), (expected, 0));
+        assert_eq!(run(RAISED_WORK - left - 1).0, None);
     }
 }
