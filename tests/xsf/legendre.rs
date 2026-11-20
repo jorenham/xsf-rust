@@ -337,6 +337,10 @@ fn test_legendre_q_all_c64_inf() {
         assert_eq!(xsf::legendre_q_all(1, z).0[0], c64(0.0, 0.0), "{z}");
         assert_eq!(xsf::assoc_legendre_q_all(1, 1, z).0[0][0], c64(0.0, 0.0), "{z}");
     }
+    // NaN wins over infinity
+    let z = c64(inf, f64::NAN);
+    assert!(xsf::legendre_q_all(1, z).0[0].is_nan());
+    assert!(xsf::assoc_legendre_q_all(1, 1, z).0[0][0].is_nan());
 }
 
 #[test]
