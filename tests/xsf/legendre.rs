@@ -330,6 +330,16 @@ fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_inf() {
+    // `Q_0(z) -> 0` as `|z| -> inf`
+    let inf = f64::INFINITY;
+    for z in [c64(inf, 0.0), c64(-inf, 1.0), c64(0.5, inf), c64(inf, -inf)] {
+        assert_eq!(xsf::legendre_q_all(1, z).0[0], c64(0.0, 0.0), "{z}");
+        assert_eq!(xsf::assoc_legendre_q_all(1, 1, z).0[0][0], c64(0.0, 0.0), "{z}");
+    }
+}
+
+#[test]
 fn test_legendre_q_all_c64_off_axis() {
     // NaN in xsf: `km` is not positive for `z = -0.389 - 1.0005i`, and the backward recurrence
     // overflows for `z = 1e8 + 3e7i`; Arb references
@@ -492,8 +502,8 @@ fn test_legendre_q_all_c64_tiny_im_real_parts() {
 
 #[test]
 fn test_legendre_q_all_c64_tiny_re() {
-    // the real part of `Q_0` lost the digits of `Re z` (scipy/xsf main as well), so these are
-    // compared by component; Arb references (mpmath's `legenq` type 2 for `|z| < 1`, else 3)
+    // the quotient in `Q_0` loses the digits of `Re z`, so these are compared by component; Arb
+    // references (mpmath's `legenq` type 2 for `|z| < 1`, else 3)
     let parts = |q: &[num_complex::Complex64]| -> Vec<f64> {
         q.iter().flat_map(|c| [c.re, c.im]).collect()
     };

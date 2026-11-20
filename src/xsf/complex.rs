@@ -437,6 +437,9 @@ pub(crate) trait Num:
     + Mul<f64, Output = Self>
     + Div<f64, Output = Self>
 {
+    /// Whether `T` is `std::complex<double>`
+    const COMPLEX: bool;
+
     /// `std::sqrt(x)`
     fn sqrt(self) -> Self;
     /// `std::sin(x)`
@@ -460,6 +463,8 @@ pub(crate) trait Num:
 }
 
 impl Num for f64 {
+    const COMPLEX: bool = false;
+
     #[inline]
     fn sqrt(self) -> Self {
         f64::sqrt(self)
@@ -503,6 +508,8 @@ impl Num for f64 {
 }
 
 impl Num for C64 {
+    const COMPLEX: bool = true;
+
     #[inline]
     fn sqrt(self) -> Self {
         C64::sqrt(self)
