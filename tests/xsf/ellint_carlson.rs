@@ -607,6 +607,27 @@ fn test_elliprj_conjugate_cut() {
             );
         }
     }
+
+    // an exact pair where rounding gives `lambda` a tiny imaginary part, near the cut and with a
+    // subnormal `Im p` (Arb)
+    let x = c64(-2.583_169_022_335_466, 1.251_316_297_465_678_4e-70);
+    let y = c64(8.112_302_455_109_168e-7, 0.0);
+    let p = c64(-3.525_393_241_933_433, 2.880_059_528_591_252e-140);
+    let actual = [xsf::elliprj(x, y, x.conj(), p)];
+    let expected = [c64(-320.523_995_035_498_9, -2.663_686_039_152_461_5)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    let x = c64(391.945_997_773_030_4, 155.956_030_228_474_33);
+    let z = c64(7.968_794_498_639_412e33, 0.0);
+    let p = c64(-3.846_870_561_155_529e35, 2.293_954_062_989_63e-309);
+    let actual = [xsf::elliprj(x, x.conj(), z, p)];
+    let expected = [c64(-3.206_047_660_640_072_3e-51, -1.954_913_392_456_703_8e-53)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+
+    // not a pair: conjugate only up to a subnormal imaginary part (Arb)
+    let x = c64(-1.0, 5e-324);
+    let actual = [xsf::elliprj(x, x, c64(0.25, 0.0), c64(-1.0, -4.0))];
+    let expected = [c64(1.431_004_976_908_286_7, -0.043_252_977_798_958_4)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 }
 
 #[test]

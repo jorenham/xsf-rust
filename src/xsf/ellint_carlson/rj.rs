@@ -80,9 +80,6 @@ mod rjimpl {
         pub(super) retry_caupv: bool,   /* should use Cauchy principal value */
         pub(super) good_infinity: bool, /* the "good" kind of directed infinity */
         pub(super) hit_pole: bool,      /* singular */
-        // Unlike in xsf, whether `lam` is real outside the right half-plane, i.e. for real
-        // `x, y, z` or a conjugate pair and a real third
-        pub(super) real_lam: bool,
     }
 
     /* Comparison function by the real part. */
@@ -158,11 +155,10 @@ mod rjimpl {
             /* "... or else let two of the variables x, y, z be nonzero and
              * conjugate complex with phase less in magnitude than pi and the
              * third variable be real and nonnegative." */
-            classify.real_lam = xyzreal_nonneg_atmost1z
+            return xyzreal_nonneg_atmost1z
                 || argcheck::r1conj2(x, y, z)
                 || argcheck::r1conj2(y, z, x)
                 || argcheck::r1conj2(z, x, y);
-            return classify.real_lam;
         }
         false
     }
@@ -812,6 +808,13 @@ fn rj_unscaled<T: Num>(
     let cancels = |a: T, diff: T| a.max_norm() > diff.max_norm() * const { pow2(4) };
     // Whether the arguments are in the right half-plane, where `Re lam >= 0`
     let right = xm.real() >= 0.0 && p.real() > 0.0;
+    // Unlike in xsf, keep `lam` real for real `x, y, z` or an exact conjugate pair and a real
+    // third, which the steps keep: its rounding error can outweigh a tiny `Im p`
+    let pair = |a: T, b: T, c: T| a.real() == b.real() && a.imag() == -b.imag() && c.imag() == 0.0;
+    let real_lam = [xm, ym, zm].iter().all(|a| a.imag() == 0.0)
+        || pair(xm, ym, zm)
+        || pair(ym, zm, xm)
+        || pair(zm, xm, ym);
     let mut prm;
     let mut lam;
     let mut dm;
@@ -826,6 +829,9 @@ fn rj_unscaled<T: Num>(
             cct1[2] = zm.sqrt();
             cct2[0] = cct1[2];
             lam = ndot2(&cct1, &cct2, 3);
+            if real_lam {
+                lam = T::from(lam.real());
+            }
             dm = common::sqrt_sum(pm, xm, prm, cct1[0])
                 * common::sqrt_sum(pm, ym, prm, cct1[1])
                 * common::sqrt_sum(pm, zm, prm, cct1[2]);
@@ -842,9 +848,9 @@ fn rj_unscaled<T: Num>(
             // `a` the closest of `x, y, z`.
             if pl.abs() < pm.abs() {
                 pl = common::add_lambda_p(pm, xyz, xyzl);
-                // Unlike in xsf, `Im(p + lam) = 4^-m Im p` if `lam` is real: the shift by a complex
-                // `a` can lose a tiny `Im p`, and with it the side of the branch cut
-                if classify.real_lam {
+                // Unlike in xsf, restore `Im(p + lam) = 4^-m Im p` for real `lam`: a complex `a`
+                // can round away a tiny `Im p`
+                if real_lam {
                     pl = (p - p.real()) * d4m + pl.real();
                 }
                 // Unlike in xsf, in the right half-plane the real part of `p + lam` is at least its
@@ -894,7 +900,7 @@ fn rj_unscaled<T: Num>(
     //
     // (not elsewhere: `p + lam` can lose a tiny `Im p` there, and `u` its side of the cut)
     let rc1 = |t: T, u: T| {
-        if !((right || classify.real_lam) && cancels(T::from(1.0), u)) {
+        if !((right || real_lam) && cancels(T::from(1.0), u)) {
             t.safe_atan_sqrt_div()
         } else if u.max_norm().is_normal() {
             rc(T::from(1.0), u, rerr).1
