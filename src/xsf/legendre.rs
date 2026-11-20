@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@10f45ae) and `xsf/cpu/recur.h`
+//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@0f963ea) and `xsf/cpu/recur.h`
 //! (scipy/xsf@b1eb270), for `T` either `double` or `std::complex<double>`. The dual numbers of
 //! `xsf/cpu/dual.h`, which xsf uses for derivatives, are not translated.
 //!
@@ -24,7 +24,6 @@ use crate::utils;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 use crate::xsf::complex::Num;
-use crate::xsf::log::clog1p;
 use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF};
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
@@ -699,31 +698,29 @@ fn lq0(x: f64) -> f64 {
 }
 
 /// `Q_0(z) = ln(ls (1 + z) / (1 - z)) / 2` for complex `z`, with `ls = -1` for `|z| > 1`, else 1
-///
-/// Unlike in xsf, this is `atanh(z)` as a difference of `clog1p` for `|z| < 1/2`, and `acoth(z)`
-/// as the same of `1 / z` for `|z| > 2`, since the quotient itself loses the digits of `z` for
-/// small or large `|z|`. Each difference has the branch of the quotient, as the arguments of its
-/// terms differ by less than pi. In between, the quotient is accurate (while `1 / z` would lose
-/// the digits of `1 - 1 / z` near `z = 1`).
-///
-/// Unlike in xsf, the real part `ln |(1 + w) / (1 - w)| / 2` (with `w` the `z` or `1 / z` above)
-/// is `ln_1p(4 Re w / |1 - w|^2) / 4` where `|(1 + w) / (1 - w)|^2` is within a factor 2 of 1,
-/// since the quotient and the difference lose the digits of a small `Re w`.
 fn q0_c64(z: C64) -> C64 {
+    if z.is_nan() {
+        return C64::NAN;
+    }
+    if z.re.is_infinite() || z.im.is_infinite() {
+        return C64::ZERO;
+    }
+    // the quotient loses digits for `|z| < 1/2` and `|z| > 2`, where `Q_0(z) = atanh(w)`, with
+    // `w = z` or `1 / z`, so there `Re atanh(w) = ln_1p(t) / 4` with `t = 4 Re w / |1 - w|^2`, and
+    // `Im atanh(w) = atan2(2 Im w, 1 - |w|^2) / 2`
     let a = z.norm();
     let w = if a > 2.0 { 1.0 / z } else { z };
-    let mut q = if (0.5..=2.0).contains(&a) {
-        let ls = if a > 1.0 { -1.0 } else { 1.0 };
-        ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0
-    } else {
-        (clog1p(w) - clog1p(-w)) / 2.0
-    };
-    // `|1 + w|^2 / |1 - w|^2 - 1`; outside, `ln` of the quotient is accurate
     let t = 4.0 * w.re / (1.0 - w).norm_sqr();
-    if (-0.5..=1.0).contains(&t) {
-        q.re = t.ln_1p() / 4.0;
+    if (0.5..=2.0).contains(&a) {
+        let ls = if a > 1.0 { -1.0 } else { 1.0 };
+        let mut q = ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
+        // in between, only a tiny `Re w` loses digits
+        if (-0.5..=1.0).contains(&t) {
+            q.re = t.ln_1p() / 4.0;
+        }
+        return q;
     }
-    q
+    c64(t.ln_1p() / 4.0, (2.0 * w.im).atan2(1.0 - w.norm_sqr()) / 2.0)
 }
 
 /// Replaces the imaginary parts of `Q` and `Q'` (by `lq`, `lqn_c64` or `lqmn_c64`, up to degree
@@ -929,9 +926,10 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             cqf2 = cqf1;
             cqf1 = cqf0;
         }
-        for k in 0..=n {
+        for k in 1..=n {
             cqn[k] *= cq0 / cqf0;
         }
+        cqn[0] = cq0;
     }
     cqd[0] = (cqn[1] - z * cqn[0]) / (z * z - 1.0);
 
@@ -1010,7 +1008,13 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
         // lifted by `2^e` if they would be subnormal, since the recurrence in the order can raise
         // them back into range
         let o = ex[j as usize];
-        let seeds = |e: i32| [0, 1].map(|i| seed(qm[(i, j)], cs[i as usize], e + o[i as usize]));
+        let seeds = |e: i32| {
+            [0, 1].map(|i| match (i, j) {
+                // as is for complex `z`, since the normalization can cost the digits of a part
+                (0, 0) if T::COMPLEX => ldexp(q0, e),
+                _ => seed(qm[(i, j)], cs[i as usize], e + o[i as usize]),
+            })
+        };
         let [mut q0, mut q1] = seeds(0);
         let mut e = 0;
         if l1(q0).max(l1(q1)) < f64::MIN_POSITIVE {
