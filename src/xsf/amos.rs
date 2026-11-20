@@ -2582,11 +2582,12 @@ pub(crate) fn besy(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     let exr = xx.cos();
     let exi = xx.sin();
     let tay = (yy + yy).abs();
-    let ey = if tay < elim {
+    let cut = tay >= elim;
+    let ey = if !cut {
         (-tay).exp()
     } else {
-        // Unlike in xsf, apply e^-2|y| as (e^-|y|)^2 if it underflows, as for |z| < fnu the
-        // scaled H that grows with |y| can be large enough for the product not to.
+        // Unlike in xsf, split e^-2|y| at the AMOS cutoff, as for |z| < fnu the scaled H that
+        // grows with |y| can be large enough for its product with it to be representable.
         let ey = (-yy.abs()).exp();
         let h = if yy < 0.0 {
             &mut cwrk[..]
@@ -2632,7 +2633,7 @@ pub(crate) fn besy(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
 
         st -= c64(aa, bb) * c1 * atol;
         cy[(i - 1) as usize] = st * hci;
-        if (st == C64::ZERO) && (ey == 0.0) {
+        if (st == C64::ZERO) && cut {
             nz += 1;
         }
     }
@@ -7277,5 +7278,14 @@ mod tests {
         besi(z, 0.0, 2, 1, &mut cy, &mut ierr);
         assert_eq!(ierr, 3);
         assert!((cy[0] - expected).norm() <= 5e-14 * expected.norm());
+    }
+
+    #[test]
+    fn besy_counts_terms_that_underflow_past_the_cutoff() {
+        let mut cy = [C64::ONE; 2];
+        let mut ierr = 0;
+        let nz = besy(c64(0.0, 740.0), 1060.0, 2, 2, &mut cy, &mut ierr);
+        assert_eq!((nz, ierr), (2, 0));
+        assert_eq!(cy, [C64::ZERO; 2]);
     }
 }
