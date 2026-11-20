@@ -409,8 +409,8 @@ fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checke
     }
 }
 
-/// `pfq_next`, but `None` where `t_{n+1}` is not normal, as the fallback of `pfq_next` then has
-/// more rounding errors
+/// `pfq_next` without its fallback to the rounded ratio, which can have more rounding errors, so
+/// `None` where `t_{n+1}` is not normal
 fn pfq_normal_next(a: &[f64], b: &[f64], n: f64, z: f64, term: f64, checked: bool) -> Option<f64> {
     let ratio = pfq_ratio::<f64>(a, b, n, checked) * z;
     let next = if is_normal(ratio) {
@@ -989,7 +989,7 @@ fn pfq_overflow(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         }
         // (a bound of the relative rounding errors, with a factor 2 to spare)
         let err = (n + 1.0) * roundings * f64::EPSILON;
-        // (`after 2^e >= 2^1025` by its exponent, as it can be beyond `f64`)
+        // (the lower bound `>= 2^1025` by its exponent, as it can be beyond `f64`)
         if before * (1.0 + err) <= pow2(1023) && frexp_f64(after * (1.0 - err)).1 + e > 1025 {
             return Some(Estimate::exact(f64::INFINITY.copysign(t)));
         }
