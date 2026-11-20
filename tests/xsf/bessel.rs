@@ -1073,6 +1073,25 @@ fn test_bessel_amos_huge_z() {
     );
 }
 
+#[test]
+fn test_bessel_amos_continuation_phase_near_axes() {
+    // scipy/xsf#516; Arb: besselk(0, -1 + 1e9j) exp(-1 + 1e9j), hankel1(0, 1e15 - 1j)
+    // exp(-1j (1e15 - 1j)), hankel2(0.25, -1e15) exp(-1e15j), and bessely(0.25, -1e15)
+    let actual = [
+        xsf::bessel_ke(0.0, c64(-1.0, 1e9)),
+        xsf::hankel_1e(0.0, c64(1e15, -1.0)),
+        xsf::hankel_2e(0.25, c64(-1e15, 0.0)),
+        xsf::bessel_ye(0.25, c64(-1e15, 0.0)),
+    ];
+    let expected = [
+        c64(2.802_495_607_148_028_4e-5, -2.802_495_609_249_900_3e-5),
+        c64(1.784_124_116_152_772e-8, -1.784_124_116_152_770_6e-8),
+        c64(-1.219_246_593_649_027_8e-8, -1.322_834_043_959_198_8e-8),
+        c64(1.431_895_141_248_916e-8, 6.967_430_772_425_719e-9),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+}
+
 xsref::tests! {
     test_bessel_k_c64: "cyl_bessel_k", "d_cd-cd", |x| xsf::bessel_k(x[0], c64(x[1], x[2]));
     test_bessel_ke_f64: "cyl_bessel_ke", "d_d-d", |x| xsf::bessel_ke(x[0], x[1]);

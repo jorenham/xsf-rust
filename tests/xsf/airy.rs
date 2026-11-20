@@ -227,6 +227,17 @@ fn test_airye_c64_large_zeta() {
 }
 
 #[test]
+fn test_airye_c64_continuation_phase() {
+    // scipy/xsf#516; Arb: Ai e^zeta and Ai' e^zeta at zeta = -2.1e7 i
+    let [ai, aip, ..] = xsf::airy_scaled(c64(-1e5, 0.0));
+    let expected = [
+        c64(-0.004_607_923_491_538_154, -0.012_319_411_137_112_426),
+        c64(-3.198_568_602_675_145_6, -8.551_461_789_453_638),
+    ];
+    xsref::np_assert_allclose!(&[ai, aip], &expected, rtol = 2e-15);
+}
+
+#[test]
 fn test_airy_c64_negative_real() {
     // Arb: acb(z).airy(); Bi and Bi' are not scaled, as Re zeta = 0
     let expected = [
