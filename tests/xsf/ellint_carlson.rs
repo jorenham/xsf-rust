@@ -736,6 +736,39 @@ fn test_elliprj_tiny_square_root_sum() {
 }
 
 #[test]
+fn test_elliprj_subnormal_difference() {
+    let p2 = |k: i32| 2.0_f64.powi(k);
+    let s = f64::from_bits(1);
+    let x = c64(-0.5, f64::from_bits(5));
+    let actual = [
+        // quartering the arguments rounds the subnormal `p - y` of a square root sum that cancels
+        xsf::elliprj(x, x.conj(), ONE * p2(800), x),
+        xsf::elliprj(x, x.conj(), ONE * p2(800), c64(x.re, f64::from_bits(3))),
+        // also next to a huge `z`, as the arguments aren't scaled up
+        xsf::elliprj(x, x.conj(), ONE * p2(1022), x),
+        // a rounded `p - x` that nothing cancelling is formed from
+        xsf::elliprj(ONE, ZERO, ONE * p2(1022), c64(1.0, s)),
+        xsf::elliprj(ONE * p2(717), ZERO, ONE * p2(717), c64(p2(717), s)),
+    ];
+    // Arb
+    let expected = [
+        c64(-6.356_054_587_629_254e-97, -4.702_927_978_231_049e202),
+        c64(9.294_220_595_638_364e-121, -5.451_253_281_024_553e202),
+        c64(-4.896_526_343_390_018e-130, -1.811_501_963_914_339_8e169),
+        c64(4.475_004_438_720_124e-154, 0.0),
+        c64(s, 0.0),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // 0 by underflow, where the unquartered duplicated arguments would overflow
+    let h = p2(1023);
+    assert_eq!(xsf::elliprj(ONE * h, ZERO, ONE * h, c64(h, s)), ZERO);
+    // and where the quartered ones do
+    let x = c64(1.75 * h, 1.75 * h);
+    assert_eq!(xsf::elliprj(x, x, x.conj(), ONE * s), ZERO);
+}
+
+#[test]
 fn test_elliprj_tiny_y() {
     // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
     let actual = [xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9), xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9)];
