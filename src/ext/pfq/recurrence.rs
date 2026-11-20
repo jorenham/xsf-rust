@@ -53,12 +53,9 @@ use super::{
     pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
-/// The `m` for which the recurrence starts from the series at `b + m`, in the order in which
-/// they are tried; for an upper parameter `a`, it starts from where `a + m` is about minus
+/// The `m` for which the recurrence steps down from the series at `b + m`, in the order in which
+/// they are tried; in a negative parameter `v`, it steps down from where `v + m` is about minus
 /// these, in reverse
-///
-/// Of 7136 results on 91004 points, 426 are from the last one and 537 from the one before it,
-/// and 8192 would give 273 more (measured).
 const RECURRENCE_STARTS: [u32; 10] = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
 
 /// Smallest upper parameter `a` that the recurrence goes up in: in a step from `a - 1`, `a - 2`
@@ -181,6 +178,18 @@ fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<
         let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
         recurrence_start(a, [u.hi, other, 1.0], z, PFQ_DD_MAXITER, ratio)
     };
+    lower_steps(a, bj, other, z, m, start)
+}
+
+/// `recurrence_from` in the lower parameter `bj` from `start(k)`, the F at `bj + k`
+fn lower_steps(
+    a: [f64; 3],
+    bj: f64,
+    other: f64,
+    z: f64,
+    m: u32,
+    start: impl Fn(f64) -> Option<(Dd, f64)>,
+) -> Option<(Dd, f64, f64)> {
     let step = |k: f64| {
         // F(b_j + k) from the relation at b = b_j + k + 3
         let u = Dd::new(bj) + (k + 2.0);
@@ -292,42 +301,58 @@ fn recurrence_first(
     None
 }
 
-/// 3F2 for `|z| < 1` by the recurrence in a parameter, and an estimate of its absolute error,
-/// or `None` if it is not 3F2 or not accurate
-pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+/// The `m` for which `v + m` is about -4096, ..., -8, the fewest first, if `v` is in reach of
+/// `PFQ_MAXITER` steps (after `ceil(-v)` of them, it would be in (0, 1))
+fn toward_zero(v: f64) -> impl Iterator<Item = u32> {
+    // (the cast saturates at 0 for v >= 0)
+    let steps = (-v).ceil() as u32;
+    let steps = if steps <= PFQ_MAXITER { steps } else { 0 };
+    let offsets = RECURRENCE_STARTS.iter().rev().filter(move |&&p| p < steps);
+    offsets.map(move |p| steps - p)
+}
+
+/// F by `raised_recurrence` for `z < 0`, first in all steps of the largest upper parameter,
+/// `a[0]`, then in fewer, which make the errors less large and the series cancel more, while
+/// there is work left, and the estimate of its absolute error, if that is accurate
+fn raised_first(a: [f64; 3], b: [f64; 2], z: f64) -> Option<(Dd, f64)> {
+    if z >= 0.0 || !(RAISED_MIN..f64::from(PFQ_MAXITER)).contains(&a[0]) {
+        return None;
+    }
+    let longest = a[0] as u32 - 2;
+    let fewer = RECURRENCE_STARTS.into_iter().rev().filter(|&m| m < longest);
+    let work = Cell::new(RAISED_WORK);
+    let tries = once(longest).chain(fewer).take_while(|_| work.get() > 0);
+    let run = |m| raised_recurrence(a, 0, b, z, m, &work);
+    let mut results = tries.filter_map(run);
+    results.find(|&(y, err)| accurate(y, err).is_some())
+}
+
+/// The upper and lower parameters of a 3F2, without the 1 of `n!` and in descending order, or
+/// `None` if it is not 3F2
+fn params_3f2<P: Params>(a: &P, b: &P) -> Option<([f64; 3], [f64; 2])> {
     // `a` and `b` are in descending order, and `b` has the 1 of `n!`
     let a: [f64; 3] = a.as_ref().try_into().ok()?;
     let &([1.0, large, small] | [large, 1.0, small] | [large, small, 1.0]) = b.as_ref() else {
         return None;
     };
+    Some((a, [large, small]))
+}
+
+/// 3F2 for `|z| < 1` by the recurrence in a parameter, and an estimate of its absolute error,
+/// or `None` if it is not 3F2 or not accurate
+pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    let (a, [large, small]) = params_3f2(a, b)?;
     let lower =
         |(bj, other)| recurrence_first(RECURRENCE_STARTS, |m| lower_recurrence(a, bj, other, z, m));
     let upper = |i: usize| {
-        // from the series where a_i + m is about -4096, ..., -8, the fewest steps first (after
-        // `steps` of them, it would be in (0, 1))
-        let steps = (-a[i]).ceil() as u32;
-        let offsets = RECURRENCE_STARTS.iter().rev().filter(|&&p| p < steps);
         let run = |m| upper_recurrence(a, i, [large, small], z, m);
-        recurrence_first(offsets.map(|p| steps - p), run)
+        recurrence_first(toward_zero(a[i]), run)
     };
-    let raised = || {
-        if z >= 0.0 || !(RAISED_MIN..f64::from(PFQ_MAXITER)).contains(&a[0]) {
-            return None;
-        }
-        // first in all steps of the largest upper parameter, `a[0]`, then in fewer, which make
-        // the errors less large and the series cancel more, while there is work left
-        let longest = a[0] as u32 - 2;
-        let fewer = RECURRENCE_STARTS.into_iter().rev().filter(|&m| m < longest);
-        let work = Cell::new(RAISED_WORK);
-        let tries = once(longest).chain(fewer).take_while(|_| work.get() > 0);
-        let run = |m| raised_recurrence(a, 0, [large, small], z, m, &work);
-        tries.filter_map(run).find_map(|(y, err)| accurate(y, err))
-    };
+    let raised = || raised_first(a, [large, small], z).and_then(|(y, err)| accurate(y, err));
     // first in the smaller lower parameter, then in the negative upper ones, and last up in the
     // large upper ones for z < 0, each in at most as many steps as the series has terms
-    let mut negative = (0..3).filter(|&i| (-f64::from(PFQ_MAXITER)..0.0).contains(&a[i]));
     let lowers = [(small, large), (large, small)].into_iter().find_map(lower);
-    lowers.or_else(|| negative.find_map(upper)).or_else(raised)
+    lowers.or_else(|| (0..3).find_map(upper)).or_else(raised)
 }
 
 #[cfg(test)]
