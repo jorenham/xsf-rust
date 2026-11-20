@@ -658,6 +658,7 @@ fn test_elliprj_wide_span() {
 
 #[test]
 fn test_elliprj_wide_span_complex() {
+    let x8 = c64(-3.404_076_565_287_425e255, 3.569_679_440_543_941e-182);
     let actual = [
         xsf::elliprj(c64(1e-60, 1e-60), c64(3e142, 3.5e142), c64(1e120, 3e120), c64(3e112, 9e112)),
         xsf::elliprj(
@@ -670,6 +671,8 @@ fn test_elliprj_wide_span_complex() {
         xsf::elliprj(ZERO, ONE * 1e-130, ONE * 1e80, c64(-1e75, 1e74)),
         // the duplicated `p` has a tiny imaginary part, which mustn't prevent the downscaling
         xsf::elliprj(ONE * 1e-130, ONE * 1e150, ONE * 1e72, c64(-5e-82, -5e-81)),
+        // a subnormal square root sum of the duplication step
+        xsf::elliprj(x8, x8.conj(), ONE * 2.726_537_368_598_458_6e-132, x8),
     ];
     // Arb
     let expected = [
@@ -677,6 +680,7 @@ fn test_elliprj_wide_span_complex() {
         c64(1.470_038_697_995_964_6e-202, 3.995_469_583_856_571_3e-203),
         c64(-7.026_491_305_778_003e-113, -7.482_776_732_461_581e-114),
         c64(4.460_686_995_705_570_6e-71, 4.929_003_648_729_797_4e-71),
+        c64(4.413_282_569_619_264e-140, -1.440_430_726_332_907_9e54),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
