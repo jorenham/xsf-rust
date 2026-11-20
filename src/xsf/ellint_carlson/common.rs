@@ -227,6 +227,31 @@ pub(super) fn frexp<T: super::typing::Num>(x: T) -> (T, i32) {
     (x.ldexp(-e), e)
 }
 
+/// The product of `factors`, in order
+///
+/// If a factor or a partial product is 0 or subnormal in the max norm, it is that of the
+/// `scaled(i)` instead, i.e. of the factors as [`frexp`]: a subnormal partial product is rounded,
+/// also if a huge last factor makes the product normal. Otherwise a subnormal part next to a
+/// normal one is still rounded, by up to an ulp of the max norm.
+pub(super) fn product<T: super::typing::Num, const N: usize>(
+    factors: [T; N],
+    scaled: impl Fn(usize) -> (T, i32),
+) -> T {
+    let mut prod = factors[0];
+    let mut tiny = prod.too_small();
+    for &f in &factors[1..] {
+        prod = prod * f;
+        tiny |= f.too_small() || prod.too_small();
+    }
+    if !tiny {
+        return prod;
+    }
+    let (m, e) = (1..N)
+        .map(&scaled)
+        .fold(scaled(0), |(m, e), (fm, fe)| (m * fm, e + fe));
+    m.ldexp(e)
+}
+
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
 ///
 /// Unlike in xsf (scipy/xsf#409), as `(a - b) / (sqrt(a) - sqrt(b))` if it cancels (halved if
@@ -270,8 +295,9 @@ pub(super) fn add_lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3], lam: T)
     core::array::from_fn(|i| {
         let a = xyz[i] + lam;
         if a.abs() < xyz[i].abs() {
-            let [j, k] = [(i + 1) % 3, (i + 2) % 3];
-            sqrt_sum(xyz[i], xyz[j], sq[i], sq[j]) * sqrt_sum(xyz[i], xyz[k], sq[i], sq[k])
+            let jk = [(i + 1) % 3, (i + 2) % 3];
+            let sums = jk.map(|j| sqrt_sum(xyz[i], xyz[j], sq[i], sq[j]));
+            product(sums, |n| sqrt_sum_frexp(xyz[i], xyz[jk[n]], sq[i], sq[jk[n]]))
         } else {
             a
         }
