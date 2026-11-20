@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/convex_analysis.h` (scipy/xsf@95e131e). Original author:
+//! Translated into pure Rust from `xsf/convex_analysis.h` (scipy/xsf@abb6966). Original author:
 //! argriffing.
 
 /// Elementwise function for computing the entropy
@@ -142,13 +142,21 @@ pub fn kl_div(x: f64, y: f64) -> f64 {
     if x.is_nan() || y.is_nan() {
         f64::NAN
     } else if 0.0 < x && 0.0 < y {
-        // Unlike in xsf (scipy/xsf#362), `rel_entr` is reused, and y ((1 + e) ln(1 + e) - e) is
-        // used near x = y.
+        // With x = y (1 + e), this is y ((1 + e) ln(1 + e) - e), which avoids cancellation near
+        // x = y
         let e = (x - y) / y;
+        if e == 0.0 {
+            return 0.0;
+        }
         if (-0.5..1.0).contains(&e) {
-            y * (crate::log1pmx(e) + e * e.ln_1p())
+            return y * (crate::log1pmx(e) + e * e.ln_1p());
+        }
+        let ratio = x / y;
+        if f64::MIN_POSITIVE < ratio && ratio < f64::INFINITY {
+            x * ratio.ln() - x + y
         } else {
-            rel_entr(x, y) - x + y
+            // x / y under- or overflows, so take the logarithms first (as in rel_entr)
+            x * (x.ln() - y.ln()) - x + y
         }
     } else if x == 0.0 && 0.0 <= y {
         y
