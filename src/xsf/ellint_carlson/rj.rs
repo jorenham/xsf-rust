@@ -430,13 +430,16 @@ fn rj_duplicated<T: Num>(
     }
     // Unlike in xsf, not quartered (`h = 1`) if that rounds a subnormal `p - a` and the square
     // root sum of `p` and `a` cancels, which is formed from it, or `p + lam` cancels, which is
-    // formed from that of the nearest `a` (any `a` counts here)
+    // formed from that of the nearest `a` (any `a` counts here). Likewise if one of these cancels
+    // and it leaves the duplicated arguments with only subnormal imaginary parts, which count as 0.
     let rounded = |i: usize| {
         let d = p4 - xyz4[i];
         d.too_small() && d * 4.0 != p - [x, y, z][i]
     };
     let cancels = |i: usize| pd.abs() < p4.abs() || (sp + sq[i]).abs() < sp.abs();
-    if h < 1.0 && (0..3).any(|i| rounded(i) && cancels(i)) {
+    let dup = [xyz[0], xyz[1], xyz[2], pd];
+    let lost_imag = realness(dup).0 && dup.iter().any(|a| a.imag() != 0.0);
+    if h < 1.0 && (0..3).any(|i| (lost_imag || rounded(i)) && cancels(i)) {
         return rj_duplicated(x, y, z, p, 1.0, rerr, noasymp);
     }
     // NaN if the unquartered duplicated arguments overflow

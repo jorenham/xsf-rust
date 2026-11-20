@@ -769,6 +769,30 @@ fn test_elliprj_subnormal_difference() {
 }
 
 #[test]
+fn test_elliprj_subnormal_imag() {
+    let p2 = |k: i32| 2.0_f64.powi(k);
+    let (m, s) = (f64::MIN_POSITIVE, f64::from_bits(1));
+    let x = c64(-p2(-30), 4.342_393_763_554_186_5e-272);
+    let x1 = c64(-1.231_626_472_742_281_6e226, 5.530_266_466_854_912e-223);
+    let actual = [
+        // quartered, the duplicated arguments get subnormal imaginary parts, which count as 0
+        xsf::elliprj(x, x.conj(), ONE * 7.834_207_360_637_343e168, c64(x.re.next_down(), x.im)),
+        xsf::elliprj(x1, x1.conj(), ZERO, c64(x1.re, -2.018_394_559_566_016e-223)),
+    ];
+    // Arb
+    let expected = [
+        c64(-2.947_533_875_963_715_5e-57, -8.141_477_836_328_409e-60),
+        c64(4.243_660_222_025_578_4e-75, 6.285_526_858_619_49e109),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // not if nothing cancels, where taking them as real is as accurate as before
+    let actual = [xsf::elliprj(c64(m, -4.0 * s), ZERO, ONE * m, c64(p2(549), m))];
+    let expected = [c64(1.714_357_124_141_202_7e-11, 3.806_637_503_303_462e-27)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+}
+
+#[test]
 fn test_elliprj_tiny_y() {
     // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
     let actual = [xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9), xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9)];
