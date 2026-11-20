@@ -2125,6 +2125,7 @@ def _below_cut(xs: tuple[float, ...]) -> tuple[Rule, ...]:
 
 def _lambertw(re: mp.mpf, im: mp.mpf, k: mp.mpf, _tol: mp.mpf) -> mp.mpc:
     """W_k(z), which does not depend on the tolerance of the iteration of xsf."""
+    # (the table has no Im z = -0 rows, which mpmath and Arb can't tell from +0 on the cuts)
     return mp.lambertw(mp.mpc(re, im), int(k))
 
 
@@ -2148,7 +2149,6 @@ LAMBERTW_RULES: Final = (
         complex(math.nan, 0.0),
         "W(z) = z for z = NaN + 0i, like xsf",
     ),
-    COMPLEX_NAN,
     _lambertw_at_inf(math.inf, 0),
     _lambertw_at_inf(math.inf, 1),
     _lambertw_at_inf(-math.inf, 1),
