@@ -181,6 +181,16 @@ fn top_factor(e: f64) -> f64 {
     ((254.0 - e) / 2.0).floor().exp2()
 }
 
+/// The power of 2 `f > 1` whose square upscales the largest of `args` to at most 2^254, if any
+///
+/// Unlike [`scale_factor`], also from within [2^-256, 2^256], where a product of three tiny
+/// arguments, or of their differences (e.g. `delta` in `rj`), can still underflow.
+pub(super) fn upscale_factor<T: super::typing::Num>(args: &[T]) -> Option<f64> {
+    let amax = args.iter().map(|a| a.max_norm()).fold(0.0, f64::max);
+    let f = top_factor(amax.log2());
+    (f > 1.0 && f.is_finite()).then_some(f)
+}
+
 /// Whether `scale_factor` with `min` can't downscale a huge argument because of a tiny one, i.e.
 /// if the largest argument is above 2^256 and more than `2^254 / min` (2^1276 for
 /// `f64::MIN_POSITIVE`) times the smallest one

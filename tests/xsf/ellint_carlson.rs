@@ -855,6 +855,59 @@ fn test_elliprj_subnormal_imag() {
 }
 
 #[test]
+fn test_elliprj_subnormal_delta() {
+    let p2 = |k: i32| 2.0_f64.powi(k);
+    let x = c64(-1.167_889_111_935_278e45, 1.471_454_003_441_240_8e-172);
+    let x1 = c64(-4.434_065_827_113_934e34, 2.186_661_079_437_059e-161);
+    let x2 = c64(-3.014_284_785_580_670_7e-77, 3.022_044_004_073_942e-88);
+    let y = c64(p2(-900), p2(-901));
+    let actual = [
+        // `delta` of the loop underflows, or a partial product of it, unless the arguments are
+        // upscaled
+        xsf::elliprj(
+            x,
+            x.conj(),
+            ONE * 1.210_487_892_549_367e43,
+            c64(x.re, -3.205_624_184_419_254e-172),
+        ),
+        xsf::elliprj(
+            x1,
+            x1.conj(),
+            ONE * 8.214_861_731_877_567e-204,
+            c64(x1.re, -5.662_168_100_451_648_5e-161),
+        ),
+        // `delta` is normal, but `delta 4^-2m` in the loop isn't
+        xsf::elliprj(ZERO, y, ONE * p2(78), ONE * p2(-500)),
+        // nor the product of its first two factors, or `s^2` (in the first one)
+        xsf::elliprj(ZERO, y, ONE * p2(78), ONE * p2(-550)),
+        xsf::elliprj(ZERO, y, ONE * p2(81), ONE * p2(-550)),
+        // also if the arguments can't be upscaled
+        xsf::elliprj(ZERO, y, ONE * p2(256), ONE * p2(-589)),
+        // the step and the upscaling alternate
+        xsf::elliprj(ZERO, ONE * f64::from_bits(1), ONE * p2(253), c64(p2(-1020), p2(-1020))),
+        // not by the step if the subnormal `Im z` takes the shifted arguments out of the domain
+        xsf::elliprj(
+            x2,
+            x2.conj(),
+            c64(1.763_600_756_787_408_2e-249, 1e-310),
+            c64(1.5 * x2.re, x2.im),
+        ),
+    ];
+    // Arb (the last one with `Im z = 0`)
+    let expected = [
+        c64(-1.845_574_348_790_100_6e-65, 4.337_305_767_725_274e149),
+        c64(-7.214_117_479_787_963e-50, 4.378_123_669_686_43e143),
+        c64(2.487_693_345_481_894e141, -4.141_019_586_341_121_4e138),
+        c64(2.452_384_296_026_243e156, -4.662_373_566_494_95e153),
+        c64(8.670_487_828_977_77e155, -1.648_397_982_646_743_8e153),
+        c64(1.936_714_749_728_869_7e141, -4.141_019_586_341_121_4e138),
+        c64(2.798_077_604_098_084e270, -2.688_054_912_283_786_6e270),
+        c64(-9.257_333_890_993_706e116, -4.649_958_488_504_821e115),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj_tiny_y() {
     // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
     let actual = [xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9), xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9)];
