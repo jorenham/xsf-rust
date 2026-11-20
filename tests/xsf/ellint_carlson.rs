@@ -670,7 +670,7 @@ fn test_elliprj_real_cut() {
 }
 
 #[test]
-#[cfg_attr(debug_assertions, ignore = "overflows a debug stack")]
+#[cfg_attr(debug_assertions, ignore = "overflows a debug stack (#1765)")]
 fn test_elliprj_real_cut_huge_p() {
     // real `x, y, z` with a huge `p`, whose distance to them overflows (Arb)
     let x = c64(2.0_f64.powi(-256), 0.0);
