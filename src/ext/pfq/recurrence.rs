@@ -218,15 +218,29 @@ fn upper_step(a: [f64; 3], i: usize, b: [f64; 2], z: f64, w: Dd) -> ([Dd; 4], [f
     )
 }
 
-/// `recurrence_from` down in the upper parameter `a[i]`, where `b` are the lower ones
-fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Option<(Dd, f64, f64)> {
+/// `recurrence_from` down in the upper parameter `a[i]`, where `b` are the lower ones, from series
+/// of at most `maxiter` terms, or `None` if a series is not accurate or `work` runs out, of which
+/// each step and term takes one
+fn upper_recurrence(
+    a: [f64; 3],
+    i: usize,
+    b: [f64; 2],
+    z: f64,
+    m: u32,
+    maxiter: u32,
+    work: &Cell<u32>,
+) -> Option<(Dd, f64, f64)> {
     let (others, b1) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[0], b[1], 1.0]);
     let checked = pfq_extreme(&a, &b1);
+    work.set(work.get().checked_sub(m)?);
     let start = |k: f64| {
         // the terms for `u` itself, as for a lower parameter
         let u = Dd::new(a[i]) + k;
-        let ratio = |n| pfq_ratio::<Dd>(&others, &b1, n, checked) * (u + n);
-        recurrence_start([u.hi, others[0], others[1]], b1, z, PFQ_DD_MAXITER, ratio)
+        let ratio = |n| {
+            work.set(work.get() - 1);
+            pfq_ratio::<Dd>(&others, &b1, n, checked) * (u + n)
+        };
+        recurrence_start([u.hi, others[0], others[1]], b1, z, maxiter.min(work.get()), ratio)
     };
     // F(a_i + k) from the relation at a = a_i + k
     recurrence_from(m, start, |k| upper_step(a, i, b, z, Dd::new(a[i]) + (k + 1.0)))
@@ -306,12 +320,18 @@ fn recurrence_first(
     None
 }
 
-/// The `m` for which `v + m` is about -4096, ..., -8, the fewest first, if `v` is in reach of
-/// `PFQ_MAXITER` steps (after `ceil(-v)` of them, it would be in (0, 1))
-fn toward_zero(v: f64) -> impl Iterator<Item = u32> {
+/// The `ceil(-v)` steps after which `v` would be in (0, 1), or 0 if `v >= 0` or if they are more
+/// than `PFQ_MAXITER`
+fn steps_to_zero(v: f64) -> u32 {
     // (the cast saturates at 0 for v >= 0)
     let steps = (-v).ceil() as u32;
-    let steps = if steps <= PFQ_MAXITER { steps } else { 0 };
+    if steps <= PFQ_MAXITER { steps } else { 0 }
+}
+
+/// The `m` for which `v + m` is about -4096, ..., -8, the fewest first, if `v` is in reach of
+/// `PFQ_MAXITER` steps
+fn toward_zero(v: f64) -> impl Iterator<Item = u32> {
+    let steps = steps_to_zero(v);
     let offsets = RECURRENCE_STARTS.iter().rev().filter(move |&&p| p < steps);
     offsets.map(move |p| steps - p)
 }
@@ -349,7 +369,8 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
     let lower =
         |(bj, other)| recurrence_first(RECURRENCE_STARTS, |m| lower_recurrence(a, bj, other, z, m));
     let upper = |i: usize| {
-        let run = |m| upper_recurrence(a, i, [large, small], z, m);
+        let run =
+            |m| upper_recurrence(a, i, [large, small], z, m, PFQ_DD_MAXITER, &Cell::new(u32::MAX));
         recurrence_first(toward_zero(a[i]), run)
     };
     let raised = || {
@@ -409,7 +430,9 @@ mod tests {
             ([2.5, 1.5, -30.5], [4.25, 0.75], -0.5, 23),
             ([-3.5, -12.25, -24.75], [-1.5, -30.5], 0.9, 17),
         ] {
-            let result = recurrence_first([m], |m| upper_recurrence(a, 2, [b1, b2], z, m));
+            let result = recurrence_first([m], |m| {
+                upper_recurrence(a, 2, [b1, b2], z, m, PFQ_DD_MAXITER, &Cell::new(u32::MAX))
+            });
             assert_estimate(result, a, descending([b1, b2, 1.0]), z);
         }
     }
