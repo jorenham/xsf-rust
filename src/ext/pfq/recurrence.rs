@@ -235,13 +235,13 @@ fn raised_recurrence(
     let Some(i) = (i..3).find(|&i| a[i] >= RAISED_MIN) else {
         let b1 = [b[0], b[1], 1.0];
         let checked = pfq_extreme(&a, &b1);
-        // one of the work for each term, of which there are at most `maxiter`
-        let maxiter = PFQ_DD_MAXITER.min(work.get());
+        // one of the work for each term, up to all that is left: near z = -1, the series can
+        // take more than `PFQ_DD_MAXITER` terms
         let ratio = |n| {
             work.set(work.get() - 1);
             pfq_ratio::<Dd>(&a, &b1, n, checked)
         };
-        return recurrence_start(a, b1, z, maxiter, ratio);
+        return recurrence_start(a, b1, z, work.get(), ratio);
     };
     // (so that the lowest start is not negative)
     let m = m.min(a[i] as u32 - 2);

@@ -293,6 +293,8 @@ fn test_hyp3f2_recurrence() {
             -0.5,
             -7.683_075_807_302_188e-10,
         ),
+        // near z = -1, from series of more than 2500 terms
+        ([80.5, 0.125, 0.5], [-0.25, 0.25], -0.98, 0.523_156_315_386_979_5),
     ] {
         assert_hyp3f2(a, b, z, expected);
     }
