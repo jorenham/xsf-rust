@@ -1843,10 +1843,9 @@ def _i_overflows(a: tuple[float, ...]) -> bool:
 
 
 def _i_nan(a: tuple[float, ...]) -> bool:
-    """Whether xsf-rust's I_v(x) is NaN where it overflows (`ierr = 2`) for a non-integer v: for
+    """Whether xsf's I_v(x) is NaN where it overflows (`ierr = 2`) for a non-integer v: for
     v < 0 where the reflection's K_-v(x) overflows (always for x < 0, DLMF 10.34.2), and for
-    v > 0 and x < 0 where AMOS underflows e^-|x| I_v(x) to 0 and I_v+1(x) of the recurrence
-    overflows."""
+    v > 0 and x < 0, where its scaled e^-|x| I_v(x), which it multiplies by inf, underflows."""
     v, x, y = a
     if y != 0 or v.is_integer() or not _i_overflows(a):
         return False
@@ -1854,7 +1853,7 @@ def _i_nan(a: tuple[float, ...]) -> bool:
         with flint.ctx.workprec(128):
             k = flint.arb(x).bessel_k(flint.arb(-v))
         return v < 0 and float(k.log().mid()) > LOG_MAX
-    return v < 0 or _i_log(a) - abs(x) < -AMOS_ELIM and _i_log((v + 1, x, y)) > LOG_MAX
+    return v < 0 or _i_log(a) - abs(x) < -AMOS_ELIM
 
 
 def _i_part_overflows(a: tuple[float, ...]) -> bool:
@@ -1867,10 +1866,17 @@ def _i_part_overflows(a: tuple[float, ...]) -> bool:
     return math.isinf(float(i.real.mid())) != math.isinf(float(i.imag.mid()))
 
 
-I_PART_OVERRIDE: Final = Override(
-    _i_part_overflows,
-    "xsf multiplies both parts of e^-|Re z| I_v(z) by inf where one part of I_v(z) overflows"
-    " (`ierr = 2`)",
+I_PART_OVERRIDES: Final = (
+    Override(
+        lambda a: a[0] >= 0 and _i_part_overflows(a),
+        "xsf multiplies both parts of e^-|Re z| I_v(z) by inf where one part of I_v(z) overflows"
+        " (`ierr = 2`)",
+    ),
+    Override(
+        lambda a: a[0] < 0 and _i_part_overflows(a),
+        "xsref has the finite part where the other part of I_v(z) overflows, but xsf is NaN"
+        " there, by the K_-v(z) of its reflection (DLMF 10.27.2)",
+    ),
 )
 
 # the v, x where xsf's I_v(x) is inf or NaN by AMOS's overflow estimates, but finite
@@ -2036,15 +2042,14 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     complex(math.nan, math.nan),
                     "AMOS returns NaN where I_v(x) overflows for a non-integer v < 0 and x < 0, or"
                     " x > 0 where the K_-v(x) of DLMF 10.27.2 overflows, and for v > 0 and x < 0"
-                    " where it underflows e^-|x| I_v(x) to 0 and the I_v+1(x) of the recurrence"
-                    " overflows",
+                    " where xsf's e^-|x| I_v(x) times inf is NaN, as AMOS underflows it to 0",
                 ),
                 Rule(
                     lambda a: a[2] == 0 and a[1] > 0 and _i_overflows(a),
                     complex(math.inf, 0),
                     "xsf returns inf where I_v(x) overflows for x > 0 (`ierr = 2`)",
                 ),
-                overrides=(I_OVERRIDE, I_PART_OVERRIDE),
+                overrides=(I_OVERRIDE, *I_PART_OVERRIDES),
                 floors=(I_REFLECTION_FLOOR, I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
             ),
             entry("je"),

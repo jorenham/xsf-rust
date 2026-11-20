@@ -925,10 +925,6 @@ fn test_bessel_amos_i_overflow_by_part() {
     let i = xsf::bessel_i(385.75, c64(716.044_300_663_178_2, 32_760.175_578_041_82));
     assert!(near_part(i.re, 4.098_878_142_449_450_5e307, 4.0e-12), "{i}");
     assert!(i.im == f64::INFINITY, "{i}");
-    // the value before the rotation to z overflows (Arb: |I| = 1.7977003e308), but not its parts
-    let i = xsf::bessel_i(1500.25, c64(-1_440.844_949_792_818_9, 0.0));
-    assert!(near_part(i.re, 6.355_830_397_878_139e307, 1.64e-13), "{i}");
-    assert!(near_part(i.im, 6.355_830_397_878_139e307, 1.64e-13), "{i}");
     // the reflection to v < 0 keeps the finite part (the K term is about 1e-312)
     let i = xsf::bessel_i(-100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
     assert!(i.re == f64::INFINITY, "{i}");
@@ -945,16 +941,25 @@ fn test_bessel_amos_i_overflow_by_part() {
 
 #[test]
 fn test_bessel_amos_i_overflow_by_part_lost() {
-    // the imaginary part underflows to 0 or a subnormal in `e^-|Re z| I_v(z)`, and I_1 overflows
-    // (Arb: 3.6e-13 and 7.3e-10)
+    // the imaginary part of `e^-|Re z| I_v(z)` underflows to 0 or a subnormal (Arb: 3.6e-13 and
+    // 7.3e-10)
     for y in [5e-324, 1e-320] {
         let i = xsf::bessel_i(0.0, c64(720.0, y));
         assert!(i.re == f64::INFINITY && i.im.is_nan(), "{i}");
     }
-    // `e^-|Re z| I_v(z)` underflows to 0, and the real part is too small for the recurrence (Arb:
-    // 3.45e283 - 2.39e308i)
-    let i = xsf::bessel_i(1500.5, c64(-1_441.2, -1e-25));
-    assert!(i.re.is_nan() && i.im == f64::NEG_INFINITY, "{i}");
+    // a subnormal part that overflows even one ulp less (Arb: 2.85e339)
+    let i = xsf::bessel_i(0.0, c64(1500.0, 1e-310));
+    assert!(i.re == f64::INFINITY && i.im == f64::INFINITY, "{i}");
+    // `e^-|Re z| I_v(z)` underflows to 0, though its parts don't overflow (Arb: 1.27e308 (1 + i)
+    // and 3.45e283 - 2.39e308i)
+    for (v, z) in [(1500.25, c64(-1_440.844_949_792_818_9, 0.0)), (1500.5, c64(-1_441.2, -1e-25))] {
+        let i = xsf::bessel_i(v, z);
+        assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
+    }
+    // the real part of `e^-|Re z| I_v(z)` cancels to 0 in AMOS (Arb: -8.25e293 + 1.22e310i)
+    let i =
+        xsf::bessel_i(56.670_551_070_453_26, c64(-720.438_283_905_823_6, 0.534_519_658_542_622_3));
+    assert!(i.re.is_nan() && i.im == f64::INFINITY, "{i}");
 }
 
 /// Whether `x` is within `rtol` of the exact `2 h` (halved to stay finite), or overflows where

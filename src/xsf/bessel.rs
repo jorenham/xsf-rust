@@ -330,46 +330,32 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
 /// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
 ///
 /// xsf multiplies both parts of `e^-|Re z| I_v(z)` by inf, which also loses a part below
-/// `f64::MAX`. So this unscales each normal part of `e^-|Re z| I_v(z)`, and recurs the others
-/// down `I_v = I_{v+2} + 2 (v+1) / z I_{v+1}` (DLMF 10.29.1) from the higher orders, which are
-/// smaller. A zero or subnormal scaled part lost its digits to underflow.
+/// `f64::MAX`. So this unscales each part instead, unless AMOS has it as 0, by total cancellation
+/// or underflow, or it is subnormal and could be finite, as it lost digits then.
 fn cyl_bessel_i_overflow(v: f64, z: C64) -> C64 {
-    let ie = if z.re < 0.0 {
+    let ie = cyl_bessel_ie_c64(v, z);
+    let exact = if z.re < 0.0 {
         // I_v(z) = e^(+-i pi v) I_v(-z) (DLMF 10.34.1), as in AMOS, but with an exact cos(pi v)
         // and sin(pi v): their rounding errors would swamp a much smaller part
         let s = if z.im < 0.0 { -1.0 } else { 1.0 } * cephes_sinpi(v);
-        let c = cephes_cospi(v);
-        cyl_bessel_ie_c64(v, -z) * c64(c, s)
+        cyl_bessel_ie_c64(v, -z) * c64(cephes_cospi(v), s)
     } else {
-        cyl_bessel_ie_c64(v, z)
+        ie
     };
-    let mut cy = ie.mul_exp(z.re.abs());
-    if ie.re.is_normal() && ie.im.is_normal() {
-        return cy;
-    }
-    let (i1, _) = amos1(amos::besi, z, v + 1.0, 1);
-    let (i2, _) = amos1(amos::besi, z, v + 2.0, 1);
-    // halved, as a term can overflow where only the sum does
-    let t = (v + 1.0) / z * i1;
-    let half = i2 * 0.5 + t;
-    // a part only for |2 t| + |i2| <= 2 |part| (in quarters, which stay finite), so that the errors
-    // of i1 and i2 (relative to their norms) grow by at most 2 relative to the part
-    let bound = (t * 0.5).norm() + (i2 * 0.25).norm();
-    let part = |p: f64| {
-        if i2.is_finite() && t.is_finite() && bound <= p.abs() {
-            2.0 * p
-        } else {
-            // as in xsf for a part that underflowed to 0 (0 times inf)
+    let x = z.re.abs();
+    let cy = exact.mul_exp(x);
+    // one subnormal ulp below each part
+    let ulp = f64::from_bits(1);
+    let low = c64(exact.re.abs() - ulp, exact.im.abs() - ulp).mul_exp(x);
+    // NaN where AMOS has 0 (as in xsf), or for a subnormal part unless one ulp less overflows too
+    let part = |amos: f64, p: f64, y: f64, y_low: f64| {
+        if amos == 0.0 || (!p.is_normal() && y_low.is_finite()) {
             f64::NAN
+        } else {
+            y
         }
     };
-    if !ie.re.is_normal() {
-        cy.re = part(half.re);
-    }
-    if !ie.im.is_normal() {
-        cy.im = part(half.im);
-    }
-    cy
+    c64(part(ie.re, exact.re, cy.re, low.re), part(ie.im, exact.im, cy.im, low.im))
 }
 
 pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
