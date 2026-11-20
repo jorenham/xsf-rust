@@ -32,7 +32,7 @@ const PFQ_MAXITER: u32 = 10_000;
 /// about 20 times as long
 const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 
-/// Maximum number of terms of `pfq_series_long`, in either arithmetic
+/// Maximum number of terms of `pfq_series_long`
 ///
 /// Of 199 `None` of 3F2 on 20000 points, it gives 13, and twice as many terms would give 4
 /// more, in up to twice the time (measured).
@@ -463,11 +463,12 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
     (y, err)
 }
 
-/// `pfq_series` with up to `PFQ_LONG_MAXITER` terms, also in double-double, as near `z = 1` it
-/// can need more
-fn pfq_series_long(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64) {
-    let (y, err, _) = pfq_series_upto(a, b, z, [PFQ_LONG_MAXITER; 2]);
-    (y, err)
+/// The series in double-double with up to `PFQ_LONG_MAXITER` terms, if it is accurate, as near
+/// `z = 1` it can need more than `pfq_series`, and an `f64` sum can drop its small terms
+fn pfq_series_long(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> Option<(f64, f64)> {
+    let (y, err, _) = pfq_sum::<Dd>(a, b, z, PFQ_LONG_MAXITER);
+    let y = (f64::from(y), err);
+    Estimate::absolute(y).is_accurate().then_some(y)
 }
 
 /// Largest partial sum, in units of `unit`, whose square is added to the sums of squares
@@ -479,23 +480,13 @@ const PFQ_UNIT: f64 = pow2(-400);
 /// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
 /// largest of them
 fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
-    pfq_series_upto(a, b, z, [PFQ_MAXITER, PFQ_DD_MAXITER])
-}
-
-/// `pfq_series_tails` with at most `maxiter` terms in `f64` and in double-double
-fn pfq_series_upto(
-    a: &impl AsRef<[f64]>,
-    b: &impl AsRef<[f64]>,
-    z: f64,
-    [maxiter, dd_maxiter]: [u32; 2],
-) -> (f64, f64, f64) {
-    let (y, err, tails) = pfq_sum::<f64>(a, b, z, maxiter);
+    let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     // (not in double-double, whose `EPSILON` leaves room for many more parameters)
     let err = err * pfq_rounding_scale(a.as_ref(), b.as_ref());
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
-        let (y, err, tails) = pfq_sum::<Dd>(a, b, z, dd_maxiter);
+        let (y, err, tails) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
         (f64::from(y), err, tails)
     }
 }
@@ -852,7 +843,6 @@ type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 /// `pfq_series_long`.
 fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
-    let long: Method<P> = |a, b, z| Some(pfq_series_long(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
     let methods: &[Method<P>] = if polynomial || z > PFQ_WENIGER_MAX_Z {
         &[series]
@@ -867,7 +857,7 @@ fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     };
     let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
     let inside: &[Method<P>] = if !polynomial && z.abs() < 1.0 {
-        &[recurrence::pfq_recurrence, long]
+        &[recurrence::pfq_recurrence, pfq_series_long]
     } else {
         &[]
     };

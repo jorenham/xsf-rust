@@ -231,9 +231,15 @@ fn test_hyp3f2_long_series() {
         ([12.5, 0.6875, -10.125], [-0.015_625, 0.171_875], 0.995, 13_118_233.367_026_178),
         // more than 10^4 terms
         ([0.468_75, -0.031_25, -0.8125], [-24.25, -17.5], 0.99, -2.407_886_558_460_386e90),
+        // terms below half an ulp of the sum, which `f64` drops
+        ([6e-30, 12.0, 13.0], [7.0, 11.0], 0.999, 1.000_000_000_000_594_9),
     ] {
         assert_hyp3f2(a, b, z, expected);
+        assert_eq!(hyppfq(&a, &b, z), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], z)));
     }
+    // the terms cancel too much, also in double-double (Arb: 1.2065715942224405e-6)
+    let y = hyp3f2(-84.75, 59.5, 5.75, 17.25, 39.25, 0.996);
+    assert!(y.is_nan() || (y - 1.206_571_594_222_440_5e-6).abs() <= 1e-13 * y.abs(), "{y}");
 }
 
 #[test]
