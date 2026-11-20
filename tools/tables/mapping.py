@@ -2,6 +2,7 @@
 replaces: an `Entry` per table and signature. The other tables keep those of xsref.
 """
 
+import cmath
 import functools
 import math
 import sys
@@ -1452,10 +1453,15 @@ def _amos_airy_mlri(a: tuple[float, ...]) -> bool:
     return any(_amos_acai_mlri(_amos_airy_arg(x, n)) for n in orders)
 
 
+def _amos_seri(v: float, az: float) -> bool:
+    """Whether `binu` computes I_v(z) (v >= 0) with its power series (`seri`) at |z| = az."""
+    return az <= 2 or az * az / 4 <= v + 1
+
+
 def _amos_mlri(v: float, az: float) -> bool:
-    """Whether `binu` computes I_v(z) (v >= 0) with `mlri` at |z| = az: outside of its power
-    series (`seri`), for `az < rl` and v <= fnul (else `buni`), or at `az = rl` unless `asyi`."""
-    if az <= 2 or az * az / 4 <= v + 1 or v > AMOS_FNUL:
+    """Whether `binu` computes I_v(z) (v >= 0) with `mlri` at |z| = az: outside of `seri`, for
+    `az < rl` and v <= fnul (else `buni`), or at `az = rl` unless `asyi`."""
+    if _amos_seri(v, az) or v > AMOS_FNUL:
         return False
     return az < AMOS_RL or az == AMOS_RL and 2 * az < v * v
 
@@ -1463,9 +1469,8 @@ def _amos_mlri(v: float, az: float) -> bool:
 def _amos_buni(v: float, az: float) -> bool:
     """Whether `binu` computes I_v(z) (v >= 0) with its uniform asymptotic expansion (`buni`)
     at |z| = az: outside of `seri` and `asyi`, for v or az above fnul."""
-    seri = az <= 2 or az * az / 4 <= v + 1
     asyi = az >= AMOS_RL and (v <= 1 or 2 * az >= v * v)
-    return not seri and not asyi and max(v, az) > AMOS_FNUL
+    return not _amos_seri(v, az) and not asyi and max(v, az) > AMOS_FNUL
 
 
 def _amos_binu_mlri(a: tuple[float, ...]) -> bool:
@@ -1926,6 +1931,23 @@ I_BUNI_FLOOR: Final = Floor(
 )
 
 
+def _seri_floor(a: tuple[float, ...]) -> float:
+    """eps max(|v ln(w / 2)|, ln Gamma(|v| + 1)), with w = z or -z in Re w >= 0: the change of
+    the exponent v ln(w / 2) - ln Gamma(|v| + 1) of `seri` by an ulp of its largest term."""
+    v, x, y = abs(a[0]), a[1], a[2]
+    w = complex(x, y) if x >= 0 else complex(-x, -y)
+    return sys.float_info.epsilon * max(abs(v * cmath.log(w / 2)), math.lgamma(v + 1))
+
+
+I_SERI_FLOOR: Final = Floor(
+    lambda a: any(a[1:]) and _amos_seri(abs(a[0]), math.hypot(*a[1:])),
+    _seri_floor,
+    "AMOS's power series (`seri`) scales by e^(v ln(z / 2) - ln Gamma(v + 1)), whose terms take"
+    " the platform's `log`, so an ulp of the largest can differ (3.5e-14 = 128 eps of ln Gamma"
+    " at I_82.89(3.35) on macOS and Windows, where Linux has 6.5e-15)",
+)
+
+
 def _reflection_floor(a: tuple[float, ...]) -> float:
     """0.3 max(|v|, 1) eps |K_-v / I_v|, at least the floors of I_-v: the change of s K_-v in
     I_v = I_-v + s K_-v (DLMF 10.27.2) by that of s = 2 / pi sin(-v pi), relative to I_v. For
@@ -1937,7 +1959,8 @@ def _reflection_floor(a: tuple[float, ...]) -> float:
         k = abs(w.bessel_k(nu)) + flint.arb.pi() * abs(w.bessel_i(nu)) * (x < 0)
         ratio = float((k / abs(_i_ball(a))).mid())
     tol = 0.3 * max(-v, 1) * sys.float_info.epsilon * ratio
-    return max([tol, *(f.at(a) for f in (I_MLRI_FLOOR, I_BUNI_FLOOR) if f.when(a))])
+    methods = (I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR)
+    return max([tol, *(f.at(a) for f in methods if f.when(a))])
 
 
 I_REFLECTION_FLOOR: Final = Floor(
@@ -2021,7 +2044,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                 ),
                 *I_INF_PARTS,
                 overrides=(I_OVERRIDE,),
-                floors=(I_REFLECTION_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
+                floors=(I_REFLECTION_FLOOR, I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
             ),
             entry("je"),
             entry("ye"),
