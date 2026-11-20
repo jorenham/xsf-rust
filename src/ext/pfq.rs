@@ -899,8 +899,8 @@ type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 ///
 /// `b` contains the 1 of `n!`. Unless it is a polynomial, the last methods are `pfq_conformal`,
 /// which is the slowest, and for `|z| < 1` `pfq_recurrence`, `pfq_series_long`,
-/// `pfq_recurrence_lowered` and `pfq_recurrence_balanced`, of which all but `pfq_series_long`
-/// only apply to 3F2.
+/// `pfq_recurrence_lowered`, `pfq_recurrence_balanced` and `pfq_recurrence_nested`, of which all
+/// but `pfq_series_long` only apply to 3F2.
 fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
@@ -922,6 +922,7 @@ fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
             pfq_series_long,
             recurrence::pfq_recurrence_lowered,
             recurrence::pfq_recurrence_balanced,
+            recurrence::pfq_recurrence_nested,
         ]
     } else {
         &[]

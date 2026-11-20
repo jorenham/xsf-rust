@@ -41,7 +41,8 @@
 //! For a large negative `b` and `z < 0`, the steps down from `b + m > 0` can make the errors
 //! larger by many orders of magnitude where `b + k` is positive, and much less where it is
 //! negative. They then start where `b + m` is about -8, -16, ..., from the steps up in the large
-//! upper parameters there.
+//! upper parameters there. Where the series cancel there too, as for a negative other lower
+//! parameter, those starts come from the steps down in that one from where it is positive.
 //!
 //! The steps can make the errors of the series and their own rounding errors larger by many
 //! orders of magnitude, so the error of the result is estimated. An error `e` of the F at `k`
@@ -82,6 +83,12 @@ const RAISED_WORK: u32 = 2 * PFQ_MAXITER;
 /// Of its 82 results without it on 1059 points where the other methods are not accurate, 80 are
 /// within it (measured).
 const BALANCED_WORK: u32 = 3 * PFQ_LONG_MAXITER;
+
+/// Most steps and series terms of all tries of `pfq_recurrence_nested` together
+///
+/// Of its 127 results without it on 979 points where the other methods are not accurate, 108 are
+/// within it, and half as much again gives 8 more (measured).
+const NESTED_WORK: u32 = 4 * PFQ_MAXITER;
 
 /// Bound of the rounding error of a step, relative to the sizes of the terms of its sum:
 /// `Dd::EPSILON` for each of its at most 17 inexact operations in a row (`u - 1`, `u - 2`,
@@ -349,7 +356,7 @@ fn steps_to_zero(v: f64) -> u32 {
 
 /// The `m` for which `v + m` is about -4096, ..., -8, the fewest first, if `v` is in reach of
 /// `PFQ_MAXITER` steps
-fn toward_zero(v: f64) -> impl Iterator<Item = u32> {
+fn toward_zero(v: f64) -> impl DoubleEndedIterator<Item = u32> {
     let steps = steps_to_zero(v);
     let offsets = RECURRENCE_STARTS.iter().rev().filter(move |&&p| p < steps);
     offsets.map(move |p| steps - p)
@@ -414,6 +421,33 @@ pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<
     let (y, err) =
         recurrence_first(toward_zero(small), |m| lower_steps(a, small, large, z, m, start))?;
     accurate(y, err)
+}
+
+/// 3F2 for `-1 < z < 0` by the steps down in a negative smaller lower parameter from where it is
+/// about -8, -16, ..., whose starts are by the steps down in the other one from where that is
+/// positive, and an estimate of its absolute error, or `None` if it is not 3F2 or not accurate
+///
+/// It tries the starts nearest to 0 first, where the series that their F come from cancel least.
+/// All tries share `NESTED_WORK`.
+pub(super) fn pfq_recurrence_nested<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    let (a, [large, small]) = params_3f2(a, b)?;
+    if z >= 0.0 {
+        return None;
+    }
+    let work = Cell::new(NESTED_WORK);
+    let start = |k: f64| {
+        let positive = RECURRENCE_STARTS
+            .into_iter()
+            .filter(|&m| f64::from(m) > -large);
+        // (exact, as `small + k` is in `(small, 0)`)
+        recurrence_first(positive, |m| lower_recurrence(a, large, small + k, z, m, &work))
+    };
+    let run = |m| {
+        work.set(work.get().checked_sub(m)?);
+        lower_steps(a, small, large, z, m, start)
+    };
+    let mut results = toward_zero(small).rev().filter_map(run);
+    results.find_map(|(y, _, err)| accurate(y, err))
 }
 
 /// 3F2 for `|z| < 1` by the steps down in a negative upper parameter from about the most steps

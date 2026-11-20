@@ -330,6 +330,11 @@ fn test_hyp3f2_recurrence() {
             0.977_528_259_874_388,
             194.132_778_948_619_8,
         ),
+        // down in b_2 from where it is about -8, ..., with the starts from the steps down in b_1
+        // from where it is positive, as the series cancel where both are negative
+        ([0.5, 0.25, -0.125], [-50.75, -80.25], -0.75, 1.000_002_876_951_059_2),
+        // the same with a large a_1
+        ([80.5, 0.5, 0.25], [-30.75, -60.25], -0.5, -223_263.106_822_880_22),
         // up in all three a_i
         ([300.5, 200.25, 100.75], [0.5, 1.25], -0.25, -6.193_192_091_840_847e24),
         // from F = 1 at a_1 = 0
