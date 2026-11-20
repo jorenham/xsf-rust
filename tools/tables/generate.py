@@ -548,10 +548,9 @@ def generate(
     described: list[dict[Args, tuple[Computed, float]]] = [{} for _ in range(n)]
     for (r, i), c in computed.items():
         override, floor = overrides[r, i], floors[r, i]
+        low = floor.at(inputs[r]) if floor else 0.0
         try:
-            tol = tolerance(
-                c, override, budgets[i, override], floor.tol if floor else 0, f32[i]
-            )
+            tol = tolerance(c, override, budgets[i, override], low, f32[i])
         except Problem as e:
             problems.append(f"[{i}] at {inputs[r]}: {e}")
             continue
@@ -560,7 +559,8 @@ def generate(
         if override:
             notes[i][f"override: {override.why}"] += c.e_xsf > budgets[i, override]
         if floor:
-            notes[i][f"floor {floor.tol:g}: {floor.why}"] += tol == floor.tol
+            name = "floor" if callable(floor.tol) else f"floor {floor.tol:g}"
+            notes[i][f"{name}: {floor.why}"] += tol == low
         described[i][inputs[r]] = (c, tol)
 
     # the identity, on an even spread of the computed inputs

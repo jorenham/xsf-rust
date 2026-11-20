@@ -419,8 +419,6 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         // the reference is off by 3e-11 (Arb): AMOS loses ~eps |z| of the phase here, and an ulp
         // of the platform's cbrt in `unhj` moves Y_v by 2e-11
         "cyl_bessel_y" if x == [-1_008.459_838_867_187_5, 16_229.25, 0.0] => 1e-10,
-        // xsf overflows early for a complex z = x[1] + x[2] i
-        "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
         _ => 0.0,
     }
 }
@@ -434,17 +432,6 @@ fn rtol_ill_conditioned(name: &str, x: &[f64]) -> f64 {
         _ => 0.0,
     }
 }
-
-/// The orders of the complex `cyl_bessel_i` test cases where xsf overflows and the reference
-/// isn't finite
-const BESSEL_I_OVERFLOWS: [f64; 6] = [
-    -3_924.611_809_854_627_6,
-    -3_335.494_571_461_091,
-    -2_788.048_924_847_581_5,
-    -2_668.868_419_500_347_5,
-    -1_132.109_773_438_097_1,
-    1_490.491_370_199_187_7,
-];
 
 #[inline]
 pub fn test<T, F>(name: &str, signature: &str, test_fn: F)
