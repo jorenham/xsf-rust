@@ -505,7 +505,8 @@ fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f6
 /// for the nonterminating `_{q+1}F_q` with `0 < z < 1` are summed again without it if they are
 /// small, and taken plus 1 if that is accurate and `series` is not within `PFQ_TOL` of it
 ///
-/// `f64` drops their roundings below half an ulp of 1, which the estimate of `pfq_sum` misses.
+/// Added to a sum near 1, `f64` rounds away their parts below half an ulp, which the estimate of
+/// `pfq_sum` misses.
 /// Each term has at most `pfq_ratio_roundings` per ratio before it, and each addition one, so
 /// their sum bounds the error.
 #[cold]
