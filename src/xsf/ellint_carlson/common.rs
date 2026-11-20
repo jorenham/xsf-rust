@@ -168,11 +168,16 @@ fn scale_factor_of_parts<T: super::typing::Num>(
     if !(e.is_finite() && e.abs() > 256.0) {
         return None;
     }
-    let mut f = ((254.0 - e) / 2.0).floor().exp2();
+    let mut f = top_factor(e);
     while f < 1.0 && (smin * f * f < min || amin * f * f < f64::MIN_POSITIVE) {
         f *= 2.0;
     }
     (f != 1.0).then_some(f)
+}
+
+/// The power of 2 whose square scales `2^e` to at most 2^254, and to above 2^252
+fn top_factor(e: f64) -> f64 {
+    ((254.0 - e) / 2.0).floor().exp2()
 }
 
 /// Whether `scale_factor` with `min` can't downscale a huge argument because of a tiny one, i.e.
@@ -247,6 +252,14 @@ pub(super) fn add_lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3], lam: T)
             a
         }
     })
+}
+
+/// The cancellation-resistant `p + lam` of the duplication step, `(a + lam) + (p - a)` with `a`
+/// the closest of `xyz` to `p`, and `xyzl` the `xyz + lam` of [`add_lambda`]
+pub(super) fn add_lambda_p<T: super::typing::Num>(p: T, xyz: [T; 3], xyzl: [T; 3]) -> T {
+    let dist = |i: usize| (p - xyz[i]).abs();
+    let i = (1..3).fold(0, |i, j| if dist(j) < dist(i) { j } else { i });
+    xyzl[i] + (p - xyz[i])
 }
 
 /// `std::max({a, ...})` (with `std::max(a, b)` = `a < b ? b : a`), i.e. the first of the largest

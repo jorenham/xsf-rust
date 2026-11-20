@@ -654,7 +654,10 @@ fn test_elliprj_wide_span() {
         1.577_252_122_957_69e-154,  // 1.5772521229576897772e-154
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
 
+#[test]
+fn test_elliprj_wide_span_complex() {
     let actual = [
         xsf::elliprj(c64(1e-60, 1e-60), c64(3e142, 3.5e142), c64(1e120, 3e120), c64(3e112, 9e112)),
         xsf::elliprj(

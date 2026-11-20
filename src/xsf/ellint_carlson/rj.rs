@@ -395,14 +395,15 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
 /// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) and
 /// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`
 fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
-    let (xyz, [sx, sy, sz]) = common::duplicate([x, y, z]);
+    let (xyz, sq) = common::duplicate([x, y, z]);
+    let xyz4 = [x, y, z].map(|a| a * 0.25);
     // `sqrt(p) / 2`, exact for subnormal `p`
     let sp = p.sqrt() * 0.5;
     let p4 = p * 0.25;
-    let pd = p4 + common::lambda([x, y, z], [sx, sy, sz]);
+    let pd = p4 + common::lambda([x, y, z], sq);
     // `d / 8 = d1 d23`
-    let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
-    let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
+    let [d1, d2, d3] = core::array::from_fn(|i| common::sqrt_sum(p4, xyz4[i], sp, sq[i]));
+    let d23 = d2 * d3;
     let u = sp / d1 * (pd / d23) * 2.0;
     // Unlike in xsf, NaN if `p + lam` cancels and `u` underflows
     if pd.abs() < p4.abs() && !u.max_norm().is_normal() {
@@ -723,9 +724,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
             // Unlike in xsf (scipy/xsf#409), `p + lam` as `(a + lam) + (p - a)` if it cancels, with
             // `a` the closest of `x, y, z`.
             if pl.abs() < pm.abs() {
-                let dist = |i: usize| (pm - xyz[i]).abs();
-                let i = (1..3).fold(0, |i, j| if dist(j) < dist(i) { j } else { i });
-                pl = xyzl[i] + (pm - xyz[i]);
+                pl = common::add_lambda_p(pm, xyz, xyzl);
                 // Unlike in xsf, in the right half-plane the real part of `p + lam` is at least its
                 // lower bound `4^-m Re p`: rounded to the left of the imaginary axis, `p + lam` and
                 // the `R_C` terms can be on different branches.
