@@ -909,16 +909,33 @@ fn test_bessel_amos_i_leading_exponential_overflow() {
 
 #[test]
 fn test_bessel_amos_i_overflow_by_series() {
-    // the value overflows, unlike its estimates without the series (Arb: Re I = 1.7977398e308)
-    let i = xsf::bessel_i(100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
-    assert_eq!(i, c64(f64::INFINITY, f64::NEG_INFINITY));
-    // the value before the rotation to z overflows (Arb: |I| = 1.7977003e308), but not its parts
-    // (both 1.27e308), as in xsf
-    let i = xsf::bessel_i(1500.25, c64(-1_440.844_949_792_818_9, 0.0));
-    assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
+    // the real part overflows, unlike the estimates without the series (Arb, halved)
+    let (v, z) = (100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
+    let i = xsf::bessel_i(v, z);
+    let half = c64(8.988_699_091_463_565e307, -6.116_621_289_670_503e303);
+    assert!(is_near(i, half, v, z), "{i}");
     // the exponent has a rounding error of about 1 (DLMF 10.41.3: -2.28e308 (1 + i))
     let i = xsf::bessel_i(2_060_697_274_498_541.2, c64(-1_365_713_557_945_105.0, 0.0));
     assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
+}
+
+#[test]
+fn test_bessel_amos_i_overflow_by_part() {
+    // the imaginary part is within the error of `f64::MAX`, the real part isn't (Arb, halved)
+    let (v, z) = (385.75, c64(716.044_300_663_178_2, 32_760.175_578_041_82));
+    let i = xsf::bessel_i(v, z);
+    let half = c64(4.098_878_142_449_450_5e307, 8.988_465_674_332_536e307);
+    assert!(i.re.is_finite() && is_near(i, half, v, z), "{i}");
+    // the value before the rotation to z overflows (Arb: |I| = 1.7977003e308), but not its parts
+    let (v, z) = (1500.25, c64(-1_440.844_949_792_818_9, 0.0));
+    let i = xsf::bessel_i(v, z);
+    let half = c64(6.355_830_397_878_139e307, 6.355_830_397_878_139e307);
+    assert!(is_near(i, half, v, z), "{i}");
+    // the reflection to v < 0 keeps the finite part (Arb, halved: the K term is about 1e-312)
+    let (v, z) = (-100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
+    let i = xsf::bessel_i(v, z);
+    let half = c64(8.988_699_091_463_565e307, -6.116_621_289_670_503e303);
+    assert!(is_near(i, half, -v, z), "{i}");
 }
 
 /// Whether each part of `y` is within AMOS's error of that of the exact value `2 half` (halved to

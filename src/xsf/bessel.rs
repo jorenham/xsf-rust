@@ -327,6 +327,31 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
     res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
+/// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
+///
+/// Unlike in xsf, a part that doesn't overflow stays finite: this unscales `e^-|Re z| I_v(z)` per
+/// part, or if that underflowed, recurs down `I_v = I_{v+2} + 2 (v+1) / z I_{v+1}`
+/// (DLMF 10.29.1) from the higher orders, which are smaller.
+fn cyl_bessel_i_overflow(v: f64, z: C64) -> C64 {
+    let ie = cyl_bessel_ie_c64(v, z);
+    if ie != C64::ZERO {
+        return ie.mul_exp(z.re.abs());
+    }
+    let (i1, _) = amos1(amos::besi, z, v + 1.0, 1);
+    let (i2, _) = amos1(amos::besi, z, v + 2.0, 1);
+    // halved, as a term can overflow where only the sum does
+    let t = (v + 1.0) / z * i1;
+    let half = i2 * 0.5 + t;
+    // only for |2 t| + |i2| <= 2 |I_v| (in quarters, which stay finite), so that the errors of i1
+    // and i2 grow by at most 2 relative to |I_v|
+    let small = (t * 0.5).norm() + (i2 * 0.25).norm() <= half.norm();
+    if i2.is_finite() && t.is_finite() && small {
+        return half * 2.0;
+    }
+    // as in xsf: 0 times inf
+    C64::NAN
+}
+
 pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
     let kode = 1;
     let mut sign = 1.0;
@@ -349,9 +374,7 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
             }
             cy.im = 0.0;
         } else {
-            cy = cyl_bessel_ie_c64(v * sign, z);
-            cy.re *= f64::INFINITY;
-            cy.im *= f64::INFINITY;
+            cy = cyl_bessel_i_overflow(v, z);
         }
     }
 
