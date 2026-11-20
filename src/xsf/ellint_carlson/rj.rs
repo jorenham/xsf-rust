@@ -579,9 +579,9 @@ fn realness<T: Num>(args: [T; 4]) -> (bool, f64) {
     (real, min)
 }
 
-/// The `|Im p|` that `rj_unscaled` raises a tinier one to for real `lam` and `Re p < 0`, relative
-/// to the distance from `p` to `0, x, y, z`: the largest that leaves the result unchanged, to keep
-/// `4^-m Im p` the farthest from underflow in the steps
+/// The scale of the `|Im p|` that `rj_unscaled` raises a tinier one to for real `lam` and
+/// `Re p < 0`, relative to the distance from `p` to `0, x, y, z`: chosen to keep `4^-m Im p` from
+/// underflowing in the steps, while the result changes only by about as much
 const MIN_IM_P: f64 = pow2(-60);
 
 fn rj_unscaled<T: Num>(
@@ -641,14 +641,18 @@ fn rj_unscaled<T: Num>(
         || pair(xm, ym, zm)
         || pair(ym, zm, xm)
         || pair(zm, xm, ym);
-    // Unlike in xsf, then a tiny `Im p` left of the imaginary axis is raised to about `MIN_IM_P`
-    // times the distance from `p` to `0, x, y, z`: it only selects the side of the cut, which
-    // `p + lam` keeps in every step
-    let p = if real_lam && p.real() < 0.0 && p.imag() != 0.0 {
-        let dist = [T::from(0.0), xm, ym, zm].map(|a| (p - a).abs());
-        let lift = MIN_IM_P * dist.into_iter().fold(f64::INFINITY, f64::min);
-        if p.imag().abs() < lift {
-            common::frexp(p - p.real()).0 * lift + p.real()
+    // Unlike in xsf, then a tiny `Im p` left of the imaginary axis is raised to 1 to 2 times
+    // `MIN_IM_P` times the distance from `p` to `0, x, y, z` (in the max norm, so that the one to
+    // `0` is finite): it only selects the side of the cut, which `p + lam` then keeps in every
+    // loop step
+    let tiny_im = |dist: f64| p.imag().abs() < MIN_IM_P * dist;
+    let p = if real_lam && p.real() < 0.0 && p.imag() != 0.0 && tiny_im(p.max_norm()) {
+        let dist = [xm, ym, zm]
+            .map(|a| (p - a).max_norm())
+            .into_iter()
+            .fold(p.max_norm(), f64::min);
+        if tiny_im(dist) {
+            common::frexp(p - p.real()).0 * (2.0 * MIN_IM_P * dist) + p.real()
         } else {
             p
         }

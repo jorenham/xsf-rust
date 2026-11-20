@@ -670,6 +670,16 @@ fn test_elliprj_real_cut() {
 }
 
 #[test]
+#[cfg_attr(debug_assertions, ignore = "overflows a debug stack")]
+fn test_elliprj_real_cut_huge_p() {
+    // real `x, y, z` with a huge `p`, whose distance to them overflows (Arb)
+    let x = c64(2.0_f64.powi(-256), 0.0);
+    let actual = [xsf::elliprj(x, x, x, c64(-f64::MAX, f64::MAX))];
+    let expected = [c64(-2.839_325_246_800_259_7e-270, -2.839_325_246_800_259_7e-270)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_carlson_huge_and_tiny_args() {
     let p = |k| 2.0_f64.powi(k);
     // the tiny imaginary part must not be flushed to 0
