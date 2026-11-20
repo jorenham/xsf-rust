@@ -477,17 +477,69 @@ const PFQ_SQUARE_MAX: f64 = 1e150;
 /// The factor 2^-400 by which the units of those sums shrink once it is exceeded
 const PFQ_UNIT: f64 = pow2(-400);
 
+/// Fewest terms that `pfq_flat_series` sums again, as fewer than about 900 roundings of at most
+/// 2^-53 each stay below `PFQ_TOL`
+const PFQ_FLAT_MIN_TERMS: f64 = 512.0;
+
+/// Replay cutoff of `pfq_flat_series` on `|y - 1|`, which keeps the replay to sums of small
+/// terms, much of which `f64` can drop below half an ulp of 1
+const PFQ_FLAT_CUTOFF: f64 = pow2(-20);
+
 /// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
 /// largest of them
 fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
-    let (y, err, tails, _) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
+    let (y, err, tails, terms) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     // (not in double-double, whose `EPSILON` leaves room for many more parameters)
     let err = err * pfq_rounding_scale(a.as_ref(), b.as_ref());
-    if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
+    if terms >= PFQ_FLAT_MIN_TERMS && err <= PFQ_TOL * y.abs() {
+        pfq_flat_series(a, b, z, (y, err, tails), terms)
+    } else if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
         let (y, err, tails, _) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
         (f64::from(y), err, tails)
+    }
+}
+
+/// `pfq_series_tails` of the accurate `f64` sum `series` of `terms` terms after `t_0 = 1`, which
+/// for the nonterminating `_{q+1}F_q` with `0 < z < 1` are summed again without it if they are
+/// small, and taken plus 1 if that is accurate and `series` is not within `PFQ_TOL` of it
+///
+/// `f64` drops their roundings below half an ulp of 1, which the estimate of `pfq_sum` misses.
+/// Each term has at most `pfq_ratio_roundings` per ratio before it, and each addition one, so
+/// their sum bounds the error.
+#[cold]
+#[inline(never)]
+fn pfq_flat_series(
+    a: &impl AsRef<[f64]>,
+    b: &impl AsRef<[f64]>,
+    z: f64,
+    series: (f64, f64, f64),
+    terms: f64,
+) -> (f64, f64, f64) {
+    let ((a, b), (y, _, tails)) = ((a.as_ref(), b.as_ref()), series);
+    let gate = a.len() == b.len() && first_zero(a).is_infinite() && 0.0 < z && z < 1.0;
+    // (|y - 1| is at most about the sum of the terms)
+    if !gate || (y - 1.0).abs() > PFQ_FLAT_CUTOFF {
+        return series;
+    }
+    // rounded up, as a bound that rounds to below 1 can miss terms that grow
+    let ratio_roundings = pfq_ratio_roundings(a, b);
+    let rho = pfq_ratio_bound(a, b, z, terms) * (1.0 + ratio_roundings * f64::EPSILON);
+    if rho >= 1.0 {
+        return series;
+    }
+    // (a term that underflows is a bound of about `f64::MIN_POSITIVE`, which adds nothing)
+    let replay = pfq_terms::<f64>(a, b, z).take(terms as usize);
+    let (delta, mass, last) = replay.fold((0.0, 0.0, 0.0), |(d, m, _), t| (d + t, m + t.abs(), t));
+    let roundings = terms * (ratio_roundings + 0.5) * f64::EPSILON * mass;
+    let err = roundings + last.abs() * rho / (1.0 - rho);
+    let flat = 1.0 + delta;
+    let flat_err = err + f64::EPSILON / 2.0 * flat;
+    if flat_err <= PFQ_TOL * flat && (delta - (y - 1.0)).abs() + err > PFQ_TOL * y {
+        (flat, flat_err, tails)
+    } else {
+        series
     }
 }
 
