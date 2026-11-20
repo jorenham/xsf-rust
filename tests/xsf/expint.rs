@@ -70,6 +70,14 @@ fn test_exp1_c64_near_negative_real_cut_exp_overflow() {
 }
 
 #[test]
+fn test_exp1_below_twice_maxlog_subnormal_fraction() {
+    // `1 / z` is subnormal, so rotating it before `exp(-x)` loses the real part (mpmath; the subnormal costs bits)
+    let res = xsf::exp1(c64(-1_419.565_425_786_768, 1.241_672_507_613_542e308));
+    np_assert_allclose!([res.re], [6.731_329_597_421_645e291], rtol = 2e-15);
+    assert_eq!(res.im, f64::NEG_INFINITY);
+}
+
+#[test]
 fn test_expi_exp1_beyond_exp_overflow() {
     // `exp(712)` overflows, but `Ei(712)` and `E1(-712 + i)` do not (Arb)
     np_assert_allclose!([xsf::expi(712.0)], [2.321_680_084_105_211_5e306], rtol = 1e-15);

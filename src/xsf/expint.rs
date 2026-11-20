@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/expint.h` (scipy/xsf@b2d31a9).
+//! Translated into pure Rust from `xsf/expint.h` (scipy/xsf@08e785e).
 //!
 //! The functions exp1, expi below are based on translations of the Fortran code
 //! by Shanjie Zhang and Jianming Jin from the book
@@ -105,9 +105,14 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         ce1 = e1 - PI.copysign(z.im) * C64::I;
     } else {
         let zc = exp1_cf(z);
-        ce1 = if x < -MAXLOG {
-            // Unlike in xsf, `exp(-x)` last, as it overflows before E1 does
-            (c64(0.0, -z.im).exp() * zc).mul_exp(-x)
+        ce1 = if x <= -2.0 * MAXLOG {
+            // Unlike in xsf, which gives NaN or infinite parts here, `exp(-x)` split around
+            // the rotation, as that would lose a tiny `zc` part to underflow
+            (c64(0.0, -z.im).exp() * zc.mul_exp(MAXLOG)).mul_exp(-x - MAXLOG)
+        } else if x < -MAXLOG {
+            // `exp(-x)` overflows before E1 does, so apply it in two halves
+            let h = (-x / 2.0).exp();
+            (c64(0.0, -z.im).exp() * (zc * h)) * h
         } else {
             (-z).exp() * zc
         };
@@ -197,9 +202,9 @@ fn expi_f64(x: f64) -> f64 {
             ei += r;
         }
         if x > MAXLOG {
-            // Unlike in xsf, `exp(x)` in two halves, as it overflows before `Ei(x)` does
-            let e = (x / 2.0).exp();
-            e * (e / x * ei)
+            // `exp(x)` overflows before `Ei(x)` does, so apply it in two halves
+            let h = (x / 2.0).exp();
+            h * (h / x * ei)
         } else {
             x.exp() / x * ei
         }
