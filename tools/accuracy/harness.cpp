@@ -757,6 +757,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("exp1", 2, xsf::exp1(cd(a[0], a[1])))
     C("expi", 2, xsf::expi(cd(a[0], a[1])))
     C("lambertw", 2, xsf::lambertw(cd(a[0], a[1]), 0, 1e-8))
+    C("lambertw", 4, xsf::lambertw(cd(a[0], a[1]), l(a[2]), a[3]))
     C("hyp1f1", 4, xsf::hyp1f1(a[0], a[1], cd(a[2], a[3])))
     C("hyp2f1", 5, xsf::hyp2f1(a[0], a[1], a[2], cd(a[3], a[4])))
     C("bessel_j", 3, xsf::cyl_bessel_j(a[0], cd(a[1], a[2])))

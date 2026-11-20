@@ -855,15 +855,18 @@ def _complex_out(
         Callable[[flint.acb], flint.acb]
         | Callable[[flint.acb, flint.acb], flint.acb]
         | Callable[[flint.arb, flint.acb], flint.acb | None]
+        | Callable[[flint.acb, flint.arb, flint.arb], flint.acb]
     ),
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
     floors: tuple[Floor, ...] = (),
     reals: int = 0,
+    tail: int = 0,
 ) -> Out:
-    """A complex output of `reals` real inputs and then complex inputs, which are (real,
-    imaginary) pairs of f64s: `ref` takes the parts as `mpf`s, and `arb` the real inputs as
-    `arb`s and the complex ones as `acb`s (or returns None where it can't check)."""
+    """A complex output of `reals` real inputs, then complex inputs, which are (real,
+    imaginary) pairs of f64s, and then `tail` real inputs: `ref` takes the parts as `mpf`s,
+    and `arb` the real inputs as `arb`s and the complex ones as `acb`s (or returns None where
+    it can't check)."""
 
     def ref_part(part: int) -> Callable[..., Value]:
         def value(*a: mp.mpf) -> Value:
@@ -881,8 +884,9 @@ def _complex_out(
             # the bits that exp(z) and a periodic reduction of z lose to the magnitude of z
             bits = max(math.frexp(float(x))[1] for x in a)
             with flint.ctx.extraprec(max(bits, 0)):
-                pairs = (flint.acb(*a[k : k + 2]) for k in range(reals, len(a), 2))
-                z = f(*a[:reals], *pairs)
+                end = len(a) - tail
+                pairs = (flint.acb(*a[k : k + 2]) for k in range(reals, end, 2))
+                z = f(*a[:reals], *pairs, *a[end:])
             return None if z is None else z.imag if part else z.real
 
         return ball
@@ -2117,6 +2121,43 @@ def _below_cut(xs: tuple[float, ...]) -> tuple[Rule, ...]:
         )
 
     return tuple(map(rule, xs))
+
+
+def _lambertw(re: mp.mpf, im: mp.mpf, k: mp.mpf, _tol: mp.mpf) -> mp.mpc:
+    """W_k(z), which does not depend on the tolerance of the iteration of xsf."""
+    return mp.lambertw(mp.mpc(re, im), int(k))
+
+
+def _lambertw_arb(z: flint.acb, k: flint.arb, _tol: flint.arb) -> flint.acb:
+    return z.lambertw(branch=int(float(k)))
+
+
+def _lambertw_at_inf(x: float, k: int) -> Rule:
+    """The limit of W_k(z) for z -> x = +-inf along Im z = +0."""
+    return Rule(
+        lambda a: a[0] == x and a[1] == 0 and math.copysign(1, a[1]) > 0 and a[2] == k,
+        complex(math.inf, (2 * k + (x < 0)) * math.pi),
+        "W_k(z) -> inf + 2 pi k i for z -> +inf, and inf + (2k + 1) pi i for z -> -inf,"
+        " along Im z = +0, as W_k(z) ~ ln z + 2 pi k i",
+    )
+
+
+LAMBERTW_RULES: Final = (
+    Rule(
+        lambda a: math.isnan(a[0]) and a[1] == 0 and math.copysign(1, a[1]) > 0,
+        complex(math.nan, 0.0),
+        "W(z) = z for z = NaN + 0i, like xsf",
+    ),
+    COMPLEX_NAN,
+    _lambertw_at_inf(math.inf, 0),
+    _lambertw_at_inf(math.inf, 1),
+    _lambertw_at_inf(-math.inf, 1),
+    Rule(
+        lambda a: a[0] == 0 and a[1] == 0 and a[2] != 0,
+        complex(-math.inf, 0.0),
+        "W_k(0) = -inf for k != 0, as Re W_k(z) -> -inf for z -> 0",
+    ),
+)
 
 
 def _e1_arb(z: flint.acb) -> flint.acb:
@@ -4397,6 +4438,9 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         flint.acb.ei,
         (COMPLEX_EI_AT_0,),
         (_e1_overflow(lambda a: -a[0]),),
+    ),
+    ("lambertw", "cd_p_d-cd"): Entry(
+        (_complex_out("lambertw", _lambertw, _lambertw_arb, LAMBERTW_RULES, tail=2),)
     ),
     ("shichi", "cd-cd_cd"): Entry(
         (
