@@ -1486,13 +1486,13 @@ fn test_hyppfq_series_flat() {
     let y = hyppfq([-1.59065e-7, -1.000_000_001_4, 2.0, 3.0], [1.0; 3], 0.999_25).unwrap();
     let expected = 1.000_000_953_674_056;
     assert!((y - expected).abs() <= 1e-15 * expected, "{y} != {expected}");
-    // a ratio bound that rounds to below 1 bounds no tail, so the f64 sum is kept, though it
-    // is wrong as well (#1784)
+    // the series actually grows past `f64::MAX`, while an unpadded ratio bound rounds below 1
+    // (#1784): must reject rather than accept the partial sum near 1
     let (a, b) = (f64::from_bits(0x44f4_0000_0000_0003), f64::from_bits(0x44f4_0000_0000_0000));
     let c = -2_000.000_000_000_000_2;
     let y =
         hyppfq([5e-19, 1.0, a, a, c, c], [0.01, b, b, -1_999.95, -1_999.95], 0.999_999_999_999_999);
-    assert_eq!(y, Some(1.0));
+    assert_eq!(y, None);
 }
 
 #[test]
