@@ -712,6 +712,8 @@ fn test_hyp1f2_asymptotic() {
         (3.5, [9.75, -8.75], -500.0, 6_638.401_626_292_566),
         // (and for small parameters)
         (0.03125, [-0.0625, 0.1875], -1e5, -0.116_965_526_511_898_26),
+        // algebraic part has zero sum with negligible error next to the exponential part (mpmath)
+        (25.5, [1.25, 0.05], -4000.0, 5.803_456_048_071_905e18),
     ] {
         assert_hyp1f2(a, b, z, expected);
     }
@@ -728,7 +730,7 @@ fn test_hyp1f2_asymptotic() {
 #[test]
 fn test_hyp1f2_inaccurate() {
     // the series cancels, and |z| is too small for the asymptotic expansion
-    assert!(hyp1f2(25.5, 1.25, 0.05, -4000.0).is_nan());
+    assert!(hyp1f2(25.5, -50.25, 50.05, -4000.0).is_nan());
     // the phase 2 sqrt(-z) of the oscillating part is large: about 11 digits (mpmath:
     // `gamma(1/4) x^(3/8) besselj(-3/4, 2 sqrt(x))` for x = -z)
     let y = hyp1f2(0.5, 0.5, 0.25, -1e40);
@@ -1655,6 +1657,36 @@ fn test_hyppfq_continuation() {
         (&[5.0, 2.0, 5.0, 5.0], &[1.0, 4.0, 4.0], -6e10, -3.215_020_574_792_095_3e-55),
         // two a_i of three differ from another by integers
         (&[0.25, 1.25, 3.25, 0.75], &[2.0, 1.5, 0.375], -1e3, 0.077_230_437_610_217_39),
+        // boundary around z = -1, near/exact integer diffs, and genuine b_j = 1 with tiny a_j
+        // (mpmath 60-dps)
+        (&[0.5, 1.25, 2.75], &[2.25, 3.5], -1.0 - f64::EPSILON, 0.843_791_691_785_246_3),
+        (&[0.5, 1.25, 2.75], &[2.25, 3.5], -1.0, 0.843_791_691_785_246_4),
+        (&[0.5, 1.25, 2.75], &[2.25, 3.5], -1.0 + f64::EPSILON / 2.0, 0.843_791_691_785_246_4),
+        (&[0.5, 1.25, 2.75], &[2.25, 3.5], -1.01, 0.842_648_061_384_124_5),
+        (&[0.5, 1.5 + 1e-8, 2.75], &[2.25, 3.5], -2.0, 0.716_075_583_409_688_4),
+        (&[0.5, 1.5, 2.75], &[2.25, 3.5], -2.0, 0.716_075_584_737_973_7),
+        (&[2.0_f64.powi(-60), 0.5, 1.25], &[1.0, 2.5], -2.0, 1.0),
+        // zero inner polynomial term and mixed exact-integer class + cancelling singletons
+        (
+            &[0.5, 1.5 - 2.0_f64.powi(-40), 1.75],
+            &[2.5, 1.0],
+            -2.0_f64.powi(40),
+            7.959_621_827_055_401e-7,
+        ),
+        (
+            &[0.5, 0.5 + 2.0_f64.powi(-32), 2.75, 3.75],
+            &[2.25, 3.5, 4.125],
+            -1000.0,
+            0.191_031_737_123_466_5,
+        ),
+        // near-pole `b_j` resolved by double-double continuation (Arb references)
+        (&[-1.5, 0.75, -0.125, -77.75], &[-3.75, -78.875, 21.5], -2.0, 1.441_597_903_532_934),
+        (
+            &[0.17549, -33.943, -0.1108, 0.011_587, 0.041_28],
+            &[-48.912, 0.001_225_3, 29.137, 0.009_330_8],
+            -6.5618,
+            1.118_370_664_887_746,
+        ),
     ] {
         assert_hyppfq(a, b, z, expected);
     }
@@ -1749,12 +1781,6 @@ fn test_hyppfq_none() {
     // the sum cancels too much
     assert_eq!(hyppfq([-60.0, 0.5, 0.5], [1.5, 1.5, 1.5], 200.0), None);
     assert_eq!(hyppfq([0.5, 1.5], [], 0.5), None);
-    // the conformal series has rounding errors from before a near-pole `b_j + n`
-    let (a, b) = ([-1.5, 0.75, -0.125, -77.75], [-3.75, -78.875, 21.5]);
-    assert_eq!(hyppfq(a, b, -2.0), None);
-    let a = [0.17549, -33.943, -0.1108, 0.011_587, 0.041_28];
-    let b = [-48.912, 0.001_225_3, 29.137, 0.009_330_8];
-    assert_eq!(hyppfq(a, b, -6.5618), None);
 }
 
 #[test]

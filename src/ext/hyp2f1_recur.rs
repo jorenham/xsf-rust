@@ -191,6 +191,17 @@ impl Scaled {
         self.with_l(self.l + l)
     }
 
+    /// A zero value whose absolute error is `|self| (1 + self.err)`, for summing in `add_exp_in`
+    pub(crate) fn into_zero_err(self) -> Self {
+        let (m, k) = frexp_f64(self.m.abs());
+        Self {
+            m: 0.0,
+            e: self.e + k,
+            l: self.l,
+            err: m * (1.0 + self.err),
+        }
+    }
+
     /// The value as an `f64` (which can overflow or underflow), and its error bound (not counting
     /// the rounding of an underflow)
     pub(crate) fn to_f64(self) -> (f64, f64) {
@@ -805,15 +816,35 @@ pub(crate) fn add_exp_in<T: Real>(
     exp: impl Fn(Dd) -> T,
     eps: f64,
 ) -> Option<Scaled> {
-    // the terms with `l` incl. `2^e`, scaled by `exp(-lmax)`, with `lmax` the largest `l`
-    let terms = terms.into_iter().map(|y| (y, y.l + LOG2 * f64::from(y.e)));
+    // normalize each mantissa (or error mantissa for a zero term) into `l` so subnormal values
+    // cannot shift `lmax` and erase a smaller term's error
+    let terms = terms.into_iter().map(|mut y| {
+        let k = if y.m == 0.0 {
+            let (err, k) = frexp_f64(y.err);
+            y.err = err;
+            k
+        } else {
+            let (m, k) = frexp_f64(y.m);
+            y.m = m;
+            k
+        };
+        let l = y.l + LOG2 * f64::from(y.e + k);
+        (y, l)
+    });
     let (_, lmax) = terms
         .clone()
         .reduce(|u, v| if u.1.hi >= v.1.hi { u } else { v })?;
     let (m, err_abs) = terms.fold((T::from_f64(0.0), 0.0), |(m, err_abs), (y, l)| {
-        let t = T::from_f64(y.m) * exp(l - lmax);
-        // (3 eps for `exp(r)` and the products)
-        (m + t, err_abs + t.to_f64().abs() * (y.err + 3.0 * eps))
+        let scale = exp(l - lmax);
+        let t = T::from_f64(y.m) * scale;
+        // (3 eps for `exp(r)` and the products; a zero term stores its scaled absolute error
+        // in `y.err`)
+        let err = if y.m == 0.0 {
+            scale.to_f64() * y.err * (1.0 + 3.0 * eps)
+        } else {
+            t.to_f64().abs() * (y.err + 3.0 * eps)
+        };
+        (m + t, err_abs + err)
     });
     // (and 1 eps for the sum, as an `f64`)
     let m = m.to_f64();

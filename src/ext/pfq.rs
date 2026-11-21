@@ -15,8 +15,8 @@ use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, FRAC_2_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_prod, two_sum,
 };
+use crate::xsf::cephes::gammasgn;
 use crate::xsf::cephes::hyp2f1::HYP2F1_LOST;
-use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi, xsf_hypu_digits};
 
 mod conformal;
@@ -167,11 +167,6 @@ const PFQ_MAX_UNCHECKED: usize = 4;
 
 /// Below the logarithm of the smallest positive normal number
 const PFQ_LN_UNDERFLOW: f64 = -709.0;
-
-/// Largest distance of a parameter to a non-positive integer `-m` at which its rounding error
-/// is counted for the whole tail of the series from `n = m` on, as errors of that size are seen
-/// up to a distance of 0.01
-const PFQ_NEAR_INTEGER: f64 = 0.0625;
 
 /// The `|x|` below which `ln_gamma` is by `lgam`, so that `mul_gammas` shifts `x` to Stirling's
 /// formula
@@ -767,8 +762,15 @@ fn pfq_terms_of<T: SeriesReal>(
 /// its terms overflow, or underflow before they become large again. If it converged, but its
 /// terms cancel, then it is summed again in double-double arithmetic.
 fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64) {
-    let (y, err, _) = pfq_series_tails(a, b, z);
-    (y, err)
+    let (y, err, _) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
+    // (not in double-double, whose `EPSILON` leaves room for many more parameters)
+    let err = err * pfq_rounding_scale(a.as_ref(), b.as_ref());
+    if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
+        (y, err)
+    } else {
+        let (y, err, _) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
+        (f64::from(y), err)
+    }
 }
 
 /// The series in double-double with up to `PFQ_LONG_MAXITER` terms, if it is accurate, as near
@@ -785,28 +787,14 @@ const PFQ_SQUARE_MAX: f64 = 1e150;
 /// The factor 2^-400 by which the units of those sums shrink once it is exceeded
 const PFQ_UNIT: f64 = pow2(-400);
 
-/// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
-/// largest of them
-fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
-    let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
-    // (not in double-double, whose `EPSILON` leaves room for many more parameters)
-    let err = err * pfq_rounding_scale(a.as_ref(), b.as_ref());
-    if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
-        (y, err, tails)
-    } else {
-        let (y, err, tails) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
-        (f64::from(y), err, tails)
-    }
-}
-
 /// Maximum number of roundings of a ratio `t_{k+1} / t_k`: each `a_i + k`, `b_j + k`, and
 /// `1 + k`, the product, the quotient, and the factors `z` and `t_k`
 fn pfq_ratio_roundings(a: &[f64], b: &[f64]) -> f64 {
     2.0 * (a.len() + b.len() + 1) as f64 + 3.0
 }
 
-/// `pfq_series_tails` in the arithmetic of `T`, with at most `maxiter` terms, and with the sum
-/// in that arithmetic
+/// `pfq_series` in the arithmetic of `T`, with at most `maxiter` terms, and with the sum
+/// and the root of its squared tails in that arithmetic
 ///
 /// The rounding error of each ratio `t_{n+1} / t_n` affects the terms after it, which sum to
 /// `s - s_n` for the partial sum `s_n` and the sum `s`. These errors are added in quadrature,
@@ -1047,38 +1035,6 @@ fn weniger_drift(
     Estimate::absolute((y, err + drift.sum::<f64>()))
 }
 
-/// `psi(x) e`: the relative change of `Gamma(x)` by the low part `e` of its argument, to first
-/// order
-fn gamma_low((x, e): (f64, f64)) -> f64 {
-    if e == 0.0 { 0.0 } else { crate::digamma(x) * e }
-}
-
-/// `Gamma(u) / Gamma(w)` and an estimate of its relative error, for `u` and `w` as `two_sum`s
-///
-/// The low part `e` of an argument `x + e` is its rounding error, which matters near a pole.
-/// It is applied to first order: `Gamma(x + e) ~ Gamma(x) (1 + psi(x) e)`, where the
-/// square of `psi(x) e` estimates the error of that.
-///
-/// The ratio is zero only if `w` is a pole, and `None` if it underflows or overflows.
-fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
-    // `gamma` and `rgamma` are within 2.3 ulp for 99% of |x| <= 170 (measured)
-    let (mut ratio, mut err) = (gamma(u.0) * rgamma(w.0), 3.0 * f64::EPSILON);
-    if !ratio.is_normal() {
-        if is_nonpos_int(w.0) && w.1 == 0.0 {
-            return Some((0.0, 0.0));
-        }
-        // overflow or underflow
-        let (ln_u, ln_w) = (lgam(u.0), lgam(w.0));
-        ratio = gammasgn(u.0) * gammasgn(w.0) * (ln_u - ln_w).exp();
-        err += f64::EPSILON * (ln_u.abs() + ln_w.abs());
-    }
-    ratio.is_normal().then(|| {
-        let (low_u, low_w) = (gamma_low(u), gamma_low(w));
-        let err = err + low_u * low_u + low_w * low_w;
-        (ratio * (1.0 + low_u - low_w), err)
-    })
-}
-
 /// The parameters `a` or `b` of a method for pFq: an array, or a `Vec` if their number
 /// is only known at run time
 trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
@@ -1092,77 +1048,28 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
 }
 
 /// The analytic continuation to `z < -1` (DLMF 16.8.8) and an estimate of its absolute error, or
-/// `None` if a factor of a coefficient overflows or underflows
+/// `None` if it underflows, overflows, or cannot be summed accurately
 ///
-/// This is for `p = q + 1`. It is a sum over `j` of series in `1 / z` with the parameters
-/// `a_j`, `a_j + 1 - b`, and `a_j + 1 - a` (`k != j`), or its limit where `a_i` differ by
-/// integers, which is `None` if it underflows or overflows.
+/// This is for `p = q + 1`. It evaluates the algebraic sum via `pfq_alg` (`Alg::Value`), falling
+/// back to `pfq_alg_dd` on failure or inaccuracy when at least one `a_i` is not in an
+/// integer-difference class.
 fn pfq_continuation<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, f64)> {
-    let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
-    let mut diffs = zip(a_ref, 0..).flat_map(|(aj, j)| skip(&a_ref, j).map(move |ak| ak - aj));
-    if diffs.any(|d| d.fract() == 0.0) {
-        // the terms of DLMF 16.8.8 are infinite: their limit is the sum of the terms of `pfq_alg`
-        let (y, err) = add_exp(pfq_alg(a_ref, b_ref, z, Alg::Value)?)?.to_f64();
-        return y.is_normal().then_some((y, err * y.abs()));
-    }
-    let (mut sum, mut err) = (0.0, 0.0);
-    for (j, &aj) in a_ref.iter().enumerate() {
-        // Gamma(a_k - a_j) / Gamma(a_k) and Gamma(b_k) / Gamma(b_k - a_j) for each k != j
-        let ratios = skip(&a_ref, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
-        let ratios = ratios.chain(
-            b_ref
-                .iter()
-                .map(|&bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))),
-        );
-        // (-z)^(-a_j) is the square of this root, which stays normal for larger a_j
-        let root = Some((-z).powf(-0.5 * aj)).filter(|r| r.is_normal())?;
-        // the coefficient as a mantissa and a power of 2, as products of its factors can
-        // underflow or overflow while it does not; their errors are added in quadrature
-        let (mut c, mut exp, mut c_err2) = (1.0, 0, 0.0);
-        for factor in [Some((root, f64::EPSILON)); 2].into_iter().chain(ratios) {
-            let (factor, factor_err) = factor?;
-            let (mantissa, e) = frexp_f64(factor);
-            (c, exp) = (c * mantissa, exp + e);
-            c_err2 += factor_err * factor_err;
-        }
-        if c == 0.0 {
-            // a b_k - a_j is a non-positive integer
-            continue;
-        }
-        let c = ldexp_f64(c, exp);
-        // a_j, a_j + 1 - b, and a_j + 1 - a (k != j), and the relative effect of their rounding
-        // errors on the terms of their series, which is large near a non-positive integer -m:
-        // there it is on the terms from n = m on, and not on those before them
-        let (mut rounding, mut near) = (0.0, 0.0);
-        let mut shift = |v: f64| {
-            let (d, e1) = two_sum(aj, -v);
-            let (x, e2) = two_sum(d, 1.0);
-            if e1 + e2 != 0.0 {
-                let distance = (x - x.round().min(0.0)).abs();
-                rounding += (e1 + e2).abs() / distance;
-                if distance < PFQ_NEAR_INTEGER {
-                    near += (e1 + e2).abs() / distance;
-                }
-            }
-            x
-        };
-        let mut upper = a.clone();
-        upper.as_mut()[0] = aj;
-        for (dst, &bk) in zip(&mut upper.as_mut()[1..], b_ref) {
-            *dst = shift(bk);
-        }
-        let mut lower = b.clone();
-        for (dst, ak) in zip(lower.as_mut(), skip(&a_ref, j)) {
-            *dst = shift(ak);
-        }
-        let (upper, lower) = (descending(upper), descending(lower));
-        let (f, f_err, tails) = pfq_series_tails(&upper, &lower, 1.0 / z);
-        sum += c * f;
-        // those terms sum to a tail of the series; the last part is for a subnormal c
-        err += c.abs() * (f_err + (c_err2.sqrt() + rounding) * f.abs() + near * tails)
-            + f64::MIN_POSITIVE * f.abs();
-    }
-    Some((sum, err))
+    let (a, b) = (a.as_ref(), b.as_ref());
+    let to_est = |s: Scaled| {
+        let (y, err) = s.to_f64();
+        y.is_normal().then(|| Estimate::new(y, err))
+    };
+    let best = pfq_alg(a, b, z, Alg::Value)
+        .and_then(add_exp)
+        .and_then(to_est);
+    let has_singleton =
+        zip(a, 0..).any(|(&aj, j)| skip(&a, j).all(|ak| !(Dd::new(ak) - aj).is_integer()));
+    let best = if has_singleton {
+        best.or_better(|| pfq_alg_dd(a, b, z).and_then(to_est))
+    } else {
+        best
+    };
+    best.map(|e| (e.y, e.err * e.y.abs()))
 }
 
 /// A method for `p = q + 1`, which returns the result and an estimate of its absolute error, or
@@ -1609,34 +1516,47 @@ fn asymptotic_sum<T: Term>(
 }
 
 /// The sum of a convergent series, in the arithmetic of its terms, and an estimate of its
-/// absolute error, which is infinite if it did not converge within `PFQ_MAXITER` terms
+/// absolute error
 ///
-/// From term `settled` on, the bound on each term is at most `ratio_bound(n)` times the one
-/// before it, and `ratio_bound` does not increase.
+/// Stops once the geometric tail bound is at most `tol * |sum|` (or returns the bound at
+/// `PFQ_MAXITER` if `ratio_bound < 1`, else infinite error). From term `settled` on, the bound
+/// on each term is at most `ratio_bound(n)` times the one before it, and `ratio_bound` does not
+/// increase.
 fn convergent_sum<T: Term>(
-    terms: impl Iterator<Item = T>,
+    mut terms: impl Iterator<Item = T>,
     settled: f64,
+    tol: f64,
     mut ratio_bound: impl FnMut(f64) -> f64,
 ) -> (T::Value, f64) {
     let eps = T::Value::EPSILON;
-    // the partial sums, until the tail is negligible
-    let sums = terms
-        .zip((0..PFQ_MAXITER).map(f64::from))
-        .take_while(|(term, _)| term.value().to_f64().is_finite())
-        .try_fold((T::Value::from_f64(0.0), 0.0), |(sum, abs_sum), (term, n)| {
-            let (sum, abs_sum) = (sum + term.value(), abs_sum + term.bound());
-            let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
-            // geometric bound on the remaining terms
-            let tail = term.bound() * rho / (1.0 - rho);
-            if rho < 1.0 && tail <= eps * sum.to_f64().abs() {
-                ControlFlow::Break((sum, tail + n * eps * abs_sum))
+    let init = (T::Value::from_f64(0.0), 0.0, f64::INFINITY);
+    let step = |(sum, abs_sum, _): (T::Value, f64, f64), n: f64| match terms.next() {
+        Some(term) if term.value().to_f64().is_finite() => {
+            let next = sum + term.value();
+            if !next.to_f64().is_finite() {
+                ControlFlow::Break((next, f64::INFINITY))
             } else {
-                ControlFlow::Continue((sum, abs_sum))
+                let abs_sum = abs_sum + term.bound();
+                let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
+                if rho < 1.0 {
+                    // geometric bound on the remaining terms
+                    let tail = term.bound() * rho / (1.0 - rho);
+                    let err = tail + n * eps * abs_sum;
+                    if tail <= tol * next.to_f64().abs() {
+                        ControlFlow::Break((next, err))
+                    } else {
+                        ControlFlow::Continue((next, abs_sum, err))
+                    }
+                } else {
+                    ControlFlow::Continue((next, abs_sum, f64::INFINITY))
+                }
             }
-        });
-    match sums {
-        ControlFlow::Break(sum_err) => sum_err,
-        ControlFlow::Continue((sum, _)) => (sum, f64::INFINITY),
+        },
+        _ => ControlFlow::Break((sum, f64::INFINITY)),
+    };
+    match (0..PFQ_MAXITER).map(f64::from).try_fold(init, step) {
+        ControlFlow::Break(res) => res,
+        ControlFlow::Continue((sum, _, last)) => (sum, last),
     }
 }
 
@@ -1682,14 +1602,17 @@ fn pfq_alg_sum<T: Term<Value = f64>>(
     z: f64,
     ratio_bound: impl FnMut(f64) -> f64,
 ) -> (f64, f64) {
-    let az = z.abs();
-    let scale = match kappa {
-        0 => return convergent_sum(terms, settled, ratio_bound),
-        1 => az,
-        2 => az.sqrt(),
-        _ => az.powf(1.0 / kappa as f64),
-    };
-    asymptotic_sum(terms, settled, scale, ratio_bound)
+    if kappa == 0 {
+        convergent_sum(terms, settled, f64::EPSILON, ratio_bound)
+    } else {
+        let az = z.abs();
+        let scale = match kappa {
+            1 => az,
+            2 => az.sqrt(),
+            _ => az.powf(1.0 / kappa as f64),
+        };
+        asymptotic_sum(terms, settled, scale, ratio_bound)
+    }
 }
 
 /// The coefficients `B_2k / (2k (2k - 1))` of Stirling's series (DLMF 5.11.1) in double-double,
@@ -1830,6 +1753,54 @@ fn gamma_series(
     mul_gammas(num, den, Scaled::new(sum, 0, err / sum.abs())?.with_l(l))
 }
 
+/// Appends `exp(l) sum` times `Gamma(num_0) ... / (Gamma(den_0) ...)` to `terms` for a term of
+/// `pfq_alg`, skipping it if `(sum, err) == (0, 0)`, or returns `None` if `err` is not finite or
+/// a Gamma factor fails.
+///
+/// If `sum` vanishes (or `err / |sum|` overflows) with a finite `err > 0`, pushes a zero term
+/// carrying the scaled absolute error (or the scaled bound itself when `sizes` is set).
+fn gamma_alg_term(
+    num: impl IntoIterator<Item = Dd>,
+    den: impl IntoIterator<Item = Dd>,
+    (sum, err): (Dd, f64),
+    l: Dd,
+    dd: bool,
+    sizes: bool,
+    terms: &mut Vec<Scaled>,
+) -> Option<()> {
+    err.is_finite().then_some(())?;
+    let rel = err / sum.hi.abs();
+    let term = if sum.hi == 0.0 || !rel.is_finite() {
+        let abs_err = err + sum.hi.abs();
+        if abs_err == 0.0 {
+            None
+        } else {
+            let mut e = mul_gammas_in(num, den, Scaled::new(abs_err, 0, 0.0)?.with_l(l), dd)?;
+            if sizes {
+                e.m = e.m.abs();
+                Some(e)
+            } else {
+                Some(e.into_zero_err())
+            }
+        }
+    } else {
+        let base = if dd {
+            mul_dd(Scaled::new(1.0, 0, rel)?.with_l(l), sum)
+        } else {
+            Scaled::new(sum.hi, 0, rel)?.with_l(l)
+        };
+        let mut y = mul_gammas_in(num, den, base, dd)?;
+        if sizes {
+            y.m = y.m.abs();
+        }
+        Some(y)
+    };
+    if let Some(y) = term {
+        terms.push(y);
+    }
+    Some(())
+}
+
 /// Whether `up` and `low` (complete `Dd` denominator) need `frexp` rescaling in `pfq_next_dd`
 fn pfq_extreme_dd(up: &[Dd], low: &[Dd]) -> bool {
     let many = up.len().max(low.len()) > PFQ_MAX_UNCHECKED;
@@ -1908,8 +1879,8 @@ fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, 
     }
 }
 
-/// `pfq_alg_series` for `p = q` or `p > q + 1` in double-double, with the exact parameters, and
-/// an infinite error if no term bounds the rest
+/// `pfq_alg_series` for `p >= q` in double-double, with the exact parameters, and an infinite
+/// error if no term bounds the rest
 ///
 /// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
 fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
@@ -1932,42 +1903,48 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
     if degree.is_finite() {
         // (all of its terms, with per-step factor-product roundings in double-double)
-        return polynomial_sum(terms, degree, (up.len() + low.len() + 2) as f64);
-    } else if up.len() < low.len() {
-        // (it converges for p > q + 1)
+        polynomial_sum(terms, degree, (up.len() + low.len() + 2) as f64)
+    } else if up.len() <= low.len() {
+        // (it converges for p > q + 1, and for p = q + 1 with |z| > 1)
         let mut scratch = BoundScratch::new(up.len(), low.len());
         let bound = |n: f64| scratch.ratio_bound(&up, &low, recip_up(z), n);
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
-        return convergent_sum(terms, settled, bound);
+        convergent_sum(terms, settled, Dd::EPSILON, bound)
+    } else {
+        // Where its factors are positive, each paired one of a term ratio is monotone with the limit
+        // 1, and the unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear
+        // in `m`, with `w(n) = above`, and at least `w(m) / spread`.
+        //
+        // The product of `w(n)` to `w(m)` is at most 1 while `w(n) + w(m) <= 2`: no term up to there
+        // is larger than term `n`. And from `w(m) >= spread` on, the terms grow for good. The sum
+        // only ends at an `n` with `above + spread <= 2` (above their rounding), and so not at a
+        // term that a later one exceeds.
+        let ends = |n: f64| {
+            let shift = |x: &Dd| (*x + n).hi;
+            let unpaired = shift(&up[low.len()]) / z.abs();
+            let quotients = zip(&up, &low).map(|(u, l)| shift(u) / shift(l));
+            let [above, spread] = quotients.fold([unpaired, 1.0], |[above, spread], f| {
+                [above * f.max(1.0), spread * f.max(f.recip())]
+            });
+            let positive = up.iter().chain(&low).all(|x| shift(x) > 0.0);
+            positive
+                && unpaired.is_normal()
+                && (above + spread) * (1.0 + f64::EPSILON.sqrt()) <= 2.0
+        };
+        // (the unpaired factor alone is above 1 after that)
+        let mut ns = (0..PFQ_MAXITER)
+            .map(f64::from)
+            .take_while(|&n| (up[low.len()] + n).hi <= z.abs());
+        match ns.find(|&n| ends(n)) {
+            Some(start) => {
+                let terms = zip(terms, (0_u32..).map(f64::from))
+                    .take_while(|&(_, n)| n < start || ends(n))
+                    .map(|(term, _)| term);
+                asymptotic_sum(terms, start, z, |_| 0.0)
+            },
+            None => (Dd::ONE, f64::INFINITY),
+        }
     }
-    // Where its factors are positive, each paired one of a term ratio is monotone with the limit
-    // 1, and the unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear
-    // in `m`, with `w(n) = above`, and at least `w(m) / spread`.
-    //
-    // The product of `w(n)` to `w(m)` is at most 1 while `w(n) + w(m) <= 2`: no term up to there
-    // is larger than term `n`. And from `w(m) >= spread` on, the terms grow for good. The sum
-    // only ends at an `n` with `above + spread <= 2` (above their rounding), and so not at a
-    // term that a later one exceeds.
-    let ends = |n: f64| {
-        let shift = |x: &Dd| (*x + n).hi;
-        let unpaired = shift(&up[low.len()]) / z.abs();
-        let quotients = zip(&up, &low).map(|(u, l)| shift(u) / shift(l));
-        let [above, spread] = quotients.fold([unpaired, 1.0], |[above, spread], f| {
-            [above * f.max(1.0), spread * f.max(f.recip())]
-        });
-        let positive = up.iter().chain(&low).all(|x| shift(x) > 0.0);
-        positive && unpaired.is_normal() && (above + spread) * (1.0 + f64::EPSILON.sqrt()) <= 2.0
-    };
-    // (the unpaired factor alone is above 1 after that)
-    let ns = (0..PFQ_MAXITER).map(f64::from);
-    let mut ns = ns.take_while(|&n| (up[low.len()] + n).hi <= z.abs());
-    let Some(start) = ns.find(|&n| ends(n)) else {
-        return (Dd::ONE, f64::INFINITY);
-    };
-    let terms = zip(terms, (0_u32..).map(f64::from))
-        .take_while(|&(_, n)| n < start || ends(n))
-        .map(|(term, _)| term);
-    asymptotic_sum(terms, start, z, |_| 0.0)
 }
 
 /// Appends the term of `pfq_alg` of the class of `a_m` (the `a_i` that differ from `a_m` by
@@ -2030,11 +2007,7 @@ fn pfq_class_term(
             .chain(poles.map(|g| -g + 1.0));
         let den = others.chain(args.filter(|g| !is_pole(g)));
         let l = -ln_dd(z.abs()) * am;
-        let mut y = gamma_series(num, den, (sign * sum, err), l)?;
-        if sizes {
-            y.m = y.m.abs();
-        }
-        terms.push(y);
+        gamma_alg_term(num, den, (Dd::new(sign * sum), err), l, false, sizes, terms)?;
     }
     Some(())
 }
@@ -2046,7 +2019,7 @@ enum Alg {
     Value,
     /// A bound on its size
     Sizes,
-    /// Its value for `p = q` or `p > q + 1`, with its series and its factor in double-double
+    /// Its value for `p >= q`, with its series and its factor in double-double
     Dd,
 }
 
@@ -2081,17 +2054,13 @@ fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg) -> Option<Vec<Scaled>> {
             let den = others.chain(bs.clone().map(|bj| bj - am));
             if !den.clone().any(|g| is_pole(&g)) {
                 let l = -ln_z * am;
-                let mut y = if mode == Alg::Dd {
-                    let (sum, err) = pfq_alg_series_dd(a, b, m, z);
-                    let y = Scaled::new(1.0, 0, err / sum.hi.abs())?.with_l(l);
-                    mul_gammas_in(num, den, mul_dd(y, sum), true)?
+                let (sum, err) = if mode == Alg::Dd {
+                    pfq_alg_series_dd(a, b, m, z)
                 } else {
-                    gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes), l)?
+                    let (sum, err) = pfq_alg_series(a, b, m, z, sizes);
+                    (Dd::new(sum), err)
                 };
-                if sizes {
-                    y.m = y.m.abs();
-                }
-                terms.push(y);
+                gamma_alg_term(num, den, (sum, err), l, mode == Alg::Dd, sizes, &mut terms)?;
             }
         }
     }
@@ -2685,19 +2654,11 @@ fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
 }
 
 /// `add_exp` in double-double
-///
-/// The mantissas of the terms are scaled to `[1/2, 1)` first: a term whose `exp` underflows to
-/// zero is then below `2^-1021` of the largest one, which is within the error bound of that one.
 fn add_exp_dd(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Option<Scaled> {
-    let terms = terms.into_iter().map(|mut y| {
-        let (m, k) = frexp_f64(y.m);
-        (y.m, y.e) = (m, y.e + k);
-        y
-    });
     add_exp_in(terms, Dd::exp, Dd::EPSILON)
 }
 
-/// The sum of the terms of `pfq_alg` in double-double, for `p = q` or `p > q + 1`
+/// The sum of the terms of `pfq_alg` in double-double, for `p >= q`
 fn pfq_alg_dd(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     add_exp_dd(pfq_alg(a, b, z, Alg::Dd)?)
 }
@@ -3713,6 +3674,73 @@ mod tests {
         assert!(
             (sum_f64 - sum_dd).hi.abs() <= err_f64 && err_f64 <= 4.0 * f64::EPSILON * sum_dd.hi,
             "{sum_f64:?} vs {sum_dd:?} (err {err_f64:e})"
+        );
+    }
+
+    #[test]
+    fn test_convergent_sum_edge_cases() {
+        // reaches PFQ_MAXITER with rho < 1: returns finite tail bound rather than infinity
+        let r = 0.999_5_f64;
+        let geom = successors(Some(1.0_f64), |&t| Some(t * r));
+        let (sum, err) = convergent_sum(geom, 0.0, f64::EPSILON, |_| r);
+        let exact = 1.0 / (1.0 - r);
+        assert!(err.is_finite() && (sum - exact).abs() <= err, "{sum} vs {exact} ({err})");
+        // early None (e.g. from overflow/NaN inside pfq_terms_of) returns infinite error
+        let (_, err) = convergent_sum([1.0, 0.5].into_iter(), 0.0, f64::EPSILON, |_| 0.5);
+        assert_eq!(err, f64::INFINITY);
+        // underflow followed by regrowth: yields the first negligible bound, then stops -> inf err
+        let make_regrow =
+            || pfq_terms_of(f64::INFINITY, 2e155, |n, t| if n == 0.0 { 1e-320 } else { t * 2e155 });
+        assert_eq!(make_regrow().count(), 1);
+        let (_, err) =
+            convergent_sum(once(1.0_f64).chain(make_regrow()), 10.0, f64::EPSILON, |_| 0.5);
+        assert_eq!(err, f64::INFINITY);
+        // sum overflow on finite terms returns infinite error
+        let (_, err) = convergent_sum([f64::MAX, f64::MAX].into_iter(), 0.0, f64::EPSILON, |_| 0.5);
+        assert_eq!(err, f64::INFINITY);
+    }
+
+    #[test]
+    fn test_add_exp_subnormal_with_zero_err() {
+        use crate::xsf::cephes::dd_real::LOG2;
+        // value 1 represented with subnormal mantissa 2^-1074 and exp(1074 * ln 2), plus 0 +- 0.5
+        let sub = Scaled::new(f64::from_bits(1), 0, 0.0)
+            .unwrap()
+            .with_l(LOG2 * 1074.0);
+        let zero_err = Scaled::new(0.5, 0, 0.0).unwrap().into_zero_err();
+        let (y, err) = add_exp([sub, zero_err]).unwrap().to_f64();
+        assert!((y - 1.0).abs() <= 1e-14 && (err - 0.5).abs() <= 1e-13, "{y} (err {err})");
+    }
+
+    #[test]
+    fn test_pfq_continuation_edge_cases() {
+        // zero inner polynomial (a_0 = 0.5 gives 1 - 1 = 0) must not abort the full sum
+        let a = [0.5, 1.5 - pow2(-40), 1.75];
+        let b = [2.5, 1.0];
+        let z = -pow2(40);
+        let (y, err) = pfq_continuation(&a, &b, z).unwrap();
+        let expected = 7.959_621_827_055_401e-7;
+        assert!(
+            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
+            "{y} vs {expected} (err {err})"
+        );
+        // mixed exact-integer class {2.75, 3.75} + cancelling singletons {0.5, 0.5 + 2^-32}
+        let a = [0.5, 0.5 + pow2(-32), 2.75, 3.75];
+        let b = [2.25, 3.5, 4.125];
+        let (y, err) = pfq_continuation(&a, &b, -1000.0).unwrap();
+        let expected = 0.191_031_737_123_466_5;
+        assert!(
+            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
+            "{y} vs {expected} (err {err})"
+        );
+        // direct continuation just past z = -1 (bypasses Weniger routing)
+        let a = [0.5, 1.25, 2.75];
+        let b = [2.25, 3.5];
+        let (y, err) = pfq_continuation(&a, &b, -1.01).unwrap();
+        let expected = 0.842_648_061_384_124_5;
+        assert!(
+            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
+            "{y} vs {expected} (err {err})"
         );
     }
 }
