@@ -117,7 +117,7 @@ const fn rows<const M: usize>() -> [Rows<M>; 3] {
 /// A factor of the recurrence: its coefficients `c_k` for term `n`, and their steps in `n`
 ///
 /// It takes a sequence `x` to the sequence `sum_{k=0}^{m+1} c_k x_{n-k}`.
-pub(super) struct Factor<const M: usize> {
+struct Factor<const M: usize> {
     coef: [Dd; M],
     step: [f64; M],
 }
@@ -125,29 +125,29 @@ pub(super) struct Factor<const M: usize> {
 impl<const M: usize> Factor<M> {
     /// For a parameter but the last `a_i` and `b_j`: `L[:, j]` and `R[:, j]` in the Julia code,
     /// and their steps
-    pub(super) const INNER: Rows<M> = rows::<M>()[0];
+    const INNER: Rows<M> = rows::<M>()[0];
     /// For the last `a_i` and `b_j`: `L[:, q]` and `R[:, q + 1]`, and their steps
-    pub(super) const LAST: Rows<M> = rows::<M>()[1];
+    const LAST: Rows<M> = rows::<M>()[1];
     /// For no parameter: `Lt0`, and its steps
-    pub(super) const TAIL: Rows<M> = rows::<M>()[2];
+    const TAIL: Rows<M> = rows::<M>()[2];
 
     /// The factor of a kind for `n = 0`, where `c_k` is `-k` times its step for a zero
     /// parameter and shift
-    pub(super) fn new(rows: &Rows<M>, param: Dd, shift: f64) -> Self {
+    fn new(rows: &Rows<M>, param: Dd, shift: f64) -> Self {
         let [by_param, by_shift, step] = *rows;
         let coef = from_fn(|k| param * by_param[k] + (shift * by_shift[k] - k as f64 * step[k]));
         Self { coef, step }
     }
 
     /// To the next `n`
-    pub(super) fn advance(&mut self) {
+    fn advance(&mut self) {
         for (c, step) in zip(&mut self.coef, self.step) {
             *c = *c + step;
         }
     }
 
     /// `sum_{k >= skip} c_k x_{n+skip-k}` for `x = [x_{n-m-1}, ..., x_n]`
-    pub(super) fn dot(&self, x: &[Dd; M], skip: usize) -> Dd {
+    fn dot(&self, x: &[Dd; M], skip: usize) -> Dd {
         Dd::dot(zip(&self.coef[skip..], x.iter().rev()).map(|(&c, &x)| (c, x)))
     }
 }
@@ -204,7 +204,7 @@ fn min_terms(alpha: &[f64], beta: &[f64], w: f64, m: usize) -> f64 {
 /// negligible in `f64` rather than in the arithmetic of the sum. It also ends only after
 /// `CONFORMAL_NEGLIGIBLE` successive negligible terms that do not grow, and after
 /// `min_terms` terms, as larger terms can follow a negligible one.
-pub(super) fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64) -> (Dd, f64) {
+fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64) -> (Dd, f64) {
     let (m, q) = (M - 2, beta.len());
     let scale = (2 * m) as f64;
     // the factors are numbered from the last one, for the last parameter
