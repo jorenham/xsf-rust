@@ -82,8 +82,10 @@ fn ln_gamma_coef(j: u32, x: Dd) -> f64 {
 /// the `1 + a_m - b_j`, over the `1 + a_m - a_i`, where `b` is without the 1 of `n!`
 pub(super) fn series_params(a: &[f64], b: &[f64], m: usize) -> [Vec<Dd>; 2] {
     let am = Dd::new(a[m]);
-    let up = once(am).chain(b.iter().map(|&bj| am + 1.0 - bj)).collect();
-    let low = a.iter().map(|&ai| am + 1.0 - ai).collect();
+    let up = once(am)
+        .chain(b.iter().map(|&bj| (am - bj) + 1.0))
+        .collect();
+    let low = a.iter().map(|&ai| (am - ai) + 1.0).collect();
     [up, low]
 }
 
@@ -158,21 +160,33 @@ impl Residues {
         }
     }
 
-    /// The parameters `up` and `low` as `f64`
-    pub(super) fn params(&self) -> [Vec<f64>; 2] {
-        [&self.up, &self.low].map(|v| v.iter().copied().map(f64::from).collect())
+    /// The parameters `up` and `low` in double-double, in descending order for ratio bounds
+    pub(super) fn params(&self) -> [Vec<Dd>; 2] {
+        let [mut up, mut low] = [self.up.clone(), self.low.clone()];
+        super::sort_descending_dd(&mut up);
+        super::sort_descending_dd(&mut low);
+        [up, low]
     }
 
     /// Bound on the ratio of the bounds on two successive residues from term `n` on, relative
-    /// to that on the ratio of their `t_n`, for the parameters `up` and `low` as `f64`, which
-    /// plus `n` must exceed 1
+    /// to that on the ratio of their `t_n`, for the parameters `up` and `low` in double-double,
+    /// which plus `n` must exceed 1
     ///
     /// It is the product of the sums of the sizes of the coefficients of `1 - eps / (x + n)`
-    /// and of `1 / (1 - eps / (x + n))`.
-    pub(super) fn growth_bound(up: &[f64], low: &[f64], n: f64) -> f64 {
-        let up = up.iter().map(|x| 1.0 + 1.0 / (x + n));
-        let low = low.iter().map(|x| (x + n) / (x + n - 1.0));
-        up.chain(low).product()
+    /// and of `1 / (1 - eps / (x + n))`, rounded upward so shifted low parts are preserved.
+    pub(super) fn growth_bound(up: &[Dd], low: &[Dd], n: f64) -> f64 {
+        let factor = |v: Dd| {
+            let d = super::dd_hi_down(v);
+            if d > 0.0 {
+                1.0 + 1.0 / d
+            } else {
+                f64::INFINITY
+            }
+        };
+        let up_f = up.iter().map(|&x| factor(x + n));
+        let low_f = low.iter().map(|&x| factor((x + n) - 1.0));
+        let slack = 1.0 + 2.0 * (up.len() + low.len()) as f64 * f64::EPSILON;
+        up_f.chain(low_f).product::<f64>() * slack
     }
 }
 
@@ -325,5 +339,16 @@ mod tests {
             let (t, size) = residues.next().unwrap();
             assert!(close(t, expected) && size >= t.abs(), "{t} {size}");
         }
+        // preserving parameter order avoids multiplying two tiny factors together to zero
+        let tiny = crate::utils::pow2(-538);
+        let mut residues = Residues::of_class(
+            &[tiny; 2],
+            &[4096.0, 4096.0, 4096.0, 4096.0, 4096.0, 1.0],
+            0,
+            -10.0,
+        );
+        assert!(residues.next().is_some());
+        let (t1, size1) = residues.next().unwrap();
+        assert!(t1.is_normal() && size1.is_normal(), "{t1}, {size1}");
     }
 }

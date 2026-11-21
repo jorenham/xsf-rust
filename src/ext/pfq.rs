@@ -310,6 +310,43 @@ fn is_pole(v: &Dd) -> bool {
     v.hi <= 0.0 && v.is_integer()
 }
 
+/// The smallest non-negative integer `n` with `v + n = 0` for a `v` in `params`, or infinity
+fn first_zero_dd(params: &[Dd]) -> f64 {
+    params
+        .iter()
+        .filter(|x| is_pole(x))
+        .map(|x| -x.hi)
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// The smallest integer `n` with `x + n > 0`
+fn positive_from(x: &Dd) -> f64 {
+    (-*x).floor().hi + 1.0
+}
+
+/// Upper bound on a non-negative `Dd` as `f64`
+fn dd_hi_up(x: Dd) -> f64 {
+    if x.lo > 0.0 && x.hi >= 0.0 {
+        next_up_nonneg(x.hi)
+    } else {
+        x.hi
+    }
+}
+
+/// Lower bound on a positive `Dd` as `f64`
+fn dd_hi_down(x: Dd) -> f64 {
+    if x.lo < 0.0 && x.hi > 0.0 && x.hi.is_finite() {
+        f64::from_bits(x.hi.to_bits() - 1)
+    } else {
+        x.hi
+    }
+}
+
+/// Sorts `v` in descending order, comparing low words on ties
+fn sort_descending_dd(v: &mut [Dd]) {
+    v.sort_unstable_by(|x, y| y.hi.total_cmp(&x.hi).then_with(|| y.lo.total_cmp(&x.lo)));
+}
+
 /// The `n` from which on all `a_i + n` and `b_j + n` are positive
 fn pfq_settled(a: &[f64], b: &[f64]) -> f64 {
     a.iter().chain(b).fold(0.0, |n, &v| n.max(-v))
@@ -441,33 +478,121 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     pfq_ratio_bound_iter(a, with_one(b), b.len() + 1, z, n)
 }
 
-/// `pfq_ratio_bound`, but infinite unless the ratios `|t_{m+1} / t_m|` from `m = n` on stay
-/// at least 1 once they reach it, for a longer `a` (more than `b.len() + 1` parameters)
+/// Small stack-backed scratch buffer (up to 8 elements before spilling to `Vec`)
+struct Scratch<T> {
+    buf: [T; 8],
+    vec: Vec<T>,
+}
+
+impl<T: Copy> Scratch<T> {
+    fn new(len: usize, fill: T) -> Self {
+        Self {
+            buf: [fill; 8],
+            vec: if len > 8 { vec![fill; len] } else { Vec::new() },
+        }
+    }
+
+    fn fill(&mut self, len: usize, iter: impl IntoIterator<Item = T>) -> &mut [T] {
+        let dst = if len <= self.buf.len() {
+            &mut self.buf[..len]
+        } else {
+            self.vec.resize(len, self.buf[0]);
+            &mut self.vec[..]
+        };
+        for (d, x) in zip(&mut *dst, iter) {
+            *d = x;
+        }
+        dst
+    }
+}
+
+/// Certifies that for `up_s.len() > low_s.len()`, term ratios stay at least 1 once they reach it
 ///
-/// They are at most 1 up to the `m0` where `pfq_ratio_bound` is 1 with each unpaired `a_i + n`
-/// replaced by `x + m0`, for the largest unpaired `a_i = x`. From `m0` on they grow if the
-/// derivative of their log is positive: the `k` unpaired `a_i + m` add at least `k / (x + m)`,
-/// and a pair with `a_i > b_i` subtracts `(a_i - b_i) / ((a_i + m) (b_i + m))`. Times `x + m`,
-/// that is at most its value at `m0`, with `(x + m) / (a_i + m)` at least 1, as its factors
-/// then decrease or stay below 1.
-fn pfq_regrowth_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
-    let bound = pfq_ratio_bound(a, b, z, n);
-    match a.get(b.len() + 1..).filter(|v| !v.is_empty()) {
-        None => bound,
-        Some(unpaired) if bound.is_finite() => {
-            let (k, x) = (unpaired.len() as f64, unpaired[0]);
-            let paired = zip(a, with_one(b)).map(|(&a, b)| ((a + n) / (b + n)).max(1.0));
-            let base = paired.product::<f64>() * z.abs();
-            let m0 = base.powf(-k.recip()) - x;
-            let pulls = zip(a, with_one(b)).filter(|&(&a, b)| a > b);
-            let pull = pulls.map(|(&a, b)| (a - b) / (b + m0) * ((x + m0) / (a + m0)).max(1.0));
-            if base.is_normal() && m0 >= n && pull.sum::<f64>() <= k {
-                bound
-            } else {
-                f64::INFINITY
-            }
-        },
-        Some(_) => f64::INFINITY,
+/// The ratios are at most 1 up to `m0 = n + delta`, where `base` bounds `|z|` times the paired
+/// ratios and `delta = base^(-1/k) - x_s` for the largest unpaired `x_s = up_s[low_s.len()]`. From
+/// `m0` on they grow if the derivative of their log is positive: the `k` unpaired factors add at
+/// least `k / (x_s + m - n)`, and each pair with `u > l` subtracts
+/// `(u - l) / ((u + m - n) (l + m - n))`. Times `x_s + m - n`, that is at most
+/// `(u - l) / (l + delta)` times `max(1, (x_s + delta) / (u + delta))` (for descending `up_s`,
+/// `(x_s + m - n) / (u + m - n)` is at most 1 and increases toward 1).
+fn regrowth_certified(
+    up_s: &[f64],
+    low_s: &[f64],
+    unpaired: &[f64],
+    z: f64,
+    bound: f64,
+) -> Option<()> {
+    bound.is_finite().then_some(())?;
+    let (k, x_s) = (unpaired.len() as f64, unpaired[0]);
+    // conservative upper bound on `base`, giving a conservative lower bound on `delta`
+    let base = pfq_ratio_bound_full(&up_s[..low_s.len()], low_s, z, 0.0);
+    base.is_normal().then_some(())?;
+    // certify `base * root^k <= 1` via an upward-rounded scaled product
+    let fits = |r: f64| {
+        (r > 0.0 && r.is_finite()).then(|| {
+            let ((bm, be), (rm, re)) = (frexp_f64(base), frexp_f64(r));
+            let (m, e) = (0..unpaired.len()).fold((bm, i64::from(be)), |(m, e), _| {
+                let (nm, ne) = frexp_f64(m * rm);
+                (nm, e + i64::from(re) + i64::from(ne))
+            });
+            let slack = 1.0 + (2 * unpaired.len() + 2) as f64 * f64::EPSILON;
+            ldexp_i64(m * slack, e) <= 1.0
+        }) == Some(true)
+    };
+    let r0 = base.powf(-k.recip()) * (1.0 - 128.0 * f64::EPSILON);
+    let root = [r0, r0 * (1.0 - 1024.0 * f64::EPSILON)]
+        .into_iter()
+        .find(|&r| fits(r))?;
+    let delta = root - x_s;
+    let delta = if delta > 0.0 {
+        f64::from_bits(delta.to_bits() - 1)
+    } else {
+        delta
+    };
+    let pulls = zip(up_s, low_s).filter(|&(u, l)| u > l);
+    let pull = pulls.map(|(&u, &l)| (u - l) / (l + delta) * ((x_s + delta) / (u + delta)).max(1.0));
+    let pull_slack = 1.0 + (4.0 * low_s.len() as f64 + 4.0) * f64::EPSILON;
+    (delta >= 0.0 && pull.sum::<f64>() * pull_slack <= k).then_some(())
+}
+
+/// Reusable scratch buffers for shifted `Dd` ratio/regrowth bounds
+struct BoundScratch {
+    up: Scratch<f64>,
+    low: Scratch<f64>,
+}
+
+impl BoundScratch {
+    fn new(up_len: usize, low_len: usize) -> Self {
+        Self {
+            up: Scratch::new(up_len, 0.0),
+            low: Scratch::new(low_len, 0.0),
+        }
+    }
+
+    fn shift<'a>(&'a mut self, up: &[Dd], low: &[Dd], n: f64) -> (&'a [f64], &'a [f64]) {
+        let up_s = self.up.fill(up.len(), up.iter().map(|&x| dd_hi_up(x + n)));
+        let low_s = self
+            .low
+            .fill(low.len(), low.iter().map(|&x| dd_hi_down(x + n)));
+        (up_s, low_s)
+    }
+
+    /// `pfq_ratio_bound_full` on `up + n` (rounded up) and `low + n` (rounded down) in `Dd`
+    fn ratio_bound(&mut self, up: &[Dd], low: &[Dd], z: f64, n: f64) -> f64 {
+        let (up_s, low_s) = self.shift(up, low, n);
+        pfq_ratio_bound_full(up_s, low_s, z, 0.0)
+    }
+
+    /// `ratio_bound`, or infinite unless ratios for `up.len() > low.len()` stay at least 1 once
+    /// they reach it
+    fn regrowth_bound(&mut self, up: &[Dd], low: &[Dd], z: f64, n: f64) -> f64 {
+        let (up_s, low_s) = self.shift(up, low, n);
+        let bound = pfq_ratio_bound_full(up_s, low_s, z, 0.0);
+        match up_s.get(low_s.len()..).filter(|v| !v.is_empty()) {
+            None => bound,
+            Some(unpaired) => regrowth_certified(up_s, low_s, unpaired, z, bound)
+                .map_or(f64::INFINITY, |()| bound),
+        }
     }
 }
 
@@ -1351,7 +1476,7 @@ fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     z: f64,
-    ratio_bound: impl Fn(f64) -> f64,
+    mut ratio_bound: impl FnMut(f64) -> f64,
 ) -> (T::Value, f64) {
     let eps = T::Value::EPSILON;
     let (mut sum, mut abs_sum, mut prev) = (T::Value::from_f64(0.0), 0.0, f64::INFINITY);
@@ -1422,6 +1547,30 @@ fn convergent_sum<T: Term>(
     }
 }
 
+/// Sum of a terminating series of known `degree`, with its rounding error estimate
+fn polynomial_sum<T: SeriesReal>(mut terms: impl Iterator<Item = T>, degree: f64) -> (T, f64) {
+    let zero = T::from_f64(0.0);
+    let step = |(sum, abs_sum): (T, f64), _| match terms.next() {
+        Some(t) if t.to_f64().is_finite() => {
+            let next = sum + t;
+            if next.to_f64().is_finite() {
+                ControlFlow::Continue((next, abs_sum + t.to_f64().abs()))
+            } else {
+                ControlFlow::Break(next)
+            }
+        },
+        _ => ControlFlow::Break(sum),
+    };
+    if degree >= f64::from(PFQ_MAXITER) {
+        (zero, f64::INFINITY)
+    } else {
+        match (0..=degree as u32).try_fold((zero, 0.0), step) {
+            ControlFlow::Continue((sum, abs_sum)) => (sum, (degree + 1.0) * T::EPSILON * abs_sum),
+            ControlFlow::Break(sum) => (sum, f64::INFINITY),
+        }
+    }
+}
+
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
 /// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`, which
 /// also stands for `p > q + 1`
@@ -1430,7 +1579,7 @@ fn pfq_alg_sum<T: Term<Value = f64>>(
     settled: f64,
     kappa: usize,
     z: f64,
-    ratio_bound: impl Fn(f64) -> f64,
+    ratio_bound: impl FnMut(f64) -> f64,
 ) -> (f64, f64) {
     let az = z.abs();
     let scale = match kappa {
@@ -1623,93 +1772,81 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     gamma_series(b.map(Dd::new), a.map(Dd::new), series, l)
 }
 
-/// `(x, k, factor)` for the rounded parameter `x = 1 + am - v` of a series, where `-k` is the
-/// non-positive integer nearest to it: times `factor`, the terms after `t_k` have the factor
-/// `x + k` of the exact parameter if it is an `upper` one, and `1 / (x + k)` if it is a lower one
-///
-/// The rounding error of `x` is large relative to a small `x + k`. An inexact `x` at `-k` would
-/// end the series if upper, or divide by zero if lower, so that it is a few ulp from `-k` instead.
-fn shifted(am: f64, v: f64, upper: bool) -> (f64, f64, f64) {
-    let (s, e1) = two_sum(1.0, am);
-    let (nearest, e2) = two_sum(s, -v);
-    let (k, e) = (-nearest.round().min(0.0), e1 + e2);
-    let offset = nearest + k;
-    let lands = offset == 0.0 && e != 0.0;
-    // (more than an ulp of -k, also for k = 0)
-    let x = nearest - if lands { (k + 1.0) * f64::EPSILON } else { 0.0 };
-    let (rounded, exact) = (x + k, offset + e);
-    // (an upper parameter at -k is exact here: the series ends)
-    let upper_factor = if rounded == 0.0 { 1.0 } else { exact / rounded };
-    (x, k, if upper { upper_factor } else { rounded / exact })
+/// Whether `up` and `low` (complete `Dd` denominator) need `frexp` rescaling in `pfq_next_dd`
+fn pfq_extreme_dd(up: &[Dd], low: &[Dd]) -> bool {
+    let many = up.len().max(low.len()) > PFQ_MAX_UNCHECKED;
+    let extreme = |x: &Dd| {
+        !PFQ_MODERATE.contains(&x.hi.abs()) || (x.lo != 0.0 && !PFQ_MODERATE.contains(&x.lo.abs()))
+    };
+    many || up.iter().chain(low).any(extreme)
+}
+
+/// `t_{n+1}` after `term = t_n` for complete `Dd` parameters `up` and `low`, preserving `Dd` low
+/// parts through `(x + n).frexp()` when intermediate products are extreme or non-normal
+#[cold]
+#[inline(never)]
+fn pfq_rescaled_next_dd(up: &[Dd], low: &[Dd], n: f64, w: f64, term: f64) -> f64 {
+    let product = |params: &[Dd]| {
+        params.iter().fold((1.0_f64, 0_i64), |(m, e), &x| {
+            let (vm, ve) = (x + n).frexp();
+            let (m, me) = frexp_f64(m * vm.hi);
+            (m, e + i64::from(ve) + i64::from(me))
+        })
+    };
+    let ((num, ne), (den, de)) = (product(up), product(low));
+    let ((wm, we), (tm, te)) = (frexp_f64(w), frexp_f64(term));
+    ldexp_i64(tm * ((num / den) * wm), (ne - de) + i64::from(we + te))
+}
+
+/// `t_{n+1}` after `term = t_n` for complete `Dd` parameters `up` and `low`
+#[inline]
+fn pfq_next_dd(up: &[Dd], low: &[Dd], n: f64, w: f64, term: f64, checked: bool) -> f64 {
+    let normal = |v: f64| is_normal(v).then_some(v);
+    let fast = (!checked)
+        .then(|| {
+            let num = normal(up.iter().fold(1.0_f64, |p, &x| p * (x + n).hi))?;
+            let den = normal(low.iter().fold(1.0_f64, |p, &x| p * (x + n).hi))?;
+            let ratio = normal(normal(num / den)? * w)?;
+            Some(term * ratio)
+        })
+        .flatten();
+    fast.unwrap_or_else(|| pfq_rescaled_next_dd(up, low, n, w, term))
 }
 
 /// The series of the term of `a_m` of the algebraic part (DLMF 16.11.2), as its sum and
 /// absolute error
 ///
-/// With `sizes`, it is the sum of the sizes of its terms.
+/// The shifted parameters `a_m`, `1 + a_m - b_j`, and `1 + a_m - a_i` (including `1` for `i = m`)
+/// are kept in double-double so cancellations in `x + n`, pole checks, settlement, and bounds do
+/// not lose their low parts. With `sizes`, it is the sum of the sizes of its terms.
 fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, f64) {
-    let am = a[m];
-    let (mut shift_buf, mut shift_vec) = ([(0.0, 1.0); 16], Vec::new());
-    let n_shifts = a.len() + b.len() - 1;
-    let shifts = if n_shifts <= shift_buf.len() {
-        &mut shift_buf[..n_shifts]
-    } else {
-        shift_vec.resize(n_shifts, (0.0, 1.0));
-        &mut shift_vec[..]
-    };
-    let mut s_idx = 0;
-    let mut next_shifted = |v: f64, upper: bool| {
-        let (x, k, factor) = shifted(am, v, upper);
-        shifts[s_idx] = (k, factor);
-        s_idx += 1;
-        x
-    };
-    // a_m and 1 + a_m - b_j, over 1 + a_m - a_i (i != m) with the 1 of n! implicit
-    let (mut up_buf, mut up_vec) = ([0.0; 8], Vec::new());
-    let upper = if b.len() < up_buf.len() {
-        &mut up_buf[..=b.len()]
-    } else {
-        up_vec.resize(b.len() + 1, 0.0);
-        &mut up_vec[..]
-    };
-    upper[0] = am;
-    for (dst, &bj) in zip(&mut upper[1..], b) {
-        *dst = next_shifted(bj, true);
-    }
-    let (mut low_buf, mut low_vec) = ([0.0; 8], Vec::new());
-    let low_len = a.len().saturating_sub(1);
-    let lower = if low_len <= low_buf.len() {
-        &mut low_buf[..low_len]
-    } else {
-        low_vec.resize(low_len, 0.0);
-        &mut low_vec[..]
-    };
-    for (dst, ai) in zip(&mut *lower, skip(&a, m)) {
-        *dst = next_shifted(ai, false);
-    }
-    let (up, low) = (&*descending(upper), &*descending(lower));
-    let bound = |n| pfq_regrowth_bound(up, low, recip_up(z), n);
-    // kappa = q - p + 1, or 0 for p > q + 1, where the series converges
+    let am = Dd::new(a[m]);
+    let (mut up_s, mut low_s) =
+        (Scratch::new(b.len() + 1, Dd::ZERO), Scratch::new(a.len(), Dd::ZERO));
+    let up = up_s.fill(b.len() + 1, once(am).chain(b.iter().map(|&bj| (am - bj) + 1.0)));
+    let low = low_s.fill(a.len(), a.iter().map(|&ai| (am - ai) + 1.0));
+    sort_descending_dd(up);
+    sort_descending_dd(low);
+    let degree = first_zero_dd(up);
     let (p, q) = (a.len(), b.len());
-    let kappa = (q + 1).saturating_sub(p);
-    // their k and factors, and the largest k with the factor of the terms after it
-    let (k_max, all) = shifts
-        .iter()
-        .fold((0.0_f64, 1.0), |(top, all), &(k, f)| (k.max(top), all * f));
+    let w = neg_one_pow(p + q + 1) / z;
+    let checked = pfq_extreme_dd(up, low);
     let series = once(1.0)
-        // in (-1)^(p+q+1) / z
-        .chain(pfq_terms(up, low, neg_one_pow(p + q + 1) / z))
-        .zip((0_u32..).map(f64::from))
-        .map(|(t, n)| {
-            // (one product is faster)
-            if n > k_max {
-                t * all
-            } else {
-                shifts.iter().fold(t, |t, &(k, f)| if n > k { t * f } else { t })
-            }
-        })
+        .chain(pfq_terms_of(degree, w, |n, term| pfq_next_dd(up, low, n, w, term, checked)))
         .map(|t| if sizes { t.abs() } else { t });
-    pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound)
+    if degree.is_finite() {
+        polynomial_sum(series, degree)
+    } else {
+        let settled = up
+            .iter()
+            .chain(&*low)
+            .map(positive_from)
+            .fold(0.0, f64::max);
+        let kappa = (q + 1).saturating_sub(p);
+        let mut scratch = BoundScratch::new(up.len(), low.len());
+        let bound = |n| scratch.regrowth_bound(up, low, recip_up(z), n);
+        pfq_alg_sum(series, settled, kappa, z, bound)
+    }
 }
 
 /// `pfq_alg_series` for `p = q` or `p > q + 1` in double-double, with the exact parameters, and
@@ -1720,10 +1857,9 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     let [mut up, mut low] = residue::series_params(a, b, m);
     // (so that the factors of a term ratio pair by size, with the smallest of `up` unpaired)
     for v in [&mut up, &mut low] {
-        v.sort_unstable_by(|x, y| y.hi.total_cmp(&x.hi));
+        sort_descending_dd(v);
     }
-    let poles = up.iter().filter(|x| is_pole(x));
-    let degree = poles.fold(f64::INFINITY, |n, x| n.min(-x.hi));
+    let degree = first_zero_dd(&up);
     let ratio = |n: f64| {
         let normal = |p: Dd| if is_normal(p) { p } else { Dd::NAN };
         let prod = |v: &[Dd]| v.iter().fold(Dd::ONE, |p, &x| normal(p * (x + n)));
@@ -1737,23 +1873,11 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
     if degree.is_finite() {
         // (all of its terms)
-        return asymptotic_sum(terms, degree + 1.0, z, |_| 0.0);
+        return polynomial_sum(terms, degree);
     } else if up.len() < low.len() {
         // (it converges for p > q + 1)
-        //
-        // The bound is on the factors that are shifted in double-double, as `x.hi + n` is not
-        // the rounded `x + n` where that nearly vanishes, from where all of them are positive.
-        let (mut up_s, mut low_s) = (vec![0.0; up.len()], vec![0.0; low.len()]);
-        let bound = |n: f64| {
-            for (dst, &x) in zip(&mut up_s, &up) {
-                *dst = (x + n).hi;
-            }
-            for (dst, &x) in zip(&mut low_s, &low) {
-                *dst = (x + n).hi;
-            }
-            pfq_ratio_bound_full(&up_s, &low_s, recip_up(z), 0.0)
-        };
-        let positive_from = |x: &Dd| (-*x).floor().hi + 1.0;
+        let mut scratch = BoundScratch::new(up.len(), low.len());
+        let bound = |n: f64| scratch.ratio_bound(&up, &low, recip_up(z), n);
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
         return convergent_sum(terms, settled, bound);
     }
@@ -1819,12 +1943,17 @@ fn pfq_class_term(
         return (!is_nonpos_int(am)).then_some(());
     }
     let residues = Residues::of_class(a, b, m, z);
-    let [up, low] = residues.params().map(descending);
+    let [up, low] = residues.params();
     // (their order is final after the last zero factor, and their bounds are valid once all
     // parameters plus n exceed 1)
-    let settled = pfq_settled(&up, &low).floor() + 2.0;
+    let settled = up
+        .iter()
+        .chain(&low)
+        .map(|&x| positive_from(&(x - 1.0)))
+        .fold(0.0, f64::max);
+    let mut scratch = BoundScratch::new(up.len(), low.len());
     let bound =
-        |n| pfq_ratio_bound_full(&up, &low, recip_up(z), n) * Residues::growth_bound(&up, &low, n);
+        |n| scratch.ratio_bound(&up, &low, recip_up(z), n) * Residues::growth_bound(&up, &low, n);
     let sizes = sizes || z > 0.0;
     let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
     let kappa = (b.len() + 1).saturating_sub(a.len());
@@ -3214,5 +3343,73 @@ mod tests {
             .and_then(Estimate::accurate);
         let expected = -816_436.169_307_593_7_f64;
         assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
+    }
+
+    #[test]
+    fn test_pfq_alg_dd_params() {
+        // exact terminating parameter (-2) beside one with identical hi word and nonzero lo
+        // (-2 - 2^-52): degree is 2, not infinite or 0
+        let [up, _] = residue::series_params(&[-2.0, 0.5], &[1.0 + pow2(-52)], 0);
+        assert_eq!(up[0].hi, -2.0);
+        assert_eq!(up[1].hi, -2.0);
+        assert_ne!(up[1].lo, 0.0);
+        assert_eq!(first_zero_dd(&up), 2.0);
+        let (sum, err) = pfq_alg_series(&[-2.0, 0.5], &[1.0 + pow2(-52)], 0, -10.0, false);
+        // 1 + (-2)(-2 - 2^-52)/(1 * -1.5) * (-0.1) + ...
+        let expected = 1.0 + 4.0 / 15.0 + 4.0 / 150.0;
+        assert!((sum - expected).abs() <= 1e-13 && err <= 1e-13, "{sum}, {err}");
+        // parameter with hi = -3 and nonzero lo = 2^-60 does not falsely terminate
+        let [up_nonpole, _] = residue::series_params(&[pow2(-60), 0.5], &[4.0], 0);
+        assert_eq!(up_nonpole[1].hi, -3.0);
+        assert_eq!(up_nonpole[1].lo, pow2(-60));
+        assert!(first_zero_dd(&up_nonpole).is_infinite());
+        // |a_m| >> 1 with v ~ a_m preserves +1 in (a_m - v) + 1
+        let big = pow2(60);
+        let [up_big, _] = residue::series_params(&[big, 0.5], &[big - 256.0], 0);
+        assert_eq!(up_big[1], Dd::new(257.0));
+        // genuine b_j = 1.0 with a_j = 2^-60 keeps exact 2^-60 in up (not rounded to 0)
+        let tiny = pow2(-60);
+        let [up_one, _] = residue::series_params(&[tiny, 0.5], &[1.0], 0);
+        assert_eq!(up_one[0], Dd::new(tiny));
+        assert_eq!(up_one[1], Dd::new(tiny));
+        let (sum, err) = pfq_alg_series(&[tiny, 0.5], &[1.0], 0, -10.0, false);
+        assert!(
+            (sum - 1.0).abs() <= 4.0 * f64::EPSILON && err <= 4.0 * f64::EPSILON,
+            "{sum}, {err}"
+        );
+        // exact termination at huge |z| does not overflow `TAU * |z|`
+        let (sum, err) = pfq_alg_series(&[-1.0], &[1.0, 8.0], 0, -f64::MAX, false);
+        assert_eq!(sum, 1.0);
+        assert!(err.is_finite() && err <= 4.0 * f64::EPSILON, "{err}");
+        // regrowth guard rounds conservatively on threshold pull = 1 + eps
+        let mut scratch = BoundScratch::new(2, 1);
+        let rho = scratch.regrowth_bound(
+            &[Dd::new(3.0), Dd::new(3.0)],
+            &[Dd::new(1.0)],
+            next_up_nonneg(1.0 / 12.0),
+            0.0,
+        );
+        assert_eq!(rho, f64::INFINITY);
+        // six-factor threshold where `1/5` rounding in `powf` would exceed a small fixed margin
+        let mut scratch = BoundScratch::new(6, 1);
+        let rho = scratch.regrowth_bound(
+            &[Dd::new(8.590_444_340_720_38e49); 6],
+            &[Dd::new(1.0)],
+            next_up_nonneg(1e-300),
+            0.0,
+        );
+        assert_eq!(rho, f64::INFINITY);
+        // repeated-pole shifted-factor case: early f64 rounding drops the combined bound below 1,
+        // while preserving Dd low parts keeps it strictly above 1
+        let am = 1.0 + pow2(-41);
+        let a = [am, am, 8191.5 + pow2(-40)];
+        let b = [8191.5, 1.0];
+        let z = -5.002_442_002_406_743;
+        let residues = Residues::of_class(&a, &b, 0, z);
+        let [up_r, low_r] = residues.params();
+        let mut scratch = BoundScratch::new(up_r.len(), low_r.len());
+        let bound = scratch.ratio_bound(&up_r, &low_r, recip_up(z), 8191.0)
+            * Residues::growth_bound(&up_r, &low_r, 8191.0);
+        assert!(bound > 1.0, "{bound}");
     }
 }
