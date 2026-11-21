@@ -77,14 +77,14 @@ const RAISED_MIN: f64 = 3.0;
 /// (measured).
 const RAISED_WORK: u32 = 2 * PFQ_MAXITER;
 
-/// Most steps and series terms of all tries of `pfq_recurrence_balanced` together: the terms of
+/// Most steps and series terms of all tries of `recurrence_balanced` together: the terms of
 /// three starts of `PFQ_LONG_MAXITER` each
 ///
 /// Of its 82 results without it on 1059 points where the other methods are not accurate, 80 are
 /// within it (measured).
 const BALANCED_WORK: u32 = 3 * PFQ_LONG_MAXITER;
 
-/// Most steps and series terms of all tries of `pfq_recurrence_nested` together
+/// Most steps and series terms of all tries of `recurrence_nested` together
 ///
 /// Of its 127 results without it on 979 points where the other methods are not accurate, 108 are
 /// within it, and half as much again gives 8 more (measured).
@@ -130,18 +130,23 @@ fn upper_coefficients<T: SeriesReal>(w: T, e: [T; 2], h: [T; 2], z: T, minus: f6
 
 /// The series in double-double for the ratios `ratio(n)` of its terms, which can be those of
 /// more exact parameters than `a` and `b`, and an estimate of its absolute error, or `None` if
-/// it is not accurate within `maxiter` terms
+/// it is not accurate within `maxiter` terms or `work` runs out (each term takes one)
 fn recurrence_start(
     a: [f64; 3],
     b: [f64; 2],
     z: f64,
     maxiter: u32,
+    work: &Cell<u32>,
     ratio: impl Fn(f64) -> Dd,
 ) -> Option<(Dd, f64)> {
-    let terms = pfq_terms_of(first_zero(&a), z, |n, t: Dd| t * (ratio(n) * Dd::new(z)));
+    let limit = maxiter.min(work.get());
+    let terms = pfq_terms_of(first_zero(&a), z, |n, t: Dd| {
+        work.set(work.get() - 1);
+        t * (ratio(n) * Dd::new(z))
+    });
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
-    let (y, err, _) = pfq_sum_terms(&a, &b, z, maxiter, terms, Dd::EPSILON);
+    let (y, err, _) = pfq_sum_terms(&a, &b, z, limit, terms, Dd::EPSILON);
     let accurate = Estimate::absolute((y.hi, err)).is_accurate();
     accurate.then_some((y, err))
 }
@@ -203,11 +208,8 @@ fn lower_recurrence(
     let start = |k: f64| {
         // the terms for `u` itself, which `pfq_terms` would round
         let u = Dd::new(bj) + k;
-        let ratio = |n| {
-            work.set(work.get() - 1);
-            pfq_ratio::<Dd>(&a, &[other], n, checked) / (u + n)
-        };
-        recurrence_start(a, [u.hi, other], z, PFQ_DD_MAXITER.min(work.get()), ratio)
+        let ratio = |n| pfq_ratio::<Dd>(&a, &[other], n, checked) / (u + n);
+        recurrence_start(a, [u.hi, other], z, PFQ_DD_MAXITER, work, ratio)
     };
     lower_steps(a, bj, other, z, m, start)
 }
@@ -262,11 +264,8 @@ fn upper_recurrence(
     let start = |k: f64| {
         // the terms for `u` itself, as for a lower parameter
         let u = Dd::new(a[i]) + k;
-        let ratio = |n| {
-            work.set(work.get() - 1);
-            pfq_ratio::<Dd>(&others, &b, n, checked) * (u + n)
-        };
-        recurrence_start([u.hi, others[0], others[1]], b, z, maxiter.min(work.get()), ratio)
+        let ratio = |n| pfq_ratio::<Dd>(&others, &b, n, checked) * (u + n);
+        recurrence_start([u.hi, others[0], others[1]], b, z, maxiter, work, ratio)
     };
     // F(a_i + k) from the relation at a = a_i + k
     recurrence_from(m, start, |k| upper_step(a, i, b, z, Dd::new(a[i]) + (k + 1.0)))
@@ -288,13 +287,9 @@ fn raised_recurrence(
 ) -> Option<(Dd, f64)> {
     let Some(i) = (i..3).find(|&i| a[i] >= RAISED_MIN) else {
         let checked = pfq_extreme(&a, &b);
-        // one of the work for each term, up to all that is left: near z = -1, the series can
-        // take more than `PFQ_DD_MAXITER` terms
-        let ratio = |n| {
-            work.set(work.get() - 1);
-            pfq_ratio::<Dd>(&a, &b, n, checked)
-        };
-        return recurrence_start(a, b, z, work.get(), ratio);
+        // near z = -1, the series can take more than `PFQ_DD_MAXITER` terms, up to all work left
+        let ratio = |n| pfq_ratio::<Dd>(&a, &b, n, checked);
+        return recurrence_start(a, b, z, u32::MAX, work, ratio);
     };
     // (so that the lowest start is not negative)
     let m = m.min(a[i] as u32 - 2);
@@ -389,28 +384,31 @@ pub(super) fn pfq_recurrence<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Opti
         let run = |m| lower_recurrence(a, bj, other, z, m, &Cell::new(u32::MAX));
         recurrence_first(RECURRENCE_STARTS, run)
     };
-    let upper = |i: usize| {
-        let run =
-            |m| upper_recurrence(a, i, [large, small], z, m, PFQ_DD_MAXITER, &Cell::new(u32::MAX));
-        recurrence_first(toward_zero(a[i]), run)
-    };
     let raised = || raised_first(a, [large, small], z, &Cell::new(RAISED_WORK));
-    // first in the smaller lower parameter, then in the negative upper ones, and last up in the
-    // large upper ones for z < 0, each in at most as many steps as the series has terms
-    let lowers = [(small, large), (large, small)].into_iter().find_map(lower);
-    let (y, err) = lowers.or_else(|| (0..3).find_map(upper)).or_else(raised)?;
+    // first in the smaller lower parameter, then the larger, and last up in the large upper ones
+    // for z < 0
+    let (y, err) = [(small, large), (large, small)]
+        .into_iter()
+        .find_map(lower)
+        .or_else(raised)?;
     accurate(y, err)
 }
 
-/// 3F2 for `|z| < 1` by the steps down in a negative smaller lower parameter from where
-/// `raised_first` gives F, and an estimate of its absolute error, or `None` if it is not 3F2 or
-/// not accurate
-pub(super) fn pfq_recurrence_lowered<A: Params, B: Params>(
+/// 3F2 for `|z| < 1` by the slower recurrences (lowered, balanced upper, and nested), and an
+/// estimate of its absolute error, or `None` if it is not 3F2 or not accurate
+pub(super) fn pfq_recurrence_extended<A: Params, B: Params>(
     a: &A,
     b: &B,
     z: f64,
 ) -> Option<(f64, f64)> {
-    let (a, [large, small]) = params_3f2(a, b)?;
+    let (a, b) = params_3f2(a, b)?;
+    recurrence_lowered(a, b, z)
+        .or_else(|| recurrence_balanced(a, b, z))
+        .or_else(|| recurrence_nested(a, b, z))
+}
+
+/// Steps down in a negative smaller lower parameter from where `raised_first` gives F
+fn recurrence_lowered(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(f64, f64)> {
     if z >= 0.0 || a[0] < RAISED_MIN {
         return None;
     }
@@ -423,18 +421,12 @@ pub(super) fn pfq_recurrence_lowered<A: Params, B: Params>(
     accurate(y, err)
 }
 
-/// 3F2 for `-1 < z < 0` by the steps down in a negative smaller lower parameter from where it is
-/// about -8, -16, ..., whose starts are by the steps down in the other one from where that is
-/// positive, and an estimate of its absolute error, or `None` if it is not 3F2 or not accurate
+/// Steps down in a negative smaller lower parameter from where it is about -8, -16, ..., whose
+/// starts are by the steps down in the other one from where that is positive
 ///
 /// It tries the starts nearest to 0 first, where the series that their F come from cancel least.
 /// All tries share `NESTED_WORK`.
-pub(super) fn pfq_recurrence_nested<A: Params, B: Params>(
-    a: &A,
-    b: &B,
-    z: f64,
-) -> Option<(f64, f64)> {
-    let (a, [large, small]) = params_3f2(a, b)?;
+fn recurrence_nested(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(f64, f64)> {
     if z >= 0.0 {
         return None;
     }
@@ -454,32 +446,40 @@ pub(super) fn pfq_recurrence_nested<A: Params, B: Params>(
     results.find_map(|(y, _, err)| accurate(y, err))
 }
 
-/// 3F2 for `|z| < 1` by the steps down in a negative upper parameter from about the most steps
-/// whose rounding errors are within half of the tolerance, and an estimate of its absolute error,
-/// or `None` if it is not 3F2 or not accurate
+/// Steps down in a negative upper parameter from about the most steps whose rounding errors are
+/// within half of the tolerance
 ///
 /// With fewer steps, the series at their start cancels more, and with more, their rounding errors
-/// grow more, which can leave a narrow range of steps that those of `toward_zero` miss. The series
-/// have up to `PFQ_LONG_MAXITER` terms, as near `z = 1` they can need more than
-/// `PFQ_DD_MAXITER` where `a_i + m` is near 0. All of them and the steps share `BALANCED_WORK`.
+/// grow more. The series have up to `PFQ_LONG_MAXITER` terms, as near `z = 1` they can need more
+/// than `PFQ_DD_MAXITER` where `a_i + m` is near 0. All of them and the steps share
+/// `BALANCED_WORK`.
 ///
 /// The search is a heuristic: it bisects as if the estimate of the rounding errors grew with the
 /// steps and only too few steps made a start inaccurate, which the long series near `z = 1` and
 /// the rounding of the starts can break, and it returns the first accurate result it finds.
-pub(super) fn pfq_recurrence_balanced<A: Params, B: Params>(
-    a: &A,
-    b: &B,
-    z: f64,
-) -> Option<(f64, f64)> {
-    let (a, b) = params_3f2(a, b)?;
+fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<(f64, f64)> {
     let work = Cell::new(BALANCED_WORK);
     let balanced = |i| {
-        let run = |m| upper_recurrence(a, i, b, z, m, PFQ_LONG_MAXITER, &work);
-        // the most steps in `[1, steps_to_zero)` that are within, by bisection
+        let run = |m, maxiter| upper_recurrence(a, i, b, z, m, maxiter, &work);
+        // try near 0 (`high - 8`) first with a short `PFQ_DD_MAXITER` budget so large negative
+        // `a[i]` finish in one attempt without starving bisection, then bisect `[1, steps_to_zero)`
         let (mut low, mut high) = (0, steps_to_zero(a[i]));
+        if high > 2 * RECURRENCE_STARTS[0] {
+            let m = high - RECURRENCE_STARTS[0];
+            if let Some((y, rounding, err)) = run(m, PFQ_DD_MAXITER) {
+                if let Some(y) = accurate(y, err) {
+                    return Some(y);
+                }
+                if 2.0 * rounding <= PFQ_TOL * y.hi.abs() {
+                    low = m;
+                } else {
+                    high = m;
+                }
+            }
+        }
         while low + 1 < high {
             let m = low.midpoint(high);
-            let y = run(m);
+            let y = run(m, PFQ_LONG_MAXITER);
             if let Some(y) = y.and_then(|(y, _, err)| accurate(y, err)) {
                 return Some(y);
             }
@@ -562,5 +562,19 @@ mod tests {
         assert!(expected.is_some());
         assert_eq!(run(RAISED_WORK - left), (expected, 0));
         assert_eq!(run(RAISED_WORK - left - 1).0, None);
+    }
+
+    #[test]
+    fn test_recurrence_balanced_probe_budget() {
+        // probe at `high - 8` fails with `PFQ_DD_MAXITER` and must leave enough of `BALANCED_WORK`
+        // for the bisection midpoint `m = 18` to succeed
+        let a = [16.983_936_871_431_336, -0.114_022_201_911_358_77, -36.194_302_717_639_12];
+        let b = [0.871_800_762_335_526_7, 0.001_410_048_592_030_205_8];
+        let (y, err) = recurrence_balanced(a, b, 0.996).unwrap();
+        let expected = 194.547_589_493_083_65;
+        assert!(
+            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
+            "{y} vs {expected} (err {err})"
+        );
     }
 }
