@@ -455,6 +455,8 @@ fn test_hyp2f2_polynomial() {
         ([-25.0, 10.5], [30.25, 1.5], -3.0, 1_431.131_238_039_312_8),
         // terminates before the zero of (b_1)_n
         ([-3.0, 1.5], [-5.0, 2.5], -40.0, -266.098_412_698_412_7),
+        // cancelled terminating polynomial longer than hyp1f1's 500-term cap (mpmath 50-dps)
+        ([-600.0, 1.25], [-700.0, 1.25], 1000.0, 1.084_726_577_449_080_7e303),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
@@ -480,6 +482,9 @@ fn test_hyp2f2_special() {
     assert_hyp2f2([1.5, 2.5], [3.5, 2.5], 3.0, 4.636_813_090_326_332);
     assert_hyp2f2([-3.0, 2.5], [4.0, -3.0], -12.5, 0.010_921_207_435_195_95);
     assert_eq!(hyp2f2(1.5, 2.5, 2.5, 1.5, -3.0), (-3.0_f64).exp());
+    // cancelled 1F1(20; 1; -750) = -4.0345e-289 must not underflow to a false zero
+    let y = hyp2f2(20.0, 6.25, 1.0, 6.25, -750.0);
+    assert!(y.is_nan() || (y / -4.034_504_366_728_602e-289 - 1.0).abs() <= 1e-13, "{y}");
 }
 
 #[test]
@@ -621,9 +626,8 @@ fn test_hyp2f2_inaccurate() {
     // subnormal results, accurate to their spacing (mpmath references)
     assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -709.0), 1.216_780_750_623_423e-308);
     assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), 9.244e-321);
-    // an overflow that it does not detect (Arb: 6.730_996_089e594)
-    assert!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0).is_nan());
-    // one that it detects, for a negative z (Arb: 1.306_688_482e355)
+    // overflows that it detects (Arb: 6.730_996_089e594 and 1.306_688_482e355)
+    assert_eq!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0), f64::INFINITY);
     assert_eq!(hyp2f2(-160.5, 0.25, 1.0, 1.0, -1e4), f64::INFINITY);
 }
 
