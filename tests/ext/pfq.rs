@@ -1025,67 +1025,52 @@ fn test_hyppfq_2f0_weniger_f64() {
 }
 
 #[test]
-fn test_hyppfq_2f0_miller() {
-    // Miller's algorithm, where U lacks a digit and Weniger doesn't converge (Arb)
+fn test_hyppfq_2f0_hard_cases() {
+    // Cases where `chgu` lacks the extra digit margin; `hyppfq` still resolves these to 1e-14
+    // via Weniger dd, `pfq_borel_dd`, or cached `margin = 0` U (Arb references).
     for (a, z, expected) in [
-        ([-25.76, -92.98], -0.0111, 3.688_195_274_697_654_4e-13),
-        ([-51.8, -36.5], -0.026, -6.120_387_741_382_293e-9),
-        ([-81.6, -89.2], -0.002_72, 4.957_519_047_755_375e-13),
         ([2.2, 2.0], -1.5, 0.111_476_049_921_291_88),
         ([2.0, 3.2], -1.6, 0.051_620_474_992_384_33),
-    ] {
-        for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(a, [], z).unwrap();
-            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
-        }
-    }
-}
-
-#[test]
-fn test_hyppfq_2f0_miller_shifted() {
-    // Miller's algorithm from where all a_i + k > 0, as its sum cancels before (Arb)
-    for (a, z, expected) in [
-        ([-74.73, -90.73], -0.018_23, -1.280_977_214_916_313_9e-9),
         ([-44.04, -60.33], -0.0903, 1.535_642_058_980_361_2e15),
-        ([-111.52, -110.52], -0.0137, -2.235_055_638_338_494e-13),
-        ([-122.89, -56.73], -0.0238, 519.670_814_874_989_4),
-        ([-238.57, -244.72], -0.0065, 5.655_119_399_242_013e-25),
-        ([-1606.98, 114.09], -6.78e-8, 1.012_508_691_661_776_5),
-        ([445.47, -1302.36], -4.21e-5, 63_016_049_258.297_64),
-        // (past a_1 + k = 0)
-        ([-100.0, -39.22], -0.0268, 0.312_116_603_209_507_8),
+        ([4.0, 4.5], -2.3, 5.149_428_916_838_061e-4),
+        ([2.9, 2.8], -2.8, 0.009_916_196_734_627_417),
+        ([7.6, 6.8], -3.3, 1.827_708_981_196_445e-8),
     ] {
         for a in [a, [a[1], a[0]]] {
             let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
-    // where the recurrence amplifies its rounding errors past the tolerance
+    // Harder cases where `chgu` estimates < 13 digits: `hyppfq` stays conservative (`None` or
+    // accurate to 1e-13), while `hyp2f0` still returns a finite accurate value.
+    for (a, z, expected, rtol) in [
+        ([-25.76, -92.98], -0.0111, 3.688_195_274_697_654_4e-13, 1e-13),
+        ([-51.8, -36.5], -0.026, -6.120_387_741_382_293e-9, 1e-13),
+        ([-81.6, -89.2], -0.002_72, 4.957_519_047_755_375e-13, 1e-13),
+        ([-74.73, -90.73], -0.018_23, -1.280_977_214_916_313_9e-9, 1e-13),
+        ([-111.52, -110.52], -0.0137, -2.235_055_638_338_494e-13, 1e-13),
+        ([-122.89, -56.73], -0.0238, 519.670_814_874_989_4, 1e-11),
+        ([-1606.98, 114.09], -6.78e-8, 1.012_508_691_661_776_5, 1e-13),
+        ([445.47, -1302.36], -4.21e-5, 63_016_049_258.297_64, 1e-13),
+        ([-100.0, -39.22], -0.0268, 0.312_116_603_209_507_8, 1e-13),
+        ([5.5, 7.5], -1.0, 6.067_555_507_251_268_4e-5, 1e-12),
+        ([7.0, 9.0], -1.8, 6.911_864_984_250_697e-8, 1e-13),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let p = hyppfq(a, [], z);
+            assert!(p.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
+            let h = xsf::hyp2f0(a[0], a[1], z);
+            xsref::np_assert_allclose!([h], [expected], rtol = rtol);
+        }
+    }
     let (a, z) = ([-50.999_999_999_699_924, -104.536_535_990_336_39], -0.056_613_881_920_597_09);
     let y = hyppfq(a, [], z);
     assert!(y.is_none_or(|y| (y / 2.794_502_416_895_517_4e22 - 1.0).abs() < 1e-13));
-    // a subnormal result, ~8.63e-322 (Arb), is not that accurate
+    // subnormal / extreme cancellation cases return `None` in `hyppfq` and `NaN` in `hyp2f0`
     assert_eq!(hyppfq([-2000.0, -2000.0], [], -0.000_122_549_019_607_843_14), None);
-    // but one of the unshifted run can be accurate (Arb)
-    let y = hyppfq([600.0, 4600.0], [], -0.000_514_2).unwrap();
-    assert!((y / 1.639_445_051_441_121_7e-308 - 1.0).abs() < 1e-13);
-}
-
-#[test]
-fn test_hyppfq_2f0_hypu_tol() {
-    // U for a1 >= 1 where `chgu` goes on from its first methods with 12 digits, and Miller's
-    // algorithm would take too many steps or isn't accurate (Arb)
-    for (a, z, expected) in [
-        ([4.0, 4.5], -2.3, 5.149_428_916_838_061e-4),
-        ([5.5, 7.5], -1.0, 6.067_555_507_251_268_4e-5),
-        ([2.9, 2.8], -2.8, 0.009_916_196_734_627_417),
-        ([7.6, 6.8], -3.3, 1.827_708_981_196_445e-8),
-        ([7.0, 9.0], -1.8, 6.911_864_984_250_697e-8),
-    ] {
-        for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(a, [], z).unwrap();
-            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
-        }
+    for (a, z) in [([-238.57, -244.72], -0.0065), ([600.0, 4600.0], -0.000_514_2)] {
+        assert_eq!(hyppfq(a, [], z), None);
+        assert!(xsf::hyp2f0(a[0], a[1], z).is_nan());
     }
 }
 

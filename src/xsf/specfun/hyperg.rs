@@ -1230,11 +1230,11 @@ pub(super) const ID_MIN: i32 = 12;
 /// and else its step 2:
 ///
 /// 1. `chgus` (non-integer `b`, or 1), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
-///    exclude `b > 1` with `x <= |b - 2a|`). The first with `id_min` digits is returned (`chgus` not
+///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned (`chgus` not
 ///    if `chgus_deferred`); otherwise the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
-///      otherwise, or if `chgubi` has fewer than `id_min` digits and both are finite
+///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
 ///      - an overflowing `chguit` is redone without `x^(1-b)` in the integral, unless step 1 has 9
 ///        digits
 ///      - then, if neither this nor step 1 has `ID_ACCEPT` digits, the recurrence in `b` (for
@@ -1251,8 +1251,7 @@ pub(super) const ID_MIN: i32 = 12;
 ///    digits, `chgul` is tried if step 1 skipped it for `x <= |b - 2a|` and step 2 had no recurrence
 ///    in `b`, and kept if it has more.
 ///
-/// `ID_MIN` and the factor 10 are empirical. `id_min` is `ID_MIN` for `hypu`; with more, step 2
-/// follows where step 1 or `chgubi` would be returned with fewer digits than a caller needs.
+/// `ID_MIN` and the factor 10 are empirical.
 pub(crate) fn chgu(
     x: f64,
     mut a: f64,
@@ -1262,7 +1261,6 @@ pub(crate) fn chgu(
     isfer: &mut i32,
     digits: &mut i32,
     digits_rec: &mut i32,
-    id_min: i32,
 ) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
@@ -1318,7 +1316,7 @@ pub(crate) fn chgu(
     if b != b.trunc() || b == 1.0 {
         hu = chgus(x, a, b, d, false, &mut id1);
         *md = 1;
-        if id1 >= id_min && !chgus_deferred(a, b, x, id1) {
+        if id1 >= ID_MIN && !chgus_deferred(a, b, x, id1) {
             *digits = super::subnormal_digits(hu, id1.into()) as i32;
             return hu;
         }
@@ -1331,7 +1329,7 @@ pub(crate) fn chgu(
     if il1 || il2 || il3 || il4 {
         hu = chgul(x, a, b, d, &mut id);
         *md = 2;
-        if id >= id_min {
+        if id >= ID_MIN {
             *digits = super::subnormal_digits(hu, id.into()) as i32;
             return hu;
         }
@@ -1355,10 +1353,10 @@ pub(crate) fn chgu(
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
         }
-        // Unlike in xsf (scipy/xsf#380), chguit is also used if chgubi has fewer than `id_min`
+        // Unlike in xsf (scipy/xsf#380), chguit is also used if chgubi has fewer than `ID_MIN`
         // digits, unless chgubi overflows (e.g. for b < -170, where chguit is often wrong too) or
         // chguit does (e.g. U(150, 9, 0.1) = 2.23e-250)
-        if !ubi || id < id_min && hu.is_finite() {
+        if !ubi || id < ID_MIN && hu.is_finite() {
             let (mut u, mut id_it) = chguit_id(a, b, false);
             // Unlike in xsf, an overflowing integral is redone without x^(1-b) (DLMF 13.2.40), as
             // Gamma(a) U, or t^(a-1) in it, can overflow if U doesn't, e.g. for
@@ -2398,7 +2396,7 @@ fn chgus_near_1(x: f64, a: f64, e: f64, id: &mut i32) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ID_MIN, chgm_neg_x_asymptotic, chgu, chguit, chgus};
+    use super::{chgm_neg_x_asymptotic, chgu, chguit, chgus};
 
     /// Whether the relative error is within the estimated digits
     fn digits_ok(u: f64, expected: f64, id: i32) -> bool {
@@ -2451,11 +2449,11 @@ mod tests {
         // U(170, 1 + 1e-11, 1) (Arb), by `chguit`, is subnormal, with 7.7 digits
         let (mut md, mut isfer, mut digits) = (0, 0, 0);
         let (x, a, b) = (1.0, 170.0, 1.000_000_000_01);
-        let u = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut 0, ID_MIN);
+        let u = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut 0);
         assert_eq!((md, isfer), (4, 0));
         assert!(digits_ok(u, 9.220_520_059_940_690_4e-317, digits));
         // the same for an early return, here of `chgul` (Arb)
-        let u = chgu(1500.0, 100.0, 101.0, 0.0, &mut md, &mut isfer, &mut digits, &mut 0, ID_MIN);
+        let u = chgu(1500.0, 100.0, 101.0, 0.0, &mut md, &mut isfer, &mut digits, &mut 0);
         assert_eq!(md, 2);
         assert!(digits_ok(u, 2.459_654_426_579_829_3e-318, digits));
     }
@@ -2466,7 +2464,7 @@ mod tests {
         // (as in `xsf_hypu_digits`)
         let check = |(a, b, x): (f64, f64, f64), expected: f64| {
             let (mut md, mut isfer, mut digits, mut digits_rec) = (0, 0, 0, 0);
-            let u = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec, ID_MIN);
+            let u = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec);
             let id = digits.max(digits_rec);
             digits_ok(u, expected, id).then_some(id)
         };

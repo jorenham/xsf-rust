@@ -225,17 +225,12 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 /// `xsf_hypu` with the numbers of digits that `chgu` estimates, as its methods compare them and
 /// for the result (more if by the recurrence in a)
 pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32, i32) {
-    xsf_hypu_min_digits(a, b, x, hyperg::ID_MIN)
-}
-
-/// `xsf_hypu_digits` with the `id_min` of `chgu`
-pub(crate) fn xsf_hypu_min_digits(a: f64, b: f64, x: f64, id_min: i32) -> (f64, i32, i32) {
     let mut out;
     let mut md = 0; /* method code --- not returned */
     let mut isfer = 0;
     let (mut digits, mut digits_rec) = (0, i32::MIN);
 
-    out = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec, id_min);
+    out = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec);
     // Unlike in xsf, if a - b + 1 rounds to an integer n <= 0 that it isn't (only for b < 1, see
     // `aa_rounding`), U is also computed with the rounding error d. That result replaces the
     // original evaluation if it has enough digits to be returned, and the two disagree by the test
@@ -244,7 +239,7 @@ pub(crate) fn xsf_hypu_min_digits(a: f64, b: f64, x: f64, id_min: i32) -> (f64, 
     let (rounded, d) = hyperg::aa_rounding(a, b);
     if rounded {
         let (mut md_d, mut isfer_d, mut digits_d, mut digits_rec_d) = (0, 0, 0, i32::MIN);
-        let u = chgu(x, a, b, d, &mut md_d, &mut isfer_d, &mut digits_d, &mut digits_rec_d, id_min);
+        let u = chgu(x, a, b, d, &mut md_d, &mut isfer_d, &mut digits_d, &mut digits_rec_d);
         if isfer_d == 0 && (u - out).abs() > 10f64.powi(2 - digits_d) * u.abs() {
             (out, isfer, digits, digits_rec) = (u, isfer_d, digits_d, digits_rec_d);
         }
