@@ -413,15 +413,9 @@ fn pfq_normal_ratio<T: SeriesReal>(
         pfq_checked_ratio(a, b, n)
     } else {
         let [num, den]: [T; 2] = pfq_products(a, b, n);
-        if !is_normal(num) || !is_normal(den) {
-            return None;
-        }
-        num / den
+        (is_normal(num) && is_normal(den)).then(|| num / den)?
     };
-    if !is_normal(q) {
-        return None;
-    }
-    let ratio = q * T::from_f64(z);
+    let ratio = is_normal(q).then(|| q * T::from_f64(z))?;
     is_normal(ratio).then_some(ratio)
 }
 
@@ -429,23 +423,22 @@ fn pfq_normal_ratio<T: SeriesReal>(
 /// extreme
 #[inline]
 fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checked: bool) -> T {
-    match pfq_normal_ratio::<T>(a, b, n, z, checked) {
-        Some(ratio) => term * ratio,
-        None => pfq_rescaled_next(a, b, n, z, term)
-            .unwrap_or_else(|| term * (pfq_ratio::<T>(a, b, n, checked) * T::from_f64(z))),
-    }
+    pfq_normal_ratio::<T>(a, b, n, z, checked).map_or_else(
+        || {
+            pfq_rescaled_next(a, b, n, z, term)
+                .unwrap_or_else(|| term * (pfq_ratio::<T>(a, b, n, checked) * T::from_f64(z)))
+        },
+        |ratio| term * ratio,
+    )
 }
 
 /// `pfq_next` without its fallback to the rounded ratio, which can have more rounding errors, so
 /// `None` where `t_{n+1}` is not normal
 fn pfq_normal_next(a: &[f64], b: &[f64], n: f64, z: f64, term: f64, checked: bool) -> Option<f64> {
-    match pfq_normal_ratio::<f64>(a, b, n, z, checked) {
-        Some(ratio) => {
-            let next = term * ratio;
-            next.is_normal().then_some(next)
-        },
-        None => pfq_rescaled_next(a, b, n, z, term),
-    }
+    pfq_normal_ratio::<f64>(a, b, n, z, checked).map_or_else(
+        || pfq_rescaled_next(a, b, n, z, term),
+        |ratio| Some(term * ratio).filter(|next| next.is_normal()),
+    )
 }
 
 /// `pfq_next` from the mantissas and exponents of its factors, as an intermediate product or
@@ -2217,19 +2210,19 @@ fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = 
 /// `cos(pi / k)` and `sin(pi / k)` in double-double precision, for `k >= 2`
 fn cos_sin_pi_div(k: usize) -> (Dd, Dd) {
     if k == 2 {
-        return (Dd::ZERO, Dd::ONE);
+        (Dd::ZERO, Dd::ONE)
+    } else {
+        let phi = 2.0 / (FRAC_2_PI_DD * k as f64);
+        // n, and the terms n - 1 of their Taylor series, of the degrees 2 n - 2 and 2 n - 1, which
+        // are below 2^-106 from n = 21 on
+        let terms = successors(Some((1.0, Dd::ONE, phi)), |&(n, c, _)| {
+            let next = -(c * phi * phi) / ((2.0 * n - 1.0) * (2.0 * n));
+            Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
+        });
+        terms
+            .take(20)
+            .fold((Dd::ZERO, Dd::ZERO), |(cos, sin), (_, c, s)| (cos + c, sin + s))
     }
-    let phi = 2.0 / (FRAC_2_PI_DD * k as f64);
-    // n, and the terms n - 1 of their Taylor series, of the degrees 2 n - 2 and 2 n - 1, which
-    // are below 2^-106 from n = 21 on
-    let terms = successors(Some((1.0, Dd::ONE, phi)), |&(n, c, _)| {
-        let next = -(c * phi * phi) / ((2.0 * n - 1.0) * (2.0 * n));
-        Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
-    });
-    let zero = (Dd::ZERO, Dd::ZERO);
-    terms
-        .take(20)
-        .fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
 }
 
 /// The sum of the two exponential parts of `pfq_exp` for `z < 0` and `p < q`, which have
