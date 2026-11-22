@@ -1102,9 +1102,7 @@ fn pfq_continuation<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, 
     let mut diffs = zip(a_ref, 0..).flat_map(|(aj, j)| skip(&a_ref, j).map(move |ak| ak - aj));
     if diffs.any(|d| d.fract() == 0.0) {
         // the terms of DLMF 16.8.8 are infinite: their limit is the sum of the terms of `pfq_alg`
-        let mut terms = vec![None; a_ref.len()];
-        pfq_alg(a_ref, b_ref, z, Alg::Value, &mut terms)?;
-        let (y, err) = add_exp(terms.into_iter().flatten())?.to_f64();
+        let (y, err) = add_exp(pfq_alg(a_ref, b_ref, z, Alg::Value)?)?.to_f64();
         return y.is_normal().then_some((y, err * y.abs()));
     }
     let (mut sum, mut err) = (0.0, 0.0);
@@ -1480,7 +1478,7 @@ impl<V: SeriesReal> AsymptoticSum<V> {
         }
     }
 
-    /// Advances by term `n` (with `next_bound` from the lookahead term); returns `false` when done
+    /// Advances by term `n` (with `next_bound` from the lookahead term); breaks when done
     fn step(
         &mut self,
         n: f64,
@@ -1488,12 +1486,10 @@ impl<V: SeriesReal> AsymptoticSum<V> {
         bound: f64,
         next_bound: f64,
         mut ratio_bound: impl FnMut(f64) -> f64,
-    ) -> bool {
+    ) -> ControlFlow<()> {
         let size = bound.max(next_bound);
-        if !t.to_f64().is_finite() || n >= self.settled + self.z_abs && bound >= self.prev {
-            self.done = true;
-            return false;
-        } else if n >= self.settled {
+        let stop = !t.to_f64().is_finite() || n >= self.settled + self.z_abs && bound >= self.prev;
+        let converged = !stop && n >= self.settled && {
             // a later sum can disqualify the current best even when its term is larger
             let err = self.remainder * size + n * V::EPSILON * self.abs_sum;
             self.best.1 = self
@@ -1505,22 +1501,25 @@ impl<V: SeriesReal> AsymptoticSum<V> {
             }
             if size < self.min {
                 self.min = size;
-                if self.remainder * self.min <= V::EPSILON * self.sum.to_f64().abs()
+                self.remainder * self.min <= V::EPSILON * self.sum.to_f64().abs()
                     && ratio_bound(n) < 1.0
-                {
-                    self.done = true;
-                    return false;
-                }
+            } else {
+                false
             }
+        };
+        if stop || converged {
+            self.done = true;
+            ControlFlow::Break(())
+        } else {
+            self.sum = self.sum + t;
+            self.abs_sum += bound;
+            self.prev = bound;
+            // (at the cap, terms that grew after the smallest may still shrink to smaller ones)
+            if n + 1.0 == f64::from(PFQ_MAXITER) && size > self.min {
+                self.best.1 = f64::INFINITY;
+            }
+            ControlFlow::Continue(())
         }
-        self.sum = self.sum + t;
-        self.abs_sum += bound;
-        self.prev = bound;
-        // (at the cap, terms that grew after the smallest may still shrink to smaller ones)
-        if n + 1.0 == f64::from(PFQ_MAXITER) && size > self.min {
-            self.best.1 = f64::INFINITY;
-        }
-        true
     }
 }
 
@@ -1551,13 +1550,15 @@ fn asymptotic_sum<T: Term>(
 ) -> (T::Value, f64) {
     let mut state = AsymptoticSum::<T::Value>::new(settled, z);
     let mut terms = terms.peekable();
-    for n in (0..PFQ_MAXITER).map(f64::from) {
-        let Some(term) = terms.next() else { break };
-        let next = terms.peek().map_or(0.0, |next| next.bound());
-        if !state.step(n, term.value(), term.bound(), next, &mut ratio_bound) {
-            break;
-        }
-    }
+    let _ = (0..PFQ_MAXITER)
+        .map(f64::from)
+        .try_for_each(|n| match terms.next() {
+            Some(term) => {
+                let next = terms.peek().map_or(0.0, |next| next.bound());
+                state.step(n, term.value(), term.bound(), next, &mut ratio_bound)
+            },
+            None => ControlFlow::Break(()),
+        });
     state.best
 }
 
@@ -1942,7 +1943,7 @@ fn pfq_class_term(
     m: usize,
     z: f64,
     sizes: bool,
-    term: &mut Option<Scaled>,
+    terms: &mut Vec<Scaled>,
 ) -> Option<()> {
     let am = a[m];
     let others = skip(&a, m).map(Dd::new);
@@ -1985,7 +1986,7 @@ fn pfq_class_term(
         if sizes {
             y.m = y.m.abs();
         }
-        *term = Some(y);
+        terms.push(y);
     }
     Some(())
 }
@@ -2001,14 +2002,14 @@ enum Alg {
     Dd,
 }
 
-/// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
-/// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows,
-/// or if a non-positive integer `a_i` differs from another `a_i` by an integer
+/// The non-vanishing terms of the algebraic part of the asymptotic expansion of pFq for `p <= q`
+/// (DLMF 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or
+/// underflows, or if a non-positive integer `a_i` differs from another `a_i` by an integer
 ///
 /// For `p > q + 1` and `z < 0`, their series converge, and they sum to `pfq_borel`.
 ///
 /// The term of `a_m` is `|z|^-a_m` times a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the
-/// parameters `a_m` and `1 + a_m - b_j`, and `1 + a_m - a_i` (`i != m`). It stays `None` if it
+/// parameters `a_m` and `1 + a_m - b_j`, and `1 + a_m - a_i` (`i != m`). It is omitted if it
 /// vanishes, where `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term,
 /// by `pfq_class_term`, which for `z > 0` is a bound on its size.
 ///
@@ -2017,36 +2018,54 @@ enum Alg {
 ///
 /// With `Alg::Dd`, the series and the factor of each term are in double-double, except for the
 /// `a_i` that differ by integers.
-fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg, terms: &mut [Option<Scaled>]) -> Option<()> {
+fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg) -> Option<Vec<Scaled>> {
     let sizes = mode == Alg::Sizes;
     let ln_z = ln_dd(z.abs());
     let bs = b.iter().copied().map(Dd::new);
+    let mut terms = Vec::with_capacity(a.len());
     for (m, &am) in a.iter().enumerate() {
         let others = skip(&a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
-            pfq_class_term(a, b, m, z, sizes, &mut terms[m])?;
-            continue;
-        }
-        let num = bs.clone().chain(diffs);
-        let den = others.chain(bs.clone().map(|bj| bj - am));
-        if den.clone().any(|g| is_pole(&g)) {
-            continue;
-        }
-        let l = -ln_z * am;
-        let mut y = if mode == Alg::Dd {
-            let (sum, err) = pfq_alg_series_dd(a, b, m, z);
-            let y = Scaled::new(1.0, 0, err / sum.hi.abs())?.with_l(l);
-            mul_gammas_in(num, den, mul_dd(y, sum), true)?
+            pfq_class_term(a, b, m, z, sizes, &mut terms)?;
         } else {
-            gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes), l)?
-        };
-        if sizes {
-            y.m = y.m.abs();
+            let num = bs.clone().chain(diffs);
+            let den = others.chain(bs.clone().map(|bj| bj - am));
+            if !den.clone().any(|g| is_pole(&g)) {
+                let l = -ln_z * am;
+                let mut y = if mode == Alg::Dd {
+                    let (sum, err) = pfq_alg_series_dd(a, b, m, z);
+                    let y = Scaled::new(1.0, 0, err / sum.hi.abs())?.with_l(l);
+                    mul_gammas_in(num, den, mul_dd(y, sum), true)?
+                } else {
+                    gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes), l)?
+                };
+                if sizes {
+                    y.m = y.m.abs();
+                }
+                terms.push(y);
+            }
         }
-        terms[m] = Some(y);
     }
-    Some(())
+    Some(terms)
+}
+
+/// `pFq` for `p <= q` by series and asymptotic expansion, trying `series` first when `series_first`
+fn pfq_entire<A: Params, B: Params>(a: &A, b: &B, z: f64, series_first: bool) -> Option<Estimate> {
+    let Some(degree) = pfq_degree(a.as_ref(), b.as_ref()) else {
+        return Some(Estimate::exact(f64::INFINITY));
+    };
+    let series = || Some(pfq_series_sorted(a.clone(), b.clone(), z));
+    let asymptotic = || pfq_asymptotic(a.as_ref(), b.as_ref(), z);
+    // last, as it is the slowest (and applies to `p = q`, `z <= 0` only)
+    let asymptotic_dd = || pfq_asymptotic_dd(a.as_ref(), b.as_ref(), z);
+    if degree.is_finite() {
+        series()
+    } else if series_first {
+        series().or_better(asymptotic).or_better(asymptotic_dd)
+    } else {
+        asymptotic().or_better(series).or_better(asymptotic_dd)
+    }
 }
 
 /// Generalized hypergeometric function $_2F_2$ for real arguments
@@ -2097,41 +2116,29 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> f64 {
 
 /// `hyp2f2` and an estimate of its relative error
 fn hyp2f2_estimate(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
-    fn eval<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
-        let Some(degree) = pfq_degree(a.as_ref(), b.as_ref()) else {
-            return Some(Estimate::exact(f64::INFINITY));
-        };
-        let series = || Some(pfq_series_sorted(a.clone(), b.clone(), z));
-        let asymptotic = || pfq_asymptotic(a.as_ref(), b.as_ref(), z);
-        // last, as it is the slowest
-        let asymptotic_dd = || pfq_asymptotic_dd(a.as_ref(), b.as_ref(), z);
-        if degree.is_finite() {
-            series()
-        } else if z.abs() < HYP2F2_ASYMPTOTIC_FIRST {
-            series().or_better(asymptotic).or_better(asymptotic_dd)
-        } else {
-            asymptotic().or_better(series).or_better(asymptotic_dd)
+    if ![a1, a2, b1, b2, z].into_iter().all(f64::is_finite) {
+        pfq_estimate(&[a1, a2], &[b1, b2], z)
+    } else if z == 0.0 {
+        Some(Estimate::exact(1.0))
+    } else {
+        let (a, b) = ([a1, a2], [b1, b2]);
+        let series_first = z.abs() < HYP2F2_ASYMPTOTIC_FIRST;
+        // a common parameter cancels, also at a pole; stay on `pfq_series`/`pfq_asymptotic`
+        // rather than `hyp1f1` to avoid its 500-term polynomial cap and Kummer exp(-750) underflow
+        let pairs = [(0, 0), (0, 1), (1, 0), (1, 1)];
+        match pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
+            Some((i, j)) => {
+                let (a0, b0) = (a[1 - i], b[1 - j]);
+                if a0 == b0 {
+                    // (with the rounding of `exp`)
+                    Some(Estimate::rounded(z.exp(), f64::EPSILON))
+                } else {
+                    pfq_entire(&[a0], &[b0], z, series_first)
+                }
+            },
+            None => pfq_entire(&a, &b, z, series_first),
         }
     }
-    if ![a1, a2, b1, b2, z].into_iter().all(f64::is_finite) {
-        return pfq_estimate(&[a1, a2], &[b1, b2], z);
-    } else if z == 0.0 {
-        return Some(Estimate::exact(1.0));
-    }
-    let (a, b) = ([a1, a2], [b1, b2]);
-    // a common parameter cancels, also at a pole; stay on `pfq_series`/`pfq_asymptotic`
-    // rather than `hyp1f1` to avoid its 500-term polynomial cap and Kummer exp(-750) underflow
-    let pairs = [(0, 0), (0, 1), (1, 0), (1, 1)];
-    if let Some((i, j)) = pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
-        let (a0, b0) = (a[1 - i], b[1 - j]);
-        return if a0 == b0 {
-            // (with the rounding of `exp`)
-            Some(Estimate::rounded(z.exp(), f64::EPSILON))
-        } else {
-            eval(&[a0], &[b0], z)
-        };
-    }
-    eval(&a, &b, z)
 }
 
 /// `v^(1 / k)` in double-double precision, for `v > 0`
@@ -2197,37 +2204,18 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> f64 {
 /// `hyp1f2` and an estimate of its relative error
 fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
     if ![a, b1, b2, z].into_iter().all(f64::is_finite) {
-        return pfq_estimate(&[a], &[b1, b2], z);
+        pfq_estimate(&[a], &[b1, b2], z)
     } else if z == 0.0 {
-        return Some(Estimate::exact(1.0));
-    }
-    let b = [b1, b2];
-    // a common parameter cancels, also at a pole; keep on `pfq_series`/`pfq_asymptotic`
-    // rather than `hyp0f1` so large negative `z` stays accurate
-    if let Some(j) = b.iter().position(|&bj| bj == a) {
-        let b0 = [b[1 - j]];
-        if pfq_degree(&[], &b0).is_none() {
-            return Some(Estimate::exact(f64::INFINITY));
-        }
-        let series = || Some(pfq_series_sorted([], b0, z));
-        let asymptotic = || pfq_asymptotic(&[], &b0, z);
-        return if z > -HYP1F2_ASYMPTOTIC_FIRST {
-            series().or_better(asymptotic)
-        } else {
-            asymptotic().or_better(series)
-        };
-    }
-    let Some(degree) = pfq_degree(&[a], &b) else {
-        return Some(Estimate::exact(f64::INFINITY));
-    };
-    let series = || Some(pfq_series_sorted([a], b, z));
-    let asymptotic = || pfq_asymptotic(&[a], &b, z);
-    if degree.is_finite() {
-        series()
-    } else if z > -HYP1F2_ASYMPTOTIC_FIRST {
-        series().or_better(asymptotic)
+        Some(Estimate::exact(1.0))
     } else {
-        asymptotic().or_better(series)
+        let b = [b1, b2];
+        let series_first = z > -HYP1F2_ASYMPTOTIC_FIRST;
+        // a common parameter cancels, also at a pole; keep on `pfq_series`/`pfq_asymptotic`
+        // rather than `hyp0f1` so large negative `z` stays accurate
+        match b.iter().position(|&bj| bj == a) {
+            Some(j) => pfq_entire(&[], &[b[1 - j]], z, series_first),
+            None => pfq_entire(&[a], &b, z, series_first),
+        }
     }
 }
 
@@ -2411,30 +2399,34 @@ fn pfq_exp_cos(
     let mut classes = vec![AsymptoticSum::<f64>::new(settled / kf, x / kf); kappa];
     let mut win: Vec<Option<f64>> = (0..kappa).map(|_| terms.next()).collect();
     let mut active = kappa;
-    for j in 0..PFQ_MAXITER {
+    let _ = (0..PFQ_MAXITER).try_for_each(|j| {
+        let (nf, sign) = (f64::from(j), if j % 2 == 0 { 1.0 } else { -1.0 });
+        for (cls, slot) in zip(&mut classes, &mut win) {
+            let raw = core::mem::replace(slot, terms.next());
+            if !cls.done {
+                let next = slot.map_or(0.0, f64::abs);
+                match raw {
+                    None => {
+                        cls.done = true;
+                        active -= 1;
+                    },
+                    Some(raw)
+                        if cls
+                            .step(nf, sign * raw, raw.abs(), next, |_| 0.0)
+                            .is_break() =>
+                    {
+                        active -= 1;
+                    },
+                    Some(_) => {},
+                }
+            }
+        }
         if active == 0 {
-            break;
+            ControlFlow::Break(())
+        } else {
+            ControlFlow::Continue(())
         }
-        let nf = f64::from(j);
-        let sign = if j % 2 == 0 { 1.0 } else { -1.0 };
-        for (r, cls) in classes.iter_mut().enumerate() {
-            let raw = win[r];
-            let next_raw = terms.next();
-            win[r] = next_raw;
-            if cls.done {
-                continue;
-            }
-            let Some(raw) = raw else {
-                cls.done = true;
-                active -= 1;
-                continue;
-            };
-            let next = next_raw.map_or(0.0, f64::abs);
-            if !cls.step(nf, sign * raw, raw.abs(), next, |_| 0.0) {
-                active -= 1;
-            }
-        }
-    }
+    });
     let (cos0, sin0) = if kappa == 2 {
         (cospi(t.hi), sinpi(t.hi))
     } else {
@@ -2515,16 +2507,14 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
 /// parts.
 fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let kappa = b.len() + 1 - a.len();
-    let mut terms = vec![None; a.len()];
-    let mode = if z > 0.0 { Alg::Sizes } else { Alg::Value };
-    pfq_alg(a, b, z, mode, &mut terms)?;
-    let alg = terms.into_iter().flatten();
+    let alg = pfq_alg(a, b, z, if z > 0.0 { Alg::Sizes } else { Alg::Value })?;
     let exp = pfq_exp(a, b, z)?;
     if z > 0.0 {
         // distinguish an empty algebraic part (zero error) from a failed `add_exp`
-        let other = match alg.clone().next() {
-            None => None,
-            Some(_) => Some(add_exp(alg)?),
+        let other = if alg.is_empty() {
+            None
+        } else {
+            Some(add_exp(alg)?)
         };
         Some(Estimate::scaled(exp, other))
     } else if kappa == 1 {
@@ -2532,7 +2522,7 @@ fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     } else {
         // (DLMF 16.11.9 for p <= q - 2 has the exponential part only; with the algebraic part,
         // it is theorem 3 of Paris, https://arxiv.org/abs/1708.04824)
-        Some(Estimate::scaled(add_exp(alg.chain([exp]))?, None))
+        Some(Estimate::scaled(add_exp(alg.into_iter().chain([exp]))?, None))
     }
 }
 
@@ -2551,9 +2541,7 @@ fn add_exp_dd(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Optio
 
 /// The sum of the terms of `pfq_alg` in double-double, for `p = q` or `p > q + 1`
 fn pfq_alg_dd(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
-    let mut terms = vec![None; a.len()];
-    pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
-    add_exp_dd(terms.into_iter().flatten())
+    add_exp_dd(pfq_alg(a, b, z, Alg::Dd)?)
 }
 
 /// pFq for `p > q + 1` and `z < 0` by `pfq_alg_dd`, or `None` if it may or may not overflow
@@ -2612,11 +2600,7 @@ fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     // also with the rounding errors of the terms, as for 2F0
     let weniger_dd =
         || Some(weniger_drift(pfq_weniger::<Dd>(&a, &b, z)?, terms(), settled, Dd::EPSILON));
-    let residues = || {
-        let mut terms = vec![None; a.len()];
-        pfq_alg(a, b, z, Alg::Value, &mut terms)?;
-        Some(Estimate::scaled(add_exp(terms.into_iter().flatten())?, None))
-    };
+    let residues = || Some(Estimate::scaled(add_exp(pfq_alg(a, b, z, Alg::Value)?)?, None));
     series()
         .or_better(residues)
         .or_better(weniger_dd)
@@ -2916,22 +2900,12 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2_estimate(a1, a2, a3, b1, b2, z),
         _ if a.len() == b.len() + 1 => pfq_real(a, b, z),
         _ if a.len() <= b.len() => {
-            let series = || Some(pfq_series_sorted(a.clone(), b.clone(), z));
-            let asymptotic = || pfq_asymptotic(&a, &b, z);
             // the terms of the series for z < 0 reach about e^x, and the result
             // e^(x cos(pi / kappa)), or a power of z for p = q
             let kappa = (b.len() + 1 - a.len()) as f64;
             let x = kappa * z.abs().powf(1.0 / kappa);
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
-            // last, as it is the slowest
-            let asymptotic_dd = || pfq_asymptotic_dd(&a, &b, z);
-            if degree.is_finite() {
-                series()
-            } else if z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST {
-                series().or_better(asymptotic).or_better(asymptotic_dd)
-            } else {
-                asymptotic().or_better(series).or_better(asymptotic_dd)
-            }
+            pfq_entire(&a, &b, z, z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST)
         },
         _ if z < 0.0 => pfq_borel(&a, &b, z),
         _ => None,
