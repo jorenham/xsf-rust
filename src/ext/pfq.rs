@@ -240,23 +240,24 @@ impl SeriesReal for f64 {
     #[inline]
     fn add_compensated(sum: Self, comp: Self, term: Self) -> (Self, Self) {
         let next = sum + term;
-        if !next.is_finite() || !term.is_finite() {
-            return (next, 0.0);
-        }
-        let delta = if sum.abs() >= term.abs() {
-            (sum - next) + term
-        } else {
-            (term - next) + sum
-        };
-        let next_comp = comp + delta;
-        (
-            next,
-            if next_comp.is_finite() {
-                next_comp
+        if next.is_finite() && term.is_finite() {
+            let delta = if sum.abs() >= term.abs() {
+                (sum - next) + term
             } else {
-                comp
-            },
-        )
+                (term - next) + sum
+            };
+            let next_comp = comp + delta;
+            (
+                next,
+                if next_comp.is_finite() {
+                    next_comp
+                } else {
+                    comp
+                },
+            )
+        } else {
+            (next, 0.0)
+        }
     }
 
     #[inline]
@@ -356,65 +357,57 @@ fn recip_up(z: f64) -> f64 {
 /// for the given `a`, `b`, `z`, and `n`.
 fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     let az = z.abs();
-    if az == 0.0 {
-        return 0.0;
-    }
-    if !az.is_finite() {
-        return f64::INFINITY;
-    }
-    let mul = |(m, e): (f64, i64), f: f64| {
-        (f >= 0.0 && f.is_finite()).then(|| {
+    let scale = |(m, e, r): (f64, i64, usize), f: f64, divide: bool| {
+        let ok = f.is_finite() && if divide { f > 0.0 } else { f >= 0.0 };
+        ok.then(|| {
             let (fm, fe) = frexp_f64(f);
-            let (m, me) = frexp_f64(m * fm);
-            (m, e + i64::from(fe) + i64::from(me))
+            let (m, me) = frexp_f64(if divide { m / fm } else { m * fm });
+            let e = if divide {
+                e - i64::from(fe)
+            } else {
+                e + i64::from(fe)
+            };
+            (m, e + i64::from(me), r + 2)
         })
     };
-    let div = |(m, e): (f64, i64), f: f64| {
-        (f > 0.0 && f.is_finite()).then(|| {
-            let (fm, fe) = frexp_f64(f);
-            let (m, me) = frexp_f64(m / fm);
-            (m, e - i64::from(fe) + i64::from(me))
-        })
-    };
-    let mut roundings = 0_usize;
-    let Some((m, e)) = (|| {
+    let acc = (az > 0.0 && az.is_finite()).then(|| {
         let (zm, ze) = frexp_f64(az);
-        let mut acc = (zm, i64::from(ze));
-        for (&ai, &bj) in zip(a, b) {
+        let init = (zm, i64::from(ze), 0_usize);
+        let acc = zip(a, b).try_fold(init, |acc, (&ai, &bj)| {
             if ai > bj {
-                acc = mul(acc, ai + n)?;
-                acc = div(acc, bj + n)?;
-                roundings += 4;
-            } else if !(ai + n >= 0.0 && bj + n > 0.0 && (bj + n).is_finite()) {
-                return None;
+                scale(scale(acc, ai + n, false)?, bj + n, true)
+            } else {
+                (ai + n >= 0.0 && bj + n > 0.0 && (bj + n).is_finite()).then_some(acc)
+            }
+        })?;
+        let acc = a
+            .iter()
+            .skip(b.len())
+            .try_fold(acc, |acc, &ai| scale(acc, ai + n, false))?;
+        b.iter()
+            .skip(a.len())
+            .try_fold(acc, |acc, &bj| scale(acc, bj + n, true))
+    });
+    if az == 0.0 {
+        0.0
+    } else if let Some((m, e, roundings)) = acc.flatten() {
+        if roundings == 0 {
+            az
+        } else if m == 0.0 {
+            0.0
+        } else {
+            let slack = 1.0 + (roundings as f64 + 2.0) * f64::EPSILON;
+            let bound = ldexp_i64(m * slack, e);
+            if !bound.is_finite() {
+                f64::INFINITY
+            } else if bound < f64::MIN_POSITIVE {
+                next_up_nonneg(bound)
+            } else {
+                bound
             }
         }
-        for &ai in a.iter().skip(b.len()) {
-            acc = mul(acc, ai + n)?;
-            roundings += 2;
-        }
-        for &bj in b.iter().skip(a.len()) {
-            acc = div(acc, bj + n)?;
-            roundings += 2;
-        }
-        Some(acc)
-    })() else {
-        return f64::INFINITY;
-    };
-    if roundings == 0 {
-        return az;
-    }
-    if m == 0.0 {
-        return 0.0;
-    }
-    let slack = 1.0 + (roundings as f64 + 2.0) * f64::EPSILON;
-    let bound = ldexp_i64(m * slack, e);
-    if !bound.is_finite() {
-        f64::INFINITY
-    } else if bound < f64::MIN_POSITIVE {
-        next_up_nonneg(bound)
     } else {
-        bound
+        f64::INFINITY
     }
 }
 
@@ -429,25 +422,22 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
 /// then decrease or stay below 1.
 fn pfq_regrowth_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     let bound = pfq_ratio_bound(a, b, z, n);
-    let Some(unpaired) = a.get(b.len()..).filter(|v| !v.is_empty()) else {
-        return bound;
-    };
-    if !bound.is_finite() {
-        return f64::INFINITY;
-    }
-    let (k, x) = (unpaired.len() as f64, unpaired[0]);
-    let paired = zip(a, b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
-    let base = paired.product::<f64>() * z.abs();
-    if !base.is_normal() {
-        return f64::INFINITY;
-    }
-    let m0 = base.powf(-k.recip()) - x;
-    let pulls = zip(a, b).filter(|(a, b)| a > b);
-    let pull = pulls.map(|(a, b)| (a - b) / (b + m0) * ((x + m0) / (a + m0)).max(1.0));
-    if m0 >= n && pull.sum::<f64>() <= k {
-        bound
-    } else {
-        f64::INFINITY
+    match a.get(b.len()..).filter(|v| !v.is_empty()) {
+        None => bound,
+        Some(unpaired) if bound.is_finite() => {
+            let (k, x) = (unpaired.len() as f64, unpaired[0]);
+            let paired = zip(a, b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
+            let base = paired.product::<f64>() * z.abs();
+            let m0 = base.powf(-k.recip()) - x;
+            let pulls = zip(a, b).filter(|(a, b)| a > b);
+            let pull = pulls.map(|(a, b)| (a - b) / (b + m0) * ((x + m0) / (a + m0)).max(1.0));
+            if base.is_normal() && m0 >= n && pull.sum::<f64>() <= k {
+                bound
+            } else {
+                f64::INFINITY
+            }
+        },
+        Some(_) => f64::INFINITY,
     }
 }
 
@@ -728,7 +718,8 @@ fn pfq_sum_terms<T: SeriesReal>(
         }
         (rounding / unit, tails / unit)
     };
-    for n in (0..maxiter).map(f64::from) {
+    let fail = ControlFlow::Break(None);
+    let res = (0..maxiter).map(f64::from).try_for_each(|n| {
         while s.abs().max(d.abs()) * unit > PFQ_SQUARE_MAX {
             // the squares would overflow, so the sums are rescaled (exactly, by a power of 2)
             let u2 = PFQ_UNIT * PFQ_UNIT;
@@ -741,31 +732,36 @@ fn pfq_sum_terms<T: SeriesReal>(
         sum2 += su * su;
         if n == degree {
             // the series terminated
-            let (rounding, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
-            return (sum + comp, rounding, tails);
-        }
-        // t_(n+1)
-        let Some(term) = terms.next() else {
-            return (sum + comp, f64::INFINITY, f64::INFINITY);
-        };
-        let t = term.to_f64();
-        abs1 += t.abs() * unit;
-        (sum, comp) = T::add_compensated(sum, comp, term);
-        (s, d) = T::sum_and_delta(sum, comp);
-        if !s.is_finite() {
-            return (sum + comp, f64::INFINITY, f64::INFINITY);
-        }
-        if n >= settled && t.abs() <= tol * s.abs() {
-            let rho = pfq_ratio_bound(a, b, z, n + 1.0);
-            // geometric bound on the remaining terms, if the series converges (p <= q + 1)
-            let tail = t.abs() * rho / (1.0 - rho);
-            if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
-                let (rounding, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
-                return (sum + comp, rounding + tail, tails);
+            ControlFlow::Break(Some(estimates(n, d, dsum1, dsum2, sum2, unit, abs1)))
+        } else if let Some(term) = terms.next() {
+            let t = term.to_f64();
+            abs1 += t.abs() * unit;
+            (sum, comp) = T::add_compensated(sum, comp, term);
+            (s, d) = T::sum_and_delta(sum, comp);
+            if !s.is_finite() {
+                fail
+            } else if n >= settled && t.abs() <= tol * s.abs() {
+                let rho = pfq_ratio_bound(a, b, z, n + 1.0);
+                // geometric bound on the remaining terms, if the series converges (p <= q + 1)
+                let tail = t.abs() * rho / (1.0 - rho);
+                if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
+                    let (rounding, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
+                    ControlFlow::Break(Some((rounding + tail, tails)))
+                } else {
+                    ControlFlow::Continue(())
+                }
+            } else {
+                ControlFlow::Continue(())
             }
+        } else {
+            fail
         }
-    }
-    (sum + comp, f64::INFINITY, f64::INFINITY)
+    });
+    let (err, tails) = res
+        .break_value()
+        .flatten()
+        .unwrap_or((f64::INFINITY, f64::INFINITY));
+    (sum + comp, err, tails)
 }
 
 /// Weniger's delta transformation of the series, and an estimate of its absolute error
