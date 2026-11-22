@@ -585,11 +585,11 @@ mod tests {
             "{e:?} vs {expected}"
         );
         // earlier negative parameter's bisection must not starve a later parameter's short probe
-        let (y, err) = recurrence_balanced([0.5, -200.5, -9000.5], [2.5, 1.5], -0.02).unwrap();
+        let e = recurrence_balanced([0.5, -200.5, -9000.5], [2.5, 1.5], -0.02).unwrap();
         let expected = -1.687_481_900_654_389_6e32;
         assert!(
-            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
-            "{y} vs {expected} (err {err})"
+            e.is_accurate() && (e.y - expected).abs() <= 1e-13 * expected.abs(),
+            "{e:?} vs {expected}"
         );
     }
 }
