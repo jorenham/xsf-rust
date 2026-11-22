@@ -1548,13 +1548,21 @@ fn convergent_sum<T: Term>(
 }
 
 /// Sum of a terminating series of known `degree`, with its rounding error estimate
-fn polynomial_sum<T: SeriesReal>(mut terms: impl Iterator<Item = T>, degree: f64) -> (T, f64) {
+///
+/// `step_roundings` bounds the rounding errors accumulated per recurrence step when generating
+/// each term (beyond the summation rounding itself).
+fn polynomial_sum<T: SeriesReal>(
+    mut terms: impl Iterator<Item = T>,
+    degree: f64,
+    step_roundings: f64,
+) -> (T, f64) {
     let zero = T::from_f64(0.0);
-    let step = |(sum, abs_sum): (T, f64), _| match terms.next() {
+    let step = |(sum, err_sum): (T, f64), k: u32| match terms.next() {
         Some(t) if t.to_f64().is_finite() => {
             let next = sum + t;
             if next.to_f64().is_finite() {
-                ControlFlow::Continue((next, abs_sum + t.to_f64().abs()))
+                let weight = ((degree + 1.0) + f64::from(k) * step_roundings) * T::EPSILON;
+                ControlFlow::Continue((next, err_sum + weight * t.to_f64().abs()))
             } else {
                 ControlFlow::Break(next)
             }
@@ -1565,7 +1573,7 @@ fn polynomial_sum<T: SeriesReal>(mut terms: impl Iterator<Item = T>, degree: f64
         (zero, f64::INFINITY)
     } else {
         match (0..=degree as u32).try_fold((zero, 0.0), step) {
-            ControlFlow::Continue((sum, abs_sum)) => (sum, (degree + 1.0) * T::EPSILON * abs_sum),
+            ControlFlow::Continue((sum, err_sum)) => (sum, err_sum),
             ControlFlow::Break(sum) => (sum, f64::INFINITY),
         }
     }
@@ -1835,7 +1843,8 @@ fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, 
         .chain(pfq_terms_of(degree, w, |n, term| pfq_next_dd(up, low, n, w, term, checked)))
         .map(|t| if sizes { t.abs() } else { t });
     if degree.is_finite() {
-        polynomial_sum(series, degree)
+        // each step rounds `(x + n).hi` and multiplies each factor, plus division and scaling
+        polynomial_sum(series, degree, 2.0 * (up.len() + low.len()) as f64 + 2.0)
     } else {
         let settled = up
             .iter()
@@ -1867,13 +1876,13 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         if n == degree {
             Dd::ZERO
         } else {
-            prod(&up) / (prod(&low) * (neg_one_pow(a.len() + b.len() + 1) * z))
+            prod(&up) / normal(prod(&low) * (neg_one_pow(a.len() + b.len() + 1) * z))
         }
     };
     let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
     if degree.is_finite() {
-        // (all of its terms)
-        return polynomial_sum(terms, degree);
+        // (all of its terms, with per-step factor-product roundings in double-double)
+        return polynomial_sum(terms, degree, (up.len() + low.len() + 2) as f64);
     } else if up.len() < low.len() {
         // (it converges for p > q + 1)
         let mut scratch = BoundScratch::new(up.len(), low.len());
@@ -3411,5 +3420,21 @@ mod tests {
         let bound = scratch.ratio_bound(&up_r, &low_r, recip_up(z), 8191.0)
             * Residues::growth_bound(&up_r, &low_r, 8191.0);
         assert!(bound > 1.0, "{bound}");
+        // terminating algebraic series with many parameters accounts for term-generation rounding
+        let mut b_many = vec![2.5];
+        b_many.resize(51, pow2(-53));
+        let (sum, err) = pfq_alg_series(&[0.5], &b_many, 0, pow2(20), false);
+        let expected = 305.041_624_171_279_54;
+        assert!(
+            err.is_finite() && (sum - expected).abs() <= err,
+            "{sum} vs {expected} (err {err})"
+        );
+        // huge finite degree-1 term does not overflow error accumulation before scaling by eps
+        let (sum_big, err_big) = pfq_alg_series(&[0.5, 1.0], &[2.5, pow2(1023)], 0, -2.0, false);
+        assert!(sum_big.is_finite() && err_big.is_finite(), "{sum_big}, {err_big}");
+        // subnormal scaled denominator in double-double rejects the lossy term
+        let (_, err_sub) =
+            pfq_alg_series_dd(&[0.5, 0.75], &[2.5, 1.5 + pow2(-52)], 0, -3.0 * f64::from_bits(1));
+        assert!(err_sub.is_infinite(), "{err_sub}");
     }
 }
