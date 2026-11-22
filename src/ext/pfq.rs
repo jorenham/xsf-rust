@@ -3806,4 +3806,22 @@ mod tests {
             "{e:?} vs {expected}"
         );
     }
+
+    #[test]
+    fn test_pfq_series_sorted_boundary() {
+        // unsorted `(p, q)` across the 8-element stack/heap boundary of `Scratch<f64>`
+        for (p, q) in [(8, 8), (8, 9), (9, 9)] {
+            let a: Vec<f64> = (0..p).map(|i| 0.5 + 0.75 * f64::from(i)).collect();
+            let b: Vec<f64> = (0..q).map(|j| 1.25 + 0.5 * f64::from(j)).collect();
+            let mut a_sorted = a.clone();
+            let mut b_sorted = b.clone();
+            sort_descending(&mut a_sorted);
+            sort_descending(&mut b_sorted);
+            let actual = pfq_series_sorted(&a, &b, -2.5);
+            let expected = pfq_series(&a_sorted, &b_sorted, -2.5);
+            assert!(actual.is_accurate(), "({p}, {q}): {actual:?}");
+            assert_eq!(actual.y.to_bits(), expected.y.to_bits(), "({p}, {q})");
+            assert_eq!(actual.err.to_bits(), expected.err.to_bits(), "({p}, {q})");
+        }
+    }
 }
