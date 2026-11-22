@@ -733,9 +733,8 @@ fn test_hyp1f2_inaccurate() {
     // `gamma(1/4) x^(3/8) besselj(-3/4, 2 sqrt(x))` for x = -z)
     let y = hyp1f2(0.5, 0.5, 0.25, -1e40);
     assert!((y / -98_243.753_444_667_18 - 1.0).abs() < 1e-11);
-    // an overflow that it does not detect (Arb: 2.617_687_386e341)
-    assert!(hyp1f2(100.0, 200.0, 200.0, 5e5).is_nan());
-    // one that it detects, for a negative z (Arb: 1.026_573_294e324)
+    // overflows that it detects (Arb: 2.617_687_386e341 and 1.026_573_294e324)
+    assert_eq!(hyp1f2(100.0, 200.0, 200.0, 5e5), f64::INFINITY);
     assert_eq!(hyp1f2(-120.5, 1.0, 1.0, -1e6), f64::INFINITY);
 }
 
@@ -762,10 +761,9 @@ fn test_hyp0f2() {
     assert!(hyp0f2(1.5, 2.5, f64::NAN).is_nan());
     // a pole
     assert_eq!(hyp0f2(-2.0, 1.5, 0.5), f64::INFINITY);
-    // it overflows (Arb: -2.448e647)
+    // they overflow (Arb: -2.448e647 and 1.093e552)
     assert_eq!(hyp0f2(1.0, 1.0, -1e9), f64::NEG_INFINITY);
-    // it overflows undetected (Arb: 1.093e552)
-    assert!(hyp0f2(200.0, 200.0, 4e8).is_nan());
+    assert_eq!(hyp0f2(200.0, 200.0, 4e8), f64::INFINITY);
     assert_eq!(hyppfq([], [1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
 }
 
