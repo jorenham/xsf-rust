@@ -1059,7 +1059,7 @@ fn test_hyppfq_2f0_hard_cases() {
         for a in [a, [a[1], a[0]]] {
             let p = hyppfq(a, [], z);
             assert!(p.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
-            let h = xsf::hyp2f0(a[0], a[1], z);
+            let h = hyp2f0(a[0], a[1], z);
             xsref::np_assert_allclose!([h], [expected], rtol = rtol);
         }
     }
@@ -1070,7 +1070,7 @@ fn test_hyppfq_2f0_hard_cases() {
     assert_eq!(hyppfq([-2000.0, -2000.0], [], -0.000_122_549_019_607_843_14), None);
     for (a, z) in [([-238.57, -244.72], -0.0065), ([600.0, 4600.0], -0.000_514_2)] {
         assert_eq!(hyppfq(a, [], z), None);
-        assert!(xsf::hyp2f0(a[0], a[1], z).is_nan());
+        assert!(hyp2f0(a[0], a[1], z).is_nan());
     }
 }
 
