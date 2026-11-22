@@ -1924,19 +1924,21 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     asymptotic_sum(terms, start, z, |_| 0.0)
 }
 
-/// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
+/// Appends the term of `pfq_alg` of the class of `a_m` (the `a_i` that differ from `a_m` by
+/// integers) to `terms`
 ///
 /// The terms of these `a_i` are infinite, unlike the limit of their sum, which is the sum of
-/// the `Residues` at the poles that they share. It is the `term` of the first of the smallest
+/// the `Residues` at the poles that they share. It pushes one term for the first of the smallest
 /// of them, with the residue `(-1)^k / k!` of the Gamma function in place of each `Gamma(-k)`
-/// of its factor. The `term` stays `None` for the other `a_i`, and if the class has no residues.
+/// of its factor, and leaves `terms` unchanged for the other `a_i` or if the class has no
+/// residues.
 ///
 /// The residues are complex for `z > 0`, where it is the sum of the bounds on their sizes, as
 /// with `sizes`.
 ///
-/// For a polynomial, it is `None` for the class of its non-positive integer `a_i`, which the
-/// `Residues` exclude. The terms of the other classes vanish, with the `1 / Gamma(a_i)` of their
-/// factor.
+/// For a polynomial, returns `None` for the class of its non-positive integer `a_i`, which the
+/// `Residues` exclude, and leaves `terms` unchanged (returning `Some(())`) for the other classes,
+/// whose terms vanish with the `1 / Gamma(a_i)` of their factor.
 fn pfq_class_term(
     a: &[f64],
     b: &[f64],
