@@ -713,7 +713,8 @@ fn test_hyp1f2_asymptotic() {
         // (and for small parameters)
         (0.03125, [-0.0625, 0.1875], -1e5, -0.116_965_526_511_898_26),
         // algebraic part has zero sum with negligible error next to the exponential part (mpmath)
-        (25.5, [1.25, 0.05], -4000.0, 5.803_456_048_071_905e18),
+        (25.5, [1.25, 0.05], -4000.0, 5.803_456_048_071_923e18),
+        (25.5, [-50.25, 50.05], -4000.0, 3.392_814_746_432_337_4e18),
     ] {
         assert_hyp1f2(a, b, z, expected);
     }
@@ -730,7 +731,7 @@ fn test_hyp1f2_asymptotic() {
 #[test]
 fn test_hyp1f2_inaccurate() {
     // the series cancels, and |z| is too small for the asymptotic expansion
-    assert!(hyp1f2(25.5, -50.25, 50.05, -4000.0).is_nan());
+    assert!(hyp1f2(25.5, -80.25, 80.05, -4000.0).is_nan());
     // the phase 2 sqrt(-z) of the oscillating part is large: about 11 digits (mpmath:
     // `gamma(1/4) x^(3/8) besselj(-3/4, 2 sqrt(x))` for x = -z)
     let y = hyp1f2(0.5, 0.5, 0.25, -1e40);
