@@ -459,14 +459,15 @@ fn recurrence_nested(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(f
 /// the rounding of the starts can break, and it returns the first accurate result it finds.
 fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<(f64, f64)> {
     let work = Cell::new(BALANCED_WORK);
-    let balanced = |i| {
-        let run = |m, maxiter| upper_recurrence(a, i, b, z, m, maxiter, &work);
-        // try near 0 (`high - 8`) first with a short `PFQ_DD_MAXITER` budget so large negative
-        // `a[i]` finish in one attempt without starving bisection, then bisect `[1, steps_to_zero)`
+    let run = |i, m, maxiter| upper_recurrence(a, i, b, z, m, maxiter, &work);
+    // probe near 0 (`high - 8`) across all negative `a[i]` first with a short `PFQ_DD_MAXITER`
+    // budget so an earlier parameter's bisection cannot starve a later parameter's probe
+    let mut bounds = [(0, 0); 3];
+    for (i, slot) in bounds.iter_mut().enumerate() {
         let (mut low, mut high) = (0, steps_to_zero(a[i]));
         if high > 2 * RECURRENCE_STARTS[0] {
             let m = high - RECURRENCE_STARTS[0];
-            if let Some((y, rounding, err)) = run(m, PFQ_DD_MAXITER) {
+            if let Some((y, rounding, err)) = run(i, m, PFQ_DD_MAXITER) {
                 if let Some(y) = accurate(y, err) {
                     return Some(y);
                 }
@@ -477,19 +478,25 @@ fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<(f64, f64)> {
                 }
             }
         }
-        while low + 1 < high {
-            let m = low.midpoint(high);
-            let y = run(m, PFQ_LONG_MAXITER);
-            if let Some(y) = y.and_then(|(y, _, err)| accurate(y, err)) {
-                return Some(y);
+        *slot = (low, high);
+    }
+    bounds
+        .into_iter()
+        .enumerate()
+        .find_map(|(i, (mut low, mut high))| {
+            while low + 1 < high {
+                let m = low.midpoint(high);
+                let y = run(i, m, PFQ_LONG_MAXITER);
+                if let Some(y) = y.and_then(|(y, _, err)| accurate(y, err)) {
+                    return Some(y);
+                }
+                // within half of the tolerance, which leaves the other half to the series
+                let within =
+                    y.is_none_or(|(y, rounding, _)| 2.0 * rounding <= PFQ_TOL * y.hi.abs());
+                if within { low = m } else { high = m }
             }
-            // within half of the tolerance, which leaves the other half to the series
-            let within = y.is_none_or(|(y, rounding, _)| 2.0 * rounding <= PFQ_TOL * y.hi.abs());
-            if within { low = m } else { high = m }
-        }
-        None
-    };
-    (0..3).find_map(balanced)
+            None
+        })
 }
 
 #[cfg(test)]
@@ -577,6 +584,13 @@ mod tests {
         );
         let (y, err) = recurrence_balanced(a, b, 0.996).unwrap();
         let expected = 194.547_589_493_083_65;
+        assert!(
+            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
+            "{y} vs {expected} (err {err})"
+        );
+        // earlier negative parameter's bisection must not starve a later parameter's short probe
+        let (y, err) = recurrence_balanced([0.5, -200.5, -9000.5], [2.5, 1.5], -0.02).unwrap();
+        let expected = -1.687_481_900_654_389_6e32;
         assert!(
             err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
             "{y} vs {expected} (err {err})"
