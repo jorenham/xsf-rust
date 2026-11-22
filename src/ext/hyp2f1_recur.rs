@@ -191,7 +191,10 @@ impl Scaled {
         self.with_l(self.l + l)
     }
 
-    /// A zero value whose absolute error is `|self| (1 + self.err)`, for summing in `add_exp_in`
+    /// A zero value whose scaled absolute error `|self| (1 + self.err)` is stored in `err`
+    ///
+    /// Only valid as an input to `add_exp_in` / `add_exp`; `fold_exp` and `to_f64` interpret
+    /// `err` as a relative error and must not be called on the returned value.
     pub(crate) fn into_zero_err(self) -> Self {
         let (m, k) = frexp_f64(self.m.abs());
         Self {

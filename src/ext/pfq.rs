@@ -1048,11 +1048,12 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
 }
 
 /// The analytic continuation to `z < -1` (DLMF 16.8.8) and an estimate of its absolute error, or
-/// `None` if it underflows, overflows, or cannot be summed accurately
+/// `None` if evaluation fails or the result is not normal
 ///
 /// This is for `p = q + 1`. It evaluates the algebraic sum via `pfq_alg` (`Alg::Value`), falling
 /// back to `pfq_alg_dd` on failure or inaccuracy when at least one `a_i` is not in an
-/// integer-difference class.
+/// integer-difference class. It can still return `Some` when neither method meets `PFQ_TOL`, so
+/// callers must check the returned error bound.
 fn pfq_continuation<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, f64)> {
     let (a, b) = (a.as_ref(), b.as_ref());
     let to_est = |s: Scaled| {
