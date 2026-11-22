@@ -570,6 +570,11 @@ mod tests {
         // for the bisection midpoint `m = 18` to succeed
         let a = [16.983_936_871_431_336, -0.114_022_201_911_358_77, -36.194_302_717_639_12];
         let b = [0.871_800_762_335_526_7, 0.001_410_048_592_030_205_8];
+        let probe = steps_to_zero(a[2]) - RECURRENCE_STARTS[0];
+        assert!(
+            upper_recurrence(a, 2, b, 0.996, probe, PFQ_DD_MAXITER, &Cell::new(BALANCED_WORK))
+                .is_none()
+        );
         let (y, err) = recurrence_balanced(a, b, 0.996).unwrap();
         let expected = 194.547_589_493_083_65;
         assert!(
