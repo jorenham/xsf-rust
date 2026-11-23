@@ -783,6 +783,19 @@ fn test_bessel_k_near_overflow() {
 }
 
 #[test]
+fn test_bessel_k_at_amos_overflow() {
+    for (v, x, expected) in [
+        (1.5, 1e-205, [3.963_327_297_606_011e307, 3.963_327_297_606_011e307]),
+        (-70.0, 0.002, [8.556_122_497_405_277e307, 8.573_251_866_058_952e307]),
+    ] {
+        let actual = [xsf::bessel_k(v, x), xsf::bessel_ke(v, x)];
+        xsref::np_assert_allclose!(actual, expected, rtol = 5e-14);
+    }
+    assert_eq!(xsf::bessel_k(1.5, 1e-206), f64::INFINITY);
+    assert_eq!(xsf::bessel_ke(1.5, 1e-206), f64::INFINITY);
+}
+
+#[test]
 fn test_bessel_k_near_underflow() {
     // mpmath: besselk(v, x)
     let actual = [
