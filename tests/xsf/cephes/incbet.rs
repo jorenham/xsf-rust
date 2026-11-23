@@ -29,6 +29,14 @@ fn test_betainc_nontrivial() {
 }
 
 #[test]
+fn test_betainc_moderate_shapes_near_mean() {
+    // Arb on the exact binary64 arguments.
+    let (a, b, x) = (50.887_606_853_228_68, 1.998_018_595_463_802_8, 0.918_299_500_503_928_5);
+    let actual = [xsf::betainc(a, b, x), xsf::betaincc(b, a, 1.0 - x)];
+    xsref::np_assert_allclose!(&actual, &[0.067_256_806_786_383_95; 2], rtol = 1e-15);
+}
+
+#[test]
 fn test_betainc_slow_continued_fraction() {
     // reference values from mpmath
 
