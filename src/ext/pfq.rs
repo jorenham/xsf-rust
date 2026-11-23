@@ -4,6 +4,7 @@
 //! supply the `(1)_n = n!` factor in the denominator where series terms or ratio bounds are
 //! evaluated.
 
+use core::cell::OnceCell;
 use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::{Add, ControlFlow};
@@ -17,7 +18,7 @@ use crate::xsf::cephes::dd_real::{
 };
 use crate::xsf::cephes::hyp2f1::HYP2F1_LOST;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
-use crate::xsf::{cospi, sinpi, xsf_hypu_digits, xsf_hypu_min_digits};
+use crate::xsf::{cospi, sinpi, xsf_hypu_digits};
 
 mod conformal;
 mod recurrence;
@@ -183,10 +184,6 @@ const PFQ_WENIGER_MAXITER: usize = 40;
 /// Number of the last steps of `pfq_weniger` in its estimate where its noise stopped it
 /// (measured)
 const PFQ_WENIGER_STEPS: usize = 4;
-
-/// Factor by which the error of the `f64` Weniger sum of 2F0 can exceed its estimate (up to 4 in
-/// sweeps of the `a_i` and `z` where it has digits)
-const HYP2F0_WENIGER_F64_MARGIN: f64 = 4.0;
 
 /// Largest `z` for `pfq_weniger`, above which the series needs less time (measured)
 const PFQ_WENIGER_MAX_Z: f64 = -0.6;
@@ -2653,10 +2650,10 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
-/// to its smallest term, as for 2F0, or else its Weniger transformation, last in double-double,
-/// which is the slowest. The residues come first, as the steps of Weniger can stall where some
-/// terms nearly vanish, e.g. for an `a_i` near a non-positive integer. Where none of these is
-/// accurate, the residues are in double-double, as for 2F0.
+/// to its smallest term, as for 2F0, or else its Weniger transformation in double-double. The
+/// residues come first, as the steps of Weniger can stall where some terms nearly vanish, e.g.
+/// for an `a_i` near a non-positive integer. Where none of these is accurate, the residues are
+/// in double-double, as for 2F0.
 fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
     let d = (a.len() - b.len() - 1) as f64;
@@ -2666,10 +2663,8 @@ fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let settled = pfq_settled(a, b).ceil();
     let series = || Some(Estimate::absolute(asymptotic_sum(terms(), settled, scale, |_| 0.0)));
     // also with the rounding errors of the terms, as for 2F0
-    let weniger = |weniger: (f64, f64), eps: f64| weniger_drift(weniger, terms(), settled, eps);
-    let weniger_f64 = || Some(weniger(pfq_weniger::<f64>(&a, &b, z)?, f64::EPSILON));
-    // as for 2F0, where the rounding errors in f64 dominate
-    let weniger_dd = || Some(weniger(pfq_weniger::<Dd>(&a, &b, z)?, Dd::EPSILON));
+    let weniger_dd =
+        || Some(weniger_drift(pfq_weniger::<Dd>(&a, &b, z)?, terms(), settled, Dd::EPSILON));
     let residues = || {
         let mut terms = vec![None; a.len()];
         pfq_alg(a, b, z, Alg::Value, &mut terms)?;
@@ -2677,88 +2672,172 @@ fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     };
     series()
         .or_better(residues)
-        .or_better(weniger_f64)
         .or_better(weniger_dd)
         .or_better(|| pfq_borel_dd(a, b, z))
 }
 
-/// The decays `exp(-m)` of `v_k` from where `hyp2f0_miller` recurs down: below `f64::EPSILON`, and
-/// further, as the difference of the two results estimates the truncation error
-const MILLER_DECAY: [f64; 2] = [40.0, 60.0];
+/// Cached evaluation of the Borel sum `x^a1 U(a1, a1 - a2 + 1, x)` for `2F0(a1, a2;; -1/x)`,
+/// with its finite-difference rounding sensitivity and pole proximity flag
+struct RawBorel {
+    p: f64,
+    u: f64,
+    digits: f64,
+    rounding: f64,
+    near_pole: bool,
+}
 
-/// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), and an estimate of its
-/// absolute error, or `None` if it would take more than `PFQ_DD_MAXITER` steps
-///
-/// With `x = -1/z`, the `v_k = (a1)_k (a2)_k / k! U(a1 + k, a1 - a2 + 1, x)` are the minimal
-/// solution of
-///
-/// `(a1 + k - 1) (a2 + k - 1) v_(k-1) = k ((a1 + a2 + 2 k - 1 + x) v_k - (k + 1) v_(k+1))`
-///
-/// and sum to `x^(-a1)`, so that 2F0 is `v_0 / sum_k v_k` (DLMF 13.6.21): without a gamma
-/// function, a power, or the rounded `x` and `a1 - a2 + 1`. It is in double-double, with a
-/// first-order estimate of its rounding errors, which the recurrence amplifies for `a1, a2 < 0`.
-/// The estimate is not a bound: it propagates the errors of the steps with one choice of signs.
-///
-/// As the sum cancels unless `a1, a2 > 0`, it is that of `a1 + shift` and `a2 + shift`, and the
-/// `f_k = 2F0(a1 + k, a2 + k;; z)` then go down from `k = shift` by (DLMF 13.3.7)
-///
-/// `f_(k-1) = (1 - (a1 + a2 + 2 k - 1) z) f_k - (a1 + k) (a2 + k) z^2 f_(k+1)`
-///
-/// with the rounding errors of its steps and of `f_shift` and `f_(shift+1)`, each times the
-/// sensitivity of `f_0` to it.
-fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
-    let x = Dd::new(-1.0) / z;
-    let sum = x + a1 + a2 + (2.0 * shift - 1.0);
-    // v_0 / sum_k v_k from v_n = 1 and v_(n+1) = 0, and its relative rounding error
-    let ratio = |n: f64| {
-        let (mut v, mut e) = ([Dd::ONE, Dd::ZERO], [0.0; 2]);
-        let (mut total, mut e_total) = (v[0], 0.0);
-        for k in (1..=n as u32).rev().map(f64::from) {
-            let (p, q) = ((sum + 2.0 * k) * v[0], v[1] * (k + 1.0));
-            let den = (Dd::new(a1) + (shift + k - 1.0)) * (Dd::new(a2) + (shift + k - 1.0)) / k;
-            // the rounding error of this step, with the sign of the errors so far
-            let rounding = Dd::EPSILON * (p.hi.abs() + q.hi.abs());
-            let propagated = (sum.hi + 2.0 * k) * e[0] - (k + 1.0) * e[1];
-            e = [(propagated + rounding.copysign(propagated)) / den.hi, e[0]];
-            v = [(p - q) / den, v[0]];
-            total = total + v[0];
-            e_total += e[0].abs();
+impl RawBorel {
+    fn eval(a1: f64, a2: f64, x: f64, dx: f64) -> Option<Self> {
+        const T: f64 = pow2(20);
+        const POLE_SPACINGS: f64 = 8.0;
+        let (d, e1) = two_sum(a1, -a2);
+        let (b, e2) = two_sum(d, 1.0);
+        // chgu takes U as a polynomial where its `a1 - b + 1` (that should be a2) rounds to
+        // a non-positive integer
+        let (s, f1) = two_sum(a1, -b);
+        let (a2_rounded, f2) = two_sum(s, 1.0);
+        if is_nonpos_int(a2_rounded) && a2_rounded != a2 {
+            return None;
         }
-        // f_shift and f_(shift+1) times sum_k v_k (DLMF 13.6.21)
-        let den = (Dd::new(a1) + shift) * (Dd::new(a2) + shift) * -z;
-        let mut f = [v[0], v[1] / den];
-        // and their rounding errors
-        let e_f1 = (e[1] / den.hi).abs() + Dd::EPSILON * f[1].hi.abs();
-        let mut steps = Vec::with_capacity(shift as usize);
-        for k in (1..=shift as u32).rev().map(f64::from) {
-            let c = (Dd::new(a1) + a2 + (2.0 * k - 1.0)) * -z + 1.0;
-            let d = (Dd::new(a1) + k) * (Dd::new(a2) + k) * z * z;
-            let (p, q) = (c * f[0], d * f[1]);
-            steps.push((c.hi, d.hi, Dd::EPSILON * (p.hi.abs() + q.hi.abs())));
-            f = [p - q, f[0]];
+        let (p, (u, _, digits)) = (x.powf(a1), xsf_hypu_digits(a1, b, x));
+        if !(p.is_normal() && u.is_normal()) {
+            return None;
         }
-        // the sensitivities of f_0 to f_(k-1) and f_k, up from k = 1
-        let (mut w, mut e_f) = ([1.0, 0.0], 0.0);
-        for (c, d, rounding) in steps.into_iter().rev() {
-            e_f += (w[0] * rounding).abs();
-            w = [w[0] * c + w[1], -w[0] * d];
-        }
-        e_f += (w[0] * e[0]).abs() + (w[1] * e_f1).abs();
-        ((f[0] / total).hi, (e_f / f[0].hi).abs() + (e_total / total.hi).abs())
+        // The rounding errors of b and x change y by about (y_t - y) / T, with b and x moved
+        // by T times them (far enough to stand out from the error of U, and near enough to be
+        // linear). That of chgu's `a1 - b + 1` adds to that of b, as chgu then returns about U
+        // at `b = a1 - a2_rounded + 1`. A move that would round away is a spacing instead.
+        let moved = |v: f64, dv: f64| {
+            let v_t = v + T * dv;
+            let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
+            if v_t == v && dv != 0.0 {
+                v + spacing.copysign(dv)
+            } else {
+                v_t
+            }
+        };
+        let db = ((e1 + e2).abs() + (f1 + f2).abs()).copysign(e1 + e2);
+        let (b_t, x_t) = (moved(b, db), moved(x, dx));
+        let (digits, rounding) = if b_t == b && x_t == x {
+            (f64::from(digits), 0.0)
+        } else {
+            let (p_t, (u_t, _, digits_t)) = (x_t.powf(a1), xsf_hypu_digits(a1, b_t, x_t));
+            if !(p_t.is_normal() && u_t.is_normal()) {
+                return None;
+            }
+            // relative to y, also where it overflows
+            let rounding = ((p_t / p) * u_t - u).abs() / u.abs() / T;
+            (f64::from(digits.min(digits_t)), rounding)
+        };
+        // Within a few spacings of a non-positive integer n (also 0), the rounding of chgu's
+        // a2 can move a cancellation in U, so only an accurate y is kept there (unless U is
+        // the polynomial of a2 = n).
+        let n = a2_rounded.round().min(0.0);
+        let spacing = f64::EPSILON * a1.abs().max(b.abs()).max(1.0);
+        let near = (a2 - n).abs().min((a2_rounded - n).abs()) <= POLE_SPACINGS * spacing;
+        let near_pole = near && (a2 != n || a2_rounded != n);
+        Some(Self {
+            p,
+            u,
+            digits,
+            rounding,
+            near_pole,
+        })
+    }
+
+    fn estimate(&self, margin: f64) -> Option<Estimate> {
+        let y = self.p * self.u;
+        let digits = self.digits - margin;
+        // with the rounding doubled, as y can curve within the move, e.g. for an a1 near a
+        // non-positive integer
+        let err = 10.0_f64.powf(-digits) + 2.0 * self.rounding;
+        // if accurate, U has the digits of `PFQ_TOL` plus the margin, and the rounding moves
+        // y by at most `PFQ_TOL / 2`; an infinite y overflows by more than `err`
+        let accurate = digits >= -PFQ_TOL.log10()
+            && if y.is_infinite() {
+                (self.p / (1.0 + err) * self.u).is_infinite()
+            } else {
+                self.rounding <= PFQ_TOL / 2.0
+            };
+        let err = if accurate {
+            PFQ_TOL
+        } else if self.near_pole {
+            return None;
+        } else if y.is_infinite() {
+            f64::NAN
+        } else {
+            err.max(PFQ_INACCURATE)
+        };
+        // with the spacing of a subnormal y
+        Some(Estimate::rounded(y, err))
+    }
+}
+
+/// Borel sum of `2F0(a1, a2;; z)` for `z < 0` (DLMF 13.6.21)
+///
+/// Tries `x^a1 U(a1, a1 - a2 + 1, x)` with `CHGU_DIGITS_MARGIN`, the truncated asymptotic
+/// series, the swapped `U` orientation (DLMF 13.2.40), double-double Weniger, double-double
+/// residues (`pfq_borel_dd`), and finally the cached `U` evaluations at `margin = 0.0`.
+fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
+    // the smaller |a_i| first, as x^a1 then overflows less often
+    let (a1, a2) = if a1.abs() <= a2.abs() {
+        (a1, a2)
+    } else {
+        (a2, a1)
     };
-    // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
-    // (DLMF 13.8.11), which decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power
-    // of k (left to the truncation error), from where a1 + k and a2 + k are positive (and over at
-    // least m steps)
-    let settled = (-a1 - shift).max(-a2 - shift).max(0.0);
-    let steps = |m: f64| settled + m + ((a1 - a2).abs() + m).powi(2) / (4.0 * x.hi);
-    let [short, long] = MILLER_DECAY.map(steps);
-    let ((y_short, _), (y, err)) =
-        (long + shift <= f64::from(PFQ_DD_MAXITER)).then(|| (ratio(short), ratio(long)))?;
-    // (and the rounding of the quotient and of `y`; a subnormal `y` of the shifted run has lost
-    // digits that its estimate misses)
-    (shift == 0.0 || y.is_normal())
-        .then(|| (y, (err + f64::EPSILON) * y.abs() + (y - y_short).abs()))
+    let x = -1.0 / z;
+    // the rounding error of x (as x z is near -1, x z + 1 is exact)
+    let (xz, e) = two_prod(x, z);
+    let dx = -((xz + 1.0) + e) / z;
+    let raw1 = RawBorel::eval(a1, a2, x, dx);
+    let raw2 = OnceCell::new();
+    let eval2 = || {
+        (a1 != a2)
+            .then(|| raw2.get_or_init(|| RawBorel::eval(a2, a1, x, dx)).as_ref())
+            .flatten()
+    };
+    let a = [a1, a2];
+    let terms = || once(1.0).chain(pfq_terms(&a, &[], z));
+    // keep the 2-factor asymptotic terms split in `(mantissa, exponent)` so an underflowing or
+    // subnormal term (e.g. tiny `a1 * a2 * z`) stays a conservative bound rather than ending the
+    // series before `t_1`
+    let (zm, ze) = frexp_f64(z);
+    let series_terms = || {
+        (0_u32..)
+            .map(f64::from)
+            .scan((1.0_f64, 0_i64), move |(m, e), n| {
+                let t = ldexp_i64(*m, *e);
+                let bound = if *m == 0.0 {
+                    0.0
+                } else if t.is_finite() {
+                    t.abs().max(f64::MIN_POSITIVE)
+                } else {
+                    f64::INFINITY
+                };
+                let ((m1, e1), (m2, e2)) = (frexp_f64(a1 + n), frexp_f64(a2 + n));
+                let (nm, ne) = frexp_f64(*m * m1 * m2 * zm / (n + 1.0));
+                *m = nm;
+                *e += i64::from(e1) + i64::from(e2) + i64::from(ze) + i64::from(ne);
+                Some((t, bound))
+            })
+    };
+    let settled = (-a1).max(-a2).max(0.0).ceil();
+    // with x capped, as sqrt(2 pi x) in the error estimate could overflow; it stays above
+    // 1e8, while past `settled` the terms alternate, so the first omitted one bounds the
+    // remainder
+    let scale = x.min(f64::EPSILON.recip());
+    let series =
+        || Some(Estimate::absolute(asymptotic_sum(series_terms(), settled, scale, |_| 0.0)));
+    let weniger_dd =
+        || Some(weniger_drift(pfq_weniger::<Dd>(&a, &[], z)?, terms(), settled, Dd::EPSILON));
+    raw1.as_ref()
+        .and_then(|r| r.estimate(CHGU_DIGITS_MARGIN))
+        .or_better(series)
+        .or_better(|| eval2()?.estimate(CHGU_DIGITS_MARGIN))
+        .or_better(weniger_dd)
+        .or_better(|| pfq_borel_dd(&a, &[], z))
+        .or_better(|| raw1.as_ref()?.estimate(0.0))
+        .or_better(|| eval2()?.estimate(0.0))
 }
 
 /// Generalized hypergeometric function $_pF_q$ for real arguments
@@ -2831,9 +2910,6 @@ pub fn hyppfq(a: impl AsRef<[f64]>, b: impl AsRef<[f64]>, z: f64) -> Option<f64>
     pfq_estimate(a.as_ref(), b.as_ref(), z)?.accurate()
 }
 
-/// The signature of `xsf_hypu_digits`, U with the digits that `chgu` estimates
-type Hypu = fn(f64, f64, f64) -> (f64, i32, i32);
-
 /// `hyppfq` and an estimate of its relative error, or `None` where it has no method
 fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let exact = |y| Some(Estimate::exact(y));
@@ -2887,148 +2963,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
         (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
         _ if z.is_infinite() => None,
-        // the Borel sum of the divergent series (DLMF 13.6.21), as in mpmath, if `chgu` estimates
-        // that U has the digits of PFQ_TOL; otherwise, or if a factor isn't normal (their product
-        // could be an over- times an underflow), the series up to its smallest term, as for tiny
-        // |z|
-        (&[a1, a2], &[]) if z < 0.0 => {
-            // the smaller |a_i| first, as x^a1 then overflows less often
-            let (a1, a2) = if a1.abs() <= a2.abs() {
-                (a1, a2)
-            } else {
-                (a2, a1)
-            };
-            let x = -1.0 / z;
-            // the rounding error of x (as x z is near -1, x z + 1 is exact)
-            let (xz, e) = two_prod(x, z);
-            let dx = -((xz + 1.0) + e) / z;
-            let borel = |a1: f64, a2: f64, hypu: Hypu, margin: f64| {
-                const T: f64 = pow2(20);
-                const POLE_SPACINGS: f64 = 8.0;
-                // with the digits that chgu estimates
-                let y = |b: f64, x: f64| {
-                    let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
-                    let digits = f64::from(digits) - margin;
-                    (p.is_normal() && u.is_normal()).then_some((p, u, digits))
-                };
-                let (d, e1) = two_sum(a1, -a2);
-                let (b, e2) = two_sum(d, 1.0);
-                // chgu takes U as a polynomial where its `a1 - b + 1` (that should be a2) rounds to
-                // a non-positive integer
-                let (s, f1) = two_sum(a1, -b);
-                let (a2_rounded, f2) = two_sum(s, 1.0);
-                if is_nonpos_int(a2_rounded) && a2_rounded != a2 {
-                    return None;
-                }
-                // The rounding errors of b and x change y by about (y_t - y) / T, with b and x
-                // moved by T times them (far enough to stand out from the error of U, and near
-                // enough to be linear). That of chgu's `a1 - b + 1` adds to that of b, as chgu
-                // then returns about U at `b = a1 - a2_rounded + 1`. They may take half of
-                // PFQ_TOL, as y can depend much more on b and x than on a_i and z, e.g. for an a2
-                // near a nonpositive integer. A move that would round away (e.g. that of b for a
-                // tiny a1) is a spacing instead, a larger step.
-                let moved = |v: f64, d: f64| {
-                    let v_t = v + T * d;
-                    let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
-                    if v_t == v && d != 0.0 {
-                        v + spacing.copysign(d)
-                    } else {
-                        v_t
-                    }
-                };
-                let db = ((e1 + e2).abs() + (f1 + f2).abs()).copysign(e1 + e2);
-                let ((p, u, digits), (p_t, u_t, digits_t)) =
-                    (y(b, x)?, y(moved(b, db), moved(x, dx))?);
-                // (relative to y, also where it overflows)
-                let rounding = ((p_t / p) * u_t - u).abs() / u.abs() / T;
-                let (y, digits) = (p * u, digits.min(digits_t));
-                // (with the rounding doubled, as y can curve within the move, e.g. for an a1 near a
-                // non-positive integer)
-                let err = 10.0_f64.powf(-digits) + 2.0 * rounding;
-                // (if accurate, U has the digits of `PFQ_TOL` plus the margin, and the rounding
-                // moves y by at most `PFQ_TOL / 2`; an infinite y overflows by more than `err`)
-                let accurate = digits >= -PFQ_TOL.log10()
-                    && if y.is_infinite() {
-                        (p / (1.0 + err) * u).is_infinite()
-                    } else {
-                        rounding <= PFQ_TOL / 2.0
-                    };
-                let err = if accurate {
-                    PFQ_TOL
-                } else {
-                    // Within a few spacings of a non-positive integer n (also 0), the rounding of
-                    // chgu's a2 can move a cancellation in U, so only an accurate y is kept there
-                    // (unless U is the polynomial of a2 = n).
-                    let n = a2_rounded.round().min(0.0);
-                    let spacing = f64::EPSILON * a1.abs().max(b.abs()).max(1.0);
-                    let near =
-                        (a2 - n).abs().min((a2_rounded - n).abs()) <= POLE_SPACINGS * spacing;
-                    if near && (a2 != n || a2_rounded != n) {
-                        return None;
-                    }
-                    // (above `PFQ_TOL`, or NaN for no estimate, as for an infinite y)
-                    if y.is_infinite() {
-                        f64::NAN
-                    } else {
-                        err.max(PFQ_INACCURATE)
-                    }
-                };
-                // (with the spacing of a subnormal y)
-                Some(Estimate::rounded(y, err))
-            };
-            let terms = (0..).map(f64::from).scan(1.0, |t, n| {
-                let t_n = *t;
-                *t *= (a1 + n) * (a2 + n) * z / (n + 1.0);
-                Some(t_n)
-            });
-            let settled = (-a1).max(-a2).max(0.0).ceil();
-            // (with x capped, as sqrt(2 pi x) in the error estimate could overflow; it stays above
-            // 1e8, while past `settled` the terms alternate, so the first omitted one bounds the
-            // remainder)
-            let scale = x.min(f64::EPSILON.recip());
-            let series = || {
-                let sum = asymptotic_sum(terms.clone(), settled, scale, |_| 0.0);
-                Some(Estimate::absolute(sum))
-            };
-            // Try Weniger when both U evaluations and the truncated series miss the tolerance
-            let weniger = |weniger: (f64, f64), eps: f64| {
-                Some(weniger_drift(weniger, terms.clone(), settled, eps))
-            };
-            // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
-            // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
-            // the rounding errors in f64 can dominate, where the terms before `settled` cancel
-            // or the partial sums grow (z < -1); then Miller's algorithm, which is slower, but
-            // holds where U lacks a digit by the estimate of chgu; then U for a >= 1 where chgu
-            // needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit (not
-            // for a < 1, where its other methods are slow and seldom gain the digit); then
-            // Miller's algorithm from where all a_i + k > 0, as its sum cancels before; then U
-            // with the digits of PFQ_TOL; and last the residues of `pfq_borel` in double-double:
-            // the two series of U (DLMF 13.2.42), which lose digits in chgu where they cancel or
-            // near a pole of a Gamma function
-            let hypu_tol = |a, b, x| {
-                xsf_hypu_min_digits(a, b, x, (CHGU_DIGITS_MARGIN - PFQ_TOL.log10()) as i32)
-            };
-            let miller = |shift| hyp2f0_miller(a1, a2, z, shift).map(Estimate::absolute);
-            borel(a1, a2, xsf_hypu_digits, CHGU_DIGITS_MARGIN)
-                .or_better(series)
-                .or_better(|| borel(a2, a1, xsf_hypu_digits, CHGU_DIGITS_MARGIN))
-                .or_better(|| {
-                    let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[], z)?;
-                    weniger((y, HYP2F0_WENIGER_F64_MARGIN * err), f64::EPSILON)
-                })
-                .or_better(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[], z)?, Dd::EPSILON))
-                .or_better(|| miller(0.0))
-                .or_better(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol, CHGU_DIGITS_MARGIN))?)
-                .or_better(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol, CHGU_DIGITS_MARGIN))?)
-                .or_better(|| {
-                    // (past a shifted a_i = 0)
-                    let shift = (-a1).max(-a2).floor() + 1.0;
-                    (shift > 0.0).then(|| miller(shift))?
-                })
-                .or_better(|| borel(a1, a2, xsf_hypu_digits, 0.0))
-                .or_better(|| borel(a2, a1, xsf_hypu_digits, 0.0))
-                .or_better(|| pfq_borel_dd(&[a1, a2], &[], z))
-        },
+        (&[a1, a2], &[]) if z < 0.0 => hyp2f0_borel(a1, a2, z),
         (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2_estimate(a1, a2, a3, b1, b2, z),
@@ -3172,24 +3107,6 @@ mod tests {
         let (y, err, tails) =
             pfq_sum_terms::<f64>(&[-2.0], &[], 1.0, 3, [f64::MAX, f64::MAX].into_iter(), 1e-13);
         assert!(y.is_infinite() && err == f64::INFINITY && tails == f64::INFINITY);
-    }
-
-    #[test]
-    fn test_hyp2f0_miller_err() {
-        // the estimate covers the rounding of the result, here 2.5e-25 (Arb)
-        let (y, err) = hyp2f0_miller(-36.5, -51.8, -0.026, 0.0).unwrap();
-        let expected = -6.120_387_741_382_293e-9;
-        assert!(err >= f64::EPSILON * y.abs() && (y - expected).abs() <= err);
-        // and that of the recurrence in a1 and a2, here 3.6e-13 (Arb)
-        let (y, err) = hyp2f0_miller(
-            -50.999_999_999_699_924,
-            -104.536_535_990_336_39,
-            -0.056_613_881_920_597_09,
-            105.0,
-        )
-        .unwrap();
-        let expected = 2.794_502_416_895_517_4e22;
-        assert!((y - expected).abs() <= err);
     }
 
     #[test]
@@ -3436,5 +3353,55 @@ mod tests {
         let (_, err_sub) =
             pfq_alg_series_dd(&[0.5, 0.75], &[2.5, 1.5 + pow2(-52)], 0, -3.0 * f64::from_bits(1));
         assert!(err_sub.is_infinite(), "{err_sub}");
+    }
+
+    #[test]
+    fn test_raw_borel_exact_and_margin() {
+        // exact dyadic parameters (db == 0, dx == 0) skip perturbed evaluation with zero rounding
+        let raw = RawBorel::eval(0.5, 1.5, 4.0, 0.0).unwrap();
+        assert_eq!(raw.rounding, 0.0);
+        assert!(raw.estimate(CHGU_DIGITS_MARGIN).unwrap().is_accurate());
+        // 13-digit cached evaluation is inaccurate (still trusted) at margin 1, accurate at margin 0
+        let raw13 = RawBorel {
+            p: 1.0,
+            u: 2.0,
+            digits: 13.0,
+            rounding: 0.0,
+            near_pole: false,
+        };
+        let strict = raw13.estimate(CHGU_DIGITS_MARGIN).unwrap();
+        assert!(!strict.is_accurate() && strict.trusted().is_some());
+        assert!(raw13.estimate(0.0).unwrap().is_accurate());
+        // near-pole gate rejects inaccurate estimates while keeping accurate ones
+        let raw_pole = RawBorel {
+            near_pole: true,
+            ..raw13
+        };
+        assert!(raw_pole.estimate(CHGU_DIGITS_MARGIN).is_none());
+        assert!(raw_pole.estimate(0.0).unwrap().is_accurate());
+        // overflow gate: overflows comfortably vs barely past f64::MAX
+        let raw_over = RawBorel {
+            p: 1e200,
+            u: 1e200,
+            digits: 13.0,
+            rounding: 0.0,
+            near_pole: false,
+        };
+        assert!(
+            raw_over
+                .estimate(CHGU_DIGITS_MARGIN)
+                .unwrap()
+                .trusted()
+                .is_none()
+        );
+        assert_eq!(raw_over.estimate(0.0).unwrap().accurate(), Some(f64::INFINITY));
+        let raw_edge = RawBorel {
+            p: f64::MAX,
+            u: 1.0 + 1e-14,
+            digits: 13.0,
+            rounding: 0.0,
+            near_pole: false,
+        };
+        assert!(raw_edge.estimate(0.0).unwrap().trusted().is_none());
     }
 }
