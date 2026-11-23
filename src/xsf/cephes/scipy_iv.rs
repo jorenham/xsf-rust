@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/scipy_iv.h` (scipy/xsf@f8add8a).
+//! Translated into pure Rust from `xsf/cephes/scipy_iv.h` (scipy/xsf@f7b8ef8).
 //!
 //! ```text
 //! Parts of the code are copyright:
@@ -273,8 +273,7 @@ pub(crate) fn ikv_asymptotic_uniform(
             /* (AMS 9.6.2) */
             *i_value = i_prefactor * i_sum + FRAC_2_PI * sinpi(v) * k_prefactor * k_sum;
         }
-        // Unlike in xsf, retry an inf with the exponentials applied last, as they overflow before
-        // the result does.
+        // Unlike in xsf, rescale only after I overflows, applying mul_exp to both terms.
         if i_value.is_infinite() {
             let k_factor = if sign == 1 { 0.0 } else { FRAC_2_PI * sinpi(v) };
             *i_value =
