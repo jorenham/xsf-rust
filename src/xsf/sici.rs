@@ -17,7 +17,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use crate::utils::EGAMMA;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
-use crate::xsf::expint::{exp1_c64, exp1_c64_scaled, expi_c64};
+use crate::xsf::expint::{exp1_c64, exp1_half_c64, expi_c64};
 
 fn sici_power_series(sgn: i32, z: C64) -> (C64, C64) {
     /* DLMF 6.6.5 and 6.6.6. If sgn = -1 computes si/ci, and if sgn = 1
@@ -70,35 +70,34 @@ fn sici_c64(z: C64) -> (C64, C64) {
     }
 
     let jz = C64::I * z;
-    if z.im.abs() > MAXLOG && z.is_finite() {
-        // E1 itself can overflow even when its contribution to Si and Ci is finite.
-        let e1p = exp1_c64_scaled::<true>(jz);
-        let e1m = exp1_c64_scaled::<true>(-jz);
-        if z.re == 0.0 {
-            let si = c64(0.0_f64.copysign(-z.im), e1m.re - e1p.re);
-            let ci = c64(-(e1p.re + e1m.re), FRAC_PI_2.copysign(z.im));
-            return (si, ci);
-        }
-        let difference = e1m - e1p;
-        let si = c64(FRAC_PI_2.copysign(z.re) - difference.im, difference.re);
-        let mut ci = -(e1p + e1m);
+    let scale_e1 = z.im.abs() > MAXLOG && z.is_finite();
+    if z.re != 0.0 {
+        // Unlike in xsf, DLMF 6.5.5/6.5.6 with `E1` itself, not through `Ei(w) = -E1(-w) +- pi i`,
+        // whose `pi i` cancel only after absorbing the imaginary part of a small `E1`, e.g. for
+        // huge `Re z`. Odd `Si` and DLMF 6.4.4 extend them to `Re z < 0`.
+        let (rotation, mut ci) = if scale_e1 {
+            let e1p = exp1_half_c64(jz);
+            let e1m = exp1_half_c64(-jz);
+            let difference = e1m - e1p;
+            // A component swap avoids multiplying an overflowing part by zero.
+            (c64(-difference.im, difference.re), -(e1p + e1m))
+        } else {
+            let e1p = exp1_c64(jz);
+            let e1m = exp1_c64(-jz);
+            (c64(0.0, 0.5) * (e1m - e1p), -0.5 * (e1p + e1m))
+        };
+        let si = rotation + FRAC_PI_2.copysign(z.re);
         if z.re < 0.0 {
             ci += c64(0.0, PI.copysign(z.im));
         }
         return (si, ci);
     }
 
-    if z.re != 0.0 {
-        // Unlike in xsf, DLMF 6.5.5/6.5.6 with `E1` itself, not through `Ei(w) = -E1(-w) +- pi i`,
-        // whose `pi i` cancel only after absorbing the imaginary part of a small `E1`, e.g. for
-        // huge `Re z`. Odd `Si` and DLMF 6.4.4 extend them to `Re z < 0`.
-        let e1p = exp1_c64(jz);
-        let e1m = exp1_c64(-jz);
-        let si = c64(0.0, 0.5) * (e1m - e1p) + FRAC_PI_2.copysign(z.re);
-        let mut ci = -0.5 * (e1p + e1m);
-        if z.re < 0.0 {
-            ci += c64(0.0, PI.copysign(z.im));
-        }
+    if scale_e1 {
+        // On the imaginary axis the decaying term is negligible.
+        let integral = -exp1_half_c64(c64(-z.im.abs(), 0.0)).re;
+        let si = c64(0.0_f64.copysign(-z.im), integral.copysign(z.im));
+        let ci = c64(integral, FRAC_PI_2.copysign(z.im));
         return (si, ci);
     }
 

@@ -55,8 +55,12 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
     exp1_c64_scaled::<false>(z)
 }
 
-// Allow Si and Ci to halve E1 before the final exponential multiplication.
-pub(crate) fn exp1_c64_scaled<const HALF: bool>(z: C64) -> C64 {
+// Halve E1 before multiplying by the exponential if that factor would overflow.
+pub(crate) fn exp1_half_c64(z: C64) -> C64 {
+    exp1_c64_scaled::<true>(z)
+}
+
+fn exp1_c64_scaled<const HALF: bool>(z: C64) -> C64 {
     // ====================================================
     // Purpose: Compute complex exponential integral E1(z)
     // Input :  z   --- Argument of E1(z)
