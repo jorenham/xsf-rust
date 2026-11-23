@@ -86,6 +86,28 @@ fn test_complex_erf_axis_near_overflow() {
     }
 }
 
+#[test]
+fn test_complex_erf_overflow_phase() {
+    // The signs at the exact f64 inputs agree in mpmath and Arb.
+    for (z, expected) in [
+        (
+            c64(9.569_339_454_174_042e-8, 2.860_739_775_716_457_3e25),
+            c64(f64::INFINITY, f64::NEG_INFINITY),
+        ),
+        (
+            c64(-15_587_454_079_821.066, 1.024_736_831_829_340_5e46),
+            c64(f64::INFINITY, f64::NEG_INFINITY),
+        ),
+        (
+            c64(165_111.046_468_009_44, -129_479_747_721.267_38),
+            c64(f64::NEG_INFINITY, f64::NEG_INFINITY),
+        ),
+    ] {
+        assert_eq!(xsf::erf(z), expected);
+        assert_eq!(xsf::erfi(c64(z.im, -z.re)), c64(expected.im, -expected.re));
+    }
+}
+
 // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
 
 #[test]

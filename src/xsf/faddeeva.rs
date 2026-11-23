@@ -133,6 +133,7 @@ use core::f64::consts::FRAC_2_SQRT_PI;
 use crate::utils::{FRAC_1_SQRT_PI, mul_exp};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
+use crate::xsf::cephes::dd_real::two_prod;
 use crate::xsf::cephes::polevl::polevl;
 
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
@@ -157,6 +158,22 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
         return c64(if x >= 0.0 { 1.0 } else { -1.0 }, 0.0);
     }
 
+    let rotate = |w: C64| {
+        if mRe_z2 > MAXLOG && mIm_z2.is_finite() {
+            // Unlike in xsf, split the finite phase into high and low parts when exp(Re(-z^2))
+            // overflows, since rounding the phase can reverse the signs of the components.
+            let (hi, lo) = two_prod(-2.0 * x, y);
+            let rotated = C64::cis(hi) * C64::cis(lo) * w;
+            // Allow for trig and product roundoff before using either sign. Angle addition
+            // can cancel near a quadrant boundary.
+            let margin = (16.0 * f64::EPSILON * w.re.abs().max(w.im.abs())).max(f64::from_bits(4));
+            if rotated.re.abs().min(rotated.im.abs()) > margin {
+                return rotated;
+            }
+        }
+        C64::cis(mIm_z2) * w
+    };
+
     'taylor_erfi: {
         'taylor: {
             /* Handle positive and negative x via different formulas,
@@ -172,7 +189,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
                 }
                 /* don't use complex exp function, since that will produce spurious NaN
                 values when multiplying w in an overflow situation. */
-                return 1.0 - mRe_z2.exp() * (C64::cis(mIm_z2) * w(c64(-y, x)));
+                return 1.0 - mRe_z2.exp() * rotate(w(c64(-y, x)));
             }
             // x < 0
             if x > -5e-3 {
@@ -187,7 +204,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
             }
             /* don't use complex exp function, since that will produce spurious NaN
             values when multiplying w in an overflow situation. */
-            return mRe_z2.exp() * (C64::cis(mIm_z2) * w(c64(y, -x))) - 1.0;
+            return mRe_z2.exp() * rotate(w(c64(y, -x))) - 1.0;
         }
         // taylor:
         // Use Taylor series for small |z|, to avoid cancellation inaccuracy
