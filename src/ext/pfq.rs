@@ -1480,6 +1480,7 @@ struct AsymptoticSum<V> {
     settled: f64,
     z_abs: f64,
     remainder: f64,
+    tol: f64,
     sum: V,
     abs_sum: f64,
     term_err: f64,
@@ -1490,13 +1491,14 @@ struct AsymptoticSum<V> {
 }
 
 impl<V: SeriesReal> AsymptoticSum<V> {
-    fn new(settled: f64, z: f64) -> Self {
+    fn new(settled: f64, z: f64, tol: f64) -> Self {
         let zero = V::from_f64(0.0);
         let z_abs = z.abs();
         Self {
             settled,
             z_abs,
             remainder: (TAU * z_abs).sqrt().max(1.0),
+            tol,
             sum: zero,
             abs_sum: 0.0,
             term_err: 0.0,
@@ -1533,7 +1535,7 @@ impl<V: SeriesReal> AsymptoticSum<V> {
             }
             if size < self.min {
                 self.min = size;
-                self.remainder * self.min <= V::EPSILON * self.sum.to_f64().abs()
+                self.remainder * self.min <= self.tol * self.sum.to_f64().abs()
                     && ratio_bound(n) < 1.0
             } else {
                 false
@@ -1554,6 +1556,28 @@ impl<V: SeriesReal> AsymptoticSum<V> {
             ControlFlow::Continue(())
         }
     }
+}
+
+/// `asymptotic_sum` stopping once the remainder bound is at most `tol * |sum|`
+fn asymptotic_sum_tol<T: Term>(
+    terms: impl Iterator<Item = T>,
+    settled: f64,
+    z: f64,
+    tol: f64,
+    mut ratio_bound: impl FnMut(f64) -> f64,
+) -> (T::Value, f64) {
+    let mut state = AsymptoticSum::<T::Value>::new(settled, z, tol);
+    let mut terms = terms.peekable();
+    let _ = (0..PFQ_MAXITER)
+        .map(f64::from)
+        .try_for_each(|n| match terms.next() {
+            Some(term) => {
+                let next = terms.peek().map_or(0.0, |next| next.bound());
+                state.step(n, term.value(), term.bound(), term.error(), next, &mut ratio_bound)
+            },
+            None => ControlFlow::Break(()),
+        });
+    state.best
 }
 
 /// The sum of an asymptotic series in `1/z` up to about its smallest term from term `settled`
@@ -1579,20 +1603,9 @@ fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     z: f64,
-    mut ratio_bound: impl FnMut(f64) -> f64,
+    ratio_bound: impl FnMut(f64) -> f64,
 ) -> (T::Value, f64) {
-    let mut state = AsymptoticSum::<T::Value>::new(settled, z);
-    let mut terms = terms.peekable();
-    let _ = (0..PFQ_MAXITER)
-        .map(f64::from)
-        .try_for_each(|n| match terms.next() {
-            Some(term) => {
-                let next = terms.peek().map_or(0.0, |next| next.bound());
-                state.step(n, term.value(), term.bound(), term.error(), next, &mut ratio_bound)
-            },
-            None => ControlFlow::Break(()),
-        });
-    state.best
+    asymptotic_sum_tol(terms, settled, z, T::Value::EPSILON, ratio_bound)
 }
 
 /// The sum of a convergent series, in the arithmetic of its terms, and an estimate of its
@@ -2184,10 +2197,14 @@ fn root_dd(v: impl Into<Dd>, k: usize) -> Dd {
     }
     let (m, e) = v.frexp();
     let ki = i32::try_from(k).unwrap_or(i32::MAX);
-    // scale `v` by `2^(-q * k)` so `u in [0.5, 2^(k - 1))` stays normal (no subnormal loss for
-    // `k = 2` and no `pow(k)` overflow or `|ln v|` amplification in Newton's step for `k >= 3`)
+    // scale `v` by `2^(-q * k)` so `u` stays normal: `u in [0.5, 2^(k - 1))` for `k <= 512`, and
+    // symmetric `u in [2^-513, 2^512]` for `513..=1024` (no subnormal loss, `pow(k)` overflow, or
+    // `|ln v|` amplification in Newton's step)
     let (u, q) = if k <= 512 {
         let q = e.div_euclid(ki);
+        (m.ldexp(e - q * ki), q)
+    } else if k <= 1024 {
+        let q = (e + ki / 2).div_euclid(ki);
         (m.ldexp(e - q * ki), q)
     } else {
         (v, 0)
@@ -2354,18 +2371,18 @@ pub fn hyp2f0(a1: f64, a2: f64, z: f64) -> f64 {
 }
 
 /// Relative error bound of `x = kappa * root_dd(|z|, kappa)`
-fn pfq_exp_x_rel(kappa: usize, z_abs: f64) -> f64 {
+fn pfq_exp_x_rel(kappa: usize) -> f64 {
     let kf = kappa as f64;
     if kappa == 1 {
         0.0
     } else if kappa == 2 {
         4.0 * EPSILON_SQ
-    } else if kappa <= 512 {
-        // `root_dd` scales `u` into `[0.5, 2^(kappa - 1))`, keeping `|ln u| / kappa <= ln 2`
+    } else if kappa <= 1024 {
+        // `root_dd` scales `u` into `[2^-513, 2^512]`, keeping `u` normal and `|ln u| / kappa <= ln 2`
         (4.0 * kf + 4.0) * EPSILON_SQ
     } else {
-        let d = (z_abs.ln().abs() / kf + 4.0) * f64::EPSILON;
-        kf * d * d + (4.0 * kf + 4.0) * EPSILON_SQ
+        // unscaled `root_dd` can lose double-double precision on extreme or subnormal inputs
+        f64::INFINITY
     }
 }
 
@@ -2525,7 +2542,7 @@ fn pfq_exp_cos(
         4.0 * EPSILON_SQ * (x + PI * nu.hi.abs()) + (x * sin.hi).abs() * x_rel + PI * nu_err / kf;
     // single pass over `terms`: each residue class `k = r mod kappa` tracks its own
     // `AsymptoticSum` state in double-double, with a `kappa`-term lookahead window
-    let mut classes = vec![AsymptoticSum::<Dd>::new(settled / kf, x / kf); kappa];
+    let mut classes = vec![AsymptoticSum::<Dd>::new(settled / kf, x / kf, Dd::EPSILON); kappa];
     let mut win: Vec<Option<(Dd, f64)>> = (0..kappa).map(|_| terms.next()).collect();
     let mut active = kappa;
     let _ = (0..PFQ_MAXITER).try_for_each(|j| {
@@ -2606,6 +2623,10 @@ fn pfq_exp_cos(
 /// `x = kappa |z|^(1 / kappa) e^(+-pi i / kappa)`.
 fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let kappa = b.len() + 1 - a.len();
+    let x_rel = pfq_exp_x_rel(kappa);
+    if !x_rel.is_finite() {
+        return None;
+    }
     let kf = kappa as f64;
     let nu = sum_dd(a) - sum_dd(b) + 0.5 * (kf - 1.0);
     let nu_abs = a.iter().chain(b).map(|v| v.abs()).sum::<f64>() + 0.5 * (kf - 1.0);
@@ -2617,10 +2638,9 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     // (the factors of the last coefficient are negative from here on)
     let beta = b.iter().fold(0.0_f64, |m, bj| m.max(kf * (bj - 1.0)));
     let settled = (nu.hi + b.len() as f64 + beta).max(0.0);
-    let x_rel = pfq_exp_x_rel(kappa, z.abs());
     let terms = pfq_exp_terms(a, b, nu, nu_err, x_dd, x_rel);
     let (series, growth) = if real {
-        let (sum, err) = asymptotic_sum(terms, settled, x, |_| 0.0);
+        let (sum, err) = asymptotic_sum_tol(terms, settled, x, f64::EPSILON, |_| 0.0);
         // the other exponentials of DLMF 16.11.8 and 16.11.9, with x e^(+-2 pi i / kappa),
         // relative to this one
         let next = 2.0 * (x * (cospi(2.0 / kf) - 1.0)).exp();
@@ -3200,7 +3220,23 @@ mod tests {
         let pow3 = bm * bm * bm;
         let (zm, ze) = Dd::new(big).frexp();
         let diff3 = (pow3 - zm.ldexp(ze - 3 * be)).hi.abs();
-        assert!(diff3 <= 3.0 * pfq_exp_x_rel(3, big) * zm.hi, "{diff3:e}");
+        assert!(diff3 <= 3.0 * pfq_exp_x_rel(3) * zm.hi, "{diff3:e}");
+        // symmetric scaling keeps 513 <= k <= 1024 accurate on subnormals and near f64::MAX
+        for (k, val) in [(513, f64::from_bits(1)), (1024, f64::from_bits(1)), (1024, f64::MAX)] {
+            let root = root_dd(val, k);
+            assert!(root.hi.is_finite());
+            let (mut pm, mut pe) = (Dd::ONE, 0_i64);
+            let (rm, re) = root.frexp();
+            for _ in 0..k {
+                let (m, e) = (pm * rm).frexp();
+                pm = m;
+                pe += i64::from(re) + i64::from(e);
+            }
+            let (vm, ve) = Dd::new(val).frexp();
+            let rel = (pm - vm.ldexp((i64::from(ve) - pe) as i32)).hi.abs() / vm.hi;
+            assert!(rel <= k as f64 * pfq_exp_x_rel(k), "k={k} val={val:e} rel={rel:e}");
+        }
+        assert!(pfq_exp_x_rel(1025).is_infinite());
     }
 
     #[test]
@@ -3653,7 +3689,7 @@ mod tests {
         let nu_0f2 = Dd::new(-2.0);
         let nu_0f2_err = 4.0 * Dd::EPSILON * 4.0;
         let (t1_r, t1_r_err) =
-            pfq_exp_terms(&[], &[1.0, 2.0], nu_0f2, nu_0f2_err, x900, pfq_exp_x_rel(3, z900))
+            pfq_exp_terms(&[], &[1.0, 2.0], nu_0f2, nu_0f2_err, x900, pfq_exp_x_rel(3))
                 .nth(1)
                 .unwrap();
         let exact_t1_r = Dd {
@@ -3662,5 +3698,21 @@ mod tests {
         };
         let err_0f2 = (t1_r - exact_t1_r).hi.abs();
         assert!(err_0f2 <= t1_r_err, "{err_0f2:e} > bound {t1_r_err:e} (t1={t1_r:?})");
+        // real exponential series stops at `f64::EPSILON` without extra double-double tail terms
+        let mut drawn = 0usize;
+        let counted = pfq_exp_terms(&[-0.5], &[0.5], Dd::new(-1.0), 0.0, Dd::new(100.0), 0.0)
+            .inspect(|_| drawn += 1);
+        let (sum_f64, err_f64) = asymptotic_sum_tol(counted, 0.0, 100.0, f64::EPSILON, |_| 0.0);
+        let (sum_dd, _) = asymptotic_sum(
+            pfq_exp_terms(&[-0.5], &[0.5], Dd::new(-1.0), 0.0, Dd::new(100.0), 0.0),
+            0.0,
+            100.0,
+            |_| 0.0,
+        );
+        assert!(drawn <= 20, "took {drawn} terms");
+        assert!(
+            (sum_f64 - sum_dd).hi.abs() <= err_f64 && err_f64 <= 4.0 * f64::EPSILON * sum_dd.hi,
+            "{sum_f64:?} vs {sum_dd:?} (err {err_f64:e})"
+        );
     }
 }
