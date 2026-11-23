@@ -160,7 +160,8 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
 
     let rotate = |w: C64| {
         if mRe_z2 > MAXLOG && mIm_z2.is_finite() {
-            // Rounding a large phase can change the signs of the overflowing components.
+            // Unlike in xsf, split the finite phase into high and low parts when exp(Re(-z^2))
+            // overflows, since rounding the phase can reverse the signs of the components.
             let (hi, lo) = two_prod(-2.0 * x, y);
             let rotated = C64::cis(hi) * C64::cis(lo) * w;
             // Allow for trig and product roundoff before using either sign. Angle addition
