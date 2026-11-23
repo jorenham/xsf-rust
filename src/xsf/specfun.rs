@@ -26,11 +26,8 @@ pub(crate) use numbers::{bernob, eulerb};
 pub(crate) use par_cyl::cpbdn;
 pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 
-/// The Newton step of specfun's zero finders, `f / (f' - f sum 1 / (z - z_i))` for
-/// `f(z) / prod(z - z_i)` with the zeros `z_i` found so far, given `f(z)` and `f'(z)`
-///
-/// Unlike in xsf's `cerzo` and `fcszo`, this is not the quotient of the products, which overflow
-/// (NaN) for many zeros, e.g. from the 332nd zero of `fcszo`.
+// Newton step for g = f / prod(z - zi): g / g' = f / (df - s * f), where
+// s = sum(1 / (z - zi)) is the logarithmic derivative of the product (no overflow).
 pub(crate) fn deflated_newton_step(z: C64, f: C64, df: C64, zeros: &[C64]) -> C64 {
     let s = zeros.iter().fold(C64::ZERO, |s, &zi| s + 1.0 / (z - zi));
     f / (df - s * f)

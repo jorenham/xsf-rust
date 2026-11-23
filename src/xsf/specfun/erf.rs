@@ -132,6 +132,7 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
         loop {
             it += 1;
             cerf(z, &mut zf, &mut zd);
+            // Unlike in xsf, cerzo uses the logarithmic derivative of the deflation product.
             z -= deflated_newton_step(z, zf, zd, &zo[..(nr - 1) as usize]);
             w0 = w;
             w = z.norm();
