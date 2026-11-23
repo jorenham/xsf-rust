@@ -868,6 +868,7 @@ def _complex_out(
         | Callable[[flint.acb, flint.acb], flint.acb]
         | Callable[[flint.arb, flint.acb], flint.acb | None]
         | Callable[[flint.acb, flint.arb, flint.arb], flint.acb]
+        | Callable[[flint.arb, flint.arb, flint.acb], flint.acb]
     ),
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
@@ -3925,6 +3926,23 @@ HYP2F1_FLOORS: Final = (
 )
 
 
+def _hyp1f1_terminates_at_pole(a: float, b: float) -> bool:
+    return _nonpos_int(b) and b <= a and _nonpos_int(a)
+
+
+def _hyp1f1_arb(a: flint.arb, b: flint.arb, z: flint.acb) -> flint.acb:
+    if not _hyp1f1_terminates_at_pole(float(a), float(b)):
+        return z.hypgeom_1f1(a, b)
+    degree = -int(float(a))
+    b_exact = int(float(b))
+    coefficient = flint.fmpq(1)
+    coefficients = [flint.acb(1)]
+    for k in range(degree):
+        coefficient *= flint.fmpq(k - degree, (b_exact + k) * (k + 1))
+        coefficients.append(flint.acb(coefficient))
+    return flint.acb_poly(coefficients)(z)
+
+
 SW_MODE: Final = Rule(
     lambda a: not 0 <= a[0] <= a[1], math.nan, "NaN outside of 0 <= m <= n"
 )
@@ -4930,6 +4948,39 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         )
     ),
     ("airye", "cd-cd_cd_cd_cd"): Entry(tuple(_complex_airye_out(i) for i in range(4))),
+    ("hyp1f1", "d_d_cd-cd"): Entry(
+        (
+            _complex_out(
+                "hyp1f1",
+                specs.c_hyp1f1,
+                _hyp1f1_arb,
+                rules=(
+                    Rule(
+                        lambda a: (
+                            _nonpos_int(a[1]) and not _hyp1f1_terminates_at_pole(*a[:2])
+                        ),
+                        complex(math.inf, 0),
+                        "a pole at b = 0, -1, -2, ... when the series does not terminate first",
+                    ),
+                ),
+                overrides=(
+                    Override(
+                        lambda a: _hyp1f1_terminates_at_pole(*a[:2]),
+                        "xsf returns infinity at terminating poles (xsf-rust#1808)",
+                    ),
+                    Override(
+                        lambda a: a == (0.1, 1.0, 7.0, -24.0),
+                        "xsf loses accuracy near the lower limit of its asymptotic expansion",
+                    ),
+                    Override(
+                        lambda a: a == (10.0, 250.0, 10.0, -15.0),
+                        "xsf loses accuracy at this large positive b",
+                    ),
+                ),
+                reals=2,
+            ),
+        )
+    ),
     ("hyp2f1", "d_d_d_d-d"): Entry(
         (
             Out(
