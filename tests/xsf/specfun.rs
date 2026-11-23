@@ -1075,6 +1075,31 @@ fn test_hyp1f1_complex_exprel() {
 }
 
 #[test]
+fn test_hyp1f1_complex_asymptotic_transition() {
+    // Arb; the eight-term asymptotic expansion loses seven digits at |z| = 25.
+    let z = c64(7.0, -24.0);
+    let expected = c64(-3.712_349_651_834_209, 4.554_636_556_672_913);
+    let actual = [z, z.conj()].map(|z| xsf::hyp1f1(0.1, 1.0, z));
+    xsref::np_assert_allclose!(actual, [expected, expected.conj()], rtol = 2e-15);
+
+    // Separate component checks for tiny a, a nearly real argument and Kummer reflection.
+    let tiny_a = xsf::hyp1f1(1e-40, 1.0, c64(0.0, 25.0));
+    let near_axis = xsf::hyp1f1(0.1, 1.0, c64(25.0, 1e-20));
+    let reflected = xsf::hyp1f1(0.9, 1.0, c64(-32.0, -4.0));
+    xsref::np_assert_allclose!(
+        [tiny_a.im, near_axis.im, reflected.re, reflected.im],
+        [
+            1.531_482_550_999_961_3e-40,
+            4.161_510_006_700_002e-12,
+            0.004_703_532_363_340_295,
+            -0.000_544_940_610_861_540_1
+        ],
+        rtol = 2e-15
+    );
+    assert_eq!(near_axis.re, xsf::hyp1f1(0.1, 1.0, c64(25.0, 0.0)).re);
+}
+
+#[test]
 fn test_hyp1f1_complex_pole_polynomial() {
     let ab_z = [
         (-1.0, -10.0, c64(1.0, 1.0)),
