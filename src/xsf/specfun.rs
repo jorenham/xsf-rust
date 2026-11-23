@@ -258,6 +258,7 @@ pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32, i32) {
     (out, digits, digits.max(digits_rec))
 }
 
+// Translated from `xsf/cpu/hyperu.h` (scipy/xsf@470575f).
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$
 ///
 /// Corresponds to [`scipy.special.hyperu`][scipy] in SciPy.
@@ -288,8 +289,28 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
         // Domain error
         f64::NAN
     } else if x == 0.0 {
-        // Unlike in xsf, finite for a = 0, -1, ... and b > 1, singular with the sign of
-        // 1 / Gamma(a) (not always +inf), and without rounding a - b + 1 onto a pole
+        if b > 1.0 {
+            // Odd floor(a) gives (-1)^m for a = -m and the sign of 1 / Gamma(a) otherwise.
+            let fa = a.floor();
+            let finite = a.is_finite();
+            let odd = a < 0.0 && finite && fa % 2.0 != 0.0;
+            let mut r = f64::INFINITY;
+            if a <= 0.0 && a == fa && finite {
+                // DLMF 13.2.7: U(-m, b, 0) = (-1)^m (b)_m.
+                // (b)_m > m! overflows for m >= 171.
+                r = 1.0;
+                let m = (-a).min(171.0) as u32;
+                for k in 0..m {
+                    r *= b + f64::from(k);
+                    if !r.is_finite() {
+                        break;
+                    }
+                }
+            }
+            return if odd { -r } else { r };
+        }
+
+        // Unlike in xsf, form (b)_m directly for b <= 1 to preserve small factors.
         if is_nonpos_int(a) {
             // (-1)^m (b)_m for a = -m (DLMF 13.2.7), i.e. (-1)^m b^m for infinite b
             let mut p = if b.is_infinite() {
@@ -314,10 +335,10 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
             }
             crate::cospi(a) * p
         } else if b >= 1.0 {
-            // Singular. DLMF 13.2.16-19
+            // Unlike in xsf, use the sign of 1 / Gamma(a) at b = 1.
             f64::INFINITY.copysign(crate::gammasgn(a))
         } else {
-            // Gamma(1 - b) / Gamma(a - b + 1). DLMF 13.2.20-22
+            // Unlike in xsf, use the falling factorial to avoid rounding a - b + 1 onto a pole.
             crate::pow_falling(-b, -a)
         }
     } else {
