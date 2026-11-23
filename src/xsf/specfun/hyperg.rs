@@ -147,10 +147,15 @@ pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
     Some(if a == 0.0 || z == C64::ZERO {
         C64::ONE
     } else if a == -1.0 {
-        1.0 - z / b
+        // Near the root, z.re and b are within a factor of two, so the subtraction is exact.
+        if z.re <= b * 0.5 && z.re * 0.5 >= b {
+            (z - b) / (-b)
+        } else {
+            1.0 - z / b
+        }
     } else {
         hyp1f1_series(a, b, z, C64::ONE, 0.0, Some(-a as i32))
-            .filter(|&(sum, err)| err.is_finite() && err <= SQRT_EPSILON * sum.norm())
+            .filter(|&(sum, err)| sum.is_finite() && err <= (sum * SQRT_EPSILON).norm())
             .map_or(C64::NAN, |(sum, _)| sum)
     })
 }
@@ -409,14 +414,22 @@ fn hyp1f1_sum<T: Term>(
     let (mut t, mut k) = (scale, 0);
     let mut sum = scale;
     let mut comp = T::default();
-    let mut err = t.norm();
+    let roundoff = 4.0 * T::EPS;
+    // Include the roundoff factor early for the unscaled pole polynomial to keep err finite.
+    let err_scale = if degree.is_some() { roundoff } else { 1.0 };
+    let mut err = err_scale * t.norm();
     for n in 0..degree.unwrap_or(MAX_TERMS) {
         let last = degree == Some(n + 1);
         let n = f64::from(n);
         let (mut tn, mut norm);
         (t, tn, norm) = rescale_term(next_term(t, n), T::norm, &mut k);
         tn.add_to(&mut sum, &mut comp);
-        err += (n + 2.0) * norm;
+        let err_norm = if degree.is_some() && norm.is_infinite() {
+            (tn * err_scale).norm()
+        } else {
+            err_scale * norm
+        };
+        err += (n + 2.0) * err_norm;
         if log_scale < 0.0 && err > 1e250 {
             let s = log_scale.max(-600.0);
             log_scale -= s;
@@ -437,8 +450,12 @@ fn hyp1f1_sum<T: Term>(
             if q.is_none() && sum.norm().is_finite() {
                 continue;
             }
-            let tail = q.map_or(f64::INFINITY, |q| norm * q / (1.0 - q));
-            let bound = 4.0 * T::EPS * err + tail;
+            let tail = if last {
+                0.0
+            } else {
+                q.map_or(f64::INFINITY, |q| norm * q / (1.0 - q))
+            };
+            let bound = (roundoff / err_scale) * err + tail;
             if log_scale == 0.0 {
                 return Some((sum, bound));
             }

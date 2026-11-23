@@ -1062,6 +1062,39 @@ fn test_hyp1f1_complex_pole_polynomial() {
 }
 
 #[test]
+fn test_hyp1f1_complex_pole_polynomial_linear() {
+    let near_root = xsf::hyp1f1(-1.0, -3.0, c64(-2.999_999_999_999_999_6, f64::EPSILON / 2.0));
+    assert_eq!(near_root, c64(2.0 * f64::EPSILON / 3.0, f64::EPSILON / 6.0));
+    let at_root = xsf::hyp1f1(-1.0, -3.0, c64(-3.0, 0.0));
+    assert_eq!(at_root.re.to_bits(), 0.0_f64.to_bits());
+    let near_zero = xsf::hyp1f1(-1.0, -3.0, c64(-f64::EPSILON, 1.0));
+    assert_eq!(near_zero, c64(1.0 - f64::EPSILON / 2.0, 1.0 / 3.0));
+
+    let opposite_signs = xsf::hyp1f1(-1.0, -f64::MAX, c64(f64::MAX, 1.0));
+    assert_eq!(opposite_signs, c64(2.0, 1.0 / f64::MAX));
+}
+
+#[test]
+fn test_hyp1f1_complex_pole_polynomial_large() {
+    // The quadratic 1 - 2*z/b + z^2/(b*(b+1)), evaluated with exact rational arithmetic.
+    for (b, z, expected) in [
+        (
+            -1_099_511_627_776.0,
+            c64(1e166, 1.0),
+            [8.271_806_125_537_799e307, 1.654_361_225_107_56e142],
+        ),
+        (
+            -4_294_967_296.0,
+            c64(5e163, 3e163),
+            [8.673_617_381_903_519e307, 1.626_303_259_106_91e308],
+        ),
+    ] {
+        let actual = xsf::hyp1f1(-2.0, b, z);
+        xsref::np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_hyp1f1_pole_b_zero() {
     // unlike in xsf: these took ~a steps (or were inf for the last two)
     assert!(xsf::hyp1f1(1.13e9, 0.0, 1.0).is_nan());
