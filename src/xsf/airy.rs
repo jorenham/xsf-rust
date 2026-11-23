@@ -48,19 +48,16 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     // whether Ai decays: AMOS evaluates it as sqrt(z) K(zta) for |ph z| <= pi/3, and continues K
     // from -zta beyond that
     let decays = zeta.is_some_and(|(zta, _)| z.re > 0.0 && zta.re >= 0.0);
-    // Unlike in xsf, a decaying Ai is unscaled here from its `airye` (below), as the e^-zeta of
-    // AMOS loses up to |zeta| eps, and flushes Ai to 0 below ~1e-305.
-    let ai_kode = if decays { 2 } else { kode };
     // Unlike in xsf, use a Taylor expansion where the series for K(1/3, zeta)
     // and K(2/3, zeta) lose digits by cancellation.
     let taylor = zeta.filter(|(zta, _)| decays && z.re >= 1.0 && zta.norm() <= 2.0);
     let (ai, aip) = if let Some((zta, d)) = taylor {
-        let (ai, aip) = ai_taylor(z);
+        let (value, derivative) = ai_taylor(z);
         let (ai, aip) = if kode == 2 {
             let scale = zta.exp() * (1.0 + d);
-            (ai * scale, aip * scale)
+            (value * scale, derivative * scale)
         } else {
-            (ai, aip)
+            (value, derivative)
         };
         if z.is_real() {
             (c64(ai.re, 0.0), c64(aip.re, -0.0))
@@ -68,6 +65,9 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
             (ai, aip)
         }
     } else {
+        // Unlike in xsf, unscale a decaying Ai from `airye` below. AMOS loses up to |zeta| eps
+        // in e^-zeta and flushes Ai to 0 below ~1e-305.
+        let ai_kode = if decays { 2 } else { kode };
         (amos_airy_or_biry(false, z, 0, ai_kode), amos_airy_or_biry(false, z, 1, ai_kode))
     };
     let bi = amos_airy_or_biry(true, z, 0, kode);
@@ -129,23 +129,21 @@ fn ai_taylor(z: C64) -> (C64, C64) {
         c[0] = 0.034_924_130_423_274_38;
         c[1] = -0.053_090_384_433_653_63;
         c[2] = c[0];
-        let mut n = 3_u32;
-        while n < 36 {
-            let i = n as usize;
-            c[i] = (2.0 * c[i - 2] + c[i - 3]) / ((n * (n - 1)) as f64);
+        let mut n = 3;
+        while n < c.len() {
+            c[n] = (2.0 * c[n - 2] + c[n - 3]) / ((n * (n - 1)) as f64);
             n += 1;
         }
         c
     };
 
     let h = z - 2.0;
-    let mut ai = C64::ZERO;
-    let mut aip = C64::ZERO;
-    for coefficient in COEFFS.into_iter().rev() {
-        aip = aip * h + ai;
-        ai = ai * h + coefficient;
-    }
-    (ai, aip)
+    COEFFS
+        .iter()
+        .rfold((C64::ZERO, C64::ZERO), |(ai, aip), &coefficient| {
+            let derivative = aip * h + ai;
+            (ai * h + coefficient, derivative)
+        })
 }
 
 /// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`
