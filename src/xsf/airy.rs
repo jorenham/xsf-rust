@@ -51,9 +51,26 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     // Unlike in xsf, a decaying Ai is unscaled here from its `airye` (below), as the e^-zeta of
     // AMOS loses up to |zeta| eps, and flushes Ai to 0 below ~1e-305.
     let ai_kode = if decays { 2 } else { kode };
-    let ai = amos_airy_or_biry(false, z, 0, ai_kode);
+    // Unlike in xsf, use a Taylor expansion where the series for K(1/3, zeta)
+    // and K(2/3, zeta) lose digits by cancellation.
+    let taylor = zeta.filter(|(zta, _)| decays && z.re >= 1.0 && zta.norm() <= 2.0);
+    let (ai, aip) = if let Some((zta, d)) = taylor {
+        let (ai, aip) = ai_taylor(z);
+        let (ai, aip) = if kode == 2 {
+            let scale = zta.exp() * (1.0 + d);
+            (ai * scale, aip * scale)
+        } else {
+            (ai, aip)
+        };
+        if z.is_real() {
+            (c64(ai.re, 0.0), c64(aip.re, -0.0))
+        } else {
+            (ai, aip)
+        }
+    } else {
+        (amos_airy_or_biry(false, z, 0, ai_kode), amos_airy_or_biry(false, z, 1, ai_kode))
+    };
     let bi = amos_airy_or_biry(true, z, 0, kode);
-    let aip = amos_airy_or_biry(false, z, 1, ai_kode);
     let bip = amos_airy_or_biry(true, z, 1, kode);
     let Some((zta, d)) = zeta else {
         return [ai, aip, bi, bip];
@@ -84,7 +101,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         let fb = 1.0 - if e < -a { -2.0 * a - e } else { e };
         return [ai, aip, bi * fb, bip * fb];
     }
-    if !decays {
+    if !decays || taylor.is_some() {
         return [ai, aip, bi, bip];
     }
     // Ai is unscaled from its `airye` by e^-zeta = e^-zta (1 - d).
@@ -99,6 +116,36 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         }
     };
     [unscale(ai), unscale(aip), bi, bip]
+}
+
+/// Ai and Ai' from the Taylor series at 2, where Ai''(z) = z Ai(z) gives
+/// n(n - 1) c_n = 2 c_(n - 2) + c_(n - 3).
+fn ai_taylor(z: C64) -> (C64, C64) {
+    // Re z >= 1 gives |z - 2| <= |z|. For |zeta| <= 2, |z| < 2.081, and
+    // the omitted terms for Ai and Ai' are below 4e-18 in absolute value.
+    const COEFFS: [f64; 36] = {
+        // Ai(2) and Ai'(2), rounded from Arb.
+        let mut c = [0.0; 36];
+        c[0] = 0.034_924_130_423_274_38;
+        c[1] = -0.053_090_384_433_653_63;
+        c[2] = c[0];
+        let mut n = 3_u32;
+        while n < 36 {
+            let i = n as usize;
+            c[i] = (2.0 * c[i - 2] + c[i - 3]) / ((n * (n - 1)) as f64);
+            n += 1;
+        }
+        c
+    };
+
+    let h = z - 2.0;
+    let mut ai = C64::ZERO;
+    let mut aip = C64::ZERO;
+    for coefficient in COEFFS.into_iter().rev() {
+        aip = aip * h + ai;
+        ai = ai * h + coefficient;
+    }
+    (ai, aip)
 }
 
 /// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`

@@ -91,6 +91,53 @@ fn test_airy_f64_large_negative() {
 }
 
 #[test]
+fn test_airy_c64_ai_below_k_switch() {
+    // Arb at 400 bits, with the argument components rounded to f64 first.
+    for (z, expected, scaled) in [
+        (
+            c64(2.0755, 0.0),
+            [c64(0.031_109_818_257_465_886, 0.0), c64(-0.048_017_440_670_802_276, 0.0)],
+            [c64(0.228_358_347_708_089_24, 0.0), c64(-0.352_466_971_102_415_04, 0.0)],
+        ),
+        (
+            c64(1.9, 0.5),
+            [
+                c64(0.031_025_491_865_317_566, -0.028_648_763_750_968_69),
+                c64(-0.050_928_709_336_331, 0.037_965_137_814_928_517),
+            ],
+            [
+                c64(0.231_011_504_488_692_45, -0.012_585_201_421_497_867),
+                c64(-0.347_561_393_801_165_85, -0.017_594_325_094_177_68),
+            ],
+        ),
+        (
+            c64(2.077_525_678_061_195, 0.103_129_859_490_835_27),
+            [
+                c64(0.030_670_233_197_678_68, -0.004_926_034_928_098_994),
+                c64(-0.047_522_413_065_059_04, 0.006_637_639_719_485_435_5),
+            ],
+            [
+                c64(0.228_249_286_112_001_4, -0.002_417_259_420_647_806),
+                c64(-0.352_580_949_565_146_6, -0.003_485_971_030_493_098),
+            ],
+        ),
+    ] {
+        let [ai, aip, ..] = xsf::airy(z);
+        xsref::np_assert_allclose!([ai, aip], expected, rtol = 2e-15);
+        let [ai, aip, ..] = xsf::airy_scaled(z);
+        xsref::np_assert_allclose!([ai, aip], scaled, rtol = 2e-15);
+    }
+
+    for y in [0.0, -0.0] {
+        for eval in [xsf::airy::<Complex64>, xsf::airy_scaled::<Complex64>] {
+            let [ai, aip, ..] = eval(c64(2.0755, y));
+            assert_eq!(ai.im.to_bits(), 0.0_f64.to_bits());
+            assert_eq!(aip.im.to_bits(), (-0.0_f64).to_bits());
+        }
+    }
+}
+
+#[test]
 fn test_airy_c64_near_overflow() {
     // Arb: airyai(z), airyai(z, 1), airybi(z), and airybi(z, 1) for z = -51.8 + 89.7j
     let expected = [
