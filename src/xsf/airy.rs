@@ -150,7 +150,7 @@ fn airy_f64(x: f64) -> [f64; 4] {
     // Unlike in xsf, Cephes is used instead of AMOS for x > 10 (and x < -10, scipy/xsf#532), as
     // its double-double zeta makes it more accurate.
     if x > 103.892 && x < 108.0 {
-        // Unlike in xsf (scipy/xsf#310), `airye` is unscaled here, as Cephes returns
+        // Unlike in xsf (scipy/xsf#614), `airye` is unscaled here, as Cephes returns
         // (0, 0, inf, inf) for x > 103.892, while Bi(x) only overflows at x = 104.44 and Ai(x)
         // underflows at x = 107.47.
         let [ai, aip, bi, bip] = airye_f64(x);
