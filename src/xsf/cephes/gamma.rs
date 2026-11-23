@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/gamma.h` (scipy/xsf@b3b55db).
+//! Translated into pure Rust from `xsf/cephes/gamma.h` (scipy/xsf@7fe05ab).
 //!
 //! From the Cephes Math Library Release 2.2 (July, 1992), Copyright 1984, 1987, 1989, 1992 by
 //! Stephen L. Moshier.
@@ -280,9 +280,8 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
         return ((x - 1.0).ln() + loggamma_taylor(x - 1.0), 1);
     }
 
-    // Unlike in xsf (scipy/xsf#540), `-ln|x|` (to within `~|x|`) if `x` is subnormal, where `1 / x`
-    // overflows
-    if x.abs() < f64::MIN_POSITIVE {
+    // DLMF 5.7.3: ln|Gamma(x)| = -ln|x| - gamma*x + ..., and gamma*x < eps
+    if x != 0.0 && x.abs() < f64::MIN_POSITIVE {
         return (-x.abs().ln(), if x < 0.0 { -1 } else { 1 });
     }
     if x < 13.0 {

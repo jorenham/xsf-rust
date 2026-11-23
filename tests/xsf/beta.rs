@@ -228,7 +228,6 @@ fn test_beta_rounded_sum() {
 
 #[test]
 fn test_betaln_subnormal() {
-    // unlike in xsf: finite instead of inf, where Gamma(a) or Gamma(b) overflows (mpmath)
     let cases = [
         (5e-309, 1.0, 709.889_355_822_726),
         (5e-309, 2.0, 709.889_355_822_726),
@@ -238,12 +237,16 @@ fn test_betaln_subnormal() {
         (1.0, -5e-309, 709.889_355_822_726),
         (-5e-309, 2.0, 709.889_355_822_726),
         (1e-320, 0.5, 736.827_240_890_973_9),
+        (3e-310, -2e-310, 712.009_619_358_926_1),
         (5e-309, 1e300, 709.889_355_822_726),
         (6e-309, -5.6e-309, 707.067_976_936_316_8),
     ];
     let actual = cases.map(|(a, b, _)| xsf::betaln(a, b));
     let expected = cases.map(|(_, _, y)| y);
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+    let swapped = cases.map(|(a, b, _)| xsf::betaln(b, a));
+    xsref::np_assert_allclose!(&swapped, &expected, rtol = 1e-15);
+    assert_eq!(xsf::betaln(5e-309, -5e-309), f64::NEG_INFINITY);
 }
 
 #[test]
