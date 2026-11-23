@@ -1045,6 +1045,23 @@ fn test_hyp1f1_complex_exprel() {
 }
 
 #[test]
+fn test_hyp1f1_complex_pole_polynomial() {
+    let ab_z = [
+        (-1.0, -10.0, c64(1.0, 1.0)),
+        (-2.0, -3.0, c64(1.0, 1.0)),
+        (-3.0, -3.0, c64(0.5, 0.5)),
+        (0.0, 0.0, c64(1.0, 1.0)),
+    ];
+    let expected =
+        [c64(1.1, 0.1), c64(5.0 / 3.0, 1.0), c64(35.0 / 24.0, 19.0 / 24.0), c64(1.0, 0.0)];
+    let actual = ab_z.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+
+    assert_eq!(xsf::hyp1f1(-1.0, -1.0, c64(1e300, 1.0)), c64(1e300, 1.0));
+    assert_eq!(xsf::hyp1f1(-3.0, -2.0, c64(1.0, 1.0)).re, f64::INFINITY);
+}
+
+#[test]
 fn test_hyp1f1_pole_b_zero() {
     // unlike in xsf: these took ~a steps (or were inf for the last two)
     assert!(xsf::hyp1f1(1.13e9, 0.0, 1.0).is_nan());
@@ -1052,153 +1069,6 @@ fn test_hyp1f1_pole_b_zero() {
     assert!(xsf::hyp1f1(-1.13e9, 0.0, -1.0).is_nan());
     assert!(xsf::hyp1f1(2.0, 0.0, 31.0).is_nan());
     assert!(xsf::hyp1f1(3e9, 0.0, 1.0).is_nan());
-}
-
-#[test]
-fn test_hyp1f1_pole_polynomial() {
-    // unlike in xsf, for integers b <= a <= 0 the polynomial that the series gives before its pole:
-    // 1 + z/10, 1 + 2z/3 + z^2/6, 1 + z, 1, and 1 (these were inf for complex z, and NaN for m = n
-    // or a = b = 0 and real z, or wrong for real z < 0)
-    let ab = [(-1.0, -10.0), (-2.0, -3.0), (-1.0, -1.0), (0.0, -5.0), (0.0, 0.0)];
-    let expected =
-        [c64(1.1, 0.1), c64(5.0 / 3.0, 1.0), c64(2.0, 1.0), c64(1.0, 0.0), c64(1.0, 0.0)];
-    let actual = ab.map(|(a, b)| xsf::hyp1f1(a, b, c64(1.0, 1.0)));
-    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
-    let expected = [1.1, 11.0 / 6.0, 2.0, 1.0, 1.0];
-    let actual = ab.map(|(a, b)| xsf::hyp1f1(a, b, 1.0));
-    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
-    let expected = [0.9, 0.5, 0.0, 1.0, 1.0];
-    let actual = ab.map(|(a, b)| xsf::hyp1f1(a, b, -1.0));
-    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
-
-    // additional polynomial references (SciPy real m = n and mpmath 50-dps)
-    xsref::np_assert_allclose!([xsf::hyp1f1(-3.0, -3.0, 0.5)], [79.0 / 48.0], rtol = 1e-15);
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-3.0, -3.0, c64(0.5, 0.5))],
-        [c64(35.0 / 24.0, 19.0 / 24.0)],
-        rtol = 1e-15
-    );
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-4.0, -6.0, c64(2.0, -1.0))],
-        [c64(1073.0 / 360.0, -1.9)],
-        rtol = 1e-15
-    );
-
-    // z = +-0 short-circuits and NaN propagates for both real and complex z
-    assert_eq!(xsf::hyp1f1(-1000.0, -2000.0, 0.0), 1.0);
-    assert_eq!(xsf::hyp1f1(-1000.0, -2000.0, -0.0), 1.0);
-    assert_eq!(xsf::hyp1f1(-1000.0, -2000.0, c64(-0.0, -0.0)), c64(1.0, 0.0));
-    assert!(xsf::hyp1f1(0.0, -5.0, f64::NAN).is_nan());
-    assert!(xsf::hyp1f1(0.0, 0.0, f64::NAN).is_nan());
-    assert!(xsf::hyp1f1(-1.0, -10.0, f64::NAN).is_nan());
-    assert!(xsf::hyp1f1(0.0, -5.0, c64(f64::NAN, 0.0)).is_nan());
-
-    // large `|b|` avoids intermediate overflow/underflow and preserves subnormal components
-    let big = 2.0_f64.powi(1023);
-    assert_eq!(xsf::hyp1f1(-2.0, -big, big), 4.0);
-    assert_eq!(xsf::hyp1f1(-2.0, -big, c64(big, 0.0)), c64(4.0, 0.0));
-    assert_eq!(xsf::hyp1f1(-2.0, -big, c64(big, 2.0_f64.powi(-52))), c64(4.0, f64::from_bits(2)));
-    assert_eq!(
-        xsf::hyp1f1(-2.0, -big, c64(big, 3.0 * 2.0_f64.powi(-55))),
-        c64(4.0, f64::from_bits(1))
-    );
-    let sub_z = c64(2.0_f64.powi(1022), 2.0_f64.powi(-52));
-    assert_eq!(xsf::hyp1f1(-2.0, -2.0_f64.powi(1022), sub_z), c64(4.0, f64::from_bits(4)));
-    assert_eq!(
-        xsf::hyp1f1(-2.0, -2.0, c64(2.0_f64.powi(502), 2.0_f64.powi(-600))),
-        c64(2.0_f64.powi(1003), 2.0_f64.powi(-98))
-    );
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-100_000.0, -big, 0.00712 * big)],
-        [1.324_505_185_137_843_4e308],
-        rtol = 1e-13
-    );
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-200.0, -200.0, -2605.0)],
-        [1.708_129_143_213_060_3e308],
-        rtol = 1e-13
-    );
-    assert_eq!(xsf::hyp1f1(-500.0, -500.0, -1000.0), f64::INFINITY);
-    let x_near = 1.5 * 2.0_f64.powi(515);
-    assert_eq!(
-        xsf::hyp1f1(-2.0, -2.0, c64(x_near, f64::from_bits(x_near.to_bits() + 1))),
-        c64(-1.5 * 2.0_f64.powi(978), f64::INFINITY)
-    );
-
-    // cancellation recovers accuracy in double-double or returns NaN when severe
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-100.0, -100.0, -20.0)],
-        [(-20.0_f64).exp()],
-        rtol = 1e-13
-    );
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-100.0, -100.0, c64(-20.0, 0.5))],
-        [c64(1.808_832_476_429_251_7e-9, 9.881_696_855_836_097e-10)],
-        rtol = 1e-13
-    );
-    assert!(xsf::hyp1f1(-100.0, -100.0, c64(-30.0, 0.5)).is_nan());
-    // severe cancellation isolated to the imaginary component is not masked by a large real part
-    let p52 = 2.0_f64.powi(52);
-    assert!(xsf::hyp1f1(-4.0, -4.0, c64(p52, p52 + 1.0)).is_nan());
-
-    // infinities, overflow without spurious NaN components, and real-axis parity
-    assert_eq!(xsf::hyp1f1(-2.0, -2.0, f64::NEG_INFINITY), f64::INFINITY);
-    assert_eq!(xsf::hyp1f1(-3.0, -3.0, f64::NEG_INFINITY), f64::NEG_INFINITY);
-    assert_eq!(xsf::hyp1f1(-2.0, -2.0, c64(f64::NEG_INFINITY, 0.0)), c64(f64::INFINITY, 0.0));
-    assert_eq!(xsf::hyp1f1(-2.0, -2.0, c64(1e155, 1e155)), c64(1e155, f64::INFINITY));
-    assert_eq!(xsf::hyp1f1(-3.0, -3.0, c64(1e155, 0.0)), c64(f64::INFINITY, 0.0));
-
-    // inclusive 1e6 degree cap with nonzero complex z, and fallback above the cap
-    xsref::np_assert_allclose!(
-        [xsf::hyp1f1(-1_000_000.0, -1_000_000.0, c64(1e-10, 1e-10))],
-        [c64(1.000_000_000_1, 1.000_000_000_100_000_1e-10)],
-        rtol = 1e-15
-    );
-    assert_eq!(xsf::hyp1f1(-1_000_001.0, -1_000_001.0, c64(1.0, 0.0)).re, f64::INFINITY);
-
-    // the series reaches the pole first
-    assert_eq!(xsf::hyp1f1(1.0, -10.0, 1.0), f64::INFINITY);
-    assert_eq!(xsf::hyp1f1(1.0, -10.0, c64(1.0, 1.0)).re, f64::INFINITY);
-    assert_eq!(xsf::hyp1f1(-10.0, -1.0, c64(1.0, 1.0)).re, f64::INFINITY);
-}
-
-#[test]
-fn test_hyp1f1_pole_polynomial_subnormal_rounding() {
-    let neg_half_up = f64::from_bits((-0.5_f64).to_bits() - 1);
-    let pos_half_down = f64::from_bits(0.5_f64.to_bits() - 1);
-    assert_eq!(xsf::hyp1f1(-2.0, -2.0, c64(neg_half_up, f64::from_bits(1))).im, f64::from_bits(1));
-    assert_eq!(
-        xsf::hyp1f1(-2.0, -2.0, c64(pos_half_down, f64::from_bits(1))).im,
-        f64::from_bits(1)
-    );
-    assert_eq!(
-        xsf::hyp1f1(-1.0, -105.0, c64(0.0, f64::from_bits(0x007a_3fff_ffff_ffff))).im,
-        f64::from_bits(0x000f_ffff_ffff_ffff)
-    );
-    let midpoint = c64(0.0, f64::from_bits(105));
-    assert_eq!(xsf::hyp1f1(-1.0, -70.0, midpoint).im, f64::from_bits(2));
-    assert_eq!(xsf::hyp1f1(-2.0, -140.0, midpoint).im, f64::from_bits(2));
-}
-
-#[test]
-fn test_hyp1f1_pole_polynomial_negative_x() {
-    // Exact rational polynomial sums where the alternating series loses its result.
-    let abx = [
-        (-100.0, -100.0, -30.0),
-        (-101.0, -101.0, -30.0),
-        (-200.0, -200.0, -30.0),
-        (-200.0, -400.0, -100.0),
-        (-800.0, -1600.0, -701.0),
-    ];
-    let expected = [
-        1.276_217_239_854_214e-11,
-        -3.640_767_672_733_493e-12,
-        9.357_622_968_840_175e-14,
-        8.614_306_497_702_449e-24,
-        2.979_358_704_605_038_4e-169,
-    ];
-    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
-    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 }
 
 #[test]

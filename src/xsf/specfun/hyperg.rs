@@ -104,425 +104,6 @@ fn series_ended(a: f64, n: f64) -> bool {
     is_nonpos_int(a) && n >= -a
 }
 
-/// Degree `-a` when `b <= a <= 0` are finite integers within the `MAX_SERIES_ITERATIONS` cost
-/// bound, so DLMF 13.2.2 terminates before the pole at `s = -b + 1`
-fn pole_poly_degree(a: f64, b: f64) -> Option<i32> {
-    let poly = is_nonpos_int(a)
-        && is_nonpos_int(b)
-        && b.is_finite()
-        && a >= b
-        && a >= -MAX_SERIES_ITERATIONS;
-    poly.then_some(-a as i32)
-}
-
-/// Finite `f64` split into `(mantissa, exponent)` (`m * 2^e`, `|m| in [0.5, 1)` or `0`) so
-/// intermediate polynomial terms never overflow or underflow a component before final scaling
-#[derive(Clone, Copy)]
-struct ScaledF64(f64, i64);
-
-impl ScaledF64 {
-    const ZERO: Self = Self(0.0, 0);
-    const ONE: Self = Self(0.5, 1);
-
-    fn new(x: f64) -> Self {
-        let (m, e) = frexp_f64(x);
-        Self(m, i64::from(e))
-    }
-
-    fn mul(self, rhs: Self) -> Self {
-        let (m, e) = frexp_f64(self.0 * rhs.0);
-        Self(
-            m,
-            if m == 0.0 {
-                0
-            } else {
-                self.1 + rhs.1 + i64::from(e)
-            },
-        )
-    }
-
-    fn div(self, rhs: Self) -> Self {
-        let (m, e) = frexp_f64(self.0 / rhs.0);
-        Self(
-            m,
-            if m == 0.0 {
-                0
-            } else {
-                self.1 - rhs.1 + i64::from(e)
-            },
-        )
-    }
-
-    fn neg(self) -> Self {
-        Self(-self.0, self.1)
-    }
-
-    fn add(self, rhs: Self) -> Self {
-        if self.0 == 0.0 {
-            return rhs;
-        }
-        if rhs.0 == 0.0 {
-            return self;
-        }
-        let (a, b) = if self.1 >= rhs.1 {
-            (self, rhs)
-        } else {
-            (rhs, self)
-        };
-        let d = a.1 - b.1;
-        if d > 60 {
-            a
-        } else {
-            let (m, e) = frexp_f64(a.0 + ldexp_f64(b.0, -(d as i32)));
-            Self(m, if m == 0.0 { 0 } else { a.1 + i64::from(e) })
-        }
-    }
-
-    fn abs(self) -> Self {
-        Self(self.0.abs(), self.1)
-    }
-
-    fn max(self, rhs: Self) -> Self {
-        if self.0 == 0.0 {
-            rhs
-        } else if rhs.0 == 0.0 || self.1 > rhs.1 || (self.1 == rhs.1 && self.0 >= rhs.0) {
-            self
-        } else {
-            rhs
-        }
-    }
-
-    fn may_round_to_subnormal(self) -> bool {
-        self.0 != 0.0 && self.1 <= -1021
-    }
-
-    fn is_tiny(self) -> bool {
-        self.0 == 0.0 || self.1 < -1120
-    }
-
-    fn to_f64(self) -> f64 {
-        if self.0 == 0.0 {
-            0.0
-        } else if self.1 > 1024 {
-            f64::INFINITY.copysign(self.0)
-        } else if self.1 < -1074 {
-            0.0_f64.copysign(self.0)
-        } else {
-            ldexp_f64(self.0, self.1 as i32)
-        }
-    }
-}
-
-/// `ScaledF64` counterpart in `DoubleDouble` for cancelled polynomial re-evaluation
-#[derive(Clone, Copy)]
-struct ScaledDd(DoubleDouble, i64);
-
-impl ScaledDd {
-    const ZERO: Self = Self(DoubleDouble::ZERO, 0);
-    const ONE: Self = Self(DoubleDouble::new(0.5), 1);
-
-    fn new(x: DoubleDouble) -> Self {
-        let (m, e) = x.frexp();
-        Self(m, i64::from(e))
-    }
-
-    fn mul(self, rhs: Self) -> Self {
-        let (m, e) = (self.0 * rhs.0).frexp();
-        Self(
-            m,
-            if m.hi == 0.0 {
-                0
-            } else {
-                self.1 + rhs.1 + i64::from(e)
-            },
-        )
-    }
-
-    fn div(self, rhs: Self) -> Self {
-        let (m, e) = (self.0 / rhs.0).frexp();
-        Self(
-            m,
-            if m.hi == 0.0 {
-                0
-            } else {
-                self.1 - rhs.1 + i64::from(e)
-            },
-        )
-    }
-
-    fn neg(self) -> Self {
-        Self(-self.0, self.1)
-    }
-
-    fn add(self, rhs: Self) -> Self {
-        if self.0.hi == 0.0 {
-            return rhs;
-        }
-        if rhs.0.hi == 0.0 {
-            return self;
-        }
-        let (a, b) = if self.1 >= rhs.1 {
-            (self, rhs)
-        } else {
-            (rhs, self)
-        };
-        let d = a.1 - b.1;
-        if d > 115 {
-            a
-        } else {
-            let (m, e) = (a.0 + b.0.ldexp(-(d as i32))).frexp();
-            Self(m, if m.hi == 0.0 { 0 } else { a.1 + i64::from(e) })
-        }
-    }
-
-    fn eq_exact(self, rhs: Self) -> bool {
-        self.1 == rhs.1 && self.0.hi == rhs.0.hi && self.0.lo == rhs.0.lo
-    }
-
-    fn abs_f64(self) -> ScaledF64 {
-        ScaledF64(self.0.hi.abs(), self.1)
-    }
-
-    fn is_tiny(self) -> bool {
-        self.0.hi == 0.0 || self.1 < -1120
-    }
-
-    fn to_f64(self) -> f64 {
-        if self.0.hi == 0.0 {
-            return 0.0;
-        }
-        if self.1 > 1024 {
-            return f64::INFINITY.copysign(self.0.hi);
-        }
-        if self.1 < -1074 {
-            return 0.0_f64.copysign(self.0.hi);
-        }
-        if self.1 <= -1022 {
-            // round `(hi + lo) * 2^(e + 1074)` to the nearest subnormal bit pattern (ties to even)
-            // without dropping `lo`
-            let shift = (self.1 + 1074) as i32;
-            let hi_s = ldexp_f64(self.0.hi.abs(), shift);
-            let lo_s = ldexp_f64(
-                if self.0.hi < 0.0 {
-                    -self.0.lo
-                } else {
-                    self.0.lo
-                },
-                shift,
-            );
-            let q = hi_s.trunc() as u64;
-            let frac = hi_s - q as f64;
-            let round_up =
-                frac > 0.5 || (frac == 0.5 && (lo_s > 0.0 || (lo_s == 0.0 && q & 1 == 1)));
-            return f64::from_bits(q + u64::from(round_up)).copysign(self.0.hi);
-        }
-        ldexp_f64(self.0.hi, self.1 as i32)
-    }
-}
-
-fn pole_poly_dd(a: f64, b: f64, x: f64, m: i32) -> (ScaledDd, ScaledF64) {
-    let (ad, bd, xd) =
-        (DoubleDouble::new(a), DoubleDouble::new(b), ScaledDd::new(DoubleDouble::new(x)));
-    let (mut td, mut sum_dd, mut abs_dd, mut terms) =
-        (ScaledDd::ONE, ScaledDd::ONE, ScaledF64::ONE, 0_i32);
-    for j in 1..=m {
-        let n = f64::from(j - 1);
-        let factor = ScaledDd::new(ad + n)
-            .div(ScaledDd::new(DoubleDouble::new(f64::from(j))))
-            .div(ScaledDd::new(bd + n));
-        td = td.mul(factor).mul(xd);
-        if td.is_tiny() {
-            break;
-        }
-        sum_dd = sum_dd.add(td);
-        abs_dd = abs_dd.add(td.abs_f64());
-        terms = j;
-    }
-    let err_dd = ScaledF64::new(8.0 * f64::from(terms + 1) * EPSILON_SQ).mul(abs_dd);
-    (sum_dd, err_dd)
-}
-
-/// A nonalternating evaluation of the pole polynomial at `x = -u < 0`.
-///
-/// For `P_m = M(-m, -n, x)` with the terminating convention, integrate
-/// `exp(-t) t^(n-m) (t-u)^m / n!` over `[0, inf)`. Splitting at `u` gives
-/// `exp(-u) P_(n-m)(u)` and a correction of sign `(-1)^m`. The latter has
-/// magnitude `u^(n+1) B(n-m+1, m+1) M(n-m+1, n+2, -u) / n!`.
-fn pole_poly_neg_x(m: i32, b: f64, x: f64) -> Option<f64> {
-    let n = -b;
-    let q = n - f64::from(m);
-    if q > MAX_SERIES_ITERATIONS {
-        return None;
-    }
-    let u = -x;
-    let (p, p_err) = pole_poly_dd(-q, b, u, q as i32);
-    let base_err = p_err.div(p.abs_f64()).to_f64() + f64::EPSILON;
-    // At most 1024 bits per term and at most MAX_SERIES_ITERATIONS terms.
-    let (base, base_err) = Scaled::new(p.0.hi, p.1 as i32, base_err)?
-        .mul_exp(DoubleDouble::new(x))
-        .to_f64();
-    let (lm, _, em) = ln_gamma(f64::from(m) + 1.0)?;
-    let (lq, _, eq) = ln_gamma(q + 1.0)?;
-    let (ln, _, en) = ln_gamma(n + 1.0)?;
-    let log_scale = ln_dd(u) * (n + 1.0) + lm + lq - ln * 2.0 - ln_dd(n + 1.0);
-    // The integral representation gives M(q+1, n+2, -u) <= 1.
-    if log_scale.hi < base.ln() + f64::EPSILON.ln() - LN_2 {
-        return Some(base);
-    }
-    // Kummer's transformation makes the correction series positive. Keep its initial
-    // exponential scale normal and apply the rest together with the prefactor.
-    let series_scale = x.max(GRADUAL_EXP_X0);
-    let (tail, err) = chgm_series_dd(
-        DoubleDouble::new(f64::from(m) + 1.0),
-        DoubleDouble::new(n + 2.0),
-        u,
-        series_scale,
-    )?;
-    if !tail.is_normal() {
-        return None;
-    }
-    let (tail, tail_err) = Scaled::new(tail, 0, em + eq + 2.0 * en + err / tail)?
-        .mul_exp(log_scale + (DoubleDouble::new(x) - series_scale))
-        .to_f64();
-    let result = base + neg_if_odd(m, tail);
-    let err = base_err * base + tail_err * tail;
-    (result.is_normal() && err <= 64.0 * f64::EPSILON * result.abs()).then_some(result)
-}
-
-/// Unlike in xsf, `M(-m, -n, x)` for finite integers `0 <= m <= n` (`m <= MAX_SERIES_ITERATIONS`)
-/// is the polynomial of degree `m` from DLMF 13.2.2, returning NaN when severe cancellation
-/// remains after double-double re-evaluation
-pub(crate) fn hyp1f1_pole_poly_f64(a: f64, b: f64, x: f64) -> Option<f64> {
-    let m = pole_poly_degree(a, b)?;
-    if m == 0 || x == 0.0 {
-        return Some(1.0);
-    }
-    if x.is_infinite() {
-        return Some(if x > 0.0 || m % 2 == 0 {
-            f64::INFINITY
-        } else {
-            f64::NEG_INFINITY
-        });
-    }
-    // keep both terms and partial sums split in `(mantissa, i64)` until final conversion so
-    // intermediate overflow/underflow cannot drop representable results; once `|t| < 2^-1120` it
-    // cannot regrow or reach a subnormal even after `10^6` steps
-    let xs = ScaledF64::new(x);
-    let (mut t, mut sum, mut abs_sum) = (ScaledF64::ONE, ScaledF64::ONE, ScaledF64::ONE);
-    for j in 1..=m {
-        let n = f64::from(j - 1);
-        let factor = ScaledF64::new(a + n)
-            .div(ScaledF64::new(f64::from(j)))
-            .div(ScaledF64::new(b + n));
-        t = t.mul(factor).mul(xs);
-        if t.is_tiny() {
-            break;
-        }
-        sum = sum.add(t);
-        abs_sum = abs_sum.add(t.abs());
-    }
-    let out = sum.to_f64();
-    let no_cancel =
-        !sum.may_round_to_subnormal() && sum.0 != 0.0 && abs_sum.div(sum.abs()).to_f64() <= 2.0;
-    if no_cancel || (x > 0.0 && out.is_infinite()) {
-        return Some(out);
-    }
-    let (sum_dd, err_dd) = pole_poly_dd(a, b, x, m);
-    let out = sum_dd.to_f64();
-    let sum_abs = sum_dd.abs_f64();
-    let try_neg_x = x < 0.0 && err_dd.div(sum_abs).to_f64() > 32.0 * f64::EPSILON;
-    if let Some(value) = try_neg_x.then(|| pole_poly_neg_x(m, b, x)).flatten() {
-        return Some(value);
-    }
-    let denom = sum_abs.max(ScaledF64::new(f64::EPSILON));
-    Some(if !out.is_nan() && err_dd.div(denom).to_f64() <= SQRT_EPSILON {
-        out
-    } else {
-        f64::NAN
-    })
-}
-
-/// Complex counterpart of `hyp1f1_pole_poly_f64`
-pub(crate) fn hyp1f1_pole_poly_c64(a: f64, b: f64, z: C64) -> Option<C64> {
-    let m = pole_poly_degree(a, b)?;
-    if z.im == 0.0 {
-        return Some(c64(hyp1f1_pole_poly_f64(a, b, z.re)?, 0.0));
-    }
-    if m == 0 {
-        return Some(C64::ONE);
-    }
-    if !z.is_finite() {
-        return Some(if m == 1 { 1.0 + z * (a / b) } else { C64::NAN });
-    }
-    let (zr, zi) = (ScaledF64::new(z.re), ScaledF64::new(z.im));
-    let (mut tr, mut ti) = (ScaledF64::ONE, ScaledF64::ZERO);
-    let (mut sr, mut si) = (ScaledF64::ONE, ScaledF64::ZERO);
-    let (mut abs_re, mut abs_im) = (ScaledF64::ONE, ScaledF64::ZERO);
-    for j in 1..=m {
-        let n = f64::from(j - 1);
-        let factor = ScaledF64::new(a + n)
-            .div(ScaledF64::new(f64::from(j)))
-            .div(ScaledF64::new(b + n));
-        let (p1, p2) = (tr.mul(zr), ti.mul(zi));
-        let (q1, q2) = (tr.mul(zi), ti.mul(zr));
-        let (ur, ui) = (p1.add(p2.neg()), q1.add(q2));
-        (tr, ti) = (ur.mul(factor), ui.mul(factor));
-        if tr.is_tiny() && ti.is_tiny() {
-            break;
-        }
-        sr = sr.add(tr);
-        si = si.add(ti);
-        abs_re = abs_re.add(p1.abs().add(p2.abs()).mul(factor.abs()));
-        abs_im = abs_im.add(q1.abs().add(q2.abs()).mul(factor.abs()));
-    }
-    let re_ok = !sr.may_round_to_subnormal()
-        && ((sr.0 == 0.0 && abs_re.0 == 0.0)
-            || (sr.0 != 0.0 && abs_re.div(sr.abs()).to_f64() <= 2.0));
-    let im_ok = !si.may_round_to_subnormal()
-        && ((si.0 == 0.0 && abs_im.0 == 0.0)
-            || (si.0 != 0.0 && abs_im.div(si.abs()).to_f64() <= 2.0));
-    if re_ok && im_ok {
-        return Some(c64(sr.to_f64(), si.to_f64()));
-    }
-    let (ad, bd) = (DoubleDouble::new(a), DoubleDouble::new(b));
-    let (zrd, zid) =
-        (ScaledDd::new(DoubleDouble::new(z.re)), ScaledDd::new(DoubleDouble::new(z.im)));
-    let (mut tr, mut ti) = (ScaledDd::ONE, ScaledDd::ZERO);
-    let (mut sr, mut si) = (ScaledDd::ONE, ScaledDd::ZERO);
-    let (mut abs_re_dd, mut abs_im_dd, mut terms) = (ScaledF64::ONE, ScaledF64::ZERO, 0_i32);
-    for j in 1..=m {
-        let n = f64::from(j - 1);
-        let num = ScaledDd::new(ad + n);
-        let den = ScaledDd::new(DoubleDouble::new(f64::from(j))).mul(ScaledDd::new(bd + n));
-        let (p1, p2) = (tr.mul(zrd), ti.mul(zid));
-        let (q1, q2) = (tr.mul(zid), ti.mul(zrd));
-        let (ur, ui) = (p1.add(p2.neg()), q1.add(q2));
-        // Divide the components directly so an exact subnormal midpoint stays exact.
-        (tr, ti) = (ur.mul(num).div(den), ui.mul(num).div(den));
-        if tr.is_tiny() && ti.is_tiny() {
-            break;
-        }
-        sr = sr.add(tr);
-        si = si.add(ti);
-        let f_abs = num.abs_f64().div(den.abs_f64());
-        if !p1.eq_exact(p2) {
-            abs_re_dd = abs_re_dd.add(p1.abs_f64().add(p2.abs_f64()).mul(f_abs));
-        }
-        if !q1.eq_exact(q2.neg()) {
-            abs_im_dd = abs_im_dd.add(q1.abs_f64().add(q2.abs_f64()).mul(f_abs));
-        }
-        terms = j;
-    }
-    let out = c64(sr.to_f64(), si.to_f64());
-    let err_scale = ScaledF64::new(8.0 * f64::from(terms + 1) * EPSILON_SQ);
-    let eps = ScaledF64::new(f64::EPSILON);
-    let re_ok = !out.re.is_nan()
-        && err_scale.mul(abs_re_dd).div(sr.abs_f64().max(eps)).to_f64() <= SQRT_EPSILON;
-    let im_ok = !out.im.is_nan()
-        && err_scale.mul(abs_im_dd).div(si.abs_f64().max(eps)).to_f64() <= SQRT_EPSILON;
-    Some(if re_ok && im_ok { out } else { C64::NAN })
-}
-
 /// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 after a negligible `t_n` are negligible: if
 /// they are 0 (see `series_ended`) or can't grow again (see `term_ratio`), or, for non-integer
 /// `b < 0` where they can near `m = -b`, if they sum to at most `2 |t_n|`.
@@ -551,6 +132,27 @@ fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
         || term_ratio(a, b, abs_z, n).is_some()
         || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
         || (k_h > 0.0 && k_h * LN_2 >= growth_h)
+}
+
+/// `M(-m, -n, z)` terminates at `m <= n`, before the first zero denominator.
+pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
+    if !(b.is_finite()
+        && is_nonpos_int(b)
+        && is_nonpos_int(a)
+        && b <= a
+        && a >= -MAX_SERIES_ITERATIONS)
+    {
+        return None;
+    }
+    Some(if a == 0.0 || z == C64::ZERO {
+        C64::ONE
+    } else if a == -1.0 {
+        1.0 - z / b
+    } else {
+        hyp1f1_series(a, b, z, C64::ONE, 0.0, Some(-a as i32))
+            .filter(|&(sum, err)| err.is_finite() && err <= SQRT_EPSILON * sum.norm())
+            .map_or(C64::NAN, |(sum, _)| sum)
+    })
 }
 
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
@@ -705,9 +307,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
             // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
             // recurrence in a above if they differ by more than twice the series' error bound.
             if b > 0.0 {
-                if let Some((s, _)) = hyp1f1_series(a0, b, z, C64::ONE, 0.0).filter(|&(s, err)| {
-                    err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
-                }) {
+                if let Some((s, _)) =
+                    hyp1f1_series(a0, b, z, C64::ONE, 0.0, None).filter(|&(s, err)| {
+                        err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                    })
+                {
                     chg = s;
                 }
             }
@@ -756,14 +360,22 @@ impl Term for DoubleDouble {
 }
 
 /// `hyp1f1_sum` in complex arithmetic.
-fn hyp1f1_series(a: f64, b: f64, z: C64, scale: C64, log_scale: f64) -> Option<(C64, f64)> {
+fn hyp1f1_series(
+    a: f64,
+    b: f64,
+    z: C64,
+    scale: C64,
+    log_scale: f64,
+    degree: Option<i32>,
+) -> Option<(C64, f64)> {
     let next_term = |t, n| t * ((a + n) / (n + 1.0) * (z / (b + n)));
-    hyp1f1_sum(a, b, z.norm(), next_term, scale, log_scale)
+    hyp1f1_sum(a, b, z.norm(), next_term, scale, log_scale, degree)
 }
 
 /// `scale * M(a, b, z)` from the series DLMF 13.2.2, with the terms `t_n+1 = next_term(t_n, n)` and
 /// `abs_z = |z|`, for `a > -1` or `b < 0`, with an error bound for `a >= 1` and `b > 0` (an
 /// estimate for `b < 0`), or `None` if it doesn't converge within 100000 terms (a cost bound).
+/// For a pole polynomial with `b <= a <= 0`, `degree` gives the last term before the pole.
 ///
 /// The error bound (to first order in `u = T::EPS / 2`) is the sum of:
 /// - the tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term ratios
@@ -791,13 +403,15 @@ fn hyp1f1_sum<T: Term>(
     next_term: impl Fn(T, f64) -> T,
     scale: T,
     mut log_scale: f64,
+    degree: Option<i32>,
 ) -> Option<(T, f64)> {
     // the term `tn` as scaled `k` times by `rescale_term`
     let (mut t, mut k) = (scale, 0);
     let mut sum = scale;
     let mut comp = T::default();
     let mut err = t.norm();
-    for n in 0..MAX_TERMS {
+    for n in 0..degree.unwrap_or(MAX_TERMS) {
+        let last = degree == Some(n + 1);
         let n = f64::from(n);
         let (mut tn, mut norm);
         (t, tn, norm) = rescale_term(next_term(t, n), T::norm, &mut k);
@@ -810,8 +424,16 @@ fn hyp1f1_sum<T: Term>(
             (t, tn, sum, comp, err) = (t * s, tn * s, sum * s, comp * s, err * s);
             norm = tn.norm();
         }
-        if norm <= T::EPS * sum.norm() {
-            let q = term_ratio(a, b, abs_z, n + 1.0);
+        if last || norm <= T::EPS * sum.norm() {
+            let q = if last {
+                Some(0.0)
+            } else if degree.is_some() {
+                // All remaining ratios are bounded by |z| / (n+2) since b <= a.
+                let q = abs_z / (n + 2.0);
+                (q < 1.0).then_some(q)
+            } else {
+                term_ratio(a, b, abs_z, n + 1.0)
+            };
             if q.is_none() && sum.norm().is_finite() {
                 continue;
             }
@@ -848,7 +470,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
         (a, z, 0.0, 0.0)
     };
     let scale = b.abs() * C64::cis(phase);
-    hyp1f1_series(a, b, z, scale, ln_scale)
+    hyp1f1_series(a, b, z, scale, ln_scale, None)
         .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPSILON * m.norm())
         .map_or(hg, |(m, _)| m / b.abs())
 }
@@ -887,14 +509,14 @@ fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
     } else {
         0.0
     };
-    hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s)
+    hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s, None)
         .map(|(hg, err)| (hg.re, err))
 }
 
 /// `chgm_series` in double-double, with `log_scale = min(x0, 0)`.
 fn chgm_series_dd(a: DoubleDouble, b: DoubleDouble, x: f64, x0: f64) -> Option<(f64, f64)> {
     let next_term = |t, n| t * (a + n) * x / ((b + n) * (n + 1.0));
-    hyp1f1_sum(a.hi, b.hi, x, next_term, DoubleDouble::ONE, x0.min(0.0))
+    hyp1f1_sum(a.hi, b.hi, x, next_term, DoubleDouble::ONE, x0.min(0.0), None)
         .map(|(hg, err)| (hg.hi, err))
 }
 
@@ -2815,14 +2437,7 @@ fn chgus_near_1(x: f64, a: f64, e: f64, id: &mut i32) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{chgm_neg_x_asymptotic, chgu, chguit, chgus, pole_poly_degree};
-
-    #[test]
-    fn test_pole_poly_degree_guard() {
-        assert_eq!(pole_poly_degree(-1.0, f64::NEG_INFINITY), None);
-        assert_eq!(pole_poly_degree(-1_000_000.0, -1_000_000.0), Some(1_000_000));
-        assert_eq!(pole_poly_degree(-1_000_001.0, -1_000_001.0), None);
-    }
+    use super::{chgm_neg_x_asymptotic, chgu, chguit, chgus};
 
     /// Whether the relative error is within the estimated digits
     fn digits_ok(u: f64, expected: f64, id: i32) -> bool {
