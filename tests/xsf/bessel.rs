@@ -1900,6 +1900,25 @@ fn test_amos_large_z() {
 }
 
 #[test]
+fn test_amos_uniform_expansions_large_z() {
+    // Regression test for scipy/xsf#502: these returned 0.
+    let y = xsf::bessel_y(86.0, 2e15);
+    np_assert_allclose!([y], [5.142_851_446_965_517e-9], rtol = 5e-15);
+    for value in [
+        xsf::hankel_1(86.0, c64(2e15, 0.0)),
+        xsf::bessel_ke(86.0, c64(0.0, 2e15)),
+        xsf::bessel_j(1e8, c64(2e15, 0.0)),
+    ] {
+        assert!(value.re.is_nan(), "{value}");
+    }
+
+    // Only the airy argument of the analytic continuation in unk2 is past the cutoff
+    // (up to rounding).
+    let ke = xsf::bessel_ke(86.0, c64(-400.0, 1_501_199_875_790_300.8));
+    assert_ne!(ke, c64(0.0, 0.0));
+}
+
+#[test]
 fn test_amos_orders_above_2_30() {
     // based on scipy/xsf#513: the first was NaN (J_v(v) and Y_v(v) from DLMF 10.19.8)
     let v30 = 2.0_f64.powi(30);

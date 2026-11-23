@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@1f5f57b).
+//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@b843e26).
 //!
 //! ```text
 //!
@@ -107,8 +107,6 @@
 //!   computed up to `f64::MAX`.
 //! - Tiny z: `besh` and `besk` only reject `z = 0` for its magnitude alone, as `bknu` and `seri`
 //!   compute K and I for any tiny z.
-//! - Inner `airy` failure: `uni2` and `unk2` fail if `airy` does (`ierr = 3` is only a loss of
-//!   precision) instead of using its 0.
 
 // The C++ literals and the control flow of the line-by-line Fortran translation are kept verbatim.
 // E.g. `t1.max(12.0).min(60.0)` maps NaN to 12, `t1.clamp(12.0, 60.0)` would not.
@@ -5598,7 +5596,7 @@ fn uni2(
                 //
                 ai = airy(arg, 0, 2, &mut nai, &mut idum);
                 dai = airy(arg, 1, 2, &mut ndai, &mut idum);
-                // Unlike in xsf: inner `airy` failure (see the module docs).
+                // Unlike in xsf, also propagate other hard failures from airy.
                 if !matches!(idum, 0 | 3) {
                     *nz = -2;
                     return;
@@ -6513,6 +6511,10 @@ fn unk2(
             c2 = arg[(j - 1) as usize] * cr2;
             ai = airy(c2, 0, 2, &mut nai, &mut idum);
             dai = airy(c2, 1, 2, &mut ndai, &mut idum);
+            if idum == 4 {
+                // abs(arg) too large for airy
+                return -2;
+            }
             s2 = cs
                 * phi[(j - 1) as usize]
                 * (ai * asum[(j - 1) as usize] + cr2 * dai * bsum[(j - 1) as usize]);
@@ -6779,7 +6781,7 @@ fn unk2(
 
             ai = airy(argd, 0, 2, &mut nai, &mut idum);
             dai = airy(argd, 1, 2, &mut ndai, &mut idum);
-            // Unlike in xsf: inner `airy` failure (see the module docs).
+            // Unlike in xsf, also propagate other hard failures from airy.
             if !matches!(idum, 0 | 3) {
                 return -2;
             }
