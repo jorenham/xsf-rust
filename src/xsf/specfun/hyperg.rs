@@ -218,8 +218,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
             chg += cr;
         }
     } else {
-        let x0 = z.re;
-        if x0 < 0.0 {
+        let (original_a, original_z) = (a, z);
+        let mut retry_series = false;
+        let r = z.norm();
+        let reflected = z.re < 0.0;
+        if reflected {
             a = b - a;
             a0 = a;
             z = -z;
@@ -238,7 +241,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
             if a0 >= 2.0 {
                 a += 1.0;
             }
-            if (z.norm() < 20.0 + b.abs()) || (a < 0.0) {
+            if r < 20.0 + b.abs() || a < 0.0 {
                 chg = C64::ONE;
                 let mut chw = C64::ZERO;
                 let mut crg = C64::ONE;
@@ -254,7 +257,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
                     chg += crg;
                     rs += crg.l1_norm();
                     if ((chg - chw) / chg).norm() < 1e-15 {
-                        if term_ratio(a, b, z.norm(), f64::from(j)).is_some() {
+                        if term_ratio(a, b, r, f64::from(j)).is_some() {
                             ended = true;
                             break;
                         }
@@ -291,9 +294,25 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
                 if y == 0.0 {
                     cfac = c64((PI * a).cos(), 0.0);
                 }
-                let chg1 = (cg2 - cg3).exp() * z.powf(-a) * cfac * cs1;
-                let chg2 = (cg2 - cg1 + z).exp() * z.powf(a - b) * cs2;
-                chg = chg1 + chg2;
+                let p1 = (cg2 - cg3).exp() * z.powf(-a) * cfac;
+                let p2 = (cg2 - cg1 + z).exp() * z.powf(a - b);
+                chg = p1 * cs1 + p2 * cs2;
+                // Unlike in xsf, near the lower limit of the asymptotic expansion retry the
+                // defining series when the weighted first omitted terms are appreciable.
+                if original_a > 0.0
+                    && original_a < b
+                    && r < -f64::EPSILON.ln()
+                    && b >= f64::MIN_POSITIVE / EPSILON_SQ
+                {
+                    let omitted1 = (p1 * cr1).norm() * ((a + 8.0) * (a - b + 9.0)).abs();
+                    let omitted2 = (p2 * cr2).norm() * ((b - a + 8.0) * (9.0 - a)).abs();
+                    let scale = if y == 0.0 {
+                        chg.re.abs()
+                    } else {
+                        chg.re.abs().min(chg.im.abs())
+                    };
+                    retry_series |= !(omitted1 + omitted2 <= 9.0 * r * f64::EPSILON * scale);
+                }
             }
             if n == 0 {
                 cy0 = chg;
@@ -321,8 +340,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
                 }
             }
         }
-        if x0 < 0.0 {
+        if reflected {
             chg *= (-z).exp();
+        }
+        if retry_series {
+            chg = cchg_series_dd(original_a, b, original_z, r, chg);
         }
     }
     // a = a1;
@@ -361,6 +383,63 @@ impl Term for DoubleDouble {
     }
     fn add_to(self, sum: &mut Self, _: &mut Self) {
         *sum = *sum + self;
+    }
+}
+
+/// DLMF 13.2.2 for 0 < a < b. Factor a/b out of the nonconstant terms, and Im z out
+/// of their imaginary parts, so even tiny a and nearly real arguments retain both components.
+fn cchg_series_dd(a: f64, b: f64, z: C64, r: f64, previous: C64) -> C64 {
+    // Kummer reflection moves the series to the right half-plane with the smaller
+    // numerator parameter. Here b-a is exact by Sterbenz's lemma.
+    let reflect = z.re < 0.0 && a >= 0.5 * b;
+    let (a, z) = if reflect { (b - a, -z) } else { (a, z) };
+    let y2 = DoubleDouble::new(z.im) * z.im;
+    let (mut re, mut im) = (DoubleDouble::new(z.re), DoubleDouble::ONE);
+    let (mut sum_re, mut sum_im) = (re, im);
+    // For the nth term with coefficient c_n after factoring out a/b, bound its real part by
+    // B_n = c_n r^n and its imaginary part divided by Im z by n B_n/r (differentiate z^n).
+    // Accumulate the imaginary error bound multiplied by r.
+    let mut majorant = r;
+    let (mut err_re, mut err_im) = (r, r);
+    let mut n = 1.0;
+    while n <= 2.0 * r || majorant > EPSILON_SQ {
+        let ratio = (DoubleDouble::new(a) + n) / ((DoubleDouble::new(b) + n) * (n + 1.0));
+        (re, im) = ((re * z.re - im * y2) * ratio, (re + im * z.re) * ratio);
+        sum_re = sum_re + re;
+        sum_im = sum_im + im;
+        n += 1.0;
+        majorant *= ratio.hi * r;
+        err_re += (n + 1.0) * majorant;
+        err_im += (n + 1.0).powi(2) * majorant;
+    }
+    // Beyond 2r the remaining ratios are below 1/2: the tails are at most B_n
+    // and (n+2) B_n/r. Accumulate roundoff estimates before restoring the common factors.
+    let re = (sum_re / b) * a + 1.0;
+    let im = ((sum_im * z.im) / b) * a;
+    let err_re = (32.0 * EPSILON_SQ * err_re + majorant) / b * a;
+    let err_im = ((32.0 * EPSILON_SQ * err_im + (n + 2.0) * majorant) / r) / b * a * z.im.abs();
+    // In a cancelling component accept the series if its estimated error is less than half
+    // the difference from the asymptotic expansion (as in the recurrence check in cchg).
+    let best = |series: f64, err: f64, old: f64| {
+        if !old.is_finite() || err <= (f64::EPSILON * series.abs()).max(0.5 * (series - old).abs())
+        {
+            series
+        } else {
+            old
+        }
+    };
+    if reflect {
+        let (sin, cos) = (-z.im).sin_cos();
+        let exp = (-z.re).exp();
+        let project = |wr: f64, wi: f64, old| {
+            let component = ((re * wr + im * wi) * exp).hi;
+            let err = wr.abs() * err_re + wi.abs() * err_im;
+            let err = err + 4.0 * f64::EPSILON * ((wr * re.hi).abs() + (wi * im.hi).abs());
+            best(component, err * exp, old)
+        };
+        c64(project(cos, -sin, previous.re), project(sin, cos, previous.im))
+    } else {
+        c64(best(re.hi, err_re, previous.re), best(im.hi, err_im, previous.im))
     }
 }
 
