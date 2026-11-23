@@ -9,7 +9,7 @@
 //! `pbvv(2.7e8, 0.0)`), and the `double` -> `int` conversions saturate. Like in xsf, they also
 //! return NaN if the allocation of their work buffer fails.
 
-use core::f64::consts::{FRAC_PI_4, LN_2, PI, SQRT_2, TAU};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 use num_traits::ToPrimitive;
@@ -1363,6 +1363,17 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
         } else {
             pbvv_elementary(v, x)
         };
+    }
+    if x == 0.0 && v.abs() < 20.0 {
+        // DLMF 12.2.8 and 12.2.9, using the original order to preserve the parity zeros and
+        // their nearby values. Avoid losing bits to subnormal rounding in v / 2.
+        if v.abs() < 2.0 * f64::MIN_POSITIVE {
+            return (0.0 - FRAC_PI_2 * v, SQRT_FRAC_2_PI);
+        }
+        let h = 0.5 * v;
+        let w = -(-h).exp2() * sinpi(h) * rgamma(1.0 + h);
+        let wp = (0.5 - h).exp2() * cospi(h) * rgamma(0.5 + h);
+        return (w, wp);
     }
     if (0.0..20.0).contains(&v) && x > 10.0 {
         return pbvv_recur(v, x);

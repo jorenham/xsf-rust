@@ -3558,6 +3558,59 @@ def _pbdv_arb(i: int) -> Callable[[flint.arb, flint.arb], flint.arb]:
     return arb
 
 
+def _pbvv(v: mp.mpf, x: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
+    if x == 0:
+        # mpmath's hypercomb cannot resolve the exact parity zeros.
+        h = v / 2
+        half = mp.mpf(1) / 2
+        return (
+            -mp.power(2, -h) * mp.sinpi(h) * mp.rgamma(1 + h),
+            mp.power(2, half - h) * mp.cospi(h) * mp.rgamma(half + h),
+        )
+    return specs.r_pbvv(v, x)
+
+
+def _pbvv_arb(i: int) -> Callable[[flint.arb, flint.arb], flint.arb]:
+    """V_v(x) from DLMF 12.2.8, 12.2.9 and 12.4, or its derivative by 12.8.6."""
+
+    def arb(v: flint.arb, x: flint.arb) -> flint.arb:
+        half = flint.arb(1) / 2
+        sqrt2 = flint.arb(2).sqrt()
+        h = v / 2
+        z = x * x / 2
+        factor = (-h * flint.arb(2).log() - z / 2).exp()
+
+        def series(h: flint.arb) -> flint.arb:
+            even = -h.sin_pi() * (1 + h).rgamma() * z.hypgeom_1f1(-h, half)
+            odd = h.cos_pi() * (half + h).rgamma() * z.hypgeom_1f1(half - h, 3 * half)
+            return even + sqrt2 * x * odd
+
+        y = series(h)
+        if i:
+            y = x / 2 * y - (v + 1) / sqrt2 * series(h + half)
+        return factor * y
+
+    return arb
+
+
+PBVV_OVERRIDES: Final = (
+    Override(
+        lambda a: a in ((1.0, -10.0), (10.0, -10.0)),
+        "xsf's large-argument reflection evaluates a gamma pole",
+    ),
+)
+PBVV_DERIVATIVE_OVERRIDES: Final = (
+    Override(lambda a: a == (1.0, 0.0), "xsf misses the parity zero"),
+)
+PBVV_DERIVATIVE_FLOORS: Final = (
+    Floor(
+        lambda a: a == (10.0, -3.9999995),
+        2e-15,
+        "rounding in the recurrence for the derivative near its zero",
+    ),
+)
+
+
 def _pair_ref(
     ref: Callable[[mp.mpf, mp.mpf], tuple[mp.mpf, mp.mpf]], i: int
 ) -> Callable[[mp.mpf, mp.mpf], mp.mpf]:
@@ -4902,6 +4955,19 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         )
     ),
     ("pmv", "d_d_d-d"): Entry((Out("pmv", (_pmv_scaled,), (_pmv_arb,), PMV_RULES),)),
+    ("pbvv", "d_d-d_d"): Entry(
+        tuple(
+            Out(
+                f"pbvv.{i}",
+                (_pair_ref(_pbvv, i),),
+                (_pbvv_arb(i),),
+                (NAN,),
+                PBVV_OVERRIDES + (PBVV_DERIVATIVE_OVERRIDES if i else ()),
+                PBVV_DERIVATIVE_FLOORS if i else (),
+            )
+            for i in range(2)
+        )
+    ),
     ("pbwa", "d_d-d_d"): Entry(
         tuple(
             Out(
