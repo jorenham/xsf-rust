@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@0f963ea) and `xsf/cpu/recur.h`
+//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@a0c50d0) and `xsf/cpu/recur.h`
 //! (scipy/xsf@b1eb270), for `T` either `double` or `std::complex<double>`. The dual numbers of
 //! `xsf/cpu/dual.h`, which xsf uses for derivatives, are not translated.
 //!
@@ -773,7 +773,7 @@ fn lq_lift_im<const R: usize>(
 // ====================================================
 
 fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
-    const EPS: f64 = 1.0e-14;
+    const EPS: f64 = 1.0e-16;
     let n = int(qn.size()) - 1;
 
     let (mut q0, mut q1, mut qf, mut qr, mut qf0, mut qf1, mut qf2);
@@ -814,12 +814,19 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
             }
         }
 
-        for l in 0..=1 {
-            let nl = f64::from(n + l);
+        for (degree, prefactor) in [(n - 1, qc1), (n, qc2)] {
+            // The series can overflow when its prefactor has already underflowed.
+            if prefactor == 0.0 {
+                qn[degree] = prefactor;
+                continue;
+            }
+            let nl = f64::from(degree) + 1.0;
             qf = 1.0;
             qr = 1.0;
 
-            for k in 1..=500 {
+            // Just above |x| = 1.021 the terms decay like 1/x^2, taking up to about
+            // 3800 terms for n near 1000.
+            for k in 1..=5000 {
                 let k = f64::from(k);
                 qr = qr * (0.5 * nl + k - 1.0) * (0.5 * (nl - 1.0) + k)
                     / ((nl + k - 0.5) * k * x * x);
@@ -829,11 +836,7 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
                 }
             }
 
-            if l == 0 {
-                qn[n - 1] = qf * qc1;
-            } else {
-                qn[n] = qf * qc2;
-            }
+            qn[degree] = qf * prefactor;
         }
 
         qf2 = qn[n];
