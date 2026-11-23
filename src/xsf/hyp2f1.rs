@@ -440,6 +440,22 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() 
     }
 }
 
+fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
+    // Unlike in xsf, sum the even series (DLMF 15.8.13) for a symmetric
+    // positive beta weight. The odd terms vanish when c = 2b.
+    if c.is_finite() && c > 0.0 && c == 2.0 * b {
+        let w = z / (2.0 - z);
+        let half_a = 0.5 * a;
+        let terms = hypergeometric_series_generator(half_a, half_a + 0.5, b + 0.5, w * w);
+        let (sum, cancellation) = series_eval_cancellation(terms);
+        // Large negative powers after the Euler transform can still cancel.
+        if cancellation <= 16.0 {
+            return sum;
+        }
+    }
+    series_eval(lopez_temme_series_generator(a, b, c, z))
+}
+
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
 fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64) -> (C64, f64) {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
@@ -609,13 +625,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
          * used in Zhang and Jin's implementation for |z| < 0.9,
          *  real(z) >= 0. */
         if (c - a <= a && c - b < b) || (c - a < a && c - b <= b) {
-            let series_generator = lopez_temme_series_generator(c - a, c - b, c, z);
             result = (1.0 - z * 0.5).powf(a - c); // Lopez-Temme prefactor
-            result *= series_eval(series_generator);
+            result *= lopez_temme_series(c - a, c - b, c, z);
             return (1.0 - z).powf(c - a - b) * result; // Euler transform prefactor.
         }
-        let series_generator = lopez_temme_series_generator(a, b, c, z);
-        result = series_eval(series_generator);
+        result = lopez_temme_series(a, b, c, z);
         return (1.0 - z * 0.5).powf(-a) * result; // Lopez-Temme prefactor.
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that

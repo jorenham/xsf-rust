@@ -7,6 +7,31 @@ xsref::tests! {
 }
 
 #[test]
+fn test_hyp2f1_c64_lopez_temme_symmetric_beta_weight() {
+    for (a, b, c, z, expected) in [
+        (
+            2.25,
+            8.25,
+            16.5,
+            c64(0.113_793_103_448_275_98, 0.948_275_862_068_965_7),
+            c64(0.446_860_075_021_192_6, 0.731_321_493_403_688_5),
+        ),
+        (
+            16.25,
+            2.25,
+            4.5,
+            c64(0.113_793_103_448_275_98, -1.024_137_931_034_483),
+            c64(-0.021_965_227_124_574_663, 0.009_908_300_237_809_064),
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 8e-15);
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_transform2_euler() {
     // unlike in xsf: the 1/z transformation of the Euler transform (mpmath references)
     for (a, b, c, z, expected) in [
