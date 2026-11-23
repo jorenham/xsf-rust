@@ -206,6 +206,19 @@ fn test_legendre_q_all_c64() {
 }
 
 #[test]
+fn test_legendre_q_all_backward_seeds() {
+    // mpmath legenq with type=3, reflected by Q_k(-x) = (-1)^(k+1) Q_k(x).
+    let (negative, _) = xsf::legendre_q_all(100, -1.02101);
+    let (positive, _) = xsf::legendre_q_all(200, 1.02101);
+    xsref::np_assert_allclose!(
+        [negative[0], positive[0], negative[100]],
+        [-2.283_177_075_289_996_7, 2.283_177_075_289_996_7, -3.205_778_187_395_51e-10],
+        rtol = 1e-13
+    );
+    assert_eq!(xsf::legendre_q_all(3000, 1.2).0[3000], 0.0);
+}
+
+#[test]
 fn test_legendre_q_all_f64_reflection() {
     // Q_n(-x) = (-1)^(n+1) Q_n(x) and Q_n'(-x) = (-1)^n Q_n'(x), see DLMF 14.24.2
     for x in [1.5, 951.41] {
