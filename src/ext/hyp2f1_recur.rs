@@ -127,7 +127,7 @@
 //!   <https://dlmf.nist.gov/15.5>, <https://dlmf.nist.gov/15.8>, <https://dlmf.nist.gov/15.10.E19>
 
 use core::cmp::Ordering;
-use core::f64::consts::{LN_2, PI};
+use core::f64::consts::{LN_2, LOG2_E, PI};
 
 use crate::numpy::sinc;
 use crate::utils::{neg_one_pow, pow2};
@@ -819,36 +819,62 @@ pub(crate) fn add_exp_in<T: Real>(
     exp: impl Fn(Dd) -> T,
     eps: f64,
 ) -> Option<Scaled> {
-    // normalize each mantissa (or error mantissa for a zero term) into `l` so subnormal values
-    // cannot shift `lmax` and erase a smaller term's error
-    let terms = terms.into_iter().map(|mut y| {
-        let k = if y.m == 0.0 {
-            let (err, k) = frexp_f64(y.err);
-            y.err = err;
-            k
-        } else {
-            let (m, k) = frexp_f64(y.m);
-            y.m = m;
-            k
-        };
-        let l = y.l + LOG2 * f64::from(y.e + k);
-        (y, l)
-    });
-    let (_, lmax) = terms
-        .clone()
-        .reduce(|u, v| if u.1.hi >= v.1.hi { u } else { v })?;
-    let (m, err_abs) = terms.fold((T::from_f64(0.0), 0.0), |(m, err_abs), (y, l)| {
-        let scale = exp(l - lmax);
-        let t = T::from_f64(y.m) * scale;
+    // normalize each value and error independently into `l` so neither a subnormal value nor a
+    // tiny value with a large relative error can underflow and discard its uncertainty
+    let terms = terms.into_iter().map(|y| {
+        let (m, km) = frexp_f64(y.m);
+        let l_val = y.l + LOG2 * (i64::from(y.e) + i64::from(km)) as f64;
         // (3 eps for `exp(r)` and the products; a zero term stores its scaled absolute error
         // in `y.err`)
-        let err = if y.m == 0.0 {
-            scale.to_f64() * y.err * (1.0 + 3.0 * eps)
+        let (err_m, ke) = if y.m == 0.0 {
+            let (em, ke) = frexp_f64(y.err * (1.0 + 3.0 * eps));
+            (em, i64::from(ke))
         } else {
-            t.to_f64().abs() * (y.err + 3.0 * eps)
+            let (em, ke) = frexp_f64(y.err + 3.0 * eps);
+            (m.abs() * em, i64::from(km) + i64::from(ke))
         };
-        (m + t, err_abs + err)
+        let l_err = y.l + LOG2 * (i64::from(y.e) + ke) as f64;
+        let l_ref = if y.m == 0.0 && y.err == 0.0 {
+            Dd::new(f64::NEG_INFINITY)
+        } else if y.m == 0.0 {
+            l_err
+        } else {
+            l_val
+        };
+        (m, l_val, err_m, l_err, l_ref)
     });
+    let lmax = terms
+        .clone()
+        .map(|(_, _, _, _, l_ref)| l_ref)
+        .reduce(|u, v| if u.hi >= v.hi { u } else { v })?;
+    let (m, err_abs) =
+        terms.fold((T::from_f64(0.0), 0.0), |(m, err_abs), (ym, l_val, err_m, l_err, _)| {
+            let t = if ym == 0.0 {
+                T::from_f64(0.0)
+            } else {
+                T::from_f64(ym) * exp(l_val - lmax)
+            };
+            let err = if err_m == 0.0 {
+                0.0
+            } else if !err_m.is_finite() {
+                err_m
+            } else {
+                let d = l_err - lmax;
+                // range-reduce the full double-double exponent before `exp` so its low word is
+                // preserved (e.g. `LOG2 * 1024` for `y.err ~ 1e308`)
+                if d.hi > 750.0 {
+                    f64::INFINITY
+                } else if d.hi < -750.0 {
+                    0.0
+                } else {
+                    let q = (d.hi * LOG2_E).round() as i32;
+                    let r = d - LOG2 * f64::from(q);
+                    let scale = r.hi.exp() * (1.0 + r.lo);
+                    ldexp_f64(err_m * (1.0 + 8.0 * MACHEP) * scale, q)
+                }
+            };
+            (m + t, err_abs + err)
+        });
     // (and 1 eps for the sum, as an `f64`)
     let m = m.to_f64();
     Some(Scaled::new(m, 0, err_abs / m.abs() + MACHEP)?.with_l(lmax))

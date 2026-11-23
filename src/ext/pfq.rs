@@ -215,6 +215,8 @@ trait SeriesReal: Real + Add<f64, Output = Self> {
     fn add_compensated(sum: Self, comp: Self, term: Self) -> (Self, Self);
     /// The compensated partial sum and its offset from `t_0 = 1`, as `f64`
     fn sum_and_delta(sum: Self, comp: Self) -> (f64, f64);
+    /// Upper bound on `|self|` as `f64`
+    fn abs_up(self) -> f64;
 }
 
 impl SeriesReal for f64 {
@@ -256,6 +258,11 @@ impl SeriesReal for f64 {
     fn sum_and_delta(sum: Self, comp: Self) -> (f64, f64) {
         (sum + comp, (sum - 1.0) + comp)
     }
+
+    #[inline]
+    fn abs_up(self) -> f64 {
+        self.abs()
+    }
 }
 
 impl SeriesReal for Dd {
@@ -280,6 +287,11 @@ impl SeriesReal for Dd {
     #[inline]
     fn sum_and_delta(sum: Self, _comp: Self) -> (f64, f64) {
         (sum.hi, (sum + (-1.0)).hi)
+    }
+
+    #[inline]
+    fn abs_up(self) -> f64 {
+        dd_hi_up(self.abs())
     }
 }
 
@@ -1342,7 +1354,7 @@ impl<V: SeriesReal> Term for V {
     }
 
     fn bound(self) -> f64 {
-        self.to_f64().abs()
+        self.abs_up()
     }
 }
 
@@ -1522,34 +1534,50 @@ fn asymptotic_sum<T: Term>(
 /// Stops once the geometric tail bound is at most `tol * |sum|` (or returns the bound at
 /// `PFQ_MAXITER` if `ratio_bound < 1`, else infinite error). From term `settled` on, the bound
 /// on each term is at most `ratio_bound(n)` times the one before it, and `ratio_bound` does not
-/// increase.
+/// increase. `step_roundings` bounds the rounding errors accumulated per recurrence step when
+/// generating each term (beyond the summation rounding itself).
 fn convergent_sum<T: Term>(
     mut terms: impl Iterator<Item = T>,
     settled: f64,
     tol: f64,
+    step_roundings: f64,
     mut ratio_bound: impl FnMut(f64) -> f64,
 ) -> (T::Value, f64) {
     let eps = T::Value::EPSILON;
-    let init = (T::Value::from_f64(0.0), 0.0, f64::INFINITY);
-    let step = |(sum, abs_sum, _): (T::Value, f64, f64), n: f64| match terms.next() {
+    let init = (T::Value::from_f64(0.0), 0.0, 0.0, f64::INFINITY);
+    let step = |(sum, abs_sum, gen_err, _): (T::Value, f64, f64, f64), n: f64| match terms.next() {
         Some(term) if term.value().to_f64().is_finite() => {
             let next = sum + term.value();
             if !next.to_f64().is_finite() {
                 ControlFlow::Break((next, f64::INFINITY))
             } else {
-                let abs_sum = abs_sum + term.bound();
+                let bound = term.bound();
+                let term_gen = n * step_roundings * eps * bound;
+                let abs_sum = abs_sum + bound;
+                let gen_err = gen_err + term_gen;
                 let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
                 if rho < 1.0 {
-                    // geometric bound on the remaining terms
-                    let tail = term.bound() * rho / (1.0 - rho);
-                    let err = tail + n * eps * abs_sum;
+                    // geometric bound on the remaining terms, inflating the last term by its
+                    // generation uncertainty and rounding upward so `rho` near 1 or tiny `Dd`
+                    // terms cannot understate the tail
+                    let tail = if bound == 0.0 || rho <= 0.0 {
+                        0.0
+                    } else {
+                        let tail_base = if term_gen > 0.0 {
+                            next_up_nonneg(bound + term_gen)
+                        } else {
+                            bound
+                        };
+                        next_up_nonneg(next_up_nonneg(tail_base * rho) / (1.0 - rho))
+                    };
+                    let err = tail + n * eps * abs_sum + gen_err;
                     if tail <= tol * next.to_f64().abs() {
                         ControlFlow::Break((next, err))
                     } else {
-                        ControlFlow::Continue((next, abs_sum, err))
+                        ControlFlow::Continue((next, abs_sum, gen_err, err))
                     }
                 } else {
-                    ControlFlow::Continue((next, abs_sum, f64::INFINITY))
+                    ControlFlow::Continue((next, abs_sum, gen_err, f64::INFINITY))
                 }
             }
         },
@@ -1557,7 +1585,7 @@ fn convergent_sum<T: Term>(
     };
     match (0..PFQ_MAXITER).map(f64::from).try_fold(init, step) {
         ControlFlow::Break(res) => res,
-        ControlFlow::Continue((sum, _, last)) => (sum, last),
+        ControlFlow::Continue((sum, _, _, last)) => (sum, last),
     }
 }
 
@@ -1601,10 +1629,11 @@ fn pfq_alg_sum<T: Term<Value = f64>>(
     settled: f64,
     kappa: usize,
     z: f64,
+    step_roundings: f64,
     ratio_bound: impl FnMut(f64) -> f64,
 ) -> (f64, f64) {
     if kappa == 0 {
-        convergent_sum(terms, settled, f64::EPSILON, ratio_bound)
+        convergent_sum(terms, settled, f64::EPSILON, step_roundings, ratio_bound)
     } else {
         let az = z.abs();
         let scale = match kappa {
@@ -1864,9 +1893,11 @@ fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, 
     let series = once(1.0)
         .chain(pfq_terms_of(degree, w, |n, term| pfq_next_dd(up, low, n, w, term, checked)))
         .map(|t| if sizes { t.abs() } else { t });
+    // each step does `up.len() + low.len()` roundings and multiplications plus division and
+    // scaling (`<= 2 * (up + low) + 3` `f64` roundings of `0.5 * f64::EPSILON` each)
+    let step_roundings = (up.len() + low.len() + 2) as f64;
     if degree.is_finite() {
-        // each step rounds `(x + n).hi` and multiplies each factor, plus division and scaling
-        polynomial_sum(series, degree, 2.0 * (up.len() + low.len()) as f64 + 2.0)
+        polynomial_sum(series, degree, step_roundings)
     } else {
         let settled = up
             .iter()
@@ -1876,7 +1907,7 @@ fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, 
         let kappa = (q + 1).saturating_sub(p);
         let mut scratch = BoundScratch::new(up.len(), low.len());
         let bound = |n| scratch.regrowth_bound(up, low, recip_up(z), n);
-        pfq_alg_sum(series, settled, kappa, z, bound)
+        pfq_alg_sum(series, settled, kappa, z, step_roundings, bound)
     }
 }
 
@@ -1902,15 +1933,19 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         }
     };
     let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
+    // each double-double step does `up.len() + low.len()` additions (`<= 3 * 2^-106`) and
+    // multiplications (`<= 7 * 2^-106`) plus 1 division (`<= 15 * 2^-106`), bounded in units of
+    // `Dd::EPSILON = 64 * 2^-106` by `0.25 * (up + low + 2)` (`(16 * (up + low) + 32) * 2^-106`)
+    let step_roundings = 0.25 * (up.len() + low.len() + 2) as f64;
     if degree.is_finite() {
         // (all of its terms, with per-step factor-product roundings in double-double)
-        polynomial_sum(terms, degree, (up.len() + low.len() + 2) as f64)
+        polynomial_sum(terms, degree, step_roundings)
     } else if up.len() <= low.len() {
         // (it converges for p > q + 1, and for p = q + 1 with |z| > 1)
         let mut scratch = BoundScratch::new(up.len(), low.len());
         let bound = |n: f64| scratch.ratio_bound(&up, &low, recip_up(z), n);
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
-        convergent_sum(terms, settled, Dd::EPSILON, bound)
+        convergent_sum(terms, settled, Dd::EPSILON, step_roundings, bound)
     } else {
         // Where its factors are positive, each paired one of a term ratio is monotone with the limit
         // 1, and the unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear
@@ -1996,7 +2031,7 @@ fn pfq_class_term(
     let sizes = sizes || z > 0.0;
     let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
     let kappa = (b.len() + 1).saturating_sub(a.len());
-    let (sum, err) = pfq_alg_sum(series, settled, kappa, z, bound);
+    let (sum, err) = pfq_alg_sum(series, settled, kappa, z, 0.0, bound);
     if (sum, err) != (0.0, 0.0) {
         let bs = b.iter().copied().map(Dd::new);
         let args = bs.clone().map(|bj| bj - am);
@@ -3683,22 +3718,57 @@ mod tests {
         // reaches PFQ_MAXITER with rho < 1: returns finite tail bound rather than infinity
         let r = 0.999_5_f64;
         let geom = successors(Some(1.0_f64), |&t| Some(t * r));
-        let (sum, err) = convergent_sum(geom, 0.0, f64::EPSILON, |_| r);
+        let (sum, err) = convergent_sum(geom, 0.0, f64::EPSILON, 0.0, |_| r);
         let exact = 1.0 / (1.0 - r);
         assert!(err.is_finite() && (sum - exact).abs() <= err, "{sum} vs {exact} ({err})");
         // early None (e.g. from overflow/NaN inside pfq_terms_of) returns infinite error
-        let (_, err) = convergent_sum([1.0, 0.5].into_iter(), 0.0, f64::EPSILON, |_| 0.5);
+        let (_, err) = convergent_sum([1.0, 0.5].into_iter(), 0.0, f64::EPSILON, 0.0, |_| 0.5);
         assert_eq!(err, f64::INFINITY);
         // underflow followed by regrowth: yields the first negligible bound, then stops -> inf err
         let make_regrow =
             || pfq_terms_of(f64::INFINITY, 2e155, |n, t| if n == 0.0 { 1e-320 } else { t * 2e155 });
         assert_eq!(make_regrow().count(), 1);
         let (_, err) =
-            convergent_sum(once(1.0_f64).chain(make_regrow()), 10.0, f64::EPSILON, |_| 0.5);
+            convergent_sum(once(1.0_f64).chain(make_regrow()), 10.0, f64::EPSILON, 0.0, |_| 0.5);
         assert_eq!(err, f64::INFINITY);
         // sum overflow on finite terms returns infinite error
-        let (_, err) = convergent_sum([f64::MAX, f64::MAX].into_iter(), 0.0, f64::EPSILON, |_| 0.5);
+        let (_, err) =
+            convergent_sum([f64::MAX, f64::MAX].into_iter(), 0.0, f64::EPSILON, 0.0, |_| 0.5);
         assert_eq!(err, f64::INFINITY);
+        // last-term generation error inflates the geometric tail when stopping at PFQ_MAXITER with
+        // rho very close to 1
+        let rho_near1 = 1.0 - 0.5 * f64::EPSILON;
+        let (_, err_tail) =
+            convergent_sum(core::iter::repeat(1.0_f64), 0.0, f64::EPSILON, 1.0, |_| rho_near1);
+        let n_last = f64::from(PFQ_MAXITER - 1);
+        let uninflated = rho_near1 / (1.0 - rho_near1)
+            + n_last * f64::EPSILON * f64::from(PFQ_MAXITER)
+            + 0.5 * n_last * f64::from(PFQ_MAXITER) * f64::EPSILON;
+        assert!(
+            err_tail >= uninflated + 0.5 * n_last * f64::EPSILON * rho_near1 / (1.0 - rho_near1),
+            "err_tail={err_tail:e} vs uninflated={uninflated:e}"
+        );
+        // double-double tail rounds both the last term magnitude (1 + 2^-54) and tail upward
+        let dd_term = Dd {
+            hi: 1.0,
+            lo: pow2(-54),
+        };
+        let (_, err_tail_dd) =
+            convergent_sum(core::iter::repeat(dd_term), 0.0, Dd::EPSILON, 1.0, |_| rho_near1);
+        assert!(
+            err_tail_dd >= 9_007_199_254_740_992.0,
+            "err_tail_dd={err_tail_dd:.1} understated exact tail ~9007199254740991.5"
+        );
+        // many-parameter 31F30 reciprocal series accounts for per-step factor-product roundings
+        let a31: Vec<f64> = (0..31).map(|i| 0.8 + 0.005 * f64::from(i)).collect();
+        let b30: Vec<f64> = (0..30).map(|i| 0.7 + 0.005 * f64::from(i)).collect();
+        let (s_f64, err_f64) = pfq_alg_series(&a31, &b30, 0, -25.0, false);
+        let (s_dd, err_dd) = pfq_alg_series_dd(&a31, &b30, 0, -25.0);
+        let actual = (s_f64 - s_dd.hi).abs();
+        assert!(
+            err_dd <= 1e-25 && actual <= err_f64 && err_f64 >= 20.0 * f64::EPSILON,
+            "actual={actual:e} reported={err_f64:e} dd_err={err_dd:e}"
+        );
     }
 
     #[test]
@@ -3711,6 +3781,20 @@ mod tests {
         let zero_err = Scaled::new(0.5, 0, 0.0).unwrap().into_zero_err();
         let (y, err) = add_exp([sub, zero_err]).unwrap().to_f64();
         assert!((y - 1.0).abs() <= 1e-14 && (err - 0.5).abs() <= 1e-13, "{y} (err {err})");
+        // tiny nonzero term whose value underflows to 0 relative to `lmax` (`2^-1075`) still
+        // adds its absolute uncertainty `0.5 * 2^-1075 * 1.7e308 ~ 2.10e-16` (`~4.20e-16` rel)
+        let half = Scaled::new(0.5, 0, 0.0).unwrap();
+        let (_, base_err) = add_exp([half]).unwrap().to_f64();
+        let tiny_unc = Scaled::new(0.5, -1075, 1.7e308).unwrap();
+        let (y, err) = add_exp([half, tiny_unc]).unwrap().to_f64();
+        assert!(
+            (y - 0.5).abs() <= 1e-15 && err >= base_err + 4e-16,
+            "{y} (err {err:e}, base {base_err:e})"
+        );
+        // single term with huge relative error preserves the full `Dd` exponent low word
+        let huge_err = Scaled::new(0.5, 0, 1e308).unwrap();
+        let (y, err) = add_exp([huge_err]).unwrap().to_f64();
+        assert!((y - 0.5).abs() <= 1e-15 && err >= 1e308, "{y} (err {err:e})");
     }
 
     #[test]
