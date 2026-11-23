@@ -455,6 +455,8 @@ fn test_hyp2f2_polynomial() {
         ([-25.0, 10.5], [30.25, 1.5], -3.0, 1_431.131_238_039_312_8),
         // terminates before the zero of (b_1)_n
         ([-3.0, 1.5], [-5.0, 2.5], -40.0, -266.098_412_698_412_7),
+        // cancelled terminating polynomial longer than hyp1f1's 500-term cap (mpmath 50-dps)
+        ([-600.0, 1.25], [-700.0, 1.25], 1000.0, 1.084_726_577_449_080_7e303),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
@@ -480,6 +482,9 @@ fn test_hyp2f2_special() {
     assert_hyp2f2([1.5, 2.5], [3.5, 2.5], 3.0, 4.636_813_090_326_332);
     assert_hyp2f2([-3.0, 2.5], [4.0, -3.0], -12.5, 0.010_921_207_435_195_95);
     assert_eq!(hyp2f2(1.5, 2.5, 2.5, 1.5, -3.0), (-3.0_f64).exp());
+    // cancelled 1F1(20; 1; -750) = -4.0345e-289 must not underflow to a false zero
+    let y = hyp2f2(20.0, 6.25, 1.0, 6.25, -750.0);
+    assert!(y.is_nan() || (y / -4.034_504_366_728_602e-289 - 1.0).abs() <= 1e-13, "{y}");
 }
 
 #[test]
@@ -621,9 +626,8 @@ fn test_hyp2f2_inaccurate() {
     // subnormal results, accurate to their spacing (mpmath references)
     assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -709.0), 1.216_780_750_623_423e-308);
     assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), 9.244e-321);
-    // an overflow that it does not detect (Arb: 6.730_996_089e594)
-    assert!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0).is_nan());
-    // one that it detects, for a negative z (Arb: 1.306_688_482e355)
+    // overflows that it detects (Arb: 6.730_996_089e594 and 1.306_688_482e355)
+    assert_eq!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0), f64::INFINITY);
     assert_eq!(hyp2f2(-160.5, 0.25, 1.0, 1.0, -1e4), f64::INFINITY);
 }
 
@@ -729,9 +733,8 @@ fn test_hyp1f2_inaccurate() {
     // `gamma(1/4) x^(3/8) besselj(-3/4, 2 sqrt(x))` for x = -z)
     let y = hyp1f2(0.5, 0.5, 0.25, -1e40);
     assert!((y / -98_243.753_444_667_18 - 1.0).abs() < 1e-11);
-    // an overflow that it does not detect (Arb: 2.617_687_386e341)
-    assert!(hyp1f2(100.0, 200.0, 200.0, 5e5).is_nan());
-    // one that it detects, for a negative z (Arb: 1.026_573_294e324)
+    // overflows that it detects (Arb: 2.617_687_386e341 and 1.026_573_294e324)
+    assert_eq!(hyp1f2(100.0, 200.0, 200.0, 5e5), f64::INFINITY);
     assert_eq!(hyp1f2(-120.5, 1.0, 1.0, -1e6), f64::INFINITY);
 }
 
@@ -758,10 +761,9 @@ fn test_hyp0f2() {
     assert!(hyp0f2(1.5, 2.5, f64::NAN).is_nan());
     // a pole
     assert_eq!(hyp0f2(-2.0, 1.5, 0.5), f64::INFINITY);
-    // it overflows (Arb: -2.448e647)
+    // they overflow (Arb: -2.448e647 and 1.093e552)
     assert_eq!(hyp0f2(1.0, 1.0, -1e9), f64::NEG_INFINITY);
-    // it overflows undetected (Arb: 1.093e552)
-    assert!(hyp0f2(200.0, 200.0, 4e8).is_nan());
+    assert_eq!(hyp0f2(200.0, 200.0, 4e8), f64::INFINITY);
     assert_eq!(hyppfq([], [1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
 }
 
