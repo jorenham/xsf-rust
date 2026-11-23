@@ -205,9 +205,10 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
 ///
-/// For complex $z$ and integers $b \le a \le 0$ with $-a \le 10^6$, the series is the polynomial of
-/// degree $-a$. Results at $b = 0$ can be unreliable otherwise. For `f64` $z$ and for these complex
-/// polynomials, the result is NaN if the estimated accuracy is too low, e.g. where the series cancels.
+/// For complex $z$ and integers $b \le a \le 0$, the polynomial extension has degree $-a$.
+///
+/// Results at $b = 0$ can be unreliable. The function may return NaN for ill-conditioned real
+/// inputs or when evaluating a terminating series at complex $z$.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///
