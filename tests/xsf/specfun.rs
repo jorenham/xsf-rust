@@ -112,8 +112,24 @@ fn test_hypu_tiny_a_x_near_b() {
 }
 
 #[test]
+fn test_hypu_x0_b_above_one() {
+    let inf = f64::INFINITY;
+    for (a, b, expected) in [
+        (-3.0, 2.5, -39.375),
+        (0.0, 2.0, 1.0),
+        (-2.0, 1.5, 3.75),
+        (0.5, 2.0, inf),
+        (-4.0, 1e306, inf),
+        (-3.0, 1e306, -inf),
+        (-2_147_483_648.5, 2.0, -inf),
+    ] {
+        assert_eq!(xsf::hypu(a, b, 0.0), expected, "{a}, {b}");
+    }
+}
+
+#[test]
 fn test_hypu_x0() {
-    // DLMF 13.2.7; +inf in xsf
+    // DLMF 13.2.7
     let actual = [xsf::hypu(0.0, 3.42, 0.0), xsf::hypu(-2.0, 5.0, 0.0)];
     xsref::np_assert_allclose!(actual, [1.0, 30.0], rtol = 1e-15);
     // (-75 - 1.4e-14)_204 = 1.36e311
@@ -136,7 +152,7 @@ fn test_hypu_x0() {
     ];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 
-    // DLMF 13.2.16-19, with the sign of 1 / Gamma(a); +inf in xsf
+    // DLMF 13.2.16-19, with the sign of 1 / Gamma(a)
     assert_eq!(xsf::hypu(-0.5, 2.0, 0.0), f64::NEG_INFINITY);
     assert_eq!(xsf::hypu(-10.5, 1.0, 0.0), f64::NEG_INFINITY);
     assert_eq!(xsf::hypu(-1.5, 2.0, 0.0), f64::INFINITY);
