@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/jv.h` (scipy/xsf@8ab2668).
+//! Translated into pure Rust from `xsf/cephes/jv.h` (scipy/xsf@1596c79).
 //!
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 1989, 1992, 2000 by Stephen L. Moshier
@@ -616,6 +616,10 @@ pub(crate) fn jv(mut n: f64, mut x: f64) -> f64 {
             if nint {
                 k = 0.0;
                 q = jv_recur(&mut n, x, &mut k, true);
+                if !q.is_finite() {
+                    // J_k / J_n overflowed, so J_n is tiny and x is small relative to n.
+                    break 'done jv_jvs(n, x);
+                }
                 if k == 0.0 {
                     break 'done j0(x) / q;
                 }
