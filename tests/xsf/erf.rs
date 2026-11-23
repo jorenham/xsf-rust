@@ -54,6 +54,38 @@ fn test_erfi_f64_near_overflow() {
     );
 }
 
+#[test]
+fn test_complex_erf_axis_near_overflow() {
+    // The exact f64 inputs were evaluated with mpmath and Arb.
+    for (y, expected) in [
+        (26.672_633_112_078_042, 1.974_735_818_006_546e307),
+        (26.675_331_171_194_614, 2.280_213_994_097_188_6e307),
+        (26.704_663_756_633_916, 1.090_195_355_963_869_6e308),
+        (26.714_033_109_640_933, 1.797_693_134_861_981e308),
+    ] {
+        for sign in [-1.0, 1.0] {
+            let y = sign * y;
+            let expected = sign * expected;
+            let w = xsf::erf(c64(-0.0, y));
+            let wc = xsf::erfc(c64(-0.0, y));
+            let wi = xsf::erfi(c64(y, -0.0));
+            assert_eq!(w.re.to_bits(), (-0.0f64).to_bits());
+            assert_eq!(wc.re, 1.0);
+            assert_eq!(wi.im.to_bits(), (-0.0f64).to_bits());
+            for value in [w.im, -wc.im, wi.re, xsf::erfi(y)] {
+                assert!((value / expected - 1.0).abs() < 2e-15, "y = {y}: {value:e}");
+            }
+        }
+    }
+
+    for y in [26.714_033_109_640_937, f64::INFINITY] {
+        assert_eq!(xsf::erf(c64(0.0, y)), c64(0.0, f64::INFINITY));
+        assert_eq!(xsf::erfc(c64(0.0, -y)), c64(1.0, f64::INFINITY));
+        assert_eq!(xsf::erfi(c64(-y, 0.0)), c64(f64::NEG_INFINITY, 0.0));
+        assert_eq!(xsf::erfi(y), f64::INFINITY);
+    }
+}
+
 // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
 
 #[test]

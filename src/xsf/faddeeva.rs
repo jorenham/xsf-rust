@@ -147,22 +147,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
     let (x, y) = (z.re, z.im);
 
     if x == 0.0 {
-        // handle separately for speed & handling of y = Inf or NaN
-        return c64(
-            x, // preserve sign of 0
-            /* handle y -> Inf limit manually, since
-            exp(y^2) -> Inf but Im[w(y)] -> 0, so
-            IEEE will give us a NaN when it should be Inf */
-            if y * y > 720.0 {
-                if y > 0.0 {
-                    f64::INFINITY
-                } else {
-                    f64::NEG_INFINITY
-                }
-            } else {
-                (y * y).exp() * w_im(y)
-            },
-        );
+        return c64(x, erfi(y)); // preserve the sign of x = 0
     }
 
     let mRe_z2 = (y - x) * (x + y); // Re(-z^2), being careful of overflow
@@ -249,21 +234,7 @@ pub(crate) fn erfc_c64(z: C64) -> C64 {
     let (x, y) = (z.re, z.im);
 
     if x == 0.0 {
-        return c64(
-            1.0,
-            /* handle y -> Inf limit manually, since
-            exp(y^2) -> Inf but Im[w(y)] -> 0, so
-            IEEE will give us a NaN when it should be Inf */
-            if y * y > 720.0 {
-                if y > 0.0 {
-                    f64::NEG_INFINITY
-                } else {
-                    f64::INFINITY
-                }
-            } else {
-                -(y * y).exp() * w_im(y)
-            },
-        );
+        return c64(1.0, -erfi(y));
     }
     if y == 0.0 {
         if x * x > 750.0 {
@@ -1122,7 +1093,9 @@ pub(crate) fn erfi(x: f64) -> f64 {
         }
     } else if z > MAXLOG {
         // Unlike in xsf, erfi is finite where only e^(x^2) overflows (x^2 < ~713.6)
-        mul_exp(w_im(x), z)
+        // The rounding error in x^2 can move the overflow boundary by one input ulp.
+        let dz = x.mul_add(x, -z);
+        mul_exp(w_im(x) * dz.exp(), z)
     } else {
         z.exp() * w_im(x)
     }
