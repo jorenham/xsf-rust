@@ -1267,6 +1267,8 @@ fn test_elliprj_negative_delta() {
 fn test_carlson_near_conjugate() {
     // a conjugate pair close to the negative real axis
     let x = c64(-1e-4, 1e-30);
+    let y = c64(-1e100, 1e-300);
+    let z = c64(-0.9e100, -1e-300);
     let actual = [
         xsf::elliprf(x, c64(0.5, 0.0), x.conj()),
         xsf::elliprd(x, x.conj(), c64(0.5, 0.0)),
@@ -1277,16 +1279,21 @@ fn test_carlson_near_conjugate() {
         xsf::elliprj(x, c64(0.5, 0.0), x.conj(), x.conj()),
         // nearly conjugate
         xsf::elliprf(x, c64(0.5, 0.0), c64(-1.000_001e-4, -1e-30)),
+        // One root sum underflows. With z in the opposite half-plane, both root sums cancel.
+        xsf::elliprd(y, y.conj(), c64(0.5, 0.0)),
+        xsf::elliprf(y, y.conj(), z),
         // `x - conj(x)` overflows
         xsf::elliprf(c64(-6e307, 1e308), c64(-6e307, -1e308), c64(1.0, 0.0)),
     ];
     let expected = [
         c64(92.639_053_758_880_68, 0.0),
-        c64(547.241_289_722_859_8, 0.0),
+        c64(547.241_289_722_859_7, 0.0),
         c64(20_939.582_790_734_995, 4.242_216_486_679_578_4e30),
         c64(909.422_264_352_536_2, 0.0),
         c64(20_939.582_790_734_995, 4.242_216_486_679_578_4e30),
         c64(28.498_784_620_315_163, 2.221_219_358_137_306),
+        c64(4.242_640_687_119_285e-100, 0.0),
+        c64(2.911_859_718_217_388_7e-47, 3.949_829_542_582_758e-50),
         c64(2.009_168_978_782_164_5e-154, 0.0),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);

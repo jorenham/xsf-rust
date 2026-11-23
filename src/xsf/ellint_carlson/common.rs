@@ -264,8 +264,7 @@ pub(super) fn product<T: super::typing::Num, const N: usize>(
 
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
 ///
-/// Unlike in xsf (scipy/xsf#409), as `(a - b) / (sqrt(a) - sqrt(b))` if it cancels (halved if
-/// `a - b` overflows).
+/// If the sum cancels, use `(a - b) / (sa - sb)`, halving both differences if `a - b` overflows.
 pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
     let s = sa + sb;
     if s.abs() < sa.abs() {
@@ -299,8 +298,8 @@ pub(super) fn sqrt_sum_frexp<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) ->
 /// `[x + lam, y + lam, z + lam]` of the duplication step, where `lam` is the sum of the pairwise
 /// products of the square roots `sq` of `xyz`
 ///
-/// Unlike in xsf (scipy/xsf#409), `x + lam` as `(sqrt(x) + sqrt(y)) (sqrt(x) + sqrt(z))` if it
-/// cancels.
+/// If `x + lam` cancels, use `(sqrt(x) + sqrt(y)) (sqrt(x) + sqrt(z))` (DLMF 19.26.18).
+/// Unlike in xsf, scale both factors if either root sum underflows.
 pub(super) fn add_lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3], lam: T) -> [T; 3] {
     core::array::from_fn(|i| {
         let a = xyz[i] + lam;
