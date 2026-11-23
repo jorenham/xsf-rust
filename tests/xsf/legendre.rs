@@ -577,6 +577,70 @@ fn test_legendre_q_all_c64_tiny_re() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_tiny_re_backward_rescaling() {
+    // Compare the small parts separately against Arb on both sides of the imaginary axis.
+    let values = [
+        9.999_000_099_990_002e-255,
+        -6.665_866_752_372_065e-257,
+        -3.999_428_638_087_966e-259,
+        2.285_333_381_812_588_3e-261,
+    ];
+    let derivatives = [
+        1.999_600_059_992_001e-256,
+        1.999_600_059_992_001e-258,
+        -1.599_657_196_183_204_4e-260,
+        -1.142_590_519_820_686_9e-262,
+    ];
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            let (q, dq) = xsf::legendre_q_all(3, c64(sx * 1e-250, sy * 100.0));
+            xsref::np_assert_allclose!(
+                [q[0].re, q[1].im, q[2].re, q[3].im],
+                [sx * values[0], sx * sy * values[1], sx * values[2], sx * sy * values[3]],
+                rtol = 1e-14
+            );
+            xsref::np_assert_allclose!(
+                [dq[0].im, dq[1].re, dq[2].im, dq[3].re],
+                [
+                    sx * sy * derivatives[0],
+                    sx * derivatives[1],
+                    sx * sy * derivatives[2],
+                    sx * derivatives[3],
+                ],
+                rtol = 1e-14
+            );
+        }
+    }
+}
+
+#[test]
+fn test_legendre_q_all_c64_tiny_re_subnormal() {
+    // The first-order terms preserve subnormal parts at higher degrees (Arb).
+    let (q, dq) = xsf::legendre_q_all(95, c64(1e-280, 1.125));
+    xsref::np_assert_allclose!(
+        [q[94].re, q[95].im, dq[94].im, dq[95].re],
+        [-1.3544e-319, 5.1763e-320, -8.603_877e-318, -3.32274e-318],
+        rtol = 0.0,
+        atol = f64::from_bits(1)
+    );
+
+    // At this degree, rounding the small parts of Q before differentiating loses digits.
+    let (q, dq) = xsf::legendre_q_all(750, c64(5.9e-15, 1.125));
+    assert_eq!(q[739].im.to_bits(), 1);
+    assert_eq!(dq[739].re.to_bits(), (-(f64::from_bits(284))).to_bits());
+}
+
+#[test]
+fn test_legendre_q_all_c64_tiny_relative_re() {
+    let z = c64(2.0_f64.powi(-100), 2.0_f64.powi(38));
+    let (q, _) = xsf::legendre_q_all(3, z);
+    xsref::np_assert_allclose!([q[0].re], [1.044_048_714_879_764e-53], rtol = 1e-15);
+
+    let (_, dq) = xsf::legendre_q_all(1, c64(-1e-250, 1e155));
+    assert_eq!(dq[0].im.to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_assoc_legendre_q_all_c64_tiny_im_axis() {
     // on and near the imaginary axis; Arb references (Ferrers), with
     // `Q_20^20(z) = 2^20 20! z + O(z^3)`
