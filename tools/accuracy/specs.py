@@ -4698,7 +4698,6 @@ for i, r in enumerate([r_lmbda, r_lmbdap]):
         D(U(0, 20), U(0, 50)),
         D(U(0, 100), LU(1e-300, 1e4)),
         D(Int(0, 100), LU(1e-300, 1e4)),
-        cpp=False,
         note="lmbda",
     )
 

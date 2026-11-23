@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`1596c79`](https://github.com/scipy/xsf/tree/1596c793335f89ada4b3dd76e22b5f9627a5b735)), and
+it is translated from (commit [`e9f0bf7`](https://github.com/scipy/xsf/tree/e9f0bf7c2a91b9b86a7548d517034c2ce65c08c1)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 
@@ -155,7 +155,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -194,12 +194,12 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 10⁴] (log)<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratioinv</code><sup>‖</sup></td><td>v ∈ [0.5, 20]<br>r ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>jahnke_emden_lambda.0</code><sup>¶**</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>5.3e-15</samp></b></td><td align="right" nowrap><b><samp>2.6e-16</samp></b></td><td align="right" nowrap><samp>4.0e-12</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap>12.8%</td></tr>
-<tr><td><code>jahnke_emden_lambda.0</code><sup>¶**</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.9e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><samp>5.9e-13</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>99.0%</td></tr>
-<tr><td><code>jahnke_emden_lambda.0</code><sup>¶**</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.5e-14</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (11)</samp></td><td align="right" nowrap>❗<samp>2.8e-06</samp></td><td align="right" nowrap>33.9%</td></tr>
-<tr><td><code>jahnke_emden_lambda.1</code><sup>¶**</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>5.9e-15</samp></b></td><td align="right" nowrap><b><samp>2.8e-16</samp></b></td><td align="right" nowrap><samp>3.9e-12</samp></td><td align="right" nowrap><samp>9.3e-16</samp></td><td align="right" nowrap>12.3%</td></tr>
-<tr><td><code>jahnke_emden_lambda.1</code><sup>¶**</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.5e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>98.9%</td></tr>
-<tr><td><code>jahnke_emden_lambda.1</code><sup>¶**</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.8e-14</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (14)</samp></td><td align="right" nowrap>❗<samp>5.3e-05</samp></td><td align="right" nowrap>32.9%</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>¶</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>5.3e-15</samp></b></td><td align="right" nowrap><b><samp>2.6e-16</samp></b></td><td align="right" nowrap><samp>4.0e-12</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap>12.8%</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>¶</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.9e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><samp>5.9e-13</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>99.0%</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>¶</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.5e-14</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.8e-13</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.0%</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>¶</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>5.9e-15</samp></b></td><td align="right" nowrap><b><samp>2.8e-16</samp></b></td><td align="right" nowrap><samp>3.9e-12</samp></td><td align="right" nowrap><samp>9.3e-16</samp></td><td align="right" nowrap>12.3%</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>¶</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.5e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>98.9%</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>¶</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.8e-14</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.0e-13</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.0%</td></tr>
 </tbody>
 </table>
 
@@ -214,8 +214,6 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <sup>‖</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 <sup>¶</sup> The last order, $`v`$. For $`x > u`$, with $`u = v`$, or $`v + 1`$ for the derivative: $`A = \Gamma(v + 1) (2/x)^v \sqrt{J_u(x)^2 + Y_u(x)^2}`$.
-
-<sup>**</sup> The second column is SciPy, which wraps xsf here.
 
 ### Zeros of Bessel functions
 
