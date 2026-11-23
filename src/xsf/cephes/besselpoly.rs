@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/besselpoly.h` (scipy/xsf@09c93c7).
+//! Translated into pure Rust from `xsf/cephes/besselpoly.h` (scipy/xsf@9a4f260).
 //!
 //! This was not part of the original cephes library.
 //!
@@ -33,8 +33,7 @@ pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
         None => (nu * a.ln()).exp() / (gamma(nu + 1.0) * (lambda + nu + 1.0)),
     };
     if !sm.is_normal() {
-        // Unlike in xsf (scipy/xsf#538), the leading term is recomputed in log space if
-        // `gamma(nu + 1)` or `a^nu` over- or underflows (e.g. `nu > 171`)
+        // Unlike in xsf, select the log-space fallback when the leading term is not normal.
         let (lg, sign) = lgam_sgn(nu + 1.0);
         let d = lambda + nu + 1.0;
         sm = f64::from(sign) * (nu * a.ln() - lg - d.abs().ln()).exp().copysign(d);
