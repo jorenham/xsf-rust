@@ -1279,7 +1279,7 @@ fn test_carlson_near_conjugate() {
         xsf::elliprj(x, c64(0.5, 0.0), x.conj(), x.conj()),
         // nearly conjugate
         xsf::elliprf(x, c64(0.5, 0.0), c64(-1.000_001e-4, -1e-30)),
-        // One root sum underflows. With z in the opposite half-plane, both root sums cancel.
+        // The cancelling root sum underflows here.
         xsf::elliprd(y, y.conj(), c64(0.5, 0.0)),
         xsf::elliprf(y, y.conj(), z),
         // `x - conj(x)` overflows
