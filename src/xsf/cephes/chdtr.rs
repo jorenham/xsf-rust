@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/chdtr.h` (scipy/xsf@f2a68ec).
+//! Translated into pure Rust from `xsf/cephes/chdtr.h` (scipy/xsf@95f9f7e).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987 by Stephen L. Moshier
@@ -52,7 +52,7 @@ pub(crate) fn chdtrc(df: f64, x: f64) -> f64 {
     if x < 0.0 {
         f64::NAN
     } else if df > 0.0 && x == 0.0 {
-        // Unlike in xsf (scipy/xsf#541), also if `df / 2` rounds to 0
+        // Also if `df / 2` underflows, as `igamc(0, 0)` is NaN.
         1.0
     } else {
         igamc(df / 2.0, x / 2.0)
@@ -101,13 +101,15 @@ pub(crate) fn chdtr(df: f64, x: f64) -> f64 {
         // || (df < 1.0)
         f64::NAN
     } else if df > 0.0 && x == 0.0 {
-        // Unlike in xsf (scipy/xsf#541), also if `df / 2` rounds to 0
+        // Also if `df / 2` underflows, as `igam(0, 0)` is NaN.
         0.0
     } else if df > 0.0 && x < 2.0 * f64::MIN_POSITIVE {
-        // Unlike in xsf (scipy/xsf#541), `(x / 2)^a / Gamma(a + 1)` with `a = df / 2` if `x` is
-        // subnormal, as `x / 2` rounds
+        // `x / 2` would be subnormal. Leading term of DLMF 8.7.1, `(x / 2)^a / Gamma(a + 1)`.
         let a = df / 2.0;
-        x.powf(a) * (exp2(-a) / gamma(a + 1.0))
+        // Split `x^a` so the product rounds only once when it is subnormal.
+        let p = x.powf(a / 2.0);
+        // Unlike in xsf, use `exp2` for the power of two.
+        p * (p * (exp2(-a) / gamma(a + 1.0)))
     } else {
         igam(df / 2.0, x / 2.0)
     }

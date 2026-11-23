@@ -735,6 +735,8 @@ fn test_chdtr_fdtr_subnormal() {
         xsf::chdtr(1.0, f64::from_bits(1)),
         xsf::chdtr(1.0, f64::from_bits(3)),
         xsf::chdtr(0.5, 2.5e-322),
+        xsf::chdtr(1.0, 1e-310),
+        xsf::chdtr(0.5, 1e-310),
         xsf::fdtr(0.3, 1.0, 1e-320),
         xsf::fdtr(0.3, 1e-13, 1e-320),
         xsf::fdtr(0.7, 1e-10, 3e-319),
@@ -743,11 +745,14 @@ fn test_chdtr_fdtr_subnormal() {
         1.773_504_888_603_627_3e-162,
         3.071_800_574_533_264_4e-162,
         3.696_239_685_446_701e-81,
+        7.978_845_608_028_641e-156,
+        2.933_738_615_886_127e-78,
         6.990_002_794_838_8e-49,
         2.479_968_749_514_133_6e-59,
         1.311_231_953_921_511_3e-118,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
+    assert_eq!(xsf::chdtr(2.002, f64::from_bits(3)), f64::from_bits(1));
     // the chi-square limit if `b = inf`
     assert_eq!(xsf::fdtr(1.0, f64::INFINITY, 1e-300), xsf::chdtr(1.0, 1e-300));
     // `x^(a / 2)` underflows, but the subnormal result does not; from mpmath
