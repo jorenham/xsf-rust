@@ -192,8 +192,8 @@ impl ScaledF64 {
         }
     }
 
-    fn is_subnormal(self) -> bool {
-        self.0 != 0.0 && self.1 <= -1022
+    fn may_round_to_subnormal(self) -> bool {
+        self.0 != 0.0 && self.1 <= -1021
     }
 
     fn is_tiny(self) -> bool {
@@ -320,6 +320,75 @@ impl ScaledDd {
     }
 }
 
+fn pole_poly_dd(a: f64, b: f64, x: f64, m: i32) -> (ScaledDd, ScaledF64) {
+    let (ad, bd, xd) =
+        (DoubleDouble::new(a), DoubleDouble::new(b), ScaledDd::new(DoubleDouble::new(x)));
+    let (mut td, mut sum_dd, mut abs_dd, mut terms) =
+        (ScaledDd::ONE, ScaledDd::ONE, ScaledF64::ONE, 0_i32);
+    for j in 1..=m {
+        let n = f64::from(j - 1);
+        let factor = ScaledDd::new(ad + n)
+            .div(ScaledDd::new(DoubleDouble::new(f64::from(j))))
+            .div(ScaledDd::new(bd + n));
+        td = td.mul(factor).mul(xd);
+        if td.is_tiny() {
+            break;
+        }
+        sum_dd = sum_dd.add(td);
+        abs_dd = abs_dd.add(td.abs_f64());
+        terms = j;
+    }
+    let err_dd = ScaledF64::new(8.0 * f64::from(terms + 1) * EPSILON_SQ).mul(abs_dd);
+    (sum_dd, err_dd)
+}
+
+/// A nonalternating evaluation of the pole polynomial at `x = -u < 0`.
+///
+/// For `P_m = M(-m, -n, x)` with the terminating convention, integrate
+/// `exp(-t) t^(n-m) (t-u)^m / n!` over `[0, inf)`. Splitting at `u` gives
+/// `exp(-u) P_(n-m)(u)` and a correction of sign `(-1)^m`. The latter has
+/// magnitude `u^(n+1) B(n-m+1, m+1) M(n-m+1, n+2, -u) / n!`.
+fn pole_poly_neg_x(m: i32, b: f64, x: f64) -> Option<f64> {
+    let n = -b;
+    let q = n - f64::from(m);
+    if q > MAX_SERIES_ITERATIONS {
+        return None;
+    }
+    let u = -x;
+    let (p, p_err) = pole_poly_dd(-q, b, u, q as i32);
+    let base_err = p_err.div(p.abs_f64()).to_f64() + f64::EPSILON;
+    // At most 1024 bits per term and at most MAX_SERIES_ITERATIONS terms.
+    let (base, base_err) = Scaled::new(p.0.hi, p.1 as i32, base_err)?
+        .mul_exp(DoubleDouble::new(x))
+        .to_f64();
+    let (lm, _, em) = ln_gamma(f64::from(m) + 1.0)?;
+    let (lq, _, eq) = ln_gamma(q + 1.0)?;
+    let (ln, _, en) = ln_gamma(n + 1.0)?;
+    let log_scale = ln_dd(u) * (n + 1.0) + lm + lq - ln * 2.0 - ln_dd(n + 1.0);
+    // The integral representation gives M(q+1, n+2, -u) <= 1.
+    if log_scale.hi < base.ln() + f64::EPSILON.ln() - LN_2 {
+        return Some(base);
+    }
+    // Kummer's transformation makes the correction series positive. Keep its initial
+    // exponential scale normal and apply the rest together with the prefactor.
+    let series_scale = x.max(GRADUAL_EXP_X0);
+    let (tail, err) = chgm_series_dd(
+        DoubleDouble::new(f64::from(m) + 1.0),
+        DoubleDouble::new(n + 2.0),
+        u,
+        series_scale,
+    )?;
+    if !tail.is_normal() {
+        return None;
+    }
+    let (tail, tail_err) = Scaled::new(tail, 0, em + eq + 2.0 * en + err / tail)?
+        .mul_exp(log_scale + (DoubleDouble::new(x) - series_scale))
+        .to_f64();
+    let result = base + neg_if_odd(m, tail);
+    let err = base_err * base + tail_err * tail;
+    (result.is_normal() && err <= 64.0 * f64::EPSILON * result.abs()).then_some(result)
+}
+
 /// Unlike in xsf, `M(-m, -n, x)` for finite integers `0 <= m <= n` (`m <= MAX_SERIES_ITERATIONS`)
 /// is the polynomial of degree `m` from DLMF 13.2.2, returning NaN when severe cancellation
 /// remains after double-double re-evaluation
@@ -353,30 +422,19 @@ pub(crate) fn hyp1f1_pole_poly_f64(a: f64, b: f64, x: f64) -> Option<f64> {
         abs_sum = abs_sum.add(t.abs());
     }
     let out = sum.to_f64();
-    let no_cancel = !sum.is_subnormal() && sum.0 != 0.0 && abs_sum.div(sum.abs()).to_f64() <= 2.0;
+    let no_cancel =
+        !sum.may_round_to_subnormal() && sum.0 != 0.0 && abs_sum.div(sum.abs()).to_f64() <= 2.0;
     if no_cancel || (x > 0.0 && out.is_infinite()) {
         return Some(out);
     }
-    let (ad, bd, xd) =
-        (DoubleDouble::new(a), DoubleDouble::new(b), ScaledDd::new(DoubleDouble::new(x)));
-    let (mut td, mut sum_dd, mut abs_dd, mut terms) =
-        (ScaledDd::ONE, ScaledDd::ONE, ScaledF64::ONE, 0_i32);
-    for j in 1..=m {
-        let n = f64::from(j - 1);
-        let factor = ScaledDd::new(ad + n)
-            .div(ScaledDd::new(DoubleDouble::new(f64::from(j))))
-            .div(ScaledDd::new(bd + n));
-        td = td.mul(factor).mul(xd);
-        if td.is_tiny() {
-            break;
-        }
-        sum_dd = sum_dd.add(td);
-        abs_dd = abs_dd.add(td.abs_f64());
-        terms = j;
-    }
+    let (sum_dd, err_dd) = pole_poly_dd(a, b, x, m);
     let out = sum_dd.to_f64();
-    let err_dd = ScaledF64::new(8.0 * f64::from(terms + 1) * EPSILON_SQ).mul(abs_dd);
-    let denom = sum_dd.abs_f64().max(ScaledF64::new(f64::EPSILON));
+    let sum_abs = sum_dd.abs_f64();
+    let try_neg_x = x < 0.0 && err_dd.div(sum_abs).to_f64() > 32.0 * f64::EPSILON;
+    if let Some(value) = try_neg_x.then(|| pole_poly_neg_x(m, b, x)).flatten() {
+        return Some(value);
+    }
+    let denom = sum_abs.max(ScaledF64::new(f64::EPSILON));
     Some(if !out.is_nan() && err_dd.div(denom).to_f64() <= SQRT_EPSILON {
         out
     } else {
@@ -417,10 +475,10 @@ pub(crate) fn hyp1f1_pole_poly_c64(a: f64, b: f64, z: C64) -> Option<C64> {
         abs_re = abs_re.add(p1.abs().add(p2.abs()).mul(factor.abs()));
         abs_im = abs_im.add(q1.abs().add(q2.abs()).mul(factor.abs()));
     }
-    let re_ok = !sr.is_subnormal()
+    let re_ok = !sr.may_round_to_subnormal()
         && ((sr.0 == 0.0 && abs_re.0 == 0.0)
             || (sr.0 != 0.0 && abs_re.div(sr.abs()).to_f64() <= 2.0));
-    let im_ok = !si.is_subnormal()
+    let im_ok = !si.may_round_to_subnormal()
         && ((si.0 == 0.0 && abs_im.0 == 0.0)
             || (si.0 != 0.0 && abs_im.div(si.abs()).to_f64() <= 2.0));
     if re_ok && im_ok {
@@ -434,19 +492,19 @@ pub(crate) fn hyp1f1_pole_poly_c64(a: f64, b: f64, z: C64) -> Option<C64> {
     let (mut abs_re_dd, mut abs_im_dd, mut terms) = (ScaledF64::ONE, ScaledF64::ZERO, 0_i32);
     for j in 1..=m {
         let n = f64::from(j - 1);
-        let factor = ScaledDd::new(ad + n)
-            .div(ScaledDd::new(DoubleDouble::new(f64::from(j))))
-            .div(ScaledDd::new(bd + n));
+        let num = ScaledDd::new(ad + n);
+        let den = ScaledDd::new(DoubleDouble::new(f64::from(j))).mul(ScaledDd::new(bd + n));
         let (p1, p2) = (tr.mul(zrd), ti.mul(zid));
         let (q1, q2) = (tr.mul(zid), ti.mul(zrd));
         let (ur, ui) = (p1.add(p2.neg()), q1.add(q2));
-        (tr, ti) = (ur.mul(factor), ui.mul(factor));
+        // Divide the components directly so an exact subnormal midpoint stays exact.
+        (tr, ti) = (ur.mul(num).div(den), ui.mul(num).div(den));
         if tr.is_tiny() && ti.is_tiny() {
             break;
         }
         sr = sr.add(tr);
         si = si.add(ti);
-        let f_abs = factor.abs_f64();
+        let f_abs = num.abs_f64().div(den.abs_f64());
         if !p1.eq_exact(p2) {
             abs_re_dd = abs_re_dd.add(p1.abs_f64().add(p2.abs_f64()).mul(f_abs));
         }

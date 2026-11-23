@@ -1104,14 +1104,6 @@ fn test_hyp1f1_pole_polynomial() {
     );
     let sub_z = c64(2.0_f64.powi(1022), 2.0_f64.powi(-52));
     assert_eq!(xsf::hyp1f1(-2.0, -2.0_f64.powi(1022), sub_z), c64(4.0, f64::from_bits(4)));
-    // subnormal midpoints preserve the double-double low word without double rounding
-    let neg_half_up = f64::from_bits((-0.5_f64).to_bits() - 1);
-    let pos_half_down = f64::from_bits(0.5_f64.to_bits() - 1);
-    assert_eq!(xsf::hyp1f1(-2.0, -2.0, c64(neg_half_up, f64::from_bits(1))).im, f64::from_bits(1));
-    assert_eq!(
-        xsf::hyp1f1(-2.0, -2.0, c64(pos_half_down, f64::from_bits(1))).im,
-        f64::from_bits(1)
-    );
     assert_eq!(
         xsf::hyp1f1(-2.0, -2.0, c64(2.0_f64.powi(502), 2.0_f64.powi(-600))),
         c64(2.0_f64.powi(1003), 2.0_f64.powi(-98))
@@ -1133,7 +1125,7 @@ fn test_hyp1f1_pole_polynomial() {
         c64(-1.5 * 2.0_f64.powi(978), f64::INFINITY)
     );
 
-    // cancellation recovers accuracy in double-double or returns NaN when severe (real & complex)
+    // cancellation recovers accuracy in double-double or returns NaN when severe
     xsref::np_assert_allclose!(
         [xsf::hyp1f1(-100.0, -100.0, -20.0)],
         [(-20.0_f64).exp()],
@@ -1144,7 +1136,6 @@ fn test_hyp1f1_pole_polynomial() {
         [c64(1.808_832_476_429_251_7e-9, 9.881_696_855_836_097e-10)],
         rtol = 1e-13
     );
-    assert!(xsf::hyp1f1(-100.0, -100.0, -30.0).is_nan());
     assert!(xsf::hyp1f1(-100.0, -100.0, c64(-30.0, 0.5)).is_nan());
     // severe cancellation isolated to the imaginary component is not masked by a large real part
     let p52 = 2.0_f64.powi(52);
@@ -1169,6 +1160,45 @@ fn test_hyp1f1_pole_polynomial() {
     assert_eq!(xsf::hyp1f1(1.0, -10.0, 1.0), f64::INFINITY);
     assert_eq!(xsf::hyp1f1(1.0, -10.0, c64(1.0, 1.0)).re, f64::INFINITY);
     assert_eq!(xsf::hyp1f1(-10.0, -1.0, c64(1.0, 1.0)).re, f64::INFINITY);
+}
+
+#[test]
+fn test_hyp1f1_pole_polynomial_subnormal_rounding() {
+    let neg_half_up = f64::from_bits((-0.5_f64).to_bits() - 1);
+    let pos_half_down = f64::from_bits(0.5_f64.to_bits() - 1);
+    assert_eq!(xsf::hyp1f1(-2.0, -2.0, c64(neg_half_up, f64::from_bits(1))).im, f64::from_bits(1));
+    assert_eq!(
+        xsf::hyp1f1(-2.0, -2.0, c64(pos_half_down, f64::from_bits(1))).im,
+        f64::from_bits(1)
+    );
+    assert_eq!(
+        xsf::hyp1f1(-1.0, -105.0, c64(0.0, f64::from_bits(0x007a_3fff_ffff_ffff))).im,
+        f64::from_bits(0x000f_ffff_ffff_ffff)
+    );
+    let midpoint = c64(0.0, f64::from_bits(105));
+    assert_eq!(xsf::hyp1f1(-1.0, -70.0, midpoint).im, f64::from_bits(2));
+    assert_eq!(xsf::hyp1f1(-2.0, -140.0, midpoint).im, f64::from_bits(2));
+}
+
+#[test]
+fn test_hyp1f1_pole_polynomial_negative_x() {
+    // Exact rational polynomial sums where the alternating series loses its result.
+    let abx = [
+        (-100.0, -100.0, -30.0),
+        (-101.0, -101.0, -30.0),
+        (-200.0, -200.0, -30.0),
+        (-200.0, -400.0, -100.0),
+        (-800.0, -1600.0, -701.0),
+    ];
+    let expected = [
+        1.276_217_239_854_214e-11,
+        -3.640_767_672_733_493e-12,
+        9.357_622_968_840_175e-14,
+        8.614_306_497_702_449e-24,
+        2.979_358_704_605_038_4e-169,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 }
 
 #[test]
