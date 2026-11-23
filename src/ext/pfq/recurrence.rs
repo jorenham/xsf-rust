@@ -133,7 +133,7 @@ fn upper_coefficients<T: SeriesReal>(w: T, e: [T; 2], h: [T; 2], z: T, minus: f6
 /// it is not accurate within `maxiter` terms
 fn recurrence_start(
     a: [f64; 3],
-    b: [f64; 3],
+    b: [f64; 2],
     z: f64,
     maxiter: u32,
     ratio: impl Fn(f64) -> Dd,
@@ -198,16 +198,16 @@ fn lower_recurrence(
     m: u32,
     work: &Cell<u32>,
 ) -> Option<(Dd, f64, f64)> {
-    let checked = pfq_extreme(&a, &[bj, other, 1.0]);
+    let checked = pfq_extreme(&a, &[bj, other]);
     work.set(work.get().checked_sub(m)?);
     let start = |k: f64| {
         // the terms for `u` itself, which `pfq_terms` would round
         let u = Dd::new(bj) + k;
         let ratio = |n| {
             work.set(work.get() - 1);
-            pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n)
+            pfq_ratio::<Dd>(&a, &[other], n, checked) / (u + n)
         };
-        recurrence_start(a, [u.hi, other, 1.0], z, PFQ_DD_MAXITER.min(work.get()), ratio)
+        recurrence_start(a, [u.hi, other], z, PFQ_DD_MAXITER.min(work.get()), ratio)
     };
     lower_steps(a, bj, other, z, m, start)
 }
@@ -256,17 +256,17 @@ fn upper_recurrence(
     maxiter: u32,
     work: &Cell<u32>,
 ) -> Option<(Dd, f64, f64)> {
-    let (others, b1) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[0], b[1], 1.0]);
-    let checked = pfq_extreme(&a, &b1);
+    let others = [a[(i + 1) % 3], a[(i + 2) % 3]];
+    let checked = pfq_extreme(&a, &b);
     work.set(work.get().checked_sub(m)?);
     let start = |k: f64| {
         // the terms for `u` itself, as for a lower parameter
         let u = Dd::new(a[i]) + k;
         let ratio = |n| {
             work.set(work.get() - 1);
-            pfq_ratio::<Dd>(&others, &b1, n, checked) * (u + n)
+            pfq_ratio::<Dd>(&others, &b, n, checked) * (u + n)
         };
-        recurrence_start([u.hi, others[0], others[1]], b1, z, maxiter.min(work.get()), ratio)
+        recurrence_start([u.hi, others[0], others[1]], b, z, maxiter.min(work.get()), ratio)
     };
     // F(a_i + k) from the relation at a = a_i + k
     recurrence_from(m, start, |k| upper_step(a, i, b, z, Dd::new(a[i]) + (k + 1.0)))
@@ -287,15 +287,14 @@ fn raised_recurrence(
     work: &Cell<u32>,
 ) -> Option<(Dd, f64)> {
     let Some(i) = (i..3).find(|&i| a[i] >= RAISED_MIN) else {
-        let b1 = [b[0], b[1], 1.0];
-        let checked = pfq_extreme(&a, &b1);
+        let checked = pfq_extreme(&a, &b);
         // one of the work for each term, up to all that is left: near z = -1, the series can
         // take more than `PFQ_DD_MAXITER` terms
         let ratio = |n| {
             work.set(work.get() - 1);
-            pfq_ratio::<Dd>(&a, &b1, n, checked)
+            pfq_ratio::<Dd>(&a, &b, n, checked)
         };
-        return recurrence_start(a, b1, z, work.get(), ratio);
+        return recurrence_start(a, b, z, work.get(), ratio);
     };
     // (so that the lowest start is not negative)
     let m = m.min(a[i] as u32 - 2);
@@ -377,20 +376,14 @@ fn raised_first(a: [f64; 3], b: [f64; 2], z: f64, work: &Cell<u32>) -> Option<(D
     results.find(|&(y, err)| accurate(y, err).is_some())
 }
 
-/// The upper and lower parameters of a 3F2, without the 1 of `n!` and in descending order, or
-/// `None` if it is not 3F2
-fn params_3f2<P: Params>(a: &P, b: &P) -> Option<([f64; 3], [f64; 2])> {
-    // `a` and `b` are in descending order, and `b` has the 1 of `n!`
-    let a: [f64; 3] = a.as_ref().try_into().ok()?;
-    let &([1.0, large, small] | [large, 1.0, small] | [large, small, 1.0]) = b.as_ref() else {
-        return None;
-    };
-    Some((a, [large, small]))
+/// The upper and lower parameters of a 3F2 in descending order, or `None` if it is not 3F2
+fn params_3f2<A: Params, B: Params>(a: &A, b: &B) -> Option<([f64; 3], [f64; 2])> {
+    Some((a.as_ref().try_into().ok()?, b.as_ref().try_into().ok()?))
 }
 
 /// 3F2 for `|z| < 1` by the recurrence in a parameter, and an estimate of its absolute error,
 /// or `None` if it is not 3F2 or not accurate
-pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+pub(super) fn pfq_recurrence<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, f64)> {
     let (a, [large, small]) = params_3f2(a, b)?;
     let lower = |(bj, other)| {
         let run = |m| lower_recurrence(a, bj, other, z, m, &Cell::new(u32::MAX));
@@ -412,7 +405,11 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
 /// 3F2 for `|z| < 1` by the steps down in a negative smaller lower parameter from where
 /// `raised_first` gives F, and an estimate of its absolute error, or `None` if it is not 3F2 or
 /// not accurate
-pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+pub(super) fn pfq_recurrence_lowered<A: Params, B: Params>(
+    a: &A,
+    b: &B,
+    z: f64,
+) -> Option<(f64, f64)> {
     let (a, [large, small]) = params_3f2(a, b)?;
     if z >= 0.0 || a[0] < RAISED_MIN {
         return None;
@@ -432,7 +429,11 @@ pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<
 ///
 /// It tries the starts nearest to 0 first, where the series that their F come from cancel least.
 /// All tries share `NESTED_WORK`.
-pub(super) fn pfq_recurrence_nested<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+pub(super) fn pfq_recurrence_nested<A: Params, B: Params>(
+    a: &A,
+    b: &B,
+    z: f64,
+) -> Option<(f64, f64)> {
     let (a, [large, small]) = params_3f2(a, b)?;
     if z >= 0.0 {
         return None;
@@ -465,7 +466,11 @@ pub(super) fn pfq_recurrence_nested<P: Params>(a: &P, b: &P, z: f64) -> Option<(
 /// The search is a heuristic: it bisects as if the estimate of the rounding errors grew with the
 /// steps and only too few steps made a start inaccurate, which the long series near `z = 1` and
 /// the rounding of the starts can break, and it returns the first accurate result it finds.
-pub(super) fn pfq_recurrence_balanced<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+pub(super) fn pfq_recurrence_balanced<A: Params, B: Params>(
+    a: &A,
+    b: &B,
+    z: f64,
+) -> Option<(f64, f64)> {
     let (a, b) = params_3f2(a, b)?;
     let work = Cell::new(BALANCED_WORK);
     let balanced = |i| {
@@ -494,7 +499,7 @@ mod tests {
 
     /// Asserts that the result is accurate, and that it differs from the series, which is
     /// accurate too, by at most their estimated errors
-    fn assert_estimate(result: Option<(f64, f64)>, a: [f64; 3], b: [f64; 3], z: f64) {
+    fn assert_estimate(result: Option<(f64, f64)>, a: [f64; 3], b: [f64; 2], z: f64) {
         let ((y, err), (expected, series_err)) = (result.unwrap(), pfq_series(&a, &b, z));
         assert!(err <= 1e-13 * y.abs(), "({a:?}, {b:?}, {z}): {err}");
         assert!((y - expected).abs() <= err + series_err, "{y} != {expected} ({err})");
@@ -503,11 +508,11 @@ mod tests {
     #[test]
     fn test_pfq_recurrence_estimate() {
         for (a, b, z) in [
-            ([1.5, 2.5, 3.5], [4.25, 1.0, 0.75], -0.5),
-            ([10.5, -7.25, 0.5], [3.5, 1.0, -2.75], 0.3),
-            ([30.5, 20.25, 0.125], [2.5, 1.0, -0.999_999], -0.9),
+            ([1.5, 2.5, 3.5], [4.25, 0.75], -0.5),
+            ([10.5, -7.25, 0.5], [3.5, -2.75], 0.3),
+            ([30.5, 20.25, 0.125], [2.5, -0.999_999], -0.9),
             // z > 1/2, where the errors grow in each step
-            ([0.5, 1.25, -0.75], [12.5, 2.5, 1.0], 0.75),
+            ([0.5, 1.25, -0.75], [12.5, 2.5], 0.75),
         ] {
             assert_estimate(pfq_recurrence(&a, &b, z), a, b, z);
         }
@@ -526,7 +531,7 @@ mod tests {
                 upper_recurrence(a, 2, [b1, b2], z, m, PFQ_DD_MAXITER, &Cell::new(u32::MAX))
             });
             let result = result.and_then(|(y, err)| accurate(y, err));
-            assert_estimate(result, a, descending([b1, b2, 1.0]), z);
+            assert_estimate(result, a, descending([b1, b2]), z);
         }
     }
 
@@ -541,7 +546,7 @@ mod tests {
         ] {
             let result = raised_recurrence(a, 0, [b1, b2], z, m, &Cell::new(RAISED_WORK));
             let result = result.and_then(|(y, err)| accurate(y, err));
-            assert_estimate(result, a, descending([b1, b2, 1.0]), z);
+            assert_estimate(result, a, descending([b1, b2]), z);
         }
     }
 

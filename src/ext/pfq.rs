@@ -1,8 +1,8 @@
 //! Generalized hypergeometric functions pFq of real arguments.
 //!
-//! The internal functions are generic over the numbers of parameters. They take the lower
-//! parameters together with the 1 of `n!` as `b`, so that the terms of the series are
-//! `t_n = z^n prod_i (a_i)_n / prod_j (b_j)_n`.
+//! The internal functions take `a` and `b` directly (without a synthetic `1` for `n!`), and
+//! supply the `(1)_n = n!` factor in the denominator where series terms or ratio bounds are
+//! evaluated.
 
 use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
@@ -161,7 +161,8 @@ const PFQ_NEGLIGIBLE: f64 = 1e-150;
 /// The sizes of the parameters for which `pfq_products` is exact enough for all `n`
 const PFQ_MODERATE: core::ops::RangeInclusive<f64> = 1e-30..=1e30;
 
-/// Most parameters in `a` or in `b` for which `pfq_products` is exact
+/// Most effective factors in `a` or in `b` (including the 1 of `n!`) for which `pfq_products` is
+/// exact
 const PFQ_MAX_UNCHECKED: usize = 4;
 
 /// Below the logarithm of the smallest positive normal number
@@ -317,7 +318,7 @@ fn pfq_settled(a: &[f64], b: &[f64]) -> f64 {
 /// The factor of the measured rounding errors for more than `PFQ_MEASURED_PARAMS` parameters,
 /// as each of them adds its own to a term
 fn pfq_rounding_scale(a: &[f64], b: &[f64]) -> f64 {
-    ((a.len() + b.len()) as f64 / PFQ_MEASURED_PARAMS).max(1.0)
+    ((a.len() + b.len() + 1) as f64 / PFQ_MEASURED_PARAMS).max(1.0)
 }
 
 /// `v` in descending order, as `pfq_ratio_bound` is tightest if `a` and `b` are sorted alike
@@ -345,17 +346,34 @@ fn recip_up(z: f64) -> f64 {
     }
 }
 
+/// `b` with the `1` of `n!` inserted in descending order (for a descending `b`)
+fn with_one(b: &[f64]) -> impl Iterator<Item = f64> + Clone + '_ {
+    let k = b.partition_point(|&v| v > 1.0);
+    b[..k]
+        .iter()
+        .copied()
+        .chain(once(1.0))
+        .chain(b[k..].iter().copied())
+}
+
 /// Bound on `|t_{m+1} / t_m|` for all `m >= n`, if all `a_i + n` and `b_j + n` are positive,
 /// except that for a longer `a` the unpaired `a_i + m` are taken at `m = n` (and they grow)
 ///
-/// Each `a_i` is paired with `b_i`: `(a_i + m) / (b_i + m)` decreases to 1, or stays below 1.
-/// The other `1 / (b_j + m)` decrease. This is tightest if `a` and `b` are sorted alike.
+/// `b` is the complete denominator (including the `1` of `n!`), of length `b_len`. Each `a_i` is
+/// paired with `b_i`: `(a_i + m) / (b_i + m)` decreases to 1, or stays below 1. The other
+/// `1 / (b_j + m)` decrease. This is tightest if `a` and `b` are sorted alike.
 ///
 /// The factors are multiplied as mantissas and binary exponents so intermediate products cannot
 /// overflow to `inf` and divide the bound down to `0`, and any inexact product or quotient is
 /// rounded up (including subnormal conversion) so the result never falls below the exact bound
 /// for the given `a`, `b`, `z`, and `n`.
-fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
+fn pfq_ratio_bound_iter(
+    a: &[f64],
+    b: impl Iterator<Item = f64> + Clone,
+    b_len: usize,
+    z: f64,
+    n: f64,
+) -> f64 {
     let az = z.abs();
     let scale = |(m, e, r): (f64, i64, usize), f: f64, divide: bool| {
         let ok = f.is_finite() && if divide { f > 0.0 } else { f >= 0.0 };
@@ -373,7 +391,7 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     let acc = (az > 0.0 && az.is_finite()).then(|| {
         let (zm, ze) = frexp_f64(az);
         let init = (zm, i64::from(ze), 0_usize);
-        let acc = zip(a, b).try_fold(init, |acc, (&ai, &bj)| {
+        let acc = zip(a, b.clone()).try_fold(init, |acc, (&ai, bj)| {
             if ai > bj {
                 scale(scale(acc, ai + n, false)?, bj + n, true)
             } else {
@@ -382,11 +400,10 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
         })?;
         let acc = a
             .iter()
-            .skip(b.len())
+            .skip(b_len)
             .try_fold(acc, |acc, &ai| scale(acc, ai + n, false))?;
-        b.iter()
-            .skip(a.len())
-            .try_fold(acc, |acc, &bj| scale(acc, bj + n, true))
+        b.skip(a.len())
+            .try_fold(acc, |acc, bj| scale(acc, bj + n, true))
     });
     if az == 0.0 {
         0.0
@@ -411,8 +428,21 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     }
 }
 
+/// `pfq_ratio_bound` for a complete descending denominator `b` that already includes the `n + 1`
+/// factorial factor (e.g. from `Residues` or already-shifted `pfq_alg_series_dd`)
+fn pfq_ratio_bound_full(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
+    pfq_ratio_bound_iter(a, b.iter().copied(), b.len(), z, n)
+}
+
+/// Bound on `|t_{m+1} / t_m|` for all `m >= n` (if all `a_i + n` and `b_j + n` are positive,
+/// except that for `a.len() > b.len() + 1` the unpaired `a_i + m` are taken at `m = n` and grow),
+/// for descending `a` and `b` without the `1` of `n!`, which is inserted in descending order
+fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
+    pfq_ratio_bound_iter(a, with_one(b), b.len() + 1, z, n)
+}
+
 /// `pfq_ratio_bound`, but infinite unless the ratios `|t_{m+1} / t_m|` from `m = n` on stay
-/// at least 1 once they reach it, for a longer `a`
+/// at least 1 once they reach it, for a longer `a` (more than `b.len() + 1` parameters)
 ///
 /// They are at most 1 up to the `m0` where `pfq_ratio_bound` is 1 with each unpaired `a_i + n`
 /// replaced by `x + m0`, for the largest unpaired `a_i = x`. From `m0` on they grow if the
@@ -422,15 +452,15 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
 /// then decrease or stay below 1.
 fn pfq_regrowth_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     let bound = pfq_ratio_bound(a, b, z, n);
-    match a.get(b.len()..).filter(|v| !v.is_empty()) {
+    match a.get(b.len() + 1..).filter(|v| !v.is_empty()) {
         None => bound,
         Some(unpaired) if bound.is_finite() => {
             let (k, x) = (unpaired.len() as f64, unpaired[0]);
-            let paired = zip(a, b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
+            let paired = zip(a, with_one(b)).map(|(&a, b)| ((a + n) / (b + n)).max(1.0));
             let base = paired.product::<f64>() * z.abs();
             let m0 = base.powf(-k.recip()) - x;
-            let pulls = zip(a, b).filter(|(a, b)| a > b);
-            let pull = pulls.map(|(a, b)| (a - b) / (b + m0) * ((x + m0) / (a + m0)).max(1.0));
+            let pulls = zip(a, with_one(b)).filter(|&(&a, b)| a > b);
+            let pull = pulls.map(|(&a, b)| (a - b) / (b + m0) * ((x + m0) / (a + m0)).max(1.0));
             if base.is_normal() && m0 >= n && pull.sum::<f64>() <= k {
                 bound
             } else {
@@ -441,14 +471,15 @@ fn pfq_regrowth_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     }
 }
 
-/// The products of the `a_i + n` and of the `b_j + n`, whose quotient is `t_{n+1} / (z t_n)`
+/// The products of the `a_i + n` and of `(1 + n)` times the `b_j + n`, whose quotient is
+/// `t_{n+1} / (z t_n)`
 ///
-/// They and their quotient are normal for up to `PFQ_MAX_UNCHECKED` parameters with sizes in
+/// They and their quotient are normal for up to `PFQ_MAX_UNCHECKED` factors with sizes in
 /// `PFQ_MODERATE`, as each nonzero `|a_i + n|` is then in `[2^-100, 2^101]`.
 fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
     let shifted = |p: T, &v: &f64| p * (T::from_f64(v) + n);
     let one = T::from_f64(1.0);
-    [a.iter().fold(one, shifted), b.iter().fold(one, shifted)]
+    [a.iter().fold(one, shifted), b.iter().fold(one + n, shifted)]
 }
 
 /// Whether `v` is normal in the arithmetic of `T`
@@ -459,15 +490,17 @@ fn is_normal<T: SeriesReal>(v: T) -> bool {
 /// `t_{n+1} / (z t_n)` for any parameters and `n`, as a mantissa and an `i64` exponent, so that
 /// no partial product over- or underflows
 fn pfq_frexp_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> (T, i64) {
-    let product = |params: &[f64]| {
+    let product = |params: &[f64], init: (T, i64)| {
         let times = |(m, e): (T, i64), &v: &f64| {
             let (vm, ve) = (T::from_f64(v) + n).frexp();
             let (m, me) = (m * vm).frexp();
             (m, e + i64::from(ve) + i64::from(me))
         };
-        params.iter().fold((T::from_f64(1.0), 0), times)
+        params.iter().fold(init, times)
     };
-    let ((num, ne), (den, de)) = (product(a), product(b));
+    let (fm, fe) = (T::from_f64(1.0) + n).frexp();
+    let ((num, ne), (den, de)) =
+        (product(a, (T::from_f64(1.0), 0)), product(b, (fm, i64::from(fe))));
     (num / den, ne - de)
 }
 
@@ -485,7 +518,7 @@ fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
     let ln_abs = |params: &[f64]| params.iter().map(|v| (v + n).abs().ln()).sum::<f64>();
     if is_normal(ratio) {
         ratio
-    } else if ln_abs(a) - ln_abs(b) < PFQ_LN_UNDERFLOW {
+    } else if ln_abs(a) - ln_abs(b) - (1.0 + n).ln() < PFQ_LN_UNDERFLOW {
         T::from_f64(0.0)
     } else {
         T::from_f64(f64::INFINITY)
@@ -501,7 +534,7 @@ fn pfq_underflow_bound<T: SeriesReal>(term: T, z: f64) -> T {
 
 /// Whether `pfq_products` is not exact enough for these parameters
 fn pfq_extreme(a: &[f64], b: &[f64]) -> bool {
-    let many = a.len().max(b.len()) > PFQ_MAX_UNCHECKED;
+    let many = a.len().max(b.len() + 1) > PFQ_MAX_UNCHECKED;
     many || a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()))
 }
 
@@ -645,10 +678,10 @@ fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f6
     }
 }
 
-/// Maximum number of roundings of a ratio `t_{k+1} / t_k`: each `a_i + k` and `b_j + k`, the
-/// product, the quotient, and the factors `z` and `t_k`
+/// Maximum number of roundings of a ratio `t_{k+1} / t_k`: each `a_i + k`, `b_j + k`, and
+/// `1 + k`, the product, the quotient, and the factors `z` and `t_k`
 fn pfq_ratio_roundings(a: &[f64], b: &[f64]) -> f64 {
-    2.0 * (a.len() + b.len()) as f64 + 3.0
+    2.0 * (a.len() + b.len() + 1) as f64 + 3.0
 }
 
 /// `pfq_series_tails` in the arithmetic of `T`, with at most `maxiter` terms, and with the sum
@@ -744,7 +777,7 @@ fn pfq_sum_terms<T: SeriesReal>(
                 let rho = pfq_ratio_bound(a, b, z, n + 1.0);
                 // geometric bound on the remaining terms, if the series converges (p <= q + 1)
                 let tail = t.abs() * rho / (1.0 - rho);
-                if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
+                if a.len() <= b.len() + 1 && rho < 1.0 && tail <= tol * s.abs() {
                     let (rounding, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
                     ControlFlow::Break(Some((rounding + tail, tails)))
                 } else {
@@ -833,7 +866,7 @@ fn pfq_weniger<T: SeriesReal>(
         if !is_normal(term) {
             // overflow, or underflow, after which the terms only matter if they can increase
             let negligible = term.to_f64().abs() < 1.0
-                && a.len() <= b.len()
+                && a.len() <= b.len() + 1
                 && pfq_ratio_bound(a, b, z, n) <= 1.0;
             let noise = eps * scale;
             return Some((sum.to_f64(), if negligible { noise } else { f64::INFINITY }));
@@ -940,25 +973,28 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
 /// The analytic continuation to `z < -1` (DLMF 16.8.8) and an estimate of its absolute error, or
 /// `None` if a factor of a coefficient overflows or underflows
 ///
-/// This is for `p = q + 1`, where `b` contains the 1 of `n!`. It is a sum over `j` of series in
-/// `1 / z` with the parameters `a_j + 1 - b` and `a_j + 1 - a`, or its limit where `a_i` differ
-/// by integers, which is `None` if it underflows or overflows.
-fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
-    let one = b.as_ref().iter().position(|&v| v == 1.0)?;
-    let mut diffs = zip(a.as_ref(), 0..).flat_map(|(aj, j)| skip(a, j).map(move |ak| ak - aj));
+/// This is for `p = q + 1`. It is a sum over `j` of series in `1 / z` with the parameters
+/// `a_j`, `a_j + 1 - b`, and `a_j + 1 - a` (`k != j`), or its limit where `a_i` differ by
+/// integers, which is `None` if it underflows or overflows.
+fn pfq_continuation<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, f64)> {
+    let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
+    let mut diffs = zip(a_ref, 0..).flat_map(|(aj, j)| skip(&a_ref, j).map(move |ak| ak - aj));
     if diffs.any(|d| d.fract() == 0.0) {
         // the terms of DLMF 16.8.8 are infinite: their limit is the sum of the terms of `pfq_alg`
-        let b: Vec<f64> = skip(b, one).chain([1.0]).collect();
-        let mut terms = vec![None; a.as_ref().len()];
-        pfq_alg(a, &b, z, Alg::Value, &mut terms)?;
+        let mut terms = vec![None; a_ref.len()];
+        pfq_alg(a_ref, b_ref, z, Alg::Value, &mut terms)?;
         let (y, err) = add_exp(terms.into_iter().flatten())?.to_f64();
         return y.is_normal().then_some((y, err * y.abs()));
     }
     let (mut sum, mut err) = (0.0, 0.0);
-    for (j, &aj) in a.as_ref().iter().enumerate() {
+    for (j, &aj) in a_ref.iter().enumerate() {
         // Gamma(a_k - a_j) / Gamma(a_k) and Gamma(b_k) / Gamma(b_k - a_j) for each k != j
-        let ratios = skip(a, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
-        let ratios = ratios.chain(skip(b, one).map(|bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))));
+        let ratios = skip(&a_ref, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
+        let ratios = ratios.chain(
+            b_ref
+                .iter()
+                .map(|&bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))),
+        );
         // (-z)^(-a_j) is the square of this root, which stays normal for larger a_j
         let root = Some((-z).powf(-0.5 * aj)).filter(|r| r.is_normal())?;
         // the coefficient as a mantissa and a power of 2, as products of its factors can
@@ -975,9 +1011,9 @@ fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
             continue;
         }
         let c = ldexp_f64(c, exp);
-        // a_j + 1 - b and a_j + 1 - a, and the relative effect of their rounding errors on the
-        // terms of their series, which is large near a non-positive integer -m: there it is on
-        // the terms from n = m on, and not on those before them
+        // a_j, a_j + 1 - b, and a_j + 1 - a (k != j), and the relative effect of their rounding
+        // errors on the terms of their series, which is large near a non-positive integer -m:
+        // there it is on the terms from n = m on, and not on those before them
         let (mut rounding, mut near) = (0.0, 0.0);
         let mut shift = |v: f64| {
             let (d, e1) = two_sum(aj, -v);
@@ -991,12 +1027,16 @@ fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
             }
             x
         };
-        let mut shifted = |v: &P| {
-            let mut v = v.clone();
-            v.as_mut().iter_mut().for_each(|x| *x = shift(*x));
-            descending(v)
-        };
-        let (upper, lower) = (shifted(b), shifted(a));
+        let mut upper = a.clone();
+        upper.as_mut()[0] = aj;
+        for (dst, &bk) in zip(&mut upper.as_mut()[1..], b_ref) {
+            *dst = shift(bk);
+        }
+        let mut lower = b.clone();
+        for (dst, ak) in zip(lower.as_mut(), skip(&a_ref, j)) {
+            *dst = shift(ak);
+        }
+        let (upper, lower) = (descending(upper), descending(lower));
         let (f, f_err, tails) = pfq_series_tails(&upper, &lower, 1.0 / z);
         sum += c * f;
         // those terms sum to a tail of the series; the last part is for a subnormal c
@@ -1008,19 +1048,19 @@ fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
 
 /// A method for `p = q + 1`, which returns the result and an estimate of its absolute error, or
 /// `None`
-type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
+type Method<A, B> = fn(&A, &B, f64) -> Option<(f64, f64)>;
 
 /// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate,
 /// else by the most accurate one
 ///
-/// `b` contains the 1 of `n!`. Unless it is a polynomial, the last methods are `pfq_conformal`,
-/// which is the slowest, and for `|z| < 1` `pfq_recurrence`, `pfq_series_long`,
-/// `pfq_recurrence_lowered`, `pfq_recurrence_balanced` and `pfq_recurrence_nested`, of which all
-/// but `pfq_series_long` only apply to 3F2, and then `pfq_overflow`.
-fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
-    let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
+/// Unless it is a polynomial, the last methods are `pfq_conformal`, which is the slowest, and for
+/// `|z| < 1` `pfq_recurrence`, `pfq_series_long`, `pfq_recurrence_lowered`,
+/// `pfq_recurrence_balanced` and `pfq_recurrence_nested`, of which all but `pfq_series_long` only
+/// apply to 3F2, and then `pfq_overflow`.
+fn pfq_accurate<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
+    let series: Method<A, B> = |a, b, z| Some(pfq_series(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
-    let methods: &[Method<P>] = if polynomial || z > PFQ_WENIGER_MAX_Z {
+    let methods: &[Method<A, B>] = if polynomial || z > PFQ_WENIGER_MAX_Z {
         &[series]
     } else if z > -1.0 {
         &[pfq_weniger::<f64>, series]
@@ -1031,8 +1071,8 @@ fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     } else {
         &[pfq_continuation, pfq_weniger::<f64>]
     };
-    let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
-    let inside: &[Method<P>] = if !polynomial && z.abs() < 1.0 {
+    let last: Option<Method<A, B>> = (!polynomial).then_some(conformal::pfq_conformal);
+    let inside: &[Method<A, B>] = if !polynomial && z.abs() < 1.0 {
         &[
             recurrence::pfq_recurrence,
             pfq_series_long,
@@ -1120,8 +1160,8 @@ fn sum_dd(v: &[f64]) -> Dd {
     v.iter().fold(Dd::ZERO, |s, &v| s + v)
 }
 
-/// Whether the series of `_{q+1}F_q` diverges at `z = 1`, where `sum_j b_j <= sum_i a_i`
-/// for `b` without the 1 of `n!`, or `None` if that is uncertain
+/// Whether the series of `_{q+1}F_q` diverges at `z = 1`, where `sum_j b_j <= sum_i a_i`, or
+/// `None` if that is uncertain
 ///
 /// The sums are in double-double, as their rounding can change the sign of their difference.
 fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
@@ -1145,8 +1185,8 @@ fn late_sign(a: &[f64], b: &[f64]) -> f64 {
     a.iter().chain(b).map(|&v| gammasgn(v)).product()
 }
 
-/// `_{q+1}F_q` for finite arguments, where the last of `b` is the 1 of `n!`
-fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
+/// `_{q+1}F_q` for finite arguments
+fn pfq_real<A: Params, B: Params>(a: A, b: B, z: f64) -> Option<Estimate> {
     if z == 0.0 {
         return Some(Estimate::exact(1.0));
     }
@@ -1159,7 +1199,7 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
     } else if degree.is_infinite() && z == 1.0 {
         // +-inf where the series diverges, and no method where it converges
         let (a, b) = (a.as_ref(), b.as_ref());
-        let diverges = diverges_at_one(a, b.split_last()?.1)?;
+        let diverges = diverges_at_one(a, b)?;
         diverges.then(|| Estimate::exact(f64::INFINITY * late_sign(a, b)))
     } else {
         pfq_accurate(&descending(a), &descending(b), z)
@@ -1226,19 +1266,19 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
     if ![a1, a2, a3, b1, b2, z].into_iter().all(f64::is_finite) {
         return pfq_estimate(&[a1, a2, a3], &[b1, b2], z);
     }
-    let (a, b) = ([a1, a2, a3], [b1, b2, 1.0]);
+    let (a, b) = ([a1, a2, a3], [b1, b2]);
     // a common parameter cancels: 2F1, or 1F0 if that has one as well
     let mut pairs = (0..3).flat_map(|i| (0..2).map(move |j| (i, j)));
     let Some((i, j)) = pairs.find(|&(i, j)| a[i] == b[j]) else {
         return pfq_real(a, b, z);
     };
-    let (a, b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j], 1.0]);
+    let (a, b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j]]);
     match a.iter().position(|&v| v == b[0]) {
         // the closed form of `pfq_estimate` is also real for z > 1 if `a` is an integer
         Some(i) => pfq_estimate(&[a[1 - i]], &[], z),
         None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_better(|| pfq_real(a, b, z)),
         // `pfq_real` is NaN there, as complex, but this 2F1 can be real
-        None if z > 1.0 && first_zero(&a).is_infinite() => pfq_estimate(&a, &b[..1], z),
+        None if z > 1.0 && first_zero(&a).is_infinite() => pfq_estimate(&a, &b, z),
         None => pfq_real(a, b, z),
     }
 }
@@ -1603,58 +1643,59 @@ fn shifted(am: f64, v: f64, upper: bool) -> (f64, f64, f64) {
     (x, k, if upper { upper_factor } else { rounded / exact })
 }
 
-/// The `k` and factors of the parameters of a series from `shifted`
-struct Shifts<P> {
-    ks: P,
-    factors: P,
-}
-
-impl<P: Params> Shifts<P> {
-    fn iter(&self) -> impl Iterator<Item = (&f64, &f64)> {
-        zip(self.ks.as_ref(), self.factors.as_ref())
-    }
-}
-
-/// `shifted(am, v, upper)` for each `v` of `params`, but with `value` as the parameter at `own`
-fn shifted_params<P: Params>(
-    params: &P,
-    am: f64,
-    upper: bool,
-    (own, value): (usize, f64),
-) -> (P, Shifts<P>) {
-    let (mut xs, mut ks, mut factors) = (params.clone(), params.clone(), params.clone());
-    for (i, &v) in params.as_ref().iter().enumerate() {
-        (xs.as_mut()[i], ks.as_mut()[i], factors.as_mut()[i]) = shifted(am, v, upper);
-    }
-    (xs.as_mut()[own], ks.as_mut()[own], factors.as_mut()[own]) = (value, 0.0, 1.0);
-    (xs, Shifts { ks, factors })
-}
-
 /// The series of the term of `a_m` of the algebraic part (DLMF 16.11.2), as its sum and
-/// absolute error, where `b` contains the 1 of `n!` as its last parameter
+/// absolute error
 ///
 /// With `sizes`, it is the sum of the sizes of its terms.
-fn pfq_alg_series<A: Params, B: Params>(
-    a: &A,
-    b: &B,
-    m: usize,
-    z: f64,
-    sizes: bool,
-) -> Option<(f64, f64)> {
-    let am = a.as_ref()[m];
-    let last = b.as_ref().len().checked_sub(1)?;
-    // a_m instead of the 1 of n!, and 1 + a_m - b_j
-    let (mut upper, up_shifts) = shifted_params(b, am, true, (last, am));
-    // the 1 of n!, and 1 + a_m - a_i
-    let (mut lower, low_shifts) = shifted_params(a, am, false, (m, 1.0));
-    let (up, low) = (&*descending(upper.as_mut()), &*descending(lower.as_mut()));
+fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, f64) {
+    let am = a[m];
+    let (mut shift_buf, mut shift_vec) = ([(0.0, 1.0); 16], Vec::new());
+    let n_shifts = a.len() + b.len() - 1;
+    let shifts = if n_shifts <= shift_buf.len() {
+        &mut shift_buf[..n_shifts]
+    } else {
+        shift_vec.resize(n_shifts, (0.0, 1.0));
+        &mut shift_vec[..]
+    };
+    let mut s_idx = 0;
+    let mut next_shifted = |v: f64, upper: bool| {
+        let (x, k, factor) = shifted(am, v, upper);
+        shifts[s_idx] = (k, factor);
+        s_idx += 1;
+        x
+    };
+    // a_m and 1 + a_m - b_j, over 1 + a_m - a_i (i != m) with the 1 of n! implicit
+    let (mut up_buf, mut up_vec) = ([0.0; 8], Vec::new());
+    let upper = if b.len() < up_buf.len() {
+        &mut up_buf[..=b.len()]
+    } else {
+        up_vec.resize(b.len() + 1, 0.0);
+        &mut up_vec[..]
+    };
+    upper[0] = am;
+    for (dst, &bj) in zip(&mut upper[1..], b) {
+        *dst = next_shifted(bj, true);
+    }
+    let (mut low_buf, mut low_vec) = ([0.0; 8], Vec::new());
+    let low_len = a.len().saturating_sub(1);
+    let lower = if low_len <= low_buf.len() {
+        &mut low_buf[..low_len]
+    } else {
+        low_vec.resize(low_len, 0.0);
+        &mut low_vec[..]
+    };
+    for (dst, ai) in zip(&mut *lower, skip(&a, m)) {
+        *dst = next_shifted(ai, false);
+    }
+    let (up, low) = (&*descending(upper), &*descending(lower));
     let bound = |n| pfq_regrowth_bound(up, low, recip_up(z), n);
     // kappa = q - p + 1, or 0 for p > q + 1, where the series converges
-    let (p, q) = (a.as_ref().len(), last);
+    let (p, q) = (a.len(), b.len());
     let kappa = (q + 1).saturating_sub(p);
     // their k and factors, and the largest k with the factor of the terms after it
-    let shifts = || up_shifts.iter().chain(low_shifts.iter());
-    let (k_max, all) = shifts().fold((0.0_f64, 1.0), |(top, all), (&k, &f)| (k.max(top), all * f));
+    let (k_max, all) = shifts
+        .iter()
+        .fold((0.0_f64, 1.0), |(top, all), &(k, f)| (k.max(top), all * f));
     let series = once(1.0)
         // in (-1)^(p+q+1) / z
         .chain(pfq_terms(up, low, neg_one_pow(p + q + 1) / z))
@@ -1664,11 +1705,11 @@ fn pfq_alg_series<A: Params, B: Params>(
             if n > k_max {
                 t * all
             } else {
-                shifts().fold(t, |t, (&k, &f)| if n > k { t * f } else { t })
+                shifts.iter().fold(t, |t, &(k, f)| if n > k { t * f } else { t })
             }
         })
         .map(|t| if sizes { t.abs() } else { t });
-    Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
+    pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound)
 }
 
 /// `pfq_alg_series` for `p = q` or `p > q + 1` in double-double, with the exact parameters, and
@@ -1676,7 +1717,7 @@ fn pfq_alg_series<A: Params, B: Params>(
 ///
 /// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
 fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
-    let [mut up, mut low] = residue::series_params(a, &b[..b.len() - 1], m);
+    let [mut up, mut low] = residue::series_params(a, b, m);
     // (so that the factors of a term ratio pair by size, with the smallest of `up` unpaired)
     for v in [&mut up, &mut low] {
         v.sort_unstable_by(|x, y| y.hi.total_cmp(&x.hi));
@@ -1690,7 +1731,7 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         if n == degree {
             Dd::ZERO
         } else {
-            prod(&up) / (prod(&low) * (neg_one_pow(a.len() + b.len()) * z))
+            prod(&up) / (prod(&low) * (neg_one_pow(a.len() + b.len() + 1) * z))
         }
     };
     let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
@@ -1710,7 +1751,7 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
             for (dst, &x) in zip(&mut low_s, &low) {
                 *dst = (x + n).hi;
             }
-            pfq_ratio_bound(&up_s, &low_s, recip_up(z), 0.0)
+            pfq_ratio_bound_full(&up_s, &low_s, recip_up(z), 0.0)
         };
         let positive_from = |x: &Dd| (-*x).floor().hi + 1.0;
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
@@ -1767,7 +1808,7 @@ fn pfq_class_term(
     sizes: bool,
     term: &mut Option<Scaled>,
 ) -> Option<()> {
-    let (am, lower) = (a[m], &b[..b.len() - 1]);
+    let am = a[m];
     let others = skip(&a, m).map(Dd::new);
     let diffs = others.clone().map(|ai| ai - am);
     let before = |(d, i): (Dd, usize)| d.is_integer() && (d.hi < 0.0 || d.hi == 0.0 && i < m);
@@ -1777,18 +1818,19 @@ fn pfq_class_term(
     if first_zero(a).is_finite() {
         return (!is_nonpos_int(am)).then_some(());
     }
-    let residues = Residues::of_class(a, lower, m, z);
+    let residues = Residues::of_class(a, b, m, z);
     let [up, low] = residues.params().map(descending);
     // (their order is final after the last zero factor, and their bounds are valid once all
     // parameters plus n exceed 1)
     let settled = pfq_settled(&up, &low).floor() + 2.0;
     let bound =
-        |n| pfq_ratio_bound(&up, &low, recip_up(z), n) * Residues::growth_bound(&up, &low, n);
+        |n| pfq_ratio_bound_full(&up, &low, recip_up(z), n) * Residues::growth_bound(&up, &low, n);
     let sizes = sizes || z > 0.0;
     let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
-    let (sum, err) = pfq_alg_sum(series, settled, b.len().saturating_sub(a.len()), z, bound);
+    let kappa = (b.len() + 1).saturating_sub(a.len());
+    let (sum, err) = pfq_alg_sum(series, settled, kappa, z, bound);
     if (sum, err) != (0.0, 0.0) {
-        let bs = lower.iter().copied().map(Dd::new);
+        let bs = b.iter().copied().map(Dd::new);
         let args = bs.clone().map(|bj| bj - am);
         let poles = args.clone().filter(is_pole);
         let sign = neg_one_pow(poles.clone().filter(|g| g.hi % 2.0 != 0.0).count());
@@ -1824,33 +1866,25 @@ enum Alg {
 ///
 /// For `p > q + 1` and `z < 0`, their series converge, and they sum to `pfq_borel`.
 ///
-/// `b` contains the 1 of `n!` as its last parameter. The term of `a_m` is `|z|^-a_m` times
-/// a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the parameters `a_m` and
-/// `1 + a_m - b_j`, and `1 + a_m - a_i`. It stays `None` if it vanishes, where
-/// `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term, by
-/// `pfq_class_term`, which for `z > 0` is a bound on its size.
+/// The term of `a_m` is `|z|^-a_m` times a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the
+/// parameters `a_m` and `1 + a_m - b_j`, and `1 + a_m - a_i` (`i != m`). It stays `None` if it
+/// vanishes, where `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term,
+/// by `pfq_class_term`, which for `z > 0` is a bound on its size.
 ///
 /// With `Alg::Sizes`, each term is the sum of the sizes of the terms of its series, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
 ///
 /// With `Alg::Dd`, the series and the factor of each term are in double-double, except for the
 /// `a_i` that differ by integers.
-fn pfq_alg<A: Params, B: Params>(
-    a: &A,
-    b: &B,
-    z: f64,
-    mode: Alg,
-    terms: &mut [Option<Scaled>],
-) -> Option<()> {
+fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg, terms: &mut [Option<Scaled>]) -> Option<()> {
     let sizes = mode == Alg::Sizes;
-    let (_, lower) = b.as_ref().split_last()?;
     let ln_z = ln_dd(z.abs());
-    let bs = lower.iter().copied().map(Dd::new);
-    for (m, &am) in a.as_ref().iter().enumerate() {
-        let others = skip(a, m).map(Dd::new);
+    let bs = b.iter().copied().map(Dd::new);
+    for (m, &am) in a.iter().enumerate() {
+        let others = skip(&a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
-            pfq_class_term(a.as_ref(), b.as_ref(), m, z, sizes, &mut terms[m])?;
+            pfq_class_term(a, b, m, z, sizes, &mut terms[m])?;
             continue;
         }
         let num = bs.clone().chain(diffs);
@@ -1860,11 +1894,11 @@ fn pfq_alg<A: Params, B: Params>(
         }
         let l = -ln_z * am;
         let mut y = if mode == Alg::Dd {
-            let (sum, err) = pfq_alg_series_dd(a.as_ref(), b.as_ref(), m, z);
+            let (sum, err) = pfq_alg_series_dd(a, b, m, z);
             let y = Scaled::new(1.0, 0, err / sum.hi.abs())?.with_l(l);
             mul_gammas_in(num, den, mul_dd(y, sum), true)?
         } else {
-            gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes)?, l)?
+            gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes), l)?
         };
         if sizes {
             y.m = y.m.abs();
@@ -1884,9 +1918,9 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Estimate> {
         let mut terms = [None; 2];
         if a[1] == b[1] {
             // they cancel
-            pfq_alg(&[a[0]], &[b[0], 1.0], z, Alg::Value, &mut terms)?;
+            pfq_alg(&[a[0]], &[b[0]], z, Alg::Value, &mut terms)?;
         } else {
-            pfq_alg(&a, &[b[0], b[1], 1.0], z, Alg::Value, &mut terms)?;
+            pfq_alg(&a, &b, z, Alg::Value, &mut terms)?;
         }
         // for `z > 0`, the terms lack the phase of (-z)^(-a_m), whose real part is cos(pi a_m)
         // (the term of a class of `a_i` that differ by integers is a size, so it keeps its sign)
@@ -1982,10 +2016,10 @@ fn hyp2f2_estimate(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<Estimat
     let Some(degree) = pfq_degree(&a, &b) else {
         return Some(Estimate::exact(f64::INFINITY));
     };
-    let series = || Some(pfq_series_sorted(a, [b[0], b[1], 1.0], z));
+    let series = || Some(pfq_series_sorted(a, b, z));
     let asymptotic = || hyp2f2_asymptotic(a, b, z);
     // last, as it is the slowest
-    let asymptotic_dd = || pfq_asymptotic_dd(&a, &[b[0], b[1], 1.0], z);
+    let asymptotic_dd = || pfq_asymptotic_dd(&a, &b, z);
     if degree.is_finite() {
         series()
     } else if z.abs() < HYP2F2_ASYMPTOTIC_FIRST {
@@ -2081,7 +2115,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<Estimate> {
     let exp = hyp1f2_exp(a, b, z)?;
     // the algebraic part, `None` if it vanishes
     let mut alg = [None];
-    pfq_alg(&[a], &[b[0], b[1], 1.0], z, Alg::Value, &mut alg)?;
+    pfq_alg(&[a], &b, z, Alg::Value, &mut alg)?;
     if z > 0.0 {
         Some(Estimate::scaled(exp, alg[0]))
     } else {
@@ -2152,7 +2186,7 @@ fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
     let Some(degree) = pfq_degree(&[a], &b) else {
         return Some(Estimate::exact(f64::INFINITY));
     };
-    let series = || Some(pfq_series_sorted([a], [b[0], b[1], 1.0], z));
+    let series = || Some(pfq_series_sorted([a], b, z));
     let asymptotic = || hyp1f2_asymptotic(a, b, z);
     if degree.is_finite() {
         series()
@@ -2249,16 +2283,20 @@ pub fn hyp2f0(a1: f64, a2: f64, z: f64) -> f64 {
 }
 
 /// The terms `t_k = c_k x^-k` of the exponential part of the asymptotic expansion of
-/// pFq for `p <= q` (DLMF 16.11.1), where `b` contains the 1 of `n!`
+/// pFq for `p <= q` (DLMF 16.11.1)
 ///
 /// With `D = x d/dx` and `kappa = q - p + 1`, the differential equation (DLMF 16.8.3) is
-/// `(prod_j (D + kappa (b_j - 1)) - x^kappa prod_i (D + kappa a_i)) w = 0`, and each factor
+/// `(D prod_j (D + kappa (b_j - 1)) - x^kappa prod_i (D + kappa a_i)) w = 0`, and each factor
 /// `D + g` maps `e^x x^s` to `e^x (x^(s+1) + (s + g) x^s)`. So `c_0 = 1` and
 /// `kappa k c_k = sum_{m=1}^q d_{m+1}(nu - k + m) c_{k-m}`, where `d_j(s)` is the
 /// coefficient of `e^x x^(s+q+1-j)` in the image of `e^x x^s`.
 fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = f64> + Clone {
-    let (q, kappa) = (b.len() - 1, (b.len() - a.len()) as f64);
-    let left: Vec<f64> = b.iter().map(|bj| kappa * (bj - 1.0)).collect();
+    let (q, kappa) = (b.len(), (b.len() + 1 - a.len()) as f64);
+    let left: Vec<f64> = b
+        .iter()
+        .map(|bj| kappa * (bj - 1.0))
+        .chain(once(0.0))
+        .collect();
     let right: Vec<f64> = a.iter().map(|ai| kappa * ai).collect();
     // the coefficients of e^x x^(s+n-j) in prod_(i<n) (D + g_i) e^x x^s, for j <= q + 1
     let fill_coefs = |g: &[f64], s: f64, c: &mut [f64]| {
@@ -2352,7 +2390,7 @@ fn pfq_exp_cos(
 }
 
 /// The exponential part of the asymptotic expansion of pFq for `p <= q` (DLMF 16.11.1),
-/// with `|z|^nu` instead of `z^nu`, where `b` contains the 1 of `n!`:
+/// with `|z|^nu` instead of `z^nu`:
 ///
 /// ```text
 /// prod_j Gamma(b_j) / prod_i Gamma(a_i)
@@ -2364,16 +2402,15 @@ fn pfq_exp_cos(
 /// `p = q`. Otherwise, it is the sum of the two parts with
 /// `x = kappa |z|^(1 / kappa) e^(+-pi i / kappa)`.
 fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
-    let (_, lower) = b.split_last()?;
-    let kappa = b.len() - a.len();
+    let kappa = b.len() + 1 - a.len();
     let kf = kappa as f64;
-    let nu = sum_dd(a) - sum_dd(lower) + 0.5 * (kf - 1.0);
+    let nu = sum_dd(a) - sum_dd(b) + 0.5 * (kf - 1.0);
     let real = z > 0.0 || kappa == 1;
     let root = root_dd(z.abs(), kappa) * if real { z.signum() } else { 1.0 };
     let x = kf * root.hi;
     // (the factors of the last coefficient are negative from here on)
-    let beta = lower.iter().fold(0.0_f64, |m, bj| m.max(kf * (bj - 1.0)));
-    let settled = (nu.hi + lower.len() as f64 + beta).max(0.0);
+    let beta = b.iter().fold(0.0_f64, |m, bj| m.max(kf * (bj - 1.0)));
+    let settled = (nu.hi + b.len() as f64 + beta).max(0.0);
     let terms = pfq_exp_terms(a, b, nu.hi, x);
     let (series, growth) = if real {
         let (sum, err) = asymptotic_sum(terms, settled, x, |_| 0.0);
@@ -2388,26 +2425,24 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     // (2 pi)^((1 - kappa) / 2) kappa^(-1/2) |z|^(nu / kappa) e^x
     let ln_power = nu / kf * ln_dd(z.abs()) - ln_dd(kf) * 0.5;
     let l = ln_power - LN_SQRT_2PI_DD * (kf - 1.0) + root * kf * growth;
-    let num = lower.iter().copied().map(Dd::new);
+    let num = b.iter().copied().map(Dd::new);
     let den = a.iter().copied().map(Dd::new);
     gamma_series(num, den, series, l)
 }
 
-/// pFq for `p <= q` by its asymptotic expansion (DLMF 16.11.7 to 16.11.9), where `b` contains
-/// the 1 of `n!`
+/// pFq for `p <= q` by its asymptotic expansion (DLMF 16.11.7 to 16.11.9)
 ///
 /// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
 /// `z < 0` and `p = q`. The size of the other part is added to the error, for `z > 0` as the
 /// sizes of the terms of the algebraic part. For `z < 0` and `p < q`, it is the sum of both
 /// parts.
-fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
-    let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
-    let kappa = b_ref.len() - a_ref.len();
-    let mut terms = vec![None; a_ref.len()];
+fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+    let kappa = b.len() + 1 - a.len();
+    let mut terms = vec![None; a.len()];
     let mode = if z > 0.0 { Alg::Sizes } else { Alg::Value };
     pfq_alg(a, b, z, mode, &mut terms)?;
     let alg = terms.into_iter().flatten();
-    let exp = pfq_exp(a_ref, b_ref, z)?;
+    let exp = pfq_exp(a, b, z)?;
     if z > 0.0 {
         Some(Estimate::scaled(exp, add_exp(alg)))
     } else if kappa == 1 {
@@ -2433,28 +2468,28 @@ fn add_exp_dd(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Optio
 }
 
 /// The sum of the terms of `pfq_alg` in double-double, for `p = q` or `p > q + 1`
-fn pfq_alg_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Scaled> {
-    let mut terms = vec![None; a.as_ref().len()];
+fn pfq_alg_dd(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
+    let mut terms = vec![None; a.len()];
     pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
     add_exp_dd(terms.into_iter().flatten())
 }
 
 /// pFq for `p > q + 1` and `z < 0` by `pfq_alg_dd`, or `None` if it may or may not overflow
-fn pfq_borel_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
+fn pfq_borel_dd(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     Estimate::scaled_certain(pfq_alg_dd(a, b, z)?)
 }
 
 /// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` in double-double, where
 /// its terms cancel, e.g. for nearly equal `a_i`, or the terms of their series do
-fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
-    if z > 0.0 || a.as_ref().len() + 1 != b.as_ref().len() {
+fn pfq_asymptotic_dd(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+    if z > 0.0 || a.len() != b.len() {
         return None;
     }
     let alg = pfq_alg_dd(a, b, z)?;
-    Some(Estimate::scaled(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?)))
+    Some(Estimate::scaled(alg, Some(pfq_exp(a, b, z)?)))
 }
 
-/// The limit at `z = +-inf` for finite parameters if cheap, with `b` without the 1 of `n!`
+/// The limit at `z = +-inf` for finite parameters if cheap
 fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     if z.is_finite() {
         None
@@ -2476,8 +2511,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     }
 }
 
-/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum, where `b` contains
-/// the 1 of `n!`
+/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum
 ///
 /// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
@@ -2485,22 +2519,21 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// which is the slowest. The residues come first, as the steps of Weniger can stall where some
 /// terms nearly vanish, e.g. for an `a_i` near a non-positive integer. Where none of these is
 /// accurate, the residues are in double-double, as for 2F0.
-fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
-    let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
+fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
-    let d = (a_ref.len() - b_ref.len()) as f64;
+    let d = (a.len() - b.len() - 1) as f64;
     // (capped as for 2F0)
     let scale = z.abs().powf(-1.0 / d).min(f64::EPSILON.recip());
-    let terms = || once(1.0).chain(pfq_terms(a_ref, b_ref, z));
-    let settled = pfq_settled(a_ref, b_ref).ceil();
+    let terms = || once(1.0).chain(pfq_terms(a, b, z));
+    let settled = pfq_settled(a, b).ceil();
     let series = || Some(Estimate::absolute(asymptotic_sum(terms(), settled, scale, |_| 0.0)));
     // also with the rounding errors of the terms, as for 2F0
     let weniger = |weniger: (f64, f64), eps: f64| weniger_drift(weniger, terms(), settled, eps);
-    let weniger_f64 = || Some(weniger(pfq_weniger::<f64>(a, b, z)?, f64::EPSILON));
+    let weniger_f64 = || Some(weniger(pfq_weniger::<f64>(&a, &b, z)?, f64::EPSILON));
     // as for 2F0, where the rounding errors in f64 dominate
-    let weniger_dd = || Some(weniger(pfq_weniger::<Dd>(a, b, z)?, Dd::EPSILON));
+    let weniger_dd = || Some(weniger(pfq_weniger::<Dd>(&a, &b, z)?, Dd::EPSILON));
     let residues = || {
-        let mut terms = vec![None; a_ref.len()];
+        let mut terms = vec![None; a.len()];
         pfq_alg(a, b, z, Alg::Value, &mut terms)?;
         Some(Estimate::scaled(add_exp(terms.into_iter().flatten())?, None))
     };
@@ -2690,7 +2723,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     }
     // a polynomial is short enough for double-double
     let polynomial = degree.is_finite().then(|| {
-        let (y, err, _) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
+        let (y, err, _) = pfq_sum::<Dd>(&a, &b, z, PFQ_DD_MAXITER);
         Estimate::absolute((f64::from(y), err))
     });
     if polynomial.is_some_and(Estimate::is_accurate) {
@@ -2842,10 +2875,10 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 .or_better(series)
                 .or_better(|| borel(a2, a1, xsf_hypu_digits, CHGU_DIGITS_MARGIN))
                 .or_better(|| {
-                    let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?;
+                    let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[], z)?;
                     weniger((y, HYP2F0_WENIGER_F64_MARGIN * err), f64::EPSILON)
                 })
-                .or_better(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
+                .or_better(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[], z)?, Dd::EPSILON))
                 .or_better(|| miller(0.0))
                 .or_better(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol, CHGU_DIGITS_MARGIN))?)
                 .or_better(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol, CHGU_DIGITS_MARGIN))?)
@@ -2856,22 +2889,18 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 })
                 .or_better(|| borel(a1, a2, xsf_hypu_digits, 0.0))
                 .or_better(|| borel(a2, a1, xsf_hypu_digits, 0.0))
-                .or_better(|| pfq_borel_dd(&[a1, a2], &[1.0], z))
+                .or_better(|| pfq_borel_dd(&[a1, a2], &[], z))
         },
         (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2_estimate(a1, a2, a3, b1, b2, z),
-        _ if a.len() == b.len() + 1 => {
-            b.push(1.0);
-            pfq_real(a, b, z)
-        },
+        _ if a.len() == b.len() + 1 => pfq_real(a, b, z),
         _ if a.len() <= b.len() => {
-            b.push(1.0);
             let series = || Some(pfq_series_sorted(a.clone(), b.clone(), z));
             let asymptotic = || pfq_asymptotic(&a, &b, z);
             // the terms of the series for z < 0 reach about e^x, and the result
             // e^(x cos(pi / kappa)), or a power of z for p = q
-            let kappa = (b.len() - a.len()) as f64;
+            let kappa = (b.len() + 1 - a.len()) as f64;
             let x = kappa * z.abs().powf(1.0 / kappa);
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
             // last, as it is the slowest
@@ -2884,10 +2913,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 asymptotic().or_better(series).or_better(asymptotic_dd)
             }
         },
-        _ if z < 0.0 => {
-            b.push(1.0);
-            pfq_borel(&a, &b, z)
-        },
+        _ if z < 0.0 => pfq_borel(&a, &b, z),
         _ => None,
     };
     polynomial.or_better(|| y)
@@ -2945,7 +2971,7 @@ mod tests {
     fn test_pfq_sum_rescales_repeatedly() {
         // the partial sum jumps from 1 to 1e300, whose square needs two rescalings
         let (y, err, tails) =
-            pfq_sum_terms::<f64>(&[-1.0], &[1.0], 1.0, 2, [1e300].into_iter(), 1e-13);
+            pfq_sum_terms::<f64>(&[-1.0], &[], 1.0, 2, [1e300].into_iter(), 1e-13);
         assert_eq!(y, 1e300);
         assert!(err.is_finite() && tails.is_finite());
     }
@@ -2955,39 +2981,48 @@ mod tests {
         // huge denominator factors with huge `z`: exact ratio is 2^-7, not 0 from `inf` division
         let rho = pfq_ratio_bound(&[], &[pow2(520), pow2(510)], pow2(1023), 0.0);
         assert!(rho >= pow2(-7) && rho < 1.0, "{rho}");
+        let rho = pfq_ratio_bound_full(&[], &[pow2(520), pow2(510)], pow2(1023), 0.0);
+        assert!(rho >= pow2(-7) && rho < 1.0, "{rho}");
+        // full bound at n > 0 does not insert an extra (1 + n) factor (exact 1/3, not 1/6)
+        let rho = pfq_ratio_bound_full(&[], &[2.0], 1.0, 1.0);
+        assert!((1.0 / 3.0..0.34).contains(&rho), "{rho}");
         // exact ratio exceeds 1 by ~4.4e-17 while the unpadded f64 product rounds below 1
         let b = 5.0 * pow2(78);
         let a = b + 3.0 * pow2(28);
         let z = -(1.0 + 7.0 * f64::EPSILON);
-        let rho = pfq_ratio_bound(&[a, a, a, 1.0], &[b, b, b, 1.0], 1.0 / z, 9999.0);
+        let rho = pfq_ratio_bound(&[a, a, a, 1.0], &[b, b, b], 1.0 / z, 9999.0);
         assert!(rho >= 1.0, "{rho}");
-        // exact bound of 1 when every a_i <= b_i at |z| = 1 (no rounding occurred)
-        assert_eq!(pfq_ratio_bound(&[1.0, 1.0, 1.0], &[1e300, 2.0, 1.0], -1.0, 1.0), 1.0);
+        // exact bound of 1 when every a_i <= b_i (including implicit 1) at |z| = 1
+        assert_eq!(pfq_ratio_bound(&[1.0, 1.0, 1.0], &[1e300, 2.0], -1.0, 1.0), 1.0);
+        // implicit 1 is inserted in descending order: [0.75] -> [1.0, 0.75] pairs with [1.5, 0.5]
+        let rho = pfq_ratio_bound(&[1.5, 0.5], &[0.75], -1.0, 1.0);
+        assert!((1.25..1.3).contains(&rho), "{rho}");
         // subnormal scaling rounds upward, never down or to zero
         let u = f64::from_bits(1);
         assert!(pfq_ratio_bound(&[], &[4.0], 5.0 * u, 0.0) >= 2.0 * u);
         assert!(pfq_ratio_bound(&[], &[4.0], u, 0.0) >= u);
         // reciprocal bound rounds upward even on the exact-z fast path
-        assert!(pfq_ratio_bound(&[1.0], &[2.0], recip_up(-3.0), 0.0) > 1.0 / 3.0);
+        assert!(pfq_ratio_bound(&[1.0], &[], recip_up(-3.0), 0.0) > 1.0 / 3.0);
+        assert!(pfq_ratio_bound_full(&[1.0], &[2.0], recip_up(-3.0), 0.0) > 1.0 / 3.0);
         // before settled (a_i + n < 0), the bound is infinite
-        assert_eq!(pfq_ratio_bound(&[-2.0], &[1.0], 0.5, 0.0), f64::INFINITY);
+        assert_eq!(pfq_ratio_bound(&[-2.0], &[], 0.5, 0.0), f64::INFINITY);
     }
 
     #[test]
     fn test_pfq_sum_flat_compensated() {
         // 1000 terms of 1e-17 each: preserved by Neumaier compensation, with nonzero tail norm
         let (y, err, tails) =
-            pfq_sum_terms::<f64>(&[-1000.0], &[1.0], 1.0, 1001, core::iter::repeat(1e-17), 1e-13);
+            pfq_sum_terms::<f64>(&[-1000.0], &[], 1.0, 1001, core::iter::repeat(1e-17), 1e-13);
         assert!((y - (1.0 + 1e-14)).abs() <= 2.0 * f64::EPSILON, "{y}");
         assert!(tails > 1e-13 && err.is_finite(), "{tails}, {err}");
         // cancelling partial sums leaving a tiny final offset: tail norm stays finite near 1
         let (y, err, tails) =
-            pfq_sum_terms::<f64>(&[-3.0], &[1.0], 1.0, 4, [1.0, -1.0, 1e-200].into_iter(), 1e-13);
+            pfq_sum_terms::<f64>(&[-3.0], &[], 1.0, 4, [1.0, -1.0, 1e-200].into_iter(), 1e-13);
         assert_eq!(y, 1.0);
         assert!(err.is_finite() && (tails - 1.0).abs() <= 4.0 * f64::EPSILON, "{err}, {tails}");
         let (y, err, tails) = pfq_sum_terms::<Dd>(
             &[-3.0],
-            &[1.0],
+            &[],
             1.0,
             4,
             [1.0, -1.0, 1e-200].into_iter().map(Dd::new),
@@ -2997,7 +3032,7 @@ mod tests {
         assert!(err.is_finite() && (tails - 1.0).abs() <= 4.0 * f64::EPSILON, "{err}, {tails}");
         // non-finite partial sum bails out cleanly with infinite error
         let (y, err, tails) =
-            pfq_sum_terms::<f64>(&[-2.0], &[1.0], 1.0, 3, [f64::MAX, f64::MAX].into_iter(), 1e-13);
+            pfq_sum_terms::<f64>(&[-2.0], &[], 1.0, 3, [f64::MAX, f64::MAX].into_iter(), 1e-13);
         assert!(y.is_infinite() && err == f64::INFINITY && tails == f64::INFINITY);
     }
 
@@ -3076,7 +3111,7 @@ mod tests {
             (vec![0.3, 1.7], -2.5, 0.651_478_922_494_888_7),
             (vec![0.3, 1.7, 0.6], -2.5, 0.790_728_400_803_319_9),
         ] {
-            let y = pfq_borel_dd(&a, &[1.0], z).unwrap();
+            let y = pfq_borel_dd(&a, &[], z).unwrap();
             assert!(y.err < 8.0 * f64::EPSILON, "{y:?}");
             assert!((y.y / expected - 1.0).abs() <= y.err, "{y:?}");
         }
@@ -3119,26 +3154,23 @@ mod tests {
     #[test]
     fn test_pfq_alg_series_dd_growing() {
         // the terms of the series of a_1 grow from the fourth one on, long before `n = |z|`
-        let (a, b) = ([pow2(-70), -19.75, -29.625], [1.0, -219.75, -229.625, 1.0]);
+        let (a, b) = ([pow2(-70), -19.75, -29.625], [1.0, -219.75, -229.625]);
         assert!(pfq_alg_series_dd(&a, &b, 0, -100.0).1.is_infinite());
         // the low parts of the parameters make the term after the one where they settle larger
         let (s, u) = (pow2(-49), pow2(-52));
-        let (a, b) = ([s - 16.0, 1.0 + 3.0 * u], [1.0 + u, 2.0 * s - 16.0, 1.0]);
+        let (a, b) = ([s - 16.0, 1.0 + 3.0 * u], [1.0 + u, 2.0 * s - 16.0]);
         assert!(pfq_alg_series_dd(&a, &b, 0, -1.1 * s).1.is_infinite());
         // the bound of the unpaired factor underflows, and the terms grow to ~1e72 from the fifth
         let c = (1..=10).map(|i| f64::from(i) / 16.0);
         let a: Vec<_> = once(f64::from_bits(1)).chain(c.clone()).collect();
-        let b: Vec<_> = once(3.0)
-            .chain(c.map(|c| c - pow2(49)))
-            .chain([1.0])
-            .collect();
+        let b: Vec<_> = once(3.0).chain(c.map(|c| c - pow2(49))).collect();
         assert!(pfq_alg_series_dd(&a, &b, 0, -2.0).1.is_infinite());
     }
 
     #[test]
     fn test_pfq_alg_series_dd_polynomial() {
         // of degree 0, which is below `|z|`
-        let (sum, err) = pfq_alg_series_dd(&[0.5, 0.75], &[1.5, 0.25, 1.0], 0, -0.5);
+        let (sum, err) = pfq_alg_series_dd(&[0.5, 0.75], &[1.5, 0.25], 0, -0.5);
         assert!(sum.hi == 1.0 && err <= Dd::EPSILON);
     }
 
@@ -3147,7 +3179,7 @@ mod tests {
         // the bound on the algebraic part is too large for equal a_i, and near them the
         // expansion is accurate or `None` (Arb reference)
         let c = 1.0 + pow2(-10);
-        let (b, z) = ([c, c, 11.25, 1.0], 21.25);
+        let (b, z) = ([c, c, 11.25], 21.25);
         let accurate = |a: &[f64; 3]| pfq_asymptotic(a, &b, z).and_then(Estimate::accurate);
         assert_eq!(accurate(&[1.0, 1.0, 10.5]), None);
         let near = accurate(&[1.0, 1.0 + pow2(-20), 10.5]);
@@ -3164,12 +3196,12 @@ mod tests {
     #[test]
     fn test_pfq_next_rescaled_subnormal_quotient() {
         // extreme parameters whose ratio underflows while `ratio * z` is normal (checked mode)
-        let next = pfq_next::<f64>(&[1e-160, 1e-160], &[1.0], 0.0, 1e200, 1.0, true);
+        let next = pfq_next::<f64>(&[1e-160, 1e-160], &[], 0.0, 1e200, 1.0, true);
         assert!((next / 1e-120 - 1.0).abs() <= 4.0 * f64::EPSILON, "{next}");
         // smallest subnormal term is not double-rounded to zero by the rescaled path
         let a = [f64::from_bits(0x0010_0000_0000_0001)];
         let z = f64::from_bits(0x3c9f_ffff_ffff_ffff);
-        assert_eq!(pfq_next::<f64>(&a, &[1.0], 0.0, z, 1.0, true), f64::from_bits(1));
+        assert_eq!(pfq_next::<f64>(&a, &[], 0.0, z, 1.0, true), f64::from_bits(1));
     }
 
     #[test]
@@ -3178,7 +3210,7 @@ mod tests {
         // changes much with a_i: accurate or `None` (Arb reference)
         let t = -pow2(-40);
         let (root, root_2) = (f64::EPSILON.sqrt(), (2.0 * f64::EPSILON).sqrt());
-        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2, 1.0], 30.0)
+        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2], 30.0)
             .and_then(Estimate::accurate);
         let expected = -816_436.169_307_593_7_f64;
         assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));

@@ -35,7 +35,7 @@ use core::array::from_fn;
 use core::f64::consts::PI;
 use core::iter::zip;
 
-use super::{Dd, PFQ_DD_MAXITER, PFQ_TOL, Params, SeriesReal, pfq_settled, root_dd, skip};
+use super::{Dd, PFQ_DD_MAXITER, PFQ_TOL, Params, SeriesReal, pfq_settled, root_dd};
 use crate::utils::pow2;
 
 /// Largest size of a negligible term, relative to the sum of the series
@@ -283,17 +283,16 @@ fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64) -> (Dd, f6
 /// `_{q+1}F_q` for `z < 1` by its series in `w` for `m = 4`, and an estimate of its absolute
 /// error, or `None` if the series converge too slowly or the rounding errors are too large
 ///
-/// `b` contains the 1 of `n!`. Unlike in HypergeometricFunctions.jl, which has no estimate of
-/// the error, it is `CONFORMAL_SAFETY` times the difference to the sum for `m = 3`.
-pub(super) fn pfq_conformal<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
-    let one = b.as_ref().iter().position(|&v| v == 1.0)?;
-    let beta: Vec<f64> = skip(b, one).collect();
+/// Unlike in HypergeometricFunctions.jl, which has no estimate of the error, it is
+/// `CONFORMAL_SAFETY` times the difference to the sum for `m = 3`.
+pub(super) fn pfq_conformal<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, f64)> {
+    let beta = b.as_ref();
     // the terms decrease at most about like `w^n`, the slowest for `m = 3`
     let decay = -conformal_map(z, 3).hi.abs().ln() * f64::from(PFQ_DD_MAXITER);
     if beta.is_empty() || !(decay >= CONFORMAL_MIN_DECAY) {
         return None;
     }
-    let (y4, top) = conformal_sum::<6>(a.as_ref(), &beta, z);
+    let (y4, top) = conformal_sum::<6>(a.as_ref(), beta, z);
     // The rounding errors of the partial sums, and those of the first terms, which the
     // divisions by the `b_j + n` near zero amplify alike for both `m`. On those 5525 points,
     // the difference accepts none of the sums that this rejects, which saves the other sum.
@@ -301,7 +300,7 @@ pub(super) fn pfq_conformal<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64
     let near_pole: f64 = beta.iter().map(distance).product();
     let noise = Dd::EPSILON * top.max(1.0 / near_pole);
     (noise <= PFQ_TOL * y4.hi.abs()).then(|| {
-        let (y3, _) = conformal_sum::<5>(a.as_ref(), &beta, z);
+        let (y3, _) = conformal_sum::<5>(a.as_ref(), beta, z);
         (y4.hi, CONFORMAL_SAFETY * (y4 - y3).hi.abs())
     })
 }
@@ -421,14 +420,14 @@ mod tests {
 
     #[test]
     fn test_pfq_conformal() {
-        let (y, err) = pfq_conformal(&[1.0; 3], &[2.0, 2.0, 1.0], -50.0).unwrap();
+        let (y, err) = pfq_conformal(&[1.0; 3], &[2.0, 2.0], -50.0).unwrap();
         assert!((y - 0.185_539_903_706_652_44).abs() <= f64::EPSILON && err <= PFQ_TOL * y);
         // the series converge too slowly
-        assert_eq!(pfq_conformal(&[1.0; 3], &[2.0, 2.0, 1.0], -1e7), None);
+        assert_eq!(pfq_conformal(&[1.0; 3], &[2.0, 2.0], -1e7), None);
         // the partial sums are too large
-        assert_eq!(pfq_conformal(&[70.5, 60.5, 50.5], &[2.5, 1.5, 1.0], -0.75), None);
+        assert_eq!(pfq_conformal(&[70.5, 60.5, 50.5], &[2.5, 1.5], -0.75), None);
         // 1F0
-        assert_eq!(pfq_conformal(&[0.5], &[1.0], -0.75), None);
+        assert_eq!(pfq_conformal(&[0.5], &[], -0.75), None);
     }
 
     #[test]
