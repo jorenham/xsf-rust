@@ -20,7 +20,7 @@ use crate::ext::{
     HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp,
     hyp2f1_poly_dd, hyp2f1_recur, ln_dd, mul_gamma_ratio,
 };
-use crate::utils::{is_nonpos_int, pow2};
+use crate::utils::{is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_prod, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
@@ -753,6 +753,14 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
+    // Unlike in xsf, use compensated parameter differences for Gauss summation at x = 1.
+    if x == 1.0 {
+        let divergent = || f64::INFINITY * gammasgn(a) * gammasgn(b) * gammasgn(c);
+        if let Some(y) = hyp2f1_at_1(a, b, c, divergent, core::convert::identity) {
+            return y;
+        }
+    }
+
     hyp2f1_impl(a, b, c, x, in_recur_regime(a, b, c, x), true)
 }
 
@@ -851,11 +859,100 @@ fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
         .map(|s| s.sum)
 }
 
-/// Gauss's sum `2F1(a, b; c; 1)` in double-double (with exact `c - a`, `c - b` and `c - a - b`),
-/// unless its error bound straddles the overflow
-fn hyp2f1_gauss_dd(a: f64, b: f64, c: f64) -> Option<f64> {
-    let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));
-    let g = mul_gamma_ratio([c_dd, c_dd - a - b], [c_dd - a, c_dd - b], one).map(fold_exp)?;
+/// The summation at z = 1 (DLMF 15.4.20), with caller conventions for divergence and exact zeros.
+/// Leave terminating series, poles of c and nonfinite parameters to the caller.
+pub(crate) fn hyp2f1_at_1(
+    a: f64,
+    b: f64,
+    c: f64,
+    divergent: impl FnOnce() -> f64,
+    exact_zero: impl FnOnce(f64) -> f64,
+) -> Option<f64> {
+    let (p, q) = (c - a, c - b);
+    let (d1, d2) = (p - b, q - a);
+    // Bound the effect of rounding the first subtraction in either order on the excess and
+    // on the distance to a denominator pole. Leave well-conditioned arguments to the caller.
+    let tolerance = MACHEP / HYP2F1_ETHRESH;
+    let near_denominator_pole =
+        |r: f64| r <= 0.0 && (r - r.round()).abs() <= (tolerance * r.abs()).max(HYP2F1_EPS);
+    let sensitive = !d1.is_finite()
+        || !d2.is_finite()
+        || d1.abs().min(d2.abs()) <= tolerance * p.abs().max(q.abs())
+        || near_denominator_pole(p)
+        || near_denominator_pole(q)
+        || near_neg_int(a)
+        || near_neg_int(b)
+        || (c.abs() <= MACHEP && p.abs() <= MACHEP && q.abs() <= MACHEP);
+    if !sensitive
+        || [a, b, c]
+            .into_iter()
+            .any(|v| !v.is_finite() || is_nonpos_int(v))
+    {
+        return None;
+    }
+    let (p, q) = (Dd::new(c) - a, Dd::new(c) - b);
+    let d = if a.abs() >= b.abs() { p - b } else { q - a };
+    if d.hi <= 0.0 || d1 == f64::NEG_INFINITY || d2 == f64::NEG_INFINITY {
+        return Some(divergent());
+    }
+    if !d.hi.is_finite() {
+        return None;
+    }
+    let pole = |r: Dd| (r.hi <= 0.0 && r.is_integer()).then_some(-r.hi);
+    if let Some(m) = [p, q].into_iter().filter_map(pole).reduce(f64::min) {
+        // The sign from below is that of the terminating Euler factor (DLMF 15.4.24).
+        return Some(exact_zero(0.0 * neg_one_pow(m - (-c).ceil().clamp(0.0, m))));
+    }
+    let gamma_args = [c, d.hi, p.hi, q.hi];
+    if gamma_args.into_iter().all(|r| r.abs() <= MACHEP) {
+        // Gamma(1+r) = r Gamma(r). The linear terms cancel because c+d = p+q.
+        let [(cm, ce), (dm, de), (pm, pe), (qm, qe)] = gamma_args.map(frexp_f64);
+        return Some(ldexp_f64((pm * qm) / (cm * dm), pe + qe - ce - de));
+    }
+    let denominators = [p, q].map(|r| {
+        let k = r.hi.round();
+        if k <= 0.0 && r.lo.abs() > HYP2F1_ETHRESH * (r.hi - k).abs() {
+            // Reflection with the compensated distance to the pole (DLMF 5.5.3).
+            let delta = (r - k).hi;
+            (1.0 - r, Some(neg_one_pow(k) * delta * crate::sinc(delta)))
+        } else {
+            (r, None)
+        }
+    });
+    let [u, v] =
+        denominators.map(|(r, factor)| factor.map_or_else(|| rgamma(r.hi), |s| s * gamma(r.hi)));
+    let (num, den) = (gamma(c) * gamma(d.hi), u * v);
+    let y = num * den;
+    if num.is_normal() && den.is_normal() && y.is_normal() {
+        return Some(y);
+    }
+    hyp2f1_series_at_1(a, b, c).or_else(|| hyp2f1_gauss_dd(c, d, denominators))
+}
+
+/// Gauss's sum in double-double including the scaling of any reflected gamma factors,
+/// unless its error bound straddles the overflow.
+fn hyp2f1_gauss_dd(c: f64, d: Dd, denominators: [(Dd, Option<f64>); 2]) -> Option<f64> {
+    let reflected = denominators.into_iter().filter(|(_, s)| s.is_some());
+    let num = [Dd::new(c), d]
+        .into_iter()
+        .chain(reflected.clone().map(|(r, _)| r));
+    let den = denominators
+        .into_iter()
+        .filter(|(_, s)| s.is_none())
+        .map(|(r, _)| r);
+    let scale = || {
+        let err = if reflected.clone().next().is_some() {
+            8.0 * MACHEP
+        } else {
+            0.0
+        };
+        let (m, e) = reflected
+            .filter_map(|(_, s)| s)
+            .map(frexp_f64)
+            .fold((1.0, 0), |(m, e), (s, k)| (m * s, e + k));
+        Scaled::new(m, e, err)
+    };
+    let g = mul_gamma_ratio(num, den, scale).map(fold_exp)?;
     let [lo, hi] = [1.0 - g.err, 1.0 + g.err].map(|f| ldexp_f64(g.m * f, g.e));
     let ok = g.err <= HYP2F1_RECUR_TOL && lo.is_finite() == hi.is_finite();
     ok.then(|| ldexp_f64(g.m, g.e))
@@ -1277,8 +1374,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                     // Unlike in xsf, if a factor over- or underflows (e.g. `Gamma(c)` for
                     // c > 171.6, where xsf gives NaN)
                     if !y.is_normal() && d.is_finite() {
+                        let c_dd = Dd::new(c);
                         y = hyp2f1_series_at_1(a, b, c)
-                            .or_else(|| hyp2f1_gauss_dd(a, b, c))
+                            .or_else(|| {
+                                hyp2f1_gauss_dd(
+                                    c,
+                                    c_dd - a - b,
+                                    [(c_dd - a, None), (c_dd - b, None)],
+                                )
+                            })
                             .unwrap_or(y);
                     }
                     return y; // goto hypdon
