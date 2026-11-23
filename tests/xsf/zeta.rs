@@ -135,3 +135,16 @@ fn test_zetac_large_x() {
         assert_eq!(xsf::zetac(x), (-x).exp2());
     }
 }
+
+#[test]
+fn test_riemann_zeta_c64_reflection_overflow() {
+    let re = -294.866_054_613_497_45;
+    // Arb encloses both components beyond the finite binary64 range.
+    for (im, expected) in [
+        (-16.147_667_799_398_363, c64(f64::INFINITY, f64::NEG_INFINITY)),
+        (13.992_648_136_816_397, c64(f64::NEG_INFINITY, f64::INFINITY)),
+    ] {
+        assert_eq!(xsf::riemann_zeta(c64(re, im)), expected);
+        assert_eq!(xsf::riemann_zeta(c64(re, -im)), expected.conj());
+    }
+}
