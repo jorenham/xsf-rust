@@ -119,7 +119,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@a828b14)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@d61cfd7)
 
 fn rotate(z: C64, v: f64) -> C64 {
     let c = cephes_cospi(v);
@@ -302,11 +302,9 @@ pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
     cyl_bessel_overflow(cyl_bessel_ke_c64, 1.0, v.abs(), x, ke)
 }
 
-/// Returns `res = f(v, x)`, unless it's an AMOS overflow `inf`.
-///
-/// Unlike in xsf (scipy/xsf#372), retry such an `inf` with the recurrence
-/// f_{u+d} = 2u/x f_u + c f_{u-d} (DLMF 10.6.1, 10.29.1), d = sign(v), from the first order
-/// v - md (m = 1, 2, 4, 8, 16 < |v|) without overflow; c = -1 for J and Y, and 1 for I and K.
+// AMOS overflows above about 1e304; recur from lower orders (DLMF 10.29.1).
+// Unlike in xsf, retry on an infinite wrapper result, try starting more than one order lower,
+// and share the recurrence with I, J, and Y (DLMF 10.6.1, 10.29.1).
 fn cyl_bessel_overflow(f: fn(f64, C64) -> C64, c: f64, v: f64, x: f64, res: f64) -> f64 {
     if !res.is_infinite() {
         return res;
