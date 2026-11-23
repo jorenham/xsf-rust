@@ -7,7 +7,7 @@
 
 use crate::utils::{EGAMMA, FRAC_PI_SQ_6, SQRT_EPSILON, SQRT_TAU_DOWN};
 use crate::xsf::cephes::beta::BETA_ASYMP_FACTOR;
-use crate::xsf::cephes::consts::{MACHEP, MAXLOG, MINLOG};
+use crate::xsf::cephes::consts::{MACHEP, MAXGAM, MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, ln_pow_beta, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
@@ -508,6 +508,56 @@ fn incbet_cf(a: f64, z: f64, mut k2: f64, mut k6: f64, step: f64, nmax: f64) -> 
     (ans, false)
 }
 
+/// `I_x(a, b) a B(a, b) / (x^a y^b)` for `x` below the mean, with `y = 1 - x`, by the continued
+/// fraction `bfrac` of TOMS 708 \[1\], with iteration limit `nmax`, and whether it was cut off
+/// there, or `None` if its recurrences overflow
+///
+/// Its partial numerators and denominators are positive for `n < b`, so that, unlike those of
+/// `incbcf`, its recurrences do not cancel.
+///
+/// \[1\] See `incbet_lnpow`.
+fn incbet_bfrac(a: f64, b: f64, x: f64, y: f64, nmax: f64) -> Option<(f64, bool)> {
+    // with a compensated `lambda`, as it cancels
+    let c = 1.0 + incbet_lambda(a, b, x, y);
+    let inv_a = 1.0 / a;
+    let c0 = b * inv_a;
+    let c1 = 1.0 + inv_a;
+    let (mut an, mut bn, mut anp1, mut bnp1) = (0.0, 1.0, 1.0, c / c1);
+    let mut delta = 1.0;
+    let (mut p, mut s, mut n) = (1.0, a + 1.0, 0.0);
+    loop {
+        n += 1.0;
+        let t = n * inv_a;
+        let w = n * (b - n) * x;
+        let inv_s = 1.0 / s;
+        let e = a * inv_s;
+        let alpha = p * (p + c0) * e * e * (w * x);
+        let beta = n + w * inv_s + (1.0 + t) / (c1 + t + t) * (c + n * (1.0 + y));
+        p = 1.0 + t;
+        s += 2.0;
+        (an, anp1) = (anp1, alpha * an + beta * anp1);
+        (bn, bnp1) = (bnp1, alpha * bn + beta * bnp1);
+        if !(anp1.is_finite() && bnp1.is_finite()) {
+            return None;
+        }
+        // The determinant between consecutive numerator/denominator pairs is
+        // multiplied by -alpha at each step.
+        delta *= -alpha;
+        let converged = delta.abs() <= 3.0 * MACHEP * (anp1 * bn).abs();
+        if converged || n >= nmax {
+            return Some((a * (anp1 / bnp1), !converged));
+        }
+        // Scaling by an exact power of two keeps all four recurrence values in range.
+        if bnp1.abs() > INCBET_BIG {
+            an *= INCBET_BIGINV;
+            bn *= INCBET_BIGINV;
+            anp1 *= INCBET_BIGINV;
+            bnp1 *= INCBET_BIGINV;
+            delta *= INCBET_BIGINV * INCBET_BIGINV;
+        }
+    }
+}
+
 /// Incomplete beta integral
 ///
 /// Returns incomplete beta integral of the arguments, evaluated
@@ -713,6 +763,13 @@ pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> (f64, bool) {
     // Unlike in xsf (scipy/xsf#358), `incbd` is also used if `x` is close to 1, where `incbcf`
     // amplifies the rounding error of `x` by ~`a / |a y - b|`.
     if x * (a + b - 2.0) - (a - 1.0) < 0.0 && x <= 0.95 {
+        // Unlike in xsf, use bfrac near the mean for moderate shapes to avoid cancellation.
+        // Above half the mean, the power prefactor stays normal when a + b < MAXGAM.
+        if a.min(b) > 1.0 && a + b < MAXGAM && x * (a + b) >= 0.5 * a {
+            if let Some(w) = incbet_bfrac(a, b, x, y, incbet_maxiter(a, b, x)) {
+                return w;
+            }
+        }
         incbcf(a, b, x)
     } else {
         let (w, cut_off) = incbd(a, b, x, y);
