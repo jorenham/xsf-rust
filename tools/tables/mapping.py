@@ -796,7 +796,7 @@ def _modified_fresnel_out(sign: int, i: int) -> Out:
 AIRY_OVERRIDES: Final = (
     Override(
         lambda a: a[0] > 103,
-        "xsf returns 0 or NaN for x > 103.09, where AMOS under- or overflows (scipy/xsf#310)",
+        "xsf returns 0 or NaN for x > 103.09, where AMOS under- or overflows (scipy/xsf#614)",
     ),
     Override(
         lambda a: a[0] < -10,
