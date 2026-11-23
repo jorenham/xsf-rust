@@ -139,6 +139,13 @@ fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
         // other
         ("lambertw", &[x]) => xsf::lambertw(Complex::new(x, 0.0), 0, 1e-8).re,
         ("spence", &[x]) => xsf::spence(x),
+        ("spence_real_axis", &[x]) => {
+            if x < 0.0 {
+                f64::NAN
+            } else {
+                xsf::spence(Complex::new(x, 0.0)).re
+            }
+        },
         ("round", &[x]) => xsf::round(x),
         ("wrightomega", &[x]) => xsf::wrightomega(x),
         ("stirling2", &[n, k]) => xsf::stirling2::<f64>(n as u32, k as u32),

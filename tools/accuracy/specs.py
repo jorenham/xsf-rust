@@ -949,6 +949,8 @@ def r_lambertw(x):
 
 
 def r_spence(x):
+    if x == 0:
+        return mp.pi**2 / 6
     # spence(x) = Li2(1 - x); for x > 1 use Li2(1 - x) = -Li2(1 - 1/x) - ln(x)^2 / 2
     with mp.workdps(mp.mp.dps + 10 + max(0, int(mp.log10(x)))):
         if x <= 1:

@@ -447,6 +447,8 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     // other
     F1("lambertw", xsf::lambertw(std::complex<double>(x, 0.0), 0, 1e-8).real())
     F1("spence", xsf::spence(x))
+    F1("spence_real_axis",
+       x < 0 ? std::numeric_limits<double>::quiet_NaN() : xsf::spence(cd(x, 0)).real())
     F1("round", xsf::cephes::round(x))
     F1("wrightomega", xsf::wrightomega(x))
     F2("stirling2", xsf::stirling2(x, y))

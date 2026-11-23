@@ -33,6 +33,9 @@ one in `BESSEL_I_OVERFLOWS` (`testing/src/xsref.rs`), is kept.
 Of the 173,167 rows of the real `airy` table with -1e4 < x < -1e3 (near the zeros of Ai, Ai', Bi,
 and Bi'), every 8th is kept (from the first one, in xsref's order).
 
+The `spence` table duplicates the real source output so the real overload and the real-axis
+projection of the complex overload can have separate tolerances on the same inputs.
+
 `--no-cap` keeps all rows.
 
 ## Generated tables

@@ -3683,6 +3683,28 @@ PBWA_NAN: Final = Rule(
 )
 
 
+def _spence_arb(x: flint.arb) -> flint.arb:
+    return (1 - flint.acb(x)).polylog(2).real
+
+
+# Maximum relative errors rounded up after perturbing log1p by one ULP in either direction.
+# These are test limits. The table stores one quarter of each limit.
+_SPENCE_REAL_AXIS_LIMITS: Final = {
+    1.274_900_398_406_374_5: 2.2e-14,
+    1.314_741_035_856_573_6: 4.6e-15,
+    4.501_992_031_872_509_5: 1.9e-15,
+    4.701_195_219_123_506: 8.4e-15,
+    4.741_035_856_573_705: 3.7e-14,
+    4.780_876_494_023_905: 7.1e-15,
+    4.900_398_406_374_502: 1.6e-15,
+}
+_SPENCE_REAL_AXIS_FLOOR: Final = Floor(
+    lambda a: a[0] in _SPENCE_REAL_AXIS_LIMITS,
+    lambda a: _SPENCE_REAL_AXIS_LIMITS[a[0]] / 4,
+    "the complex Spence series amplifies one-ULP platform differences in log1p",
+)
+
+
 def _hyp2f1_degree(a: float, b: float, c: float) -> int | None:
     """The degree of 2F1 if a or b is a non-positive integer (the one closer to 0 ends it),
     unless c is a pole before that."""
@@ -4889,6 +4911,22 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (NAN, PBWA_NAN),
             )
             for i in range(2)
+        )
+    ),
+    ("spence", "d-d_d"): Entry(
+        tuple(
+            Out(
+                func,
+                (specs.r_spence,),
+                (_spence_arb,),
+                (
+                    Rule(
+                        lambda a: a[0] < 0, math.nan, "Li2(1 - x) is not real for x < 0"
+                    ),
+                ),
+                floors=(_SPENCE_REAL_AXIS_FLOOR,) if func == "spence_real_axis" else (),
+            )
+            for func in ("spence", "spence_real_axis")
         )
     ),
     ("airye", "cd-cd_cd_cd_cd"): Entry(tuple(_complex_airye_out(i) for i in range(4))),
