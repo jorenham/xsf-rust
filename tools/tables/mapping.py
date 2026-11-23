@@ -837,6 +837,18 @@ def _airy_out(i: int, scaled: bool = False) -> Out:
     return Out(f"airy_scaled[{i}]", (ref,), (arb,), rules)
 
 
+def _complex_airye_out(i: int) -> Out:
+    def ref(re: mp.mpf, im: mp.mpf) -> mp.mpc:
+        return specs.c_airy(re, im, scaled=True)[i]
+
+    def arb(z: flint.acb) -> flint.acb:
+        y = (z.airy_ai, z.airy_bi)[i // 2](derivative=bool(i % 2))
+        zeta = 2 * z * z.sqrt() / 3
+        return y * (zeta if i < 2 else -abs(zeta.real)).exp()
+
+    return _complex_out(f"airy_scaled[{i}]", ref, arb)
+
+
 def _real(
     func: str,
     ref: Callable[[mp.mpf], Value] | Callable[[mp.mpf, mp.mpf], Value],
@@ -4851,6 +4863,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             for i in range(2)
         )
     ),
+    ("airye", "cd-cd_cd_cd_cd"): Entry(tuple(_complex_airye_out(i) for i in range(4))),
     ("hyp2f1", "d_d_d_d-d"): Entry(
         (
             Out(
