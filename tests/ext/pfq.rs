@@ -285,6 +285,8 @@ fn test_hyp3f2_recurrence() {
         ([-220.25, -250.5, 30.5], [2.5, 1.5], -0.6, -2.331_472_191_451_277e74),
         // in 8993 steps
         ([-9000.5, 2.25, 0.75], [2.5, 1.5], 0.5, 0.001_489_134_401_576_868_4),
+        // two negative upper parameters: probe all before bisecting so the large one still succeeds
+        ([0.5, -200.5, -9000.5], [2.5, 1.5], -0.02, -1.687_481_900_654_389_6e32),
         // z < 0 and large a_i > 0, where the steps down in b_j make the rounding errors too
         // large: up in a_1
         (
