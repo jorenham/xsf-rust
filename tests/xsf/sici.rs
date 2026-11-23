@@ -63,3 +63,40 @@ fn test_sici_c64_beyond_exp_overflow() {
     let (a, b) = (1.324_498_826_579_209_2e305, 8.530_916_358_913_208e304);
     np_assert_allclose!([si.re, si.im, ci.re, ci.im], [a, b, b, -a], rtol = 1e-15);
 }
+
+#[test]
+fn test_sici_c64_beyond_exp1_overflow() {
+    // E1 overflows at these inputs, but its half can still be finite (Arb).
+    let axis = 1.710_808_329_990_549_1e308;
+    let (a, b) = (1.438_301_762_813_376_4e308, 9.263_624_948_034_014e307);
+    for sign_y in [-1.0_f64, 1.0] {
+        for x in [-0.0, 0.0] {
+            let (si, ci) = xsf::sici(c64(x, sign_y * 717.0));
+            assert_eq!(si.re.to_bits(), (-sign_y * 0.0).to_bits());
+            assert_eq!(ci.im, sign_y * FRAC_PI_2);
+            np_assert_allclose!([si.im, ci.re], [sign_y * axis, axis], rtol = 1e-15);
+        }
+
+        for sign_x in [-1.0, 1.0] {
+            let (si, ci) = xsf::sici(c64(sign_x, sign_y * 717.0));
+            np_assert_allclose!(
+                [si.re, si.im, ci.re, ci.im],
+                [sign_x * a, sign_y * b, b, -sign_x * sign_y * a],
+                rtol = 1e-15
+            );
+        }
+    }
+}
+
+#[test]
+fn test_sici_c64_partial_overflow() {
+    // Each output component overflows independently (Arb).
+    let (si, ci) = xsf::sici(c64(0.5, 717.2));
+    let a = 1.000_240_791_103_672_7e308;
+    assert_eq!((si.im, ci.re), (f64::INFINITY, f64::INFINITY));
+    np_assert_allclose!([si.re, ci.im], [a, -a], rtol = 1e-15);
+
+    let (si, ci) = xsf::sici(c64(0.0, -718.0));
+    assert_eq!(si, c64(0.0, f64::NEG_INFINITY));
+    assert_eq!(ci, c64(f64::INFINITY, -FRAC_PI_2));
+}

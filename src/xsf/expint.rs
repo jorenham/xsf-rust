@@ -52,12 +52,23 @@ fn exp1_f64(x: f64) -> f64 {
 }
 
 pub(crate) fn exp1_c64(z: C64) -> C64 {
+    exp1_c64_scaled::<false>(z)
+}
+
+// Halve E1 before multiplying by the exponential if that factor would overflow.
+pub(crate) fn exp1_half_c64(z: C64) -> C64 {
+    exp1_c64_scaled::<true>(z)
+}
+
+fn exp1_c64_scaled<const HALF: bool>(z: C64) -> C64 {
     // ====================================================
     // Purpose: Compute complex exponential integral E1(z)
     // Input :  z   --- Argument of E1(z)
     // Output:  CE1 --- E1(z)
     // ====================================================
     const EL: f64 = EGAMMA;
+
+    let scale = if HALF { 0.5 } else { 1.0 };
 
     let x = z.re;
     let a0 = z.norm();
@@ -87,6 +98,7 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         } else {
             ce1 = -EL - z.ln() + z * ce1;
         }
+        ce1 *= scale;
     } else if (x < xt) && (z.im.abs() < 1.0) {
         // Unlike in xsf, as so close to the cut the fraction can miss part of the jump of `2 pi i`
         // across it, E1 on the cut on the side of `z` (the principal value, approximated by the
@@ -98,23 +110,24 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
             // the integral is `i y / x` as `y^2` underflows, with `exp(-x)` in halves around the
             // division, as `y / x` would lose bits as a subnormal, and `y exp(-x)` can overflow
             let half = -x / 2.0;
-            c64(pv, 0.0).mul_exp(-x) - (c64(0.0, z.im).mul_exp(half) / x).mul_exp(half)
+            c64(pv * scale, 0.0).mul_exp(-x)
+                - (c64(0.0, z.im).mul_exp(half) / x * scale).mul_exp(half)
         } else {
-            (pv - exp1_vertical(x, z.im)).mul_exp(-x)
+            ((pv - exp1_vertical(x, z.im)) * scale).mul_exp(-x)
         };
-        ce1 = e1 - PI.copysign(z.im) * C64::I;
+        ce1 = e1 - (PI * scale).copysign(z.im) * C64::I;
     } else {
         let zc = exp1_cf(z);
         ce1 = if x <= -2.0 * MAXLOG {
             // Unlike in xsf, which gives NaN or infinite parts here, `exp(-x)` split around
             // the rotation, as that would lose a tiny `zc` part to underflow
-            (c64(0.0, -z.im).exp() * zc.mul_exp(MAXLOG)).mul_exp(-x - MAXLOG)
+            (c64(0.0, -z.im).exp() * zc.mul_exp(MAXLOG) * scale).mul_exp(-x - MAXLOG)
         } else if x < -MAXLOG {
             // `exp(-x)` overflows before E1 does, so apply it in two halves
             let h = (-x / 2.0).exp();
-            (c64(0.0, -z.im).exp() * (zc * h)) * h
+            (c64(0.0, -z.im).exp() * (zc * h)) * (h * scale)
         } else {
-            (-z).exp() * zc
+            ((-z).exp() * zc) * scale
         };
     }
     ce1
