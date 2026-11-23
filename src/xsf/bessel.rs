@@ -119,7 +119,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@d61cfd7)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@9e3b3f1)
 
 fn rotate(z: C64, v: f64) -> C64 {
     let c = cephes_cospi(v);
@@ -2220,8 +2220,8 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     dj[0] = x.cos();
 }
 
-/// `a * b / x + c` (as in xsf), where `a * b / x` is reordered as `a * (b / x)` or `a / x * b` and
-/// halved if it overflows, and is returned without `c` if it still does (so not as `inf - inf`)
+// Unlike in xsf, reorder and halve overflowing products in a * b / x + c instead of using FMA.
+// Return the product without c if it still overflows.
 #[inline]
 fn mul_div_add(a: f64, b: f64, x: f64, c: f64) -> f64 {
     #[cold]
@@ -2251,21 +2251,19 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     //          NM --- Highest order computed
     // ========================================================
 
-    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written, so buffers of length 1 (n == 0) are
-    // out of bounds; riccati_y uses length 2 for N == 1.
-    //
-    // Unlike in xsf, `x < 1e-60` is not special-cased with `-+1e300` sentinels, and the orders
-    // past `|ry| > 1e300` are not left unset. Instead, the orders that overflow are infinite, by
-    // dropping the negligible terms of `inf - inf` (here `ry[k - 2]` and `ry[k - 1]`), and the
-    // products of `k` and `ry[k - 1]` or `ry[k]` with `1 / x` are reordered if they overflow early.
     let n = ry.len() as i32 - 1;
 
     *nm = n;
     ry[0] = -x.cos();
+    if n <= 0 {
+        dy[0] = x.sin();
+        return;
+    }
     ry[1] = ry[0] / x - x.sin();
     let mut rf0 = ry[0];
     let mut rf1 = ry[1];
 
+    // Unlike in xsf, continue the same recurrence after overflow.
     for k in 2..=n {
         let rf2 = mul_div_add(2.0 * f64::from(k) - 1.0, rf1, x, -rf0);
         ry[k as usize] = rf2;
@@ -2355,14 +2353,6 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     if N == 0 {
         return (ry, dy);
     }
-    if N == 1 {
-        // like in scipy, since `rcty` writes at least 2 terms
-        let (ry2, dy2) = riccati_y::<2>(x);
-        ry.copy_from_slice(&ry2[..N]);
-        dy.copy_from_slice(&dy2[..N]);
-        return (ry, dy);
-    }
-
     let mut nm = 0;
     rcty(x, &mut nm, &mut ry, &mut dy);
     (ry, dy)
