@@ -47,6 +47,7 @@ use core::f64::consts::{FRAC_1_PI, PI};
 use crate::digamma;
 use crate::utils::{is_nonpos_int, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::tools::{self, series_eval_fixed_length};
@@ -543,6 +544,14 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     if (z + 1.0).norm() < HYP2F1_EPS && (1.0 + a - b - c).abs() < HYP2F1_EPS && !c_non_pos_int {
         return c64(four_gammas(a - b + 1.0, 0.5 * a + 1.0, a + 1.0, 0.5 * a - b + 1.0), 0.0);
     }
+    // Unlike in xsf, use Gauss summation before checking for a rounded Euler polynomial.
+    if z.re == 1.0 && z.is_real() {
+        // The Euler factor can give a signed real zero on the lower lip.
+        let exact_zero = |y| if z.im.is_sign_negative() { y } else { 0.0 };
+        if let Some(y) = hyp2f1_at_1(a, b, c, || f64::INFINITY, exact_zero) {
+            return c64(y, 0.0);
+        }
+    }
     let mut result;
     let c_minus_a_neg_int = c - a == (c - a).trunc() && c - a < 0.0;
     let c_minus_b_neg_int = c - b == (c - b).trunc() && c - b < 0.0;
@@ -724,7 +733,8 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), and the
 /// analytic continuation elsewhere [^1]. A non-positive integer $a_1$ or $a_2$ equal to $-n$ makes
-/// it a polynomial of degree at most $n$.
+/// it a polynomial of degree at most $n$. At $z = 1$, away from poles of $b$, the series also
+/// converges when $b - a_1 - a_2 > 0$ [^2].
 ///
 /// For `f64` $z$, it is:
 ///
@@ -738,6 +748,7 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 /// Here, a parameter within about $10^{-13}$ of an integer can count as one.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/15.2>
+/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/15.4.E20>
 ///
 /// # See also
 /// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function,

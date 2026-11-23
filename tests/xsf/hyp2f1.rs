@@ -1307,6 +1307,47 @@ fn test_hyp2f1_f64_recur_fallback() {
 }
 
 #[test]
+fn test_hyp2f1_gauss_sum_at_1() {
+    // The excess c - a - b is positive in every case. The fourth c - a rounds to -1.
+    // References: Arb on the exact binary64 arguments.
+    let tiny = f64::from_bits(1 << 44); // 2^-1030
+    let args = [
+        (0.1, 1.0, 1.1, 1.200_959_900_632_133_2e15),
+        (0.1, 1.0, 1.100_000_000_000_000_3, 3.275_345_183_542_189_4e14),
+        (-1.0 + f64::EPSILON / 2.0, 1.0 + f64::EPSILON, 1.0, -2.220_446_049_250_313_6e-16),
+        (1.75, -1.25, 0.75 - f64::EPSILON / 2.0, 4.932_590_933_657_687e-16),
+        (1.750_000_000_002, -1.25, 0.75 - f64::EPSILON / 2.0, 8.886_062_567_066_966e-12),
+        (171.125, -170.999_999_999_999_97, 0.125_000_000_000_031_97, -6_099.234_743_153_951),
+        (2.0_f64.powi(-600), -2.0_f64.powi(-600), 2.0_f64.powi(-1000), -2.0_f64.powi(800)),
+        (tiny, tiny, 3.0 * tiny, 4.0 / 3.0),
+    ];
+    for (a, b, c, expected) in args {
+        for (a, b) in [(a, b), (b, a)] {
+            let real = xsf::hyp2f1(a, b, c, 1.0);
+            np_assert_allclose!([real], [expected], rtol = 5e-15);
+            for im in [0.0, -0.0] {
+                let complex = xsf::hyp2f1(a, b, c, c64(1.0, im));
+                assert_eq!(complex.re, real);
+                assert_eq!(complex.im.to_bits(), 0);
+            }
+            assert_eq!(xsf::hyppfq([a, b], [c], 1.0), Some(real));
+        }
+    }
+
+    // A true pole of a denominator gamma function gives zero.
+    assert_eq!(xsf::hyp2f1(1.75, -1.25, 0.75, 1.0).to_bits(), (-0.0_f64).to_bits());
+    for im in [0.0_f64, -0.0] {
+        let y = xsf::hyp2f1(1.75, -1.25, 0.75, c64(1.0, im));
+        assert_eq!(y.re.to_bits(), im.to_bits());
+        assert_eq!(y.im.to_bits(), 0);
+    }
+
+    // A nonzero negative result can also round to -0.
+    let y = xsf::hyp2f1(1_200.000_01, -401.25, 800.0, c64(1.0, 0.0));
+    assert_eq!(y.re.to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_hyp2f1_f64_divergent_at_1() {
     // unlike in xsf: the sign of the limit x -> 1- for c - a - b <= 0 (DLMF 15.4.21, 15.4.23; Arb
     // at x = 1 - 2^-3000), where xsf has +inf for the first two and NaN for the last two
@@ -1320,6 +1361,13 @@ fn test_hyp2f1_f64_divergent_at_1() {
         xsf::hyp2f1(-99.25, -44.5, -231.875, 1.0),
     ];
     assert_eq!(actual, [-inf, -inf, inf, -inf, inf, -inf]);
+    // The excess is tiny and negative for the first case, and overflows for the second.
+    for (a, b, c) in [(-1.0 + f64::EPSILON / 2.0, 2.0, 1.0), (1e308, 1e308, -0.5)] {
+        for (a, b) in [(a, b), (b, a)] {
+            assert_eq!(xsf::hyp2f1(a, b, c, 1.0), -inf);
+            assert_eq!(xsf::hyp2f1(a, b, c, c64(1.0, 0.0)), c64(inf, 0.0));
+        }
+    }
     // +inf at a non-positive integer c, as for x < 1
     assert_eq!(xsf::hyp2f1(0.5, 0.5, -3.0, 1.0), inf);
     assert_eq!(xsf::hyp2f1(0.5, 0.5, -3.0, 0.5), inf);
