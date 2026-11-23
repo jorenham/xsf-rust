@@ -2218,6 +2218,22 @@ def _off_axis(f: Callable[[mp.mpc], mp.mpc]) -> Callable[[mp.mpf, mp.mpf], mp.mp
     return value
 
 
+SICI_OVERFLOW: Final = (
+    Override(
+        lambda a: abs(a[1]) >= 2 * LN_MAX,
+        "xsf uses the unsplit exponential for complex E1(w) when Re w <= -2 log(f64::MAX), "
+        "which can produce NaN parts where xsf-rust returns the expected infinities (#1851)",
+    ),
+)
+CI_OVERRIDES: Final = (
+    *SICI_OVERFLOW,
+    Override(
+        lambda a: a[0] >= 1e4 and 0 < abs(a[1]) <= 10,
+        "the branch constants in xsf's Ei terms can cancel after absorbing the small imaginary "
+        "part of Ci, which xsf-rust preserves by using E1 directly (#1664)",
+    ),
+)
+
 # Shi and Chi from Ei(z) = -E1(-z) +- pi i and Ei(-z) = -E1(z) +- pi i
 SHICHI_OVERFLOW: Final = (_e1_overflow(lambda a: -abs(a[0])),)
 
@@ -4405,6 +4421,18 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (specs.r_chi,),
                 (_of_abs(flint.arb.chi),),
                 (LOG_AT_0,),
+            ),
+        )
+    ),
+    ("sici", "cd-cd_cd"): Entry(
+        (
+            _complex_out("sici.0", _off_axis(mp.si), flint.acb.si, (), SICI_OVERFLOW),
+            _complex_out(
+                "sici.1",
+                _off_axis(mp.ci),
+                flint.acb.ci,
+                (COMPLEX_LOG_AT_0,),
+                CI_OVERRIDES,
             ),
         )
     ),
