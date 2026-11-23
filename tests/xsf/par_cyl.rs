@@ -192,6 +192,39 @@ fn test_pbdv_pbvv_v_rounding() {
 }
 
 #[test]
+fn test_pbvv_parity_at_zero() {
+    for n in -20..=20 {
+        for x in [0.0, -0.0] {
+            let (w, wp) = xsf::pbvv(f64::from(n), x);
+            if n % 2 == 0 {
+                assert_eq!(w, 0.0, "v = {n}");
+                assert_ne!(wp, 0.0, "v = {n}");
+            } else {
+                assert_ne!(w, 0.0, "v = {n}");
+                assert_eq!(wp, 0.0, "v = {n}");
+            }
+        }
+    }
+
+    // Orders next to the integers still have nonzero values, including near gamma zeros.
+    for (v, derivative, expected) in [
+        (-2.000_000_000_000_000_4, false, 3.097_849_530_683_156e-31),
+        (-0.999_999_999_999_999_9, true, 1.936_155_956_676_972_5e-32),
+        (0.999_999_999_999_999_9, true, 1.743_934_249_004_316e-16),
+        (1.999_999_999_999_999_8, false, -1.743_934_249_004_316_1e-16),
+    ] {
+        let (w, wp) = xsf::pbvv(v, 0.0);
+        let actual = if derivative { wp } else { w };
+        assert!((actual / expected - 1.0).abs() < 5e-15, "v = {v}: {actual:e}");
+    }
+    assert_eq!(xsf::pbvv(f64::from_bits(1), 0.0).0, -f64::from_bits(2));
+
+    let (w, wp) = xsf::pbvv_seq(19.0, 0.0);
+    assert_eq!(w[0], 0.0);
+    assert_eq!(wp[1], 0.0);
+}
+
+#[test]
 fn test_pbvv_extreme() {
     // v >= 0 and 7.5 < |x| <= 10, and v near an integer (reference values from mpmath)
     for (v, x, w, wp) in [
