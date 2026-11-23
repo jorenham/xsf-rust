@@ -101,6 +101,9 @@ impl Hyp1F1Arg for Complex<f64> {
             if a.is_nan() || b.is_nan() || z.is_nan() {
                 return C64::NAN;
             }
+            if let Some(out) = hyperg::hyp1f1_pole_poly(a, b, z) {
+                return out;
+            }
             let mut outz = hyp1f1_small_b(a, b, z, cchg(a, b, z));
             if outz.re == SPECFUN_INF {
                 outz.re = f64::INFINITY;
@@ -202,8 +205,10 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
 ///
-/// Results at $b = 0$ can be unreliable. For `f64` $z$, it is NaN if the estimated accuracy of the
-/// result is too low, e.g. where its series cancels.
+/// For complex $z$ and integers $b \le a \le 0$, the polynomial extension has degree $-a$.
+///
+/// Results at $b = 0$ can be unreliable. The function may return NaN for ill-conditioned real
+/// inputs or when evaluating a terminating series at complex $z$.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///

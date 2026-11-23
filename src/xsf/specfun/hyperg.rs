@@ -134,6 +134,32 @@ fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
         || (k_h > 0.0 && k_h * LN_2 >= growth_h)
 }
 
+/// `M(-m, -n, z)` terminates at `m <= n`, before the first zero denominator.
+pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
+    if !(b.is_finite()
+        && is_nonpos_int(b)
+        && is_nonpos_int(a)
+        && b <= a
+        && a >= -MAX_SERIES_ITERATIONS)
+    {
+        return None;
+    }
+    Some(if a == 0.0 || z == C64::ZERO {
+        C64::ONE
+    } else if a == -1.0 {
+        // Near the root, z.re and b are within a factor of two, so the subtraction is exact.
+        if z.re <= b * 0.5 && z.re * 0.5 >= b {
+            (z - b) / (-b)
+        } else {
+            1.0 - z / b
+        }
+    } else {
+        hyp1f1_series(a, b, z, C64::ONE, 0.0, Some(-a as i32))
+            .filter(|&(sum, err)| sum.is_finite() && err <= (sum * SQRT_EPSILON).norm())
+            .map_or(C64::NAN, |(sum, _)| sum)
+    })
+}
+
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
     // ===================================================
     // Purpose: Compute confluent hypergeometric function
@@ -286,9 +312,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
             // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
             // recurrence in a above if they differ by more than twice the series' error bound.
             if b > 0.0 {
-                if let Some((s, _)) = hyp1f1_series(a0, b, z, C64::ONE, 0.0).filter(|&(s, err)| {
-                    err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
-                }) {
+                if let Some((s, _)) =
+                    hyp1f1_series(a0, b, z, C64::ONE, 0.0, None).filter(|&(s, err)| {
+                        err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                    })
+                {
                     chg = s;
                 }
             }
@@ -337,14 +365,22 @@ impl Term for DoubleDouble {
 }
 
 /// `hyp1f1_sum` in complex arithmetic.
-fn hyp1f1_series(a: f64, b: f64, z: C64, scale: C64, log_scale: f64) -> Option<(C64, f64)> {
+fn hyp1f1_series(
+    a: f64,
+    b: f64,
+    z: C64,
+    scale: C64,
+    log_scale: f64,
+    degree: Option<i32>,
+) -> Option<(C64, f64)> {
     let next_term = |t, n| t * ((a + n) / (n + 1.0) * (z / (b + n)));
-    hyp1f1_sum(a, b, z.norm(), next_term, scale, log_scale)
+    hyp1f1_sum(a, b, z.norm(), next_term, scale, log_scale, degree)
 }
 
 /// `scale * M(a, b, z)` from the series DLMF 13.2.2, with the terms `t_n+1 = next_term(t_n, n)` and
 /// `abs_z = |z|`, for `a > -1` or `b < 0`, with an error bound for `a >= 1` and `b > 0` (an
 /// estimate for `b < 0`), or `None` if it doesn't converge within 100000 terms (a cost bound).
+/// For a pole polynomial with `b <= a <= 0`, `degree` gives the last term before the pole.
 ///
 /// The error bound (to first order in `u = T::EPS / 2`) is the sum of:
 /// - the tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term ratios
@@ -372,18 +408,28 @@ fn hyp1f1_sum<T: Term>(
     next_term: impl Fn(T, f64) -> T,
     scale: T,
     mut log_scale: f64,
+    degree: Option<i32>,
 ) -> Option<(T, f64)> {
     // the term `tn` as scaled `k` times by `rescale_term`
     let (mut t, mut k) = (scale, 0);
     let mut sum = scale;
     let mut comp = T::default();
-    let mut err = t.norm();
-    for n in 0..MAX_TERMS {
+    let roundoff = 4.0 * T::EPS;
+    // Include the roundoff factor early for the unscaled pole polynomial to keep err finite.
+    let err_scale = if degree.is_some() { roundoff } else { 1.0 };
+    let mut err = err_scale * t.norm();
+    for n in 0..degree.unwrap_or(MAX_TERMS) {
+        let last = degree == Some(n + 1);
         let n = f64::from(n);
         let (mut tn, mut norm);
         (t, tn, norm) = rescale_term(next_term(t, n), T::norm, &mut k);
         tn.add_to(&mut sum, &mut comp);
-        err += (n + 2.0) * norm;
+        let err_norm = if degree.is_some() && norm.is_infinite() {
+            (tn * err_scale).norm()
+        } else {
+            err_scale * norm
+        };
+        err += (n + 2.0) * err_norm;
         if log_scale < 0.0 && err > 1e250 {
             let s = log_scale.max(-600.0);
             log_scale -= s;
@@ -391,13 +437,25 @@ fn hyp1f1_sum<T: Term>(
             (t, tn, sum, comp, err) = (t * s, tn * s, sum * s, comp * s, err * s);
             norm = tn.norm();
         }
-        if norm <= T::EPS * sum.norm() {
-            let q = term_ratio(a, b, abs_z, n + 1.0);
+        if last || norm <= T::EPS * sum.norm() {
+            let q = if last {
+                Some(0.0)
+            } else if degree.is_some() {
+                // All remaining ratios are bounded by |z| / (n+2) since b <= a.
+                let q = abs_z / (n + 2.0);
+                (q < 1.0).then_some(q)
+            } else {
+                term_ratio(a, b, abs_z, n + 1.0)
+            };
             if q.is_none() && sum.norm().is_finite() {
                 continue;
             }
-            let tail = q.map_or(f64::INFINITY, |q| norm * q / (1.0 - q));
-            let bound = 4.0 * T::EPS * err + tail;
+            let tail = if last {
+                0.0
+            } else {
+                q.map_or(f64::INFINITY, |q| norm * q / (1.0 - q))
+            };
+            let bound = (roundoff / err_scale) * err + tail;
             if log_scale == 0.0 {
                 return Some((sum, bound));
             }
@@ -429,7 +487,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
         (a, z, 0.0, 0.0)
     };
     let scale = b.abs() * C64::cis(phase);
-    hyp1f1_series(a, b, z, scale, ln_scale)
+    hyp1f1_series(a, b, z, scale, ln_scale, None)
         .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPSILON * m.norm())
         .map_or(hg, |(m, _)| m / b.abs())
 }
@@ -468,14 +526,14 @@ fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
     } else {
         0.0
     };
-    hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s)
+    hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s, None)
         .map(|(hg, err)| (hg.re, err))
 }
 
 /// `chgm_series` in double-double, with `log_scale = min(x0, 0)`.
 fn chgm_series_dd(a: DoubleDouble, b: DoubleDouble, x: f64, x0: f64) -> Option<(f64, f64)> {
     let next_term = |t, n| t * (a + n) * x / ((b + n) * (n + 1.0));
-    hyp1f1_sum(a.hi, b.hi, x, next_term, DoubleDouble::ONE, x0.min(0.0))
+    hyp1f1_sum(a.hi, b.hi, x, next_term, DoubleDouble::ONE, x0.min(0.0), None)
         .map(|(hg, err)| (hg.hi, err))
 }
 
