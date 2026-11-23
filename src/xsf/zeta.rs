@@ -358,6 +358,8 @@ fn zeta_reflection_log_factor(z: C64) -> C64 {
     let t2 = (z - 1.0) * LN_PI;
     let t3 = logsinpi(z / 2.0);
     let t4 = cloggamma(1.0 - z);
+    // Unlike in xsf, return the logarithm so the reflected zeta value can be
+    // included before exponentiation.
     t1 + t2 + t3 + t4
 }
 
@@ -377,6 +379,7 @@ fn zeta_reflection(z: C64) -> C64 {
             return product;
         }
     }
+    // An exact unit result leaves the factor as is, preserving infinities in its components.
     if result == C64::ONE {
         factor
     } else {
