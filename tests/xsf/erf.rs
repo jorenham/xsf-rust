@@ -71,12 +71,14 @@ fn test_erf_zeros() {
 
 #[test]
 fn test_erf_zeros_large() {
-    // The 77th and 1000th zeros, via `mpmath.findroot` of `mpmath.erf`
+    // Zeros from mpmath.findroot of mpmath.erf, starting at the asymptotic estimates.
     let erz = xsf::erf_zeros::<1000>();
     xsref::np_assert_allclose!(
-        &[erz[76], erz[999]],
+        &[erz[76], erz[99], erz[399], erz[999]],
         &[
             c64(15.481_740_840_635_416, 15.599_573_700_766_374),
+            c64(17.659_970_331_721_766, 17.767_043_069_336_868),
+            c64(35.411_898_828_807_104, 35.475_194_975_359_294),
             c64(56.024_353_733_827_17, 56.068_470_016_470_09),
         ],
         rtol = 1e-15
