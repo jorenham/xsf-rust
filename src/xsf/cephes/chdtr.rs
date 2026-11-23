@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/chdtr.h` (scipy/xsf@95f9f7e).
+//! Translated into pure Rust from `xsf/cephes/chdtr.h` (scipy/xsf@55c14c9).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987 by Stephen L. Moshier
@@ -6,9 +6,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::xsf::cephes::gamma;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::igami::igamci;
+use crate::xsf::cephes::rgamma;
 use crate::xsf::exp2;
 
 /// Complemented Chi-square distribution
@@ -109,7 +109,7 @@ pub(crate) fn chdtr(df: f64, x: f64) -> f64 {
         // Split `x^a` so the product rounds only once when it is subnormal.
         let p = x.powf(a / 2.0);
         // Unlike in xsf, use `exp2` for the power of two.
-        p * (p * (exp2(-a) / gamma(a + 1.0)))
+        p * (p * (exp2(-a) * rgamma(a + 1.0)))
     } else {
         igam(df / 2.0, x / 2.0)
     }
