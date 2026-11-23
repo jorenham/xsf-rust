@@ -74,9 +74,6 @@ FUNCS: Final[dict[str, tuple[Callable[[list[Args]], Values], str]]] = {
     "ellip_harm": (cols(sp.ellip_harm, ints=(2, 3)), OWN),
     "ellip_harm_2": (cols(sp.ellip_harm_2, ints=(2, 3)), OWN),
     "ellip_normal": (cols(sp.ellip_normal, ints=(2, 3)), OWN),
-    # `lmbda` returns the orders v - floor(v), ..., v; the last is order v
-    "jahnke_emden_lambda.0": (each(lambda v, x: sp.lmbda(v, x)[0][-1]), XSF),
-    "jahnke_emden_lambda.1": (each(lambda v, x: sp.lmbda(v, x)[1][-1]), XSF),
     "bessel_j_prime": (deriv(sp.jvp), OWN),
     "bessel_y_prime": (deriv(sp.yvp), OWN),
     "bessel_i_prime": (deriv(sp.ivp), OWN),

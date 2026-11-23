@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -209,6 +210,24 @@ static double segv_seq(int m, int n, double c, int kd) {
     return eg[n - m];
 }
 
+template <int I> double jahnke_emden_lambda(double v, double x) {
+    if (!(v >= 0 && v < std::numeric_limits<int>::max() - 1 && std::abs(x) <= 1e9)) {
+        return NAN;
+    }
+    const int n = static_cast<int>(v);
+    const int last = std::max(1, n);
+    const std::size_t len = static_cast<std::size_t>(last) + 1;
+    std::vector<double> out(2 * len, NAN);
+    if (v == n) {
+        int nm;
+        xsf::specfun::lamn(last, x, &nm, out.data(), out.data() + len);
+    } else {
+        double vm;
+        xsf::specfun::lamv(v, x, &vm, out.data(), out.data() + len);
+    }
+    return out[I * len + n];
+}
+
 // the number of zeros or numbers of the functions with a const `N` in xsf-rust; must match
 // src/main.rs
 constexpr int ZEROS_N = 500;
@@ -400,6 +419,8 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F1("bessel_k0", xsf::cyl_bessel_k0(x))
     F1("bessel_k1", xsf::cyl_bessel_k1(x))
     F2("bessel_j", xsf::cyl_bessel_j(x, y))
+    F2("jahnke_emden_lambda.0", jahnke_emden_lambda<0>(x, y))
+    F2("jahnke_emden_lambda.1", jahnke_emden_lambda<1>(x, y))
     F2("bessel_y", xsf::cyl_bessel_y(x, y))
     F2("bessel_i", xsf::cyl_bessel_i(x, y))
     F2("bessel_k", xsf::cyl_bessel_k(x, y))

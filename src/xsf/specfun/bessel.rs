@@ -1,5 +1,5 @@
-//! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@5d2c283).
+//! Bessel functions of integer order, translated into pure Rust from
+//! `xsf/cpu/specfun/specfun.h` (scipy/xsf@e9f0bf7).
 
 #![allow(clippy::approx_constant)]
 
@@ -926,7 +926,7 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     let mut f = 0.0;
     let mut f0 = 0.0;
     let mut f1 = 1e-100;
-    // the rescalings so far, also kept in `dl` for each stored order
+    // Unlike in xsf, record each stored order's rescaling exponent in `dl` and apply it later.
     let mut scales = 0;
     for k in (0..=m).rev() {
         f = 2.0 * (f64::from(k) + 1.0) * f1 / x - f0;
@@ -936,8 +936,7 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
         if k % 2 == 0 {
             bs += 2.0 * f;
         }
-        // Unlike in xsf, this rescales (by powers of 2), since it overflows from about `x = 4476`,
-        // where `msta1` and `msta2` overestimate the start
+        // Rescale by a power of 2 to prevent the backward recurrence from overflowing for large x.
         if f.abs() > SPECFUN_BIG {
             (f, f1, bs) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG, bs / SPECFUN_BIG);
             scales += 1;
@@ -1069,7 +1068,6 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         return;
     }
 
-    // the rescalings of the backward recurrence, also kept in `dl` for each stored order
     let mut scales = 0;
     dl.fill(0.0);
     if n >= 2 && f64::from(n) <= 0.9 * x {
@@ -1091,12 +1089,13 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         let mut f2 = 0.0;
         let mut f1 = 1.0e-100;
 
+        // Unlike in xsf, defer rescaling the stored orders as in `lamn`.
         for k in (0..=m).rev() {
             f = 2.0 * (v0 + f64::from(k) + 1.0) / x * f1 - f2;
             if k <= n + 1 {
                 (vl[k as usize], dl[k as usize]) = (f, f64::from(scales));
             }
-            // Unlike in xsf, this rescales like `lamn` does
+            // Rescale by a power of 2 to prevent the backward recurrence from overflowing for large x.
             if f.abs() > SPECFUN_BIG {
                 (f, f1) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG);
                 scales += 1;
