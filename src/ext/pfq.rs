@@ -397,32 +397,55 @@ fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bool) -> T {
     }
 }
 
+/// `t_{n+1} / t_n` as `Ok(ratio)` if the products, their quotient, and the product with `z` are
+/// normal, else `Err(ratio)` with the already-computed `q * z`
+///
+/// With `checked = false`, the parameters must not be `pfq_extreme` so that partial products of
+/// `pfq_products` stay normal.
+#[inline]
+fn pfq_normal_ratio<T: SeriesReal>(
+    a: &[f64],
+    b: &[f64],
+    n: f64,
+    z: f64,
+    checked: bool,
+) -> Result<T, T> {
+    let (q, products_normal) = if checked {
+        (pfq_checked_ratio(a, b, n), true)
+    } else {
+        let [num, den]: [T; 2] = pfq_products(a, b, n);
+        (num / den, is_normal(num) && is_normal(den))
+    };
+    let ratio = q * T::from_f64(z);
+    if products_normal && is_normal(q) && is_normal(ratio) {
+        Ok(ratio)
+    } else {
+        Err(ratio)
+    }
+}
+
 /// The term `t_{n+1}` after `term = t_n`, with a ratio that is `checked` if the parameters are
 /// extreme
 #[inline]
 fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checked: bool) -> T {
-    let ratio = pfq_ratio::<T>(a, b, n, checked) * T::from_f64(z);
-    if is_normal(ratio) {
-        term * ratio
-    } else {
-        pfq_rescaled_next(a, b, n, z, term).unwrap_or_else(|| term * ratio)
+    match pfq_normal_ratio::<T>(a, b, n, z, checked) {
+        Ok(ratio) => term * ratio,
+        Err(ratio) => pfq_rescaled_next(a, b, n, z, term).unwrap_or_else(|| term * ratio),
     }
 }
 
 /// `pfq_next` without its fallback to the rounded ratio, which can have more rounding errors, so
 /// `None` where `t_{n+1}` is not normal
 fn pfq_normal_next(a: &[f64], b: &[f64], n: f64, z: f64, term: f64, checked: bool) -> Option<f64> {
-    let ratio = pfq_ratio::<f64>(a, b, n, checked) * z;
-    let next = if is_normal(ratio) {
-        term * ratio
-    } else {
-        pfq_rescaled_next(a, b, n, z, term)?
-    };
-    next.is_normal().then_some(next)
+    match pfq_normal_ratio::<f64>(a, b, n, z, checked) {
+        Ok(ratio) => Some(term * ratio).filter(|next| next.is_normal()),
+        Err(_) => pfq_rescaled_next(a, b, n, z, term),
+    }
 }
 
-/// `pfq_next` from the mantissas and exponents of its factors, as `t_{n+1} / t_n` can over- or
-/// underflow where `t_{n+1}` is normal; `None` if `t_{n+1}` is not normal either
+/// `pfq_next` from the mantissas and exponents of its factors, as an intermediate product or
+/// quotient can over- or underflow where `t_{n+1}` is normal; `None` if `t_{n+1}` is not normal
+/// either
 #[cold]
 #[inline(never)]
 fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T) -> Option<T> {
@@ -470,7 +493,7 @@ fn pfq_terms_of<T: SeriesReal>(
 /// The estimate is infinite if the series did not converge within `PFQ_MAXITER` terms, or if
 /// its terms overflow, or underflow before they become large again. If it converged, but its
 /// terms cancel, then it is summed again in double-double arithmetic.
-pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64) {
+fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64) {
     let (y, err, _) = pfq_series_tails(a, b, z);
     (y, err)
 }
@@ -802,7 +825,7 @@ fn gamma_low((x, e): (f64, f64)) -> f64 {
 /// square of `psi(x) e` estimates the error of that.
 ///
 /// The ratio is zero only if `w` is a pole, and `None` if it underflows or overflows.
-pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
+fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
     // `gamma` and `rgamma` are within 2.3 ulp for 99% of |x| <= 170 (measured)
     let (mut ratio, mut err) = (gamma(u.0) * rgamma(w.0), 3.0 * f64::EPSILON);
     if !ratio.is_normal() {
@@ -823,7 +846,7 @@ pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
 
 /// The parameters `a` or `b` of a method for pFq: an array, or a `Vec` if their number
 /// is only known at run time
-pub(crate) trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
+trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
 
 impl<P: Clone + AsRef<[f64]> + AsMut<[f64]>> Params for P {}
 
@@ -839,7 +862,7 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
 /// This is for `p = q + 1`, where `b` contains the 1 of `n!`. It is a sum over `j` of series in
 /// `1 / z` with the parameters `a_j + 1 - b` and `a_j + 1 - a`, or its limit where `a_i` differ
 /// by integers, which is `None` if it underflows or overflows.
-pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
     let one = b.as_ref().iter().position(|&v| v == 1.0)?;
     let mut diffs = zip(a.as_ref(), 0..).flat_map(|(aj, j)| skip(a, j).map(move |ak| ak - aj));
     if diffs.any(|d| d.fract() == 0.0) {
@@ -1255,7 +1278,7 @@ fn asymptotic_sum<T: Term>(
 fn convergent_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
-    ratio_bound: impl Fn(f64) -> f64,
+    mut ratio_bound: impl FnMut(f64) -> f64,
 ) -> (T::Value, f64) {
     let eps = T::Value::EPSILON;
     // the partial sums, until the tail is negligible
@@ -1599,8 +1622,16 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         //
         // The bound is on the factors that are shifted in double-double, as `x.hi + n` is not
         // the rounded `x + n` where that nearly vanishes, from where all of them are positive.
-        let shifted = |v: &[Dd], n: f64| v.iter().map(|&x| (x + n).hi).collect::<Vec<_>>();
-        let bound = |n| pfq_ratio_bound(&shifted(&up, n), &shifted(&low, n), 1.0 / z, 0.0);
+        let (mut up_s, mut low_s) = (vec![0.0; up.len()], vec![0.0; low.len()]);
+        let bound = |n: f64| {
+            for (dst, &x) in zip(&mut up_s, &up) {
+                *dst = (x + n).hi;
+            }
+            for (dst, &x) in zip(&mut low_s, &low) {
+                *dst = (x + n).hi;
+            }
+            pfq_ratio_bound(&up_s, &low_s, 1.0 / z, 0.0)
+        };
         let positive_from = |x: &Dd| (-*x).floor().hi + 1.0;
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
         return convergent_sum(terms, settled, bound);
@@ -2149,20 +2180,22 @@ fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = 
     let left: Vec<f64> = b.iter().map(|bj| kappa * (bj - 1.0)).collect();
     let right: Vec<f64> = a.iter().map(|ai| kappa * ai).collect();
     // the coefficients of e^x x^(s+n-j) in prod_(i<n) (D + g_i) e^x x^s, for j <= q + 1
-    let coefs = move |g: &[f64], s: f64| {
-        let mut c = vec![0.0; q + 2];
+    let fill_coefs = |g: &[f64], s: f64, c: &mut [f64]| {
         c[0] = 1.0;
+        c[1..].fill(0.0);
         for (i, &gi) in g.iter().enumerate() {
             for j in (1..=i + 1).rev() {
                 c[j] += c[j - 1] * (s + (i + 1 - j) as f64 + gi);
             }
         }
-        c
     };
     // t_k, and the sums so far of t_(k+1), ..., t_(k+q)
     let (mut k, mut t, mut sums) = (0.0, 1.0, vec![0.0; q]);
+    let (mut l, mut r) = (vec![0.0; q + 2], vec![0.0; q + 2]);
     from_fn(move || {
-        let (term, l, r) = (t, coefs(&left, nu - k), coefs(&right, nu - k));
+        let term = t;
+        fill_coefs(&left, nu - k, &mut l);
+        fill_coefs(&right, nu - k, &mut r);
         let mut scale = 1.0;
         for (m, sum) in sums.iter_mut().enumerate() {
             scale /= x;
@@ -2178,17 +2211,20 @@ fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = 
 
 /// `cos(pi / k)` and `sin(pi / k)` in double-double precision, for `k >= 2`
 fn cos_sin_pi_div(k: usize) -> (Dd, Dd) {
-    let phi = 2.0 / (FRAC_2_PI_DD * k as f64);
-    // n, and the terms n - 1 of their Taylor series, of the degrees 2 n - 2 and 2 n - 1, which
-    // are below 2^-106 from n = 21 on
-    let terms = successors(Some((1.0, Dd::ONE, phi)), |&(n, c, _)| {
-        let next = -(c * phi * phi) / ((2.0 * n - 1.0) * (2.0 * n));
-        Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
-    });
-    let zero = (Dd::ZERO, Dd::ZERO);
-    terms
-        .take(20)
-        .fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
+    if k == 2 {
+        (Dd::ZERO, Dd::ONE)
+    } else {
+        let phi = 2.0 / (FRAC_2_PI_DD * k as f64);
+        // n, and the terms n - 1 of their Taylor series, of the degrees 2 n - 2 and 2 n - 1, which
+        // are below 2^-106 from n = 21 on
+        let terms = successors(Some((1.0, Dd::ONE, phi)), |&(n, c, _)| {
+            let next = -(c * phi * phi) / ((2.0 * n - 1.0) * (2.0 * n));
+            Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
+        });
+        terms
+            .take(20)
+            .fold((Dd::ZERO, Dd::ZERO), |(cos, sin), (_, c, s)| (cos + c, sin + s))
+    }
 }
 
 /// The sum of the two exponential parts of `pfq_exp` for `z < 0` and `p < q`, which have
@@ -2985,6 +3021,23 @@ mod tests {
         let near = accurate(&[1.0, 1.0 + pow2(-20), 10.5]);
         let expected = 739_413_030.005_544_4;
         assert!(near.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected));
+    }
+
+    #[test]
+    fn test_cos_sin_pi_div_two() {
+        let (cos, sin) = cos_sin_pi_div(2);
+        assert_eq!((cos.hi, cos.lo, sin.hi, sin.lo), (0.0, 0.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn test_pfq_next_rescaled_subnormal_quotient() {
+        // extreme parameters whose ratio underflows while `ratio * z` is normal (checked mode)
+        let next = pfq_next::<f64>(&[1e-160, 1e-160], &[1.0], 0.0, 1e200, 1.0, true);
+        assert!((next / 1e-120 - 1.0).abs() <= 4.0 * f64::EPSILON, "{next}");
+        // smallest subnormal term is not double-rounded to zero by the rescaled path
+        let a = [f64::from_bits(0x0010_0000_0000_0001)];
+        let z = f64::from_bits(0x3c9f_ffff_ffff_ffff);
+        assert_eq!(pfq_next::<f64>(&a, &[1.0], 0.0, z, 1.0, true), f64::from_bits(1));
     }
 
     #[test]

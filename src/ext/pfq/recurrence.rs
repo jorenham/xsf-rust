@@ -414,6 +414,9 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
 /// not accurate
 pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
     let (a, [large, small]) = params_3f2(a, b)?;
+    if z >= 0.0 || a[0] < RAISED_MIN {
+        return None;
+    }
     // one `RAISED_WORK` for each of the three starts, shared by all `m`
     let work = Cell::new(3 * RAISED_WORK);
     // (exact, as `small + k` is in `(small, 0)`)
