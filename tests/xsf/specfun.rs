@@ -1104,6 +1104,14 @@ fn test_hyp1f1_pole_polynomial() {
     );
     let sub_z = c64(2.0_f64.powi(1022), 2.0_f64.powi(-52));
     assert_eq!(xsf::hyp1f1(-2.0, -2.0_f64.powi(1022), sub_z), c64(4.0, f64::from_bits(4)));
+    // subnormal midpoints preserve the double-double low word without double rounding
+    let neg_half_up = f64::from_bits((-0.5_f64).to_bits() - 1);
+    let pos_half_down = f64::from_bits(0.5_f64.to_bits() - 1);
+    assert_eq!(xsf::hyp1f1(-2.0, -2.0, c64(neg_half_up, f64::from_bits(1))).im, f64::from_bits(1));
+    assert_eq!(
+        xsf::hyp1f1(-2.0, -2.0, c64(pos_half_down, f64::from_bits(1))).im,
+        f64::from_bits(1)
+    );
     assert_eq!(
         xsf::hyp1f1(-2.0, -2.0, c64(2.0_f64.powi(502), 2.0_f64.powi(-600))),
         c64(2.0_f64.powi(1003), 2.0_f64.powi(-98))

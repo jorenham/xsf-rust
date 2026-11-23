@@ -192,6 +192,10 @@ impl ScaledF64 {
         }
     }
 
+    fn is_subnormal(self) -> bool {
+        self.0 != 0.0 && self.1 <= -1022
+    }
+
     fn is_tiny(self) -> bool {
         self.0 == 0.0 || self.1 < -1120
     }
@@ -284,7 +288,35 @@ impl ScaledDd {
     }
 
     fn to_f64(self) -> f64 {
-        ScaledF64(self.0.hi, self.1).to_f64()
+        if self.0.hi == 0.0 {
+            return 0.0;
+        }
+        if self.1 > 1024 {
+            return f64::INFINITY.copysign(self.0.hi);
+        }
+        if self.1 < -1074 {
+            return 0.0_f64.copysign(self.0.hi);
+        }
+        if self.1 <= -1022 {
+            // round `(hi + lo) * 2^(e + 1074)` to the nearest subnormal bit pattern (ties to even)
+            // without dropping `lo`
+            let shift = (self.1 + 1074) as i32;
+            let hi_s = ldexp_f64(self.0.hi.abs(), shift);
+            let lo_s = ldexp_f64(
+                if self.0.hi < 0.0 {
+                    -self.0.lo
+                } else {
+                    self.0.lo
+                },
+                shift,
+            );
+            let q = hi_s.trunc() as u64;
+            let frac = hi_s - q as f64;
+            let round_up =
+                frac > 0.5 || (frac == 0.5 && (lo_s > 0.0 || (lo_s == 0.0 && q & 1 == 1)));
+            return f64::from_bits(q + u64::from(round_up)).copysign(self.0.hi);
+        }
+        ldexp_f64(self.0.hi, self.1 as i32)
     }
 }
 
@@ -321,7 +353,7 @@ pub(crate) fn hyp1f1_pole_poly_f64(a: f64, b: f64, x: f64) -> Option<f64> {
         abs_sum = abs_sum.add(t.abs());
     }
     let out = sum.to_f64();
-    let no_cancel = sum.0 != 0.0 && abs_sum.div(sum.abs()).to_f64() <= 2.0;
+    let no_cancel = !sum.is_subnormal() && sum.0 != 0.0 && abs_sum.div(sum.abs()).to_f64() <= 2.0;
     if no_cancel || (x > 0.0 && out.is_infinite()) {
         return Some(out);
     }
@@ -385,10 +417,12 @@ pub(crate) fn hyp1f1_pole_poly_c64(a: f64, b: f64, z: C64) -> Option<C64> {
         abs_re = abs_re.add(p1.abs().add(p2.abs()).mul(factor.abs()));
         abs_im = abs_im.add(q1.abs().add(q2.abs()).mul(factor.abs()));
     }
-    let re_ok =
-        (sr.0 == 0.0 && abs_re.0 == 0.0) || (sr.0 != 0.0 && abs_re.div(sr.abs()).to_f64() <= 2.0);
-    let im_ok =
-        (si.0 == 0.0 && abs_im.0 == 0.0) || (si.0 != 0.0 && abs_im.div(si.abs()).to_f64() <= 2.0);
+    let re_ok = !sr.is_subnormal()
+        && ((sr.0 == 0.0 && abs_re.0 == 0.0)
+            || (sr.0 != 0.0 && abs_re.div(sr.abs()).to_f64() <= 2.0));
+    let im_ok = !si.is_subnormal()
+        && ((si.0 == 0.0 && abs_im.0 == 0.0)
+            || (si.0 != 0.0 && abs_im.div(si.abs()).to_f64() <= 2.0));
     if re_ok && im_ok {
         return Some(c64(sr.to_f64(), si.to_f64()));
     }
