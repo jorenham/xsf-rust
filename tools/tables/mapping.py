@@ -3683,6 +3683,10 @@ PBWA_NAN: Final = Rule(
 )
 
 
+def _spence_arb(x: flint.arb) -> flint.arb:
+    return (1 - flint.acb(x)).polylog(2).real
+
+
 def _hyp2f1_degree(a: float, b: float, c: float) -> int | None:
     """The degree of 2F1 if a or b is a non-positive integer (the one closer to 0 ends it),
     unless c is a pole before that."""
@@ -4889,6 +4893,21 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (NAN, PBWA_NAN),
             )
             for i in range(2)
+        )
+    ),
+    ("spence", "d-d_d"): Entry(
+        tuple(
+            Out(
+                func,
+                (specs.r_spence,),
+                (_spence_arb,),
+                (
+                    Rule(
+                        lambda a: a[0] < 0, math.nan, "Li2(1 - x) is not real for x < 0"
+                    ),
+                ),
+            )
+            for func in ("spence", "spence_real_axis")
         )
     ),
     ("airye", "cd-cd_cd_cd_cd"): Entry(tuple(_complex_airye_out(i) for i in range(4))),

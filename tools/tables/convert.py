@@ -129,9 +129,11 @@ def thin_rows(x: pl.Series) -> pl.Series:
 
 def convert(src: Path, table: str, sig: str, *, cap: bool) -> tuple[bytes, int]:
     """The flat file of a table and signature, and its number of source rows."""
-    inputs = read_columns(src / f"In_{sig}.parquet")
-    out = pl.read_parquet(src / f"Out_{sig}.parquet")
-    tols = read_columns(src / f"Err_{sig}_other.parquet")
+    spence_pair = (table, sig) == ("spence", "d-d_d")
+    source_sig = "d-d" if spence_pair else sig
+    inputs = read_columns(src / f"In_{source_sig}.parquet")
+    out = pl.read_parquet(src / f"Out_{source_sig}.parquet")
+    tols = read_columns(src / f"Err_{source_sig}_other.parquet")
 
     # the loader of the tests read the outputs as the leading columns
     assert out.columns[-1] == "fallback", out.columns
@@ -142,6 +144,10 @@ def convert(src: Path, table: str, sig: str, *, cap: bool) -> tuple[bytes, int]:
         col.cast(pl.Float64).fill_null(float("nan")) for col in out.get_columns()[:-1]
     ]
 
+    if spence_pair:
+        # The real overload and complex projection share the real grid and reference.
+        outputs *= 2
+        tols *= 2
     columns = [*inputs, *outputs, *tols]
     n_rows = len(fallback)
     assert all(len(col) == n_rows for col in columns), (table, sig)

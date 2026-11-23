@@ -2,10 +2,11 @@ use num_complex::c64;
 use xsref::np_assert_allclose;
 
 xsref::tests! {
-    test_spence_xsref_f64: "spence", "d-d", |x| xsf::spence(x[0]);
-    // the complex result isn't real for x < 0, where the real one is NaN
-    test_spence_xsref_c64: "spence", "d-d", |x| {
-        if x[0] < 0.0 { f64::NAN } else { xsf::spence(c64(x[0], 0.0)).re }
+    test_spence_xsref: "spence", "d-d_d", |x| {
+        let x = x[0];
+        // The complex result is not real for x < 0.
+        let projected = if x < 0.0 { f64::NAN } else { xsf::spence(c64(x, 0.0)).re };
+        (xsf::spence(x), projected)
     };
 }
 
