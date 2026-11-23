@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/beta.h` (scipy/xsf@8e32110).
+//! Translated into pure Rust from `xsf/cephes/beta.h` (scipy/xsf@7fe05ab).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987 by Stephen L. Moshier
@@ -121,14 +121,12 @@ fn lbeta_reflects_a(a: f64, b: f64) -> bool {
 /// Whether `beta` and `lbeta` use `lbeta_ratio` or `lgam` instead of `gamma`
 fn beta_uses_lgam(a: f64, b: f64) -> bool {
     let y = a + b;
+    // Unlike in xsf, also use the logarithmic path if a gamma factor is outside the normal range.
     y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y)
 }
 
 /// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and
 /// `|a + b|` at most `MAXGAM`
-///
-/// Unlike in xsf (scipy/xsf#357, scipy/xsf#540), `lgam` is then used instead, also if `a` or `b`
-/// is subnormal.
 fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
     (a < 1.0 - MAXGAM
         || b < 1.0 - MAXGAM
@@ -362,7 +360,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if beta_uses_lgam(a, b) {
+    if b.abs() < f64::MIN_POSITIVE || beta_uses_lgam(a, b) {
         if let Some((y, _)) = lbeta_ratio(a, b) {
             return y;
         }

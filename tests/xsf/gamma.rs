@@ -192,11 +192,13 @@ fn test_gammaln_near_zeros() {
 
 #[test]
 fn test_gammaln_subnormal() {
-    // unlike in xsf: -ln|x| instead of inf, where 1 / x overflows (mpmath)
     for (x, expected) in [
         (5e-309, 709.889_355_822_726),
         (2e-308, 708.503_061_461_606_1),
-        (5e-324, 744.440_071_921_381_2),
+        (f64::from_bits(1), 744.440_071_921_381_2),
+        (f64::from_bits(f64::MIN_POSITIVE.to_bits() - 1), 708.396_418_532_264_1),
+        (f64::MIN_POSITIVE, 708.396_418_532_264_1),
+        (f64::from_bits(f64::MIN_POSITIVE.to_bits() + 1), 708.396_418_532_264_1),
     ] {
         assert_eq!(xsf::gammaln(x), expected);
         assert_eq!(xsf::gammaln(-x), expected);
