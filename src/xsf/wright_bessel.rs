@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/wright_bessel.h` (scipy/xsf@527cef1).
+//! Translated into pure Rust from `xsf/wright_bessel.h` (scipy/xsf@c1f8b72).
 //!
 //! Implementation of Wright's generalized Bessel function Phi, see
 //! <https://dlmf.nist.gov/10.46.E1>
@@ -125,7 +125,7 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     };
     for k in nstart..nstart + n {
         let term = (ln_term(f64::from(k)) - max_exponent).exp();
-        // Unlike in xsf, the log keeps the first term apart, for `ln_add`
+        // Unlike in xsf, keep the first term apart for ln_add regardless of its size.
         if LOG_WB && k == nstart {
             lead = term;
         } else {
@@ -254,7 +254,7 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
             }
             res = polevl(a, &A[..=order]);
         }
-        // Unlike in xsf, res is the sum without its leading 1 (A[order] = 0), for ln_1p
+        // Unlike in xsf, add the leading 1 after summation for the non-log case.
         if !LOG_WB {
             res = (1.0 + res) * exp_rgamma(x, b);
         } else {
@@ -1247,8 +1247,14 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         // 20 term Taylor Series for x <= 2 => error mostly smaller 1e-12 to 1e-13
         let nstop = if x <= 1.0 { 18 } else { 20 };
         if LOG_WB {
-            // Unlike in xsf, the leading term rgamma(b) is kept apart, for `ln_add`
-            return ln_add(rgamma(b), wb_series(a, b, x, 1, nstop));
+            // Split off the k=0 term to keep the accuracy when Phi is close to 1.
+            let t0 = rgamma(b);
+            let tail = wb_series(a, b, x, 1, nstop);
+            if tail < t0 {
+                return -crate::loggamma(b) + (tail / t0).ln_1p();
+            }
+            // Unlike in xsf, use ln_1p for t0 >= 0.5 to avoid rounding t0 + tail near 1.
+            return ln_add(t0, tail);
         }
         return wb_series(a, b, x, 0, nstop);
     }

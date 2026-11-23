@@ -7,12 +7,19 @@ xsref::tests! {
 
 #[test]
 fn test_log_wright_bessel_near_zero() {
-    // unlike in xsf, ln(Phi) does not lose accuracy for Phi ~ 1 (mpmath)
+    // Keep the precision when Phi is close to 1, where its logarithm is close to 0.
+    // In the last three cases b is one ulp below 1, so log(Gamma(b)) is also close to 0.
+    let b1 = 0.999_999_999_999_999_9;
     for (a, b, x, expected) in [
-        (10.0, 1.0, 1e-3, 2.755_731_922_018_888_3e-10), // was 2.6e-7 off
-        (10.0, 2.0, 1e-3, 2.505_210_838_512_792_5e-11), // was 3.0e-6 off
-        (20.0, 1.0, 2.5, 1.027_579_405_828_041_2e-18),  // was 0
-        (1e-4, 1.0, 1e-12, 1.000_057_715_007_667_5e-12), // was 5.8e-5 off
+        (10.0, 1.0, 1e-3, 2.755_731_922_018_888_3e-10),
+        (10.0, 2.0, 1e-3, 2.505_210_838_512_792_5e-11),
+        (20.0, 1.0, 2.5, 1.027_579_405_828_041_2e-18),
+        (1e-4, 1.0, 1e-12, 1.000_057_715_007_667_5e-12),
+        (1e-4, 1.0, 1e-10, 1.000_057_715_007_667_5e-10),
+        (100.0, 1.0, 1.5, 1.607_265_432_188_200_3e-158),
+        (10.0, b1, 3.63e-10, 3.594_925_664_826_874e-17),
+        (100.0, b1, 2.5, -6.408_381_213_480_008e-17),
+        (1e-4, b1, 1e-20, -6.407_381_155_765e-17),
     ] {
         let actual = xsf::log_wright_bessel(a, b, x);
         assert!((actual / expected - 1.0).abs() < 1e-13, "{actual:e} != {expected:e}");

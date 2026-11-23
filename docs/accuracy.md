@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`9e3b3f1`](https://github.com/scipy/xsf/tree/9e3b3f1a05358850a818e884fa9b72ea095e5fa7)), and
+it is translated from (commit [`c1f8b72`](https://github.com/scipy/xsf/tree/c1f8b72350bc9212bbe872f8c5a4450347a8272b)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 
@@ -188,7 +188,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>hankel_1e</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>5.5e-15</samp></b></td><td align="right" nowrap><b><samp>3.5e-16</samp></b></td><td align="right" nowrap><samp>8.1e-14</samp></td><td align="right" nowrap><samp>4.2e-16</samp></td><td align="right" nowrap>93.3%</td></tr>
 <tr><td><code>hankel_2e</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>7.3e-15</samp></b></td><td align="right" nowrap><b><samp>3.5e-16</samp></b></td><td align="right" nowrap><samp>8.2e-14</samp></td><td align="right" nowrap><samp>4.1e-16</samp></td><td align="right" nowrap>93.2%</td></tr>
 <tr><td><code>wright_bessel</code></td><td>a, b ∈ [0, 5]<br>x ∈ [0, 100]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>log_wright_bessel</code><sup>§</sup></td><td>a, b ∈ [0, 5]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>8.6e-13</samp></b></td><td align="right" nowrap><b><samp>2.4e-16</samp></b></td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap>67.5%</td></tr>
+<tr><td><code>log_wright_bessel</code><sup>§</sup></td><td>a, b ∈ [0, 5]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>8.6e-13</samp></b></td><td align="right" nowrap><b><samp>2.1e-16</samp></b></td><td align="right" nowrap><samp>9.2e-13</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap>96.4%</td></tr>
 <tr><td><code>iv_ratio</code></td><td>v ∈ [0.5, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratio</code></td><td>v ∈ [0.5, 10⁴] (log)<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
