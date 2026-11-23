@@ -48,12 +48,29 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     // whether Ai decays: AMOS evaluates it as sqrt(z) K(zta) for |ph z| <= pi/3, and continues K
     // from -zta beyond that
     let decays = zeta.is_some_and(|(zta, _)| z.re > 0.0 && zta.re >= 0.0);
-    // Unlike in xsf, a decaying Ai is unscaled here from its `airye` (below), as the e^-zeta of
-    // AMOS loses up to |zeta| eps, and flushes Ai to 0 below ~1e-305.
-    let ai_kode = if decays { 2 } else { kode };
-    let ai = amos_airy_or_biry(false, z, 0, ai_kode);
+    // Unlike in xsf, use a Taylor expansion where the series for K(1/3, zeta)
+    // and K(2/3, zeta) lose digits by cancellation.
+    let taylor = zeta.filter(|(zta, _)| decays && z.re >= 1.0 && zta.norm() <= 2.0);
+    let (ai, aip) = if let Some((zta, d)) = taylor {
+        let (value, derivative) = ai_taylor(z);
+        let (ai, aip) = if kode == 2 {
+            let scale = zta.exp() * (1.0 + d);
+            (value * scale, derivative * scale)
+        } else {
+            (value, derivative)
+        };
+        if z.is_real() {
+            (c64(ai.re, 0.0), c64(aip.re, -0.0))
+        } else {
+            (ai, aip)
+        }
+    } else {
+        // Unlike in xsf, unscale a decaying Ai from `airye` below. AMOS loses up to |zeta| eps
+        // in e^-zeta and flushes Ai to 0 below ~1e-305.
+        let ai_kode = if decays { 2 } else { kode };
+        (amos_airy_or_biry(false, z, 0, ai_kode), amos_airy_or_biry(false, z, 1, ai_kode))
+    };
     let bi = amos_airy_or_biry(true, z, 0, kode);
-    let aip = amos_airy_or_biry(false, z, 1, ai_kode);
     let bip = amos_airy_or_biry(true, z, 1, kode);
     let Some((zta, d)) = zeta else {
         return [ai, aip, bi, bip];
@@ -84,7 +101,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         let fb = 1.0 - if e < -a { -2.0 * a - e } else { e };
         return [ai, aip, bi * fb, bip * fb];
     }
-    if !decays {
+    if !decays || taylor.is_some() {
         return [ai, aip, bi, bip];
     }
     // Ai is unscaled from its `airye` by e^-zeta = e^-zta (1 - d).
@@ -99,6 +116,60 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         }
     };
     [unscale(ai), unscale(aip), bi, bip]
+}
+
+/// Ai and Ai' from the Taylor series at 2, where Ai''(z) = z Ai(z) gives
+/// n(n - 1) c_n = 2 c_(n - 2) + c_(n - 3).
+fn ai_taylor(z: C64) -> (C64, C64) {
+    // Re z >= 1 gives |z - 2| <= |z|. For |zeta| <= 2, |z| < 2.081, and
+    // the omitted terms for Ai and Ai' are below 4e-18 in absolute value.
+    // The first two coefficients are Ai(2) and Ai'(2), rounded from Arb. The rest use the recurrence above in f64.
+    const COEFFS: [f64; 36] = [
+        0.034_924_130_423_274_38,
+        -0.053_090_384_433_653_63,
+        0.034_924_130_423_274_38,
+        -0.011_876_106_407_338_813,
+        0.001_396_489_701_074_593_9,
+        0.000_558_595_880_429_837_6,
+        -0.000_302_770_900_172_987_5,
+        5.984_955_861_748_259e-5,
+        -8.383_199_985_024_528e-7,
+        -2.542_663_651_916_976e-6,
+        6.463_657_624_497_52e-7,
+        -5.385_133_911_214_913_7e-8,
+        -9.469_182_780_435_394e-9,
+        3.452_968_488_624_703_5e-9,
+        -3.999_434_322_693_402e-10,
+        -1.220_593_239_612_374_8e-11,
+        1.105_450_676_702_509_6e-11,
+        -1.560_129_768_608_778_3e-12,
+        3.236_301_025_466_159e-14,
+        2.319_955_330_353_081_8e-14,
+        -3.935_273_021_314_356e-15,
+        1.875_288_496_707_696e-16,
+        3.317_966_939_589_2e-17,
+        -7.035_998_660_025_33e-18,
+        4.599_423_704_031_768e-19,
+        3.184_612_012_640_224e-20,
+        -9.409_406_029_567_656e-21,
+        7.459_182_487_976_941e-22,
+        1.723_188_897_786_630_7e-23,
+        -9.750_701_394_054_517e-24,
+        8.969_908_353_487_663e-25,
+        -2.440_337_430_368_524_5e-27,
+        -8.020_886_817_900_186e-27,
+        8.448_012_883_409_369e-28,
+        -1.647_246_975_594_376e-29,
+        -5.320_406_925_393_54e-30,
+    ];
+
+    let h = z - 2.0;
+    COEFFS
+        .iter()
+        .rfold((C64::ZERO, C64::ZERO), |(ai, aip), &coefficient| {
+            let derivative = aip * h + ai;
+            (ai * h + coefficient, derivative)
+        })
 }
 
 /// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`
