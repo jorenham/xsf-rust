@@ -54,9 +54,10 @@ use core::array::from_fn;
 use core::cell::Cell;
 use core::iter::{once, zip};
 
+use super::series::{pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of};
 use super::{
     Dd, Estimate, PFQ_DD_MAXITER, PFQ_LONG_MAXITER, PFQ_MAXITER, PFQ_TOL, SeriesReal, descending,
-    first_zero, pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
+    first_zero,
 };
 
 /// The `m` for which the recurrence steps down from the series at `b + m`, in the order in which
@@ -496,7 +497,7 @@ fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<Estimate> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::pfq_series;
+    use super::super::series::pfq_series;
     use super::*;
 
     /// Asserts that the result is accurate, and that it differs from the series, which is
