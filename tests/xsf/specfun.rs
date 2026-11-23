@@ -128,6 +128,20 @@ fn test_hypu_x0_b_above_one() {
 }
 
 #[test]
+fn test_hypu_x0_avoids_spurious_overflow() {
+    for (b, expected) in [
+        (3.963_977_462_531_003, 1.797_693_134_862_310_1e308),
+        (3.963_977_462_531_003_6, 1.797_693_134_862_313_3e308),
+    ] {
+        let actual = xsf::hypu(-168.0, b, 0.0);
+        assert!(actual.is_finite());
+        assert_eq!(actual, expected);
+    }
+    assert_eq!(xsf::hypu(-48.0, 2_642_222.449_665_45, 0.0), f64::INFINITY);
+    assert_eq!(xsf::hypu(-57.0, 255_817.313_947_899_88, 0.0), f64::NEG_INFINITY);
+}
+
+#[test]
 fn test_hypu_x0() {
     // DLMF 13.2.7
     let actual = [xsf::hypu(0.0, 3.42, 0.0), xsf::hypu(-2.0, 5.0, 0.0)];

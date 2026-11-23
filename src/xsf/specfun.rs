@@ -75,7 +75,7 @@ use num_complex::Complex;
 
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
@@ -255,6 +255,20 @@ pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32, i32) {
     (out, digits, digits.max(digits_rec))
 }
 
+#[cold]
+fn hypu_scaled_rising(b: f64, m: u32) -> f64 {
+    const SHIFT: i32 = 512;
+    let mut r = DoubleDouble::new(pow2(-SHIFT));
+    let b = DoubleDouble::new(b);
+    for k in 0..m {
+        r = r * (b + f64::from(k));
+        if !r.is_finite() || r.hi >= pow2(SHIFT) {
+            return f64::INFINITY;
+        }
+    }
+    ldexp_f64(r.hi, SHIFT)
+}
+
 // Translated from `xsf/cpu/hyperu.h` (scipy/xsf@470575f).
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$
 ///
@@ -302,6 +316,12 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
                     if !r.is_finite() {
                         break;
                     }
+                }
+                // Unlike in xsf, use a scaled double-double product near overflow. The guard
+                // allows for up to m rounded factors and m rounded multiplications.
+                let margin = 2.0 * f64::from(m) * f64::EPSILON;
+                if m < 171 && b.is_finite() && r >= f64::MAX * (1.0 - margin) {
+                    r = hypu_scaled_rising(b, m);
                 }
             }
             return if odd { -r } else { r };
