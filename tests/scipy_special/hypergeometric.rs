@@ -191,6 +191,13 @@ fn test_hyp0f1_b_one() {
 }
 
 #[test]
+fn test_hyp0f1_b_below_one_large_positive_z() {
+    assert_eq!(hyp0f1(-0.5, 1.3e5), f64::NEG_INFINITY);
+    assert_eq!(hyp0f1(0.5, 1.28e5), f64::INFINITY);
+    assert_eq!(hyp0f1(-2.5, 1.3e5), f64::NEG_INFINITY);
+}
+
+#[test]
 fn test_hyp0f1_large_negative_z() {
     // where `sqrt(-z)` is not exact, which shifts the phase of `J`; Arb references
     np_assert_allclose!(

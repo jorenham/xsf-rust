@@ -1,4 +1,4 @@
-//! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@fa36f89).
+//! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@a58dd8e).
 
 use core::f64::consts::{LN_2, PI};
 
@@ -63,8 +63,8 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
             // the J_v term relative to the Y_v term, with cos(pi v1) = -cos(pi v)
             out * (1.0 - crate::cospi(v) / s * exp_dd(v1_eta * 2.0) * u_corr_i / u_corr_k)
         } else {
-            // with Gamma(v) = pi / (sin(pi v) Gamma(v1)), divided within the exponent where `e^e`
-            // overflows
+            // DLMF 10.39.9: `0F1(; v; z) = Gamma(v) arg^(1-v) I_{v-1}(2 arg)`.
+            // Unlike in xsf, the reflected Gamma factor is combined with the Bessel exponent.
             let e = v1_eta * 2.0 - zeta - ln_sqrt_p1;
             let i = if e.hi < MAXLOG {
                 exp_dd(e) / s.abs()
