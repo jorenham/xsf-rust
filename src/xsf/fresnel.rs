@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/fresnel.h` (scipy/xsf@5709919).
+//! Translated into pure Rust from `xsf/cpu/fresnel.h` (scipy/xsf@1cf3a69).
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 

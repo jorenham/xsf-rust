@@ -52,18 +52,28 @@ fn test_modified_fresnel_k_large_x() {
 
 #[test]
 fn test_fresnel_zeros_large() {
-    // The 400th zeros, via `mpmath.findroot` of `mpmath.fresnels` and `mpmath.fresnelc`
-    let (szo, czo) = xsf::fresnel_zeros(400);
-    xsref::np_assert_allclose!(
-        &szo[399..],
-        &[c64(40.000_012_423_593_72, 0.038_464_128_942_121_15)],
-        rtol = 1e-15
-    );
-    xsref::np_assert_allclose!(
-        &czo[399..],
-        &[c64(39.987_510_479_614_684, 0.038_473_665_945_137_306)],
-        rtol = 1e-15
-    );
+    // The deflation product prod(z - zo[i]) overflowed, so zeros 332 and up were NaN.
+    let (szo, czo) = xsf::fresnel_zeros(1000);
+    for (n, s, c) in [
+        (
+            332,
+            c64(36.441_750_007_295_24, 0.041_405_977_801_770_87),
+            c64(36.428_026_905_677_456, 0.041_418_284_525_964_73),
+        ),
+        (
+            400,
+            c64(40.000_012_423_593_72, 0.038_464_128_942_121_15),
+            c64(39.987_510_479_614_684, 0.038_473_665_945_137_306),
+        ),
+        (
+            1000,
+            c64(63.245_557_091_972_1, 0.026_632_855_870_228_636),
+            c64(63.237_650_904_897_71, 0.026_635_556_296_725_618),
+        ),
+    ] {
+        xsref::np_assert_allclose!(&[szo[n - 1]], &[s], rtol = 1e-15);
+        xsref::np_assert_allclose!(&[czo[n - 1]], &[c], rtol = 1e-15);
+    }
 }
 
 /// Ported from `scipy.special.tests.test_basic.TestFresnel.test_fresnel_zeros`

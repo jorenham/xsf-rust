@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`470575f`](https://github.com/scipy/xsf/tree/470575ff2072f8686025a307f7146daac8dc764b)), and
+it is translated from (commit [`1cf3a69`](https://github.com/scipy/xsf/tree/1cf3a695820db57c4ac71b655247f6d0fa5545c6)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 
@@ -1024,8 +1024,8 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>modified_fresnel_minus.1</code></td><td>x ∈ [0, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.1e-13</samp></td><td align="right" nowrap><samp>5.4e-16</samp></td><td align="right" nowrap><samp>1.1e-13</samp></td><td align="right" nowrap><samp>5.4e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>modified_fresnel_minus.1</code></td><td>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>6.8e-15</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap><samp>6.8e-15</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>erf_zeros</code><sup>*</sup></td><td>k ∈ {1, …, 500}</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>6.0e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (424)</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>14.8%</td></tr>
-<tr><td><code>fresnel_zeros.0</code><sup>†</sup></td><td>k ∈ {1, …, 500}</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>2.9e-16</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>❗<samp>∞ (169)</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>66.2%</td></tr>
-<tr><td><code>fresnel_zeros.1</code><sup>†</sup></td><td>k ∈ {1, …, 500}</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>2.2e-16</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>❗<samp>∞ (169)</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>66.0%</td></tr>
+<tr><td><code>fresnel_zeros.0</code><sup>†</sup></td><td>k ∈ {1, …, 500}</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>fresnel_zeros.1</code><sup>†</sup></td><td>k ∈ {1, …, 500}</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 </tbody>
 </table>
 
