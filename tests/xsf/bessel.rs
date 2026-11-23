@@ -1510,7 +1510,7 @@ fn test_riccati_y() {
 
 #[test]
 fn test_riccati_n1() {
-    // computed with N = 2, since `rctj` and `rcty` write at least 2 terms
+    // computed with N = 2, since `rctj` writes at least 2 terms
     let (j, jp) = xsf::riccati_j::<2>(0.2);
     assert_eq!(xsf::riccati_j::<1>(0.2), ([j[0]], [jp[0]]));
     let (y, yp) = xsf::riccati_y::<2>(0.2);
@@ -1555,8 +1555,31 @@ fn test_riccati_j_large_x() {
 }
 
 #[test]
+fn test_riccati_y_near_max() {
+    fn check<const N: usize>(x: f64, k: usize, expected: [f64; 2]) {
+        let (ry, dy) = xsf::riccati_y::<N>(x);
+        np_assert_allclose!([ry[k], dy[k]], expected, rtol = 1e-12);
+    }
+    check::<5>(1e-70, 2, [-3e140, 6e210]);
+    check::<151>(1.0, 149, [-1.257_390_673_139_500_4e304, 1.873_469_766_108_334e306]);
+    check::<1849>(1000.0, 1848, [-8.119_236_242_111_399e307, 1.261_687_052_821_619_4e308]);
+    check::<11768>(9976.0, 11767, [-1.742_111_939_068_904_2e308, 1.089_604_757_174_725_4e308]);
+
+    let (ry, dy) = xsf::riccati_y::<201>(0.5);
+    assert_eq!((ry[200], dy[200]), (f64::NEG_INFINITY, f64::INFINITY));
+}
+
+#[test]
+fn test_riccati_y_order_zero() {
+    for x in [1e-70_f64, 1.0] {
+        let (ry, dy) = xsf::riccati_y::<1>(x);
+        assert_eq!((ry[0], dy[0]), (-x.cos(), x.sin()));
+    }
+}
+
+#[test]
 fn test_riccati_y_overflow() {
-    // Arb; `-+1e300` in xsf for `x < 1e-60`, and NaN past `|ry| > 1e300`
+    // Arb
     let (ry, dy) = xsf::riccati_y::<3>(1e-61);
     np_assert_allclose!(
         [ry[0], ry[1], ry[2], dy[0], dy[1], dy[2]],
