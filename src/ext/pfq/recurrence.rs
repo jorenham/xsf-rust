@@ -55,8 +55,8 @@ use core::cell::Cell;
 use core::iter::{once, zip};
 
 use super::{
-    Dd, Estimate, PFQ_DD_MAXITER, PFQ_LONG_MAXITER, PFQ_MAXITER, PFQ_TOL, Params, SeriesReal,
-    descending, first_zero, pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
+    Dd, Estimate, PFQ_DD_MAXITER, PFQ_LONG_MAXITER, PFQ_MAXITER, PFQ_TOL, SeriesReal, descending,
+    first_zero, pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
 /// The `m` for which the recurrence steps down from the series at `b + m`, in the order in which
@@ -311,11 +311,11 @@ fn raised_recurrence(
     Some((y, err))
 }
 
-/// `y` as `f64` and the estimate `err` of its absolute error plus its rounding, if that is
-/// accurate
-fn accurate(y: Dd, err: f64) -> Option<(f64, f64)> {
-    let y = (y.hi, err + 0.5 * f64::EPSILON * y.hi.abs());
-    Estimate::absolute(y).is_accurate().then_some(y)
+/// `y` as an `Estimate` with the estimate `err` of its absolute error plus its rounding, if that
+/// is accurate
+fn accurate(y: Dd, err: f64) -> Option<Estimate> {
+    let e = Estimate::absolute((y.hi, err + 0.5 * f64::EPSILON * y.hi.abs()));
+    e.is_accurate().then_some(e)
 }
 
 /// The first accurate result of `run(m)` for the `m` of `starts`, which ascend, and the estimate
@@ -372,13 +372,12 @@ fn raised_first(a: [f64; 3], b: [f64; 2], z: f64, work: &Cell<u32>) -> Option<(D
 }
 
 /// The upper and lower parameters of a 3F2 in descending order, or `None` if it is not 3F2
-fn params_3f2<A: Params, B: Params>(a: &A, b: &B) -> Option<([f64; 3], [f64; 2])> {
-    Some((a.as_ref().try_into().ok()?, b.as_ref().try_into().ok()?))
+fn params_3f2(a: &[f64], b: &[f64]) -> Option<([f64; 3], [f64; 2])> {
+    Some((a.try_into().ok()?, b.try_into().ok()?))
 }
 
-/// 3F2 for `|z| < 1` by the recurrence in a parameter, and an estimate of its absolute error,
-/// or `None` if it is not 3F2 or not accurate
-pub(super) fn pfq_recurrence<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<(f64, f64)> {
+/// 3F2 for `|z| < 1` by the recurrence in a parameter, or `None` if it is not 3F2 or not accurate
+pub(super) fn pfq_recurrence(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let (a, [large, small]) = params_3f2(a, b)?;
     let lower = |(bj, other)| {
         let run = |m| lower_recurrence(a, bj, other, z, m, &Cell::new(u32::MAX));
@@ -394,13 +393,9 @@ pub(super) fn pfq_recurrence<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Opti
     accurate(y, err)
 }
 
-/// 3F2 for `|z| < 1` by the slower recurrences (lowered, balanced upper, and nested), and an
-/// estimate of its absolute error, or `None` if it is not 3F2 or not accurate
-pub(super) fn pfq_recurrence_extended<A: Params, B: Params>(
-    a: &A,
-    b: &B,
-    z: f64,
-) -> Option<(f64, f64)> {
+/// 3F2 for `|z| < 1` by the slower recurrences (lowered, balanced upper, and nested), or `None`
+/// if it is not 3F2 or not accurate
+pub(super) fn pfq_recurrence_extended(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let (a, b) = params_3f2(a, b)?;
     recurrence_lowered(a, b, z)
         .or_else(|| recurrence_balanced(a, b, z))
@@ -408,7 +403,7 @@ pub(super) fn pfq_recurrence_extended<A: Params, B: Params>(
 }
 
 /// Steps down in a negative smaller lower parameter from where `raised_first` gives F
-fn recurrence_lowered(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(f64, f64)> {
+fn recurrence_lowered(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<Estimate> {
     if z >= 0.0 || a[0] < RAISED_MIN {
         return None;
     }
@@ -426,7 +421,7 @@ fn recurrence_lowered(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(
 ///
 /// It tries the starts nearest to 0 first, where the series that their F come from cancel least.
 /// All tries share `NESTED_WORK`.
-fn recurrence_nested(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(f64, f64)> {
+fn recurrence_nested(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<Estimate> {
     if z >= 0.0 {
         return None;
     }
@@ -457,7 +452,7 @@ fn recurrence_nested(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<(f
 /// The search is a heuristic: it bisects as if the estimate of the rounding errors grew with the
 /// steps and only too few steps made a start inaccurate, which the long series near `z = 1` and
 /// the rounding of the starts can break, and it returns the first accurate result it finds.
-fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<(f64, f64)> {
+fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<Estimate> {
     let work = Cell::new(BALANCED_WORK);
     let run = |i, m, maxiter| upper_recurrence(a, i, b, z, m, maxiter, &work);
     // probe near 0 (`high - 8`) across all negative `a[i]` first with a short `PFQ_DD_MAXITER`
@@ -506,10 +501,11 @@ mod tests {
 
     /// Asserts that the result is accurate, and that it differs from the series, which is
     /// accurate too, by at most their estimated errors
-    fn assert_estimate(result: Option<(f64, f64)>, a: [f64; 3], b: [f64; 2], z: f64) {
-        let ((y, err), (expected, series_err)) = (result.unwrap(), pfq_series(&a, &b, z));
-        assert!(err <= 1e-13 * y.abs(), "({a:?}, {b:?}, {z}): {err}");
-        assert!((y - expected).abs() <= err + series_err, "{y} != {expected} ({err})");
+    fn assert_estimate(result: Option<Estimate>, a: [f64; 3], b: [f64; 2], z: f64) {
+        let (y, expected) = (result.unwrap(), pfq_series(&a, &b, z));
+        assert!(y.is_accurate(), "({a:?}, {b:?}, {z}): {:?}", y.err);
+        let bound = y.err * y.y.abs() + expected.err * expected.y.abs();
+        assert!((y.y - expected.y).abs() <= bound, "{} != {} ({bound})", y.y, expected.y);
     }
 
     #[test]
@@ -582,18 +578,18 @@ mod tests {
             upper_recurrence(a, 2, b, 0.996, probe, PFQ_DD_MAXITER, &Cell::new(BALANCED_WORK))
                 .is_none()
         );
-        let (y, err) = recurrence_balanced(a, b, 0.996).unwrap();
+        let e = recurrence_balanced(a, b, 0.996).unwrap();
         let expected = 194.547_589_493_083_65;
         assert!(
-            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
-            "{y} vs {expected} (err {err})"
+            e.is_accurate() && (e.y - expected).abs() <= 1e-13 * expected.abs(),
+            "{e:?} vs {expected}"
         );
         // earlier negative parameter's bisection must not starve a later parameter's short probe
-        let (y, err) = recurrence_balanced([0.5, -200.5, -9000.5], [2.5, 1.5], -0.02).unwrap();
+        let e = recurrence_balanced([0.5, -200.5, -9000.5], [2.5, 1.5], -0.02).unwrap();
         let expected = -1.687_481_900_654_389_6e32;
         assert!(
-            err <= PFQ_TOL * y.abs() && (y - expected).abs() <= 1e-13 * expected.abs(),
-            "{y} vs {expected} (err {err})"
+            e.is_accurate() && (e.y - expected).abs() <= 1e-13 * expected.abs(),
+            "{e:?} vs {expected}"
         );
     }
 }
