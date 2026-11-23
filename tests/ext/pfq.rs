@@ -1072,6 +1072,15 @@ fn test_hyppfq_2f0_hard_cases() {
         assert_eq!(hyppfq(a, [], z), None);
         assert!(hyp2f0(a[0], a[1], z).is_nan());
     }
+    // underflowing (zero) or nonzero subnormal t_1 in the asymptotic series still yields exact 1.0
+    for (a, z) in [
+        ([1e-300, 1e-300], -1e160),
+        ([1.5e-308, -0.999_999_999_999_999_9], -1e-300),
+        ([1.5e-308, -0.999_999_999_999_999_9], -0.125),
+    ] {
+        assert_eq!(hyppfq(a, [], z), Some(1.0));
+        assert_eq!(hyp2f0(a[0], a[1], z), 1.0);
+    }
 }
 
 #[test]

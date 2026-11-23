@@ -2798,12 +2798,36 @@ fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
     };
     let a = [a1, a2];
     let terms = || once(1.0).chain(pfq_terms(&a, &[], z));
+    // keep the 2-factor asymptotic terms split in `(mantissa, exponent)` so an underflowing or
+    // subnormal term (e.g. tiny `a1 * a2 * z`) stays a conservative bound rather than ending the
+    // series before `t_1`
+    let (zm, ze) = frexp_f64(z);
+    let series_terms = || {
+        (0_u32..)
+            .map(f64::from)
+            .scan((1.0_f64, 0_i64), move |(m, e), n| {
+                let t = ldexp_i64(*m, *e);
+                let bound = if *m == 0.0 {
+                    0.0
+                } else if t.is_finite() {
+                    t.abs().max(f64::MIN_POSITIVE)
+                } else {
+                    f64::INFINITY
+                };
+                let ((m1, e1), (m2, e2)) = (frexp_f64(a1 + n), frexp_f64(a2 + n));
+                let (nm, ne) = frexp_f64(*m * m1 * m2 * zm / (n + 1.0));
+                *m = nm;
+                *e += i64::from(e1) + i64::from(e2) + i64::from(ze) + i64::from(ne);
+                Some((t, bound))
+            })
+    };
     let settled = (-a1).max(-a2).max(0.0).ceil();
     // with x capped, as sqrt(2 pi x) in the error estimate could overflow; it stays above
     // 1e8, while past `settled` the terms alternate, so the first omitted one bounds the
     // remainder
     let scale = x.min(f64::EPSILON.recip());
-    let series = || Some(Estimate::absolute(asymptotic_sum(terms(), settled, scale, |_| 0.0)));
+    let series =
+        || Some(Estimate::absolute(asymptotic_sum(series_terms(), settled, scale, |_| 0.0)));
     let weniger_dd =
         || Some(weniger_drift(pfq_weniger::<Dd>(&a, &[], z)?, terms(), settled, Dd::EPSILON));
     raw1.as_ref()
