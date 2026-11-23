@@ -583,33 +583,57 @@ impl<Z: sealed::OrthoPolyArg + From<f64> + Into<num_complex::Complex64>> Gegenba
             return Self::ZERO;
         }
 
-        let (b, c, lam) = (n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha);
-        let rec = self.hyp2f1_sh_recurrence(n, b, c, lam, true);
-        let recurs = rec.is_some();
-        let hypergeom = |z: Z| rec.unwrap_or_else(|| z.hyp2f1_sh_series(n, b, c, lam));
-        let mut d = crate::gamma(b) / crate::gamma(1.0 + n) / crate::gamma(lam);
-        let off_pole = n >= 1.0 && (lam > 0.0 || lam != lam.floor());
-        if !d.is_finite() || (1.0 + n).max(lam) >= MAXGAM || (d == 0.0 && off_pole) {
-            d = crate::binom(b - 1.0, n);
-            let recover = off_pole
-                && (d == 0.0 || !d.is_finite())
-                && (b > 0.0 || two_sum(n, lam).1 == 0.0)
-                && (recurs || self.as_f64().is_some() || {
-                    let z: num_complex::Complex64 = self.clone().into();
-                    z == 1.0.into() || c > 0.0 && (z - 1.0).norm() * n * b.abs().max(c) <= c
-                });
-            if alpha < 0.25 && (recurs && n > 0.0 || recover && lam.abs() < f64::MIN_POSITIVE) {
-                let inv_beta = 1.0 / (b * crate::beta(lam + 1.0, n));
+        let alpha2 = 2.0 * alpha;
+        let b = n + alpha2;
+        let c = alpha + 0.5;
+        let rec = self.hyp2f1_sh_recurrence(n, b, c, alpha2, true);
+
+        // Gamma(n + 2 alpha) / Gamma(n + 1) / Gamma(2 alpha) = 1 / (n B(2 alpha, n))
+        // (DLMF 5.12.1), avoiding overflow of the Gamma factors. At the poles of Gamma(2 alpha)
+        // (2 alpha = 0, -1, ...) the Gamma form is kept.
+        let d = if n >= 1.0 && (alpha2 > 0.0 || alpha2 != alpha2.floor())
+            // Unlike in xsf, retain the Gamma form when n + 2 alpha < 1, where beta loses accuracy.
+            && b >= 1.0
+        {
+            let beta = crate::beta(alpha2, n);
+            // Unlike in xsf, the binomial can retain a subnormal prefactor when beta overflows.
+            if beta.is_infinite() {
+                crate::binom(b - 1.0, n)
+            } else {
+                1.0 / n / beta
+            }
+        } else {
+            let d = crate::gamma(b) / crate::gamma(1.0 + n) / crate::gamma(alpha2);
+            // Unlike in xsf, fall back to the equivalent binomial if a Gamma function overflows.
+            if !d.is_finite() || (1.0 + n).max(alpha2) >= MAXGAM {
+                crate::binom(b - 1.0, n)
+            } else {
+                d
+            }
+        };
+
+        if let Some(g) = rec {
+            // Unlike in xsf, scale the finite recurrence by 2 alpha first for subnormal prefactors.
+            if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE {
+                let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
                 if inv_beta.is_finite() {
-                    return hypergeom(self) * lam * (inv_beta / n);
+                    return g * alpha2 * (inv_beta / n);
                 }
             }
-            if recover {
-                // Gamma(n + 2 alpha) / Gamma(n + 1) / Gamma(2 alpha) = 1 / (n B(2 alpha, n)).
-                d = 1.0 / n / crate::beta(lam, n);
-            }
+            return g * d;
         }
-        hypergeom(self) * d
+        // Unlike in xsf, keep the binomial when b - n rounds to a nonpositive integer and the
+        // first term of the large-degree complex series exceeds its constant term in magnitude.
+        let d = if 1.0 + n >= MAXGAM
+            && crate::utils::is_nonpos_int(b - n)
+            && self.as_f64().is_none()
+            && (self.clone().into() - 1.0).norm() * n * b.abs() > 2.0 * c.abs()
+        {
+            crate::binom(b - 1.0, n)
+        } else {
+            d
+        };
+        self.hyp2f1_sh_series(n, b, c, alpha2) * d
     }
 }
 

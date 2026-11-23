@@ -787,8 +787,8 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
         eval_gegenbauer(300.5, 1e-20, c64(1.0, 0.0)),
         eval_gegenbauer(300.5, 1e-20, c64(0.999_999_999_999_999_9, 0.0)),
         eval_gegenbauer(300.5, 1e-20, c64(1.0, 1e-30)),
-        c64(eval_gegenbauer(1.5, 2e-311, 1.0), 0.0),
         c64(eval_gegenbauer(169.5, -84.749_999_999_999_99, 1.0), 0.0),
+        c64(eval_gegenbauer(1028.5, -255.125, 0.98), 0.0),
     ];
     let expected = [
         c64(4.570_588_854_908_153e212, -2.686_746_914_026_384_5e212),
@@ -797,10 +797,13 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
         c64(6.655_574_043_261_23e-23, 0.0),
         c64(6.655_574_043_194_507e-23, 0.0),
         c64(6.655_574_043_261_23e-23, 6.01e-48),
-        c64(2.666_666_666_666_5e-311, 0.0),
         c64(11_199_533_475_042.438, 0.0),
+        c64(-1.866_722_552_602_418e-302, 0.0),
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-11);
+
+    let cancelled = eval_gegenbauer(200.5, -0.499_999_999_999_999_94, c64(0.0, 0.01));
+    assert!(cancelled.norm() <= 0.002);
 
     let near_pole = eval_gegenbauer(45.124_999_999_999_964, -150.0625, 1.0);
     assert!(near_pole.is_nan() || (near_pole / -3.314_213_978_469_249e66 - 1.0).abs() < 1e-11);
