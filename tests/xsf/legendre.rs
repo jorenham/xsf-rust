@@ -215,7 +215,6 @@ fn test_legendre_q_all_backward_seeds() {
         [-2.283_177_075_289_996_7, 2.283_177_075_289_996_7, -3.205_778_187_395_51e-10],
         rtol = 1e-13
     );
-    // The degree-3000 seed underflows, while its unscaled series would overflow.
     assert_eq!(xsf::legendre_q_all(3000, 1.2).0[3000], 0.0);
 }
 
