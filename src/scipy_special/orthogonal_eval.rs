@@ -1,6 +1,7 @@
-//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` (scipy/xsf@e1800e8).
+//! Translated from `xsf/orthogonal_eval.h` (scipy/xsf@21e4d6e) and `xsf/cpu/orthogonal_eval.h`
+//! (scipy/xsf@e1800e8).
 //!
-//! - <https://github.com/scipy/xsf/blob/e1800e8/include/xsf/orthogonal_eval.h>
+//! - <https://github.com/scipy/xsf/blob/21e4d6e/include/xsf/orthogonal_eval.h>
 //! - <https://github.com/scipy/xsf/blob/e1800e8/include/xsf/cpu/orthogonal_eval.h>
 
 use core::f64::consts::{LN_2, SQRT_2};
@@ -565,7 +566,7 @@ pub trait GegenbauerArg<N>: sealed::OrthoPolyArg {
     fn eval_gegenbauer(self, n: N, alpha: f64) -> Self;
 }
 
-impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
+impl<Z: sealed::OrthoPolyArg + From<f64> + Into<num_complex::Complex64>> GegenbauerArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_gegenbauer`
     #[inline]
     fn eval_gegenbauer(self, n: f64, alpha: f64) -> Self {
@@ -585,28 +586,30 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         let (b, c, lam) = (n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha);
         let rec = self.hyp2f1_sh_recurrence(n, b, c, lam, true);
         let recurs = rec.is_some();
-        let g = rec.unwrap_or_else(|| self.hyp2f1_sh_series(n, b, c, lam));
-        let mut d =
-            crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
-        if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
-            // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
-            // function overflows.
-            d = crate::binom(n + 2.0 * alpha - 1.0, n);
-            // Unlike in xsf, alpha < 1/4 uses `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))`
-            // (DLMF 5.12.1, 5.5.1) for the positive degrees where the (complex) recurrence is
-            // finite, which keeps the digits of `2 alpha` and `2 alpha + 1` that
-            // `n + 2 alpha - 1` rounds away (as in `binom_alpha`). The 2F1 is scaled by `2 alpha`
-            // first, since the prefactor can be subnormal for tiny alpha. Elsewhere, the rounded
-            // prefactor hides the cancelled series, or the singular 2F1 of `c = alpha + 1/2 <= 0`
-            // (and the negative degrees use `1 / Gamma(1 + n)`).
-            if recurs && n > 0.0 && alpha < 0.25 {
-                let inv_beta = 1.0 / ((n + 2.0 * alpha) * crate::beta(2.0 * alpha + 1.0, n));
+        let hypergeom = |z: Z| rec.unwrap_or_else(|| z.hyp2f1_sh_series(n, b, c, lam));
+        let mut d = crate::gamma(b) / crate::gamma(1.0 + n) / crate::gamma(lam);
+        let off_pole = n >= 1.0 && (lam > 0.0 || lam != lam.floor());
+        if !d.is_finite() || (1.0 + n).max(lam) >= MAXGAM || (d == 0.0 && off_pole) {
+            d = crate::binom(b - 1.0, n);
+            let recover = off_pole
+                && (d == 0.0 || !d.is_finite())
+                && (b > 0.0 || two_sum(n, lam).1 == 0.0)
+                && (recurs || self.as_f64().is_some() || {
+                    let z: num_complex::Complex64 = self.clone().into();
+                    z == 1.0.into() || c > 0.0 && (z - 1.0).norm() * n * b.abs().max(c) <= c
+                });
+            if alpha < 0.25 && (recurs && n > 0.0 || recover && lam.abs() < f64::MIN_POSITIVE) {
+                let inv_beta = 1.0 / (b * crate::beta(lam + 1.0, n));
                 if inv_beta.is_finite() {
-                    return g * (2.0 * alpha) * (inv_beta / n);
+                    return hypergeom(self) * lam * (inv_beta / n);
                 }
             }
+            if recover {
+                // Gamma(n + 2 alpha) / Gamma(n + 1) / Gamma(2 alpha) = 1 / (n B(2 alpha, n)).
+                d = 1.0 / n / crate::beta(lam, n);
+            }
         }
-        g * d
+        hypergeom(self) * d
     }
 }
 
