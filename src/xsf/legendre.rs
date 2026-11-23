@@ -944,6 +944,33 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     // Unlike in xsf, the imaginary parts for a tiny `Im z` are those at a lifted one, since the
     // imaginary parts of the seeds of the recurrence can be subnormal
     lq_lift_im(lqn_c64, z, n, &mut cqn, &mut cqd);
+
+    // For a tiny real coordinate, use the first-order terms at z = i*y. The dominant parts
+    // are even in Re z, so their values from the recurrence already include them to rounding
+    // accuracy. The small part of Q is x times Q', and Legendre's equation gives x times Q''.
+    let (x, y) = (z.re, z.im);
+    let d = (y.abs() / f64::from(n + 1)).min(1.0);
+    let denom = 1.0 + y * y;
+    if x != 0.0 && x.abs() < d * const { utils::pow2(-37) } && y.abs() > 1.1 && denom.is_finite() {
+        for k in 0..=n {
+            let degree = f64::from(k);
+            let (q, dq) = (&mut cqn[k], &mut cqd[k]);
+            let (small_q, small_dq, large_q, large_dq, cross) = if k % 2 == 0 {
+                (&mut q.re, &mut dq.im, q.im, dq.re, y)
+            } else {
+                (&mut q.im, &mut dq.re, q.re, dq.im, -y)
+            };
+            let q_linear = x * large_dq;
+            let numerator = 2.0 * cross * large_dq - degree * (degree + 1.0) * large_q;
+            let dq_linear = x * (numerator / denom);
+            if q_linear.is_finite() && (q_linear != 0.0 || *small_q != 0.0) {
+                *small_q = q_linear;
+            }
+            if dq_linear.is_finite() && (dq_linear != 0.0 || *small_dq != 0.0) {
+                *small_dq = dq_linear;
+            }
+        }
+    }
 }
 
 /// The `Q_n^m(z)` of `lqmn` and `lqmn_c64` for `|z| >= 1.0001`, from `Q_0^0(z) = q0` and
