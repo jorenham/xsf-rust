@@ -1,5 +1,5 @@
 //! The complex `sici` and `shichi` are translated into pure Rust from `xsf/sici.h`
-//! (scipy/xsf@a2b87c0).
+//! (scipy/xsf@7fb9276).
 //!
 //! Implementation of sin/cos/sinh/cosh integrals for complex arguments
 //!
@@ -131,7 +131,7 @@ fn shichi_c64(z: C64) -> (C64, C64) {
         shi += c64(0.0, FRAC_PI_2);
         chi -= c64(0.0, FRAC_PI_2);
     } else if z.re < 0.0 {
-        chi += c64(0.0, PI);
+        chi += c64(0.0, PI.copysign(z.im));
     }
     (shi, chi)
 }
