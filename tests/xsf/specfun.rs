@@ -1075,6 +1075,21 @@ fn test_hyp1f1_complex_exprel() {
 }
 
 #[test]
+fn test_hyp1f1_complex_exprel_near_period() {
+    // Arb; check each component so the much smaller imaginary part is tested.
+    let x = -9.933_270_367_293_171e-17;
+    let y = 31.415_926_536_186_966;
+    for sign in [-1.0, 1.0] {
+        let actual = xsf::hyp1f1(1.0, 2.0, c64(x, sign * y));
+        xsref::np_assert_allclose!(
+            [actual.re, actual.im],
+            [9.200_217_255_179_994e-12, sign * 3.163_187_744_791_992_6e-18],
+            rtol = 1e-15
+        );
+    }
+}
+
+#[test]
 fn test_hyp1f1_complex_asymptotic_transition() {
     // Arb; the eight-term asymptotic expansion loses seven digits at |z| = 25.
     let z = c64(7.0, -24.0);
