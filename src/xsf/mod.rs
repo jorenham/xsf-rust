@@ -46,6 +46,7 @@ mod loggamma;
 mod mathieu;
 mod multivariate_normal;
 mod par_cyl;
+mod phase;
 mod sici;
 mod specfun;
 mod sph_bessel;
