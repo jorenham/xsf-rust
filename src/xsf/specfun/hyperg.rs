@@ -1366,9 +1366,15 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     // Unlike in xsf (scipy/xsf#365), non-integer b < 0 has its own methods (see `chgm_neg_b`)
     if neg_b && a.is_finite() && x.is_finite() {
-        // Unlike in xsf, return the exact zero of exp(x) * (b + x) / b when a - b = 1.
-        if x == -b && two_sum(b, -a) == (-1.0, 0.0) {
-            return 0.0;
+        let root = -b;
+        // Unlike in xsf, use the exact degree-one Kummer transform exp(x) * (b + x) / b.
+        // Away from the root, |(b + x)/b| >= 2^-54, which forces overflow at x >= 750.
+        if (x == root || x >= 750.0) && two_sum(b, -a) == (-1.0, 0.0) {
+            return if x == root {
+                0.0
+            } else {
+                f64::INFINITY.copysign(root - x)
+            };
         }
         if let Some(hg) = chgm_neg_b(x, a, b) {
             return hg;
