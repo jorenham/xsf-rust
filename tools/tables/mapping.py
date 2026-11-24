@@ -600,6 +600,17 @@ EXP_SQUARE_OVERRIDE: Final = Override(
 )
 
 
+def _complex_ndtr_arb(z: flint.acb) -> flint.acb:
+    with flint.ctx.extraprec(EXP_SQUARE_BITS):
+        t = z / flint.arb(2).sqrt()
+        return 1 - t.erfc() / 2 if z.real > 0 else (-t).erfc() / 2
+
+
+def _complex_ndtr_overflow(a: tuple[float, ...]) -> bool:
+    x, y = a
+    return x != 0 and math.isfinite(x * y) and (0.5 * (y - x)) * (x + y) > LOG_MAX
+
+
 def _ndtr(x: mp.mpf) -> mp.mpf:
     """`specs.r_ndtr` with the 2 log10 |x| more digits that x / sqrt(2) needs in
     exp(-x^2 / 2)."""
@@ -4289,6 +4300,17 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 ),
             ),
         )
+    ),
+    ("ndtr", "cd-cd"): _complex(
+        "ndtr",
+        specs._c(specs.c_ndtr),
+        _complex_ndtr_arb,
+        overrides=(
+            Override(
+                _complex_ndtr_overflow,
+                "xsf can overflow before applying the normal CDF scale",
+            ),
+        ),
     ),
     ("ndtr", "d-d"): Entry((Out("ndtr", (_ndtr,), (_exp_square(_ndtr_arb),)),)),
     ("ndtri", "d-d"): Entry(
