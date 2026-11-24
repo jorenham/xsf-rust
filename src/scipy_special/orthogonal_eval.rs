@@ -783,7 +783,7 @@ fn gegenbauer_near_minus_half(n: i64, alpha: f64, x: f64) -> f64 {
 
 /// `C_n^(alpha)(x) / binom(n + 2 alpha - 1, n)` by the recurrence of `eval_gegenbauer_l`, for
 /// `n >= 1`, i.e. `2F1(-n, n + 2 alpha; alpha + 1/2; (1 - x) / 2)`
-fn gegenbauer_hyp2f1_l<Z: sealed::OrthoPolyArg>(n: i64, alpha: f64, x: Z) -> Z {
+pub(super) fn gegenbauer_hyp2f1_l<Z: sealed::OrthoPolyArg>(n: i64, alpha: f64, x: Z) -> Z {
     let xm1 = x.clone() - 1.0;
     gegenbauer_difference(1..n, alpha, &xm1, xm1.clone(), x)
 }
