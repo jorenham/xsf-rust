@@ -3,8 +3,9 @@
 
 use core::f64::consts::PI;
 
-use super::{SPECFUN_INF, gamma2, psi_spec};
+use super::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF, gamma2, psi_spec, specfun_convinf};
 use crate::utils::neg_one_pow;
+use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::tools::int_x86;
 
 pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
@@ -105,7 +106,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         } else {
             pmv = SPECFUN_INF;
         }
-        return pmv;
+        return specfun_convinf(pmv);
     }
     let mut vx = v;
     let mut mx = m;
@@ -162,7 +163,11 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         let value = (1..=m).fold(neg_one_pow(m) * weight * factor, |value, j| {
             value * ((2.0 * f64::from(j) - 1.0) * xq)
         });
-        return if cubic { value * x } else { value };
+        return specfun_convinf(if cubic { value * x } else { value });
+    }
+    // Unlike in xsf, share a scaled diagonal seed after the old factorial overflows.
+    if m >= 85 && v0 == 0.0 && nv > m && x.abs() < 1.0 {
+        return lpmv_scaled_integer(x, m, nv - m);
     }
     if (nv > 2) && (nv > mx) {
         // Up-recursion on degree, AMS 8.5.3 / DLMF 14.10.3
@@ -188,7 +193,62 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         let g2 = gamma2(vx + f64::from(mx) + 1.0);
         pmv = pmv * g1 / g2 * neg_one_pow(mx);
     }
-    pmv
+    specfun_convinf(pmv)
+}
+
+#[cold]
+fn lpmv_scaled_integer(x: f64, m: i32, gap: i32) -> f64 {
+    let odd = gap % 2 == 1;
+    if x == 0.0 && odd {
+        // The odd Ferrers member has this slope sign at zero (DLMF 14.5.2).
+        return neg_one_pow(m + (gap - 1) / 2) * x;
+    }
+
+    let xx = DoubleDouble::new(x);
+    let square = xx * xx;
+    let xq = (1.0 - square).sqrt();
+    // DLMF 14.7.10 gives the diagonal factor (-1)^m (2m - 1)!! (1 - x²)^(m/2).
+    let mut diagonal = DoubleDouble::new(neg_one_pow(m));
+    let mut exponent = 0_i64;
+    for j in 1..=m {
+        diagonal = diagonal * (xq * (2.0 * f64::from(j) - 1.0));
+        if diagonal.hi.abs() > SPECFUN_BIG {
+            diagonal = diagonal.ldexp(-SPECFUN_BIG_LOG2);
+            exponent += i64::from(SPECFUN_BIG_LOG2);
+        } else if diagonal.hi.abs() < 1.0 / SPECFUN_BIG {
+            diagonal = diagonal.ldexp(SPECFUN_BIG_LOG2);
+            exponent -= i64::from(SPECFUN_BIG_LOG2);
+        }
+    }
+
+    // In the upward recurrence (DLMF 14.10.3), defer the factor x in odd members
+    // (DLMF 14.7.17) until the final rescaling.
+    let mut p0 = diagonal;
+    let mut p1 = diagonal * (2.0 * f64::from(m) + 1.0);
+    for k in 2..=gap {
+        let j = f64::from(m + k);
+        let previous = if k % 2 == 0 { p1 * square } else { p1 };
+        let next = (previous * (2.0 * j - 1.0) - p0 * (j - 1.0 + f64::from(m))) / f64::from(k);
+        p0 = p1;
+        p1 = next;
+        if p0.hi.abs().max(p1.hi.abs()) > SPECFUN_BIG {
+            p0 = p0.ldexp(-SPECFUN_BIG_LOG2);
+            p1 = p1.ldexp(-SPECFUN_BIG_LOG2);
+            exponent += i64::from(SPECFUN_BIG_LOG2);
+        }
+    }
+    if odd {
+        let (mantissa, shift) = xx.frexp();
+        p1 = p1 * mantissa;
+        exponent += i64::from(shift);
+    }
+    let scale = i32::try_from(exponent.clamp(-4096, 4096)).unwrap();
+    let rounded = p1.ldexp(scale).hi;
+    if rounded.abs() <= f64::MIN_POSITIVE {
+        p1.ldexp(scale + 1074).round_subnormal_units()
+    } else {
+        rounded
+    }
 }
 
 #[cold]
