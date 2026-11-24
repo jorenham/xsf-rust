@@ -1784,6 +1784,21 @@ fn test_hyppfq_closed_forms() {
 }
 
 #[test]
+fn test_hyppfq_fourth_factorial_near_zeros() {
+    // Arb at the exact binary64 inputs, including both sides of a phase zero
+    // whose unprojected cosh exceeds the binary64 range.
+    let b = [0.75, 0.25, 0.5];
+    for (z, expected) in [
+        (-228.397_683_176_406_08, -1.043_089_477_112_341_7e-11),
+        (-4_077_041_393.250_833_5, -3.932_410_847_757_101e296),
+        (-4_077_041_393.250_834_5, 1.264_158_791_805_205_9e296),
+    ] {
+        assert_hyppfq(&[], &b, z, expected);
+    }
+    assert_eq!(xsf::hyppfq([], b, -5_993_085_003.607_709), Some(f64::INFINITY));
+}
+
+#[test]
 fn test_hyppfq_at_one() {
     // +inf where the series diverges, for sum(b) <= sum(a)
     let a = [0.5, 1.5, 2.5, 3.5];
