@@ -833,6 +833,33 @@ fn test_assoc_legendre_q_all_extreme_real_x() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_extreme_complex_axis() {
+    let square_overflow = 2.0_f64.powi(512);
+    let below = f64::from_bits(square_overflow.to_bits() - 1);
+    let above = f64::from_bits(square_overflow.to_bits() + 1);
+    for sign in [-1.0, 1.0] {
+        for lip in [0.0_f64, -0.0] {
+            let (q, _) = xsf::assoc_legendre_q_all(1, 0, c64(sign * below, lip));
+            // Q_1 is finite just before the square overflows.
+            let expected = (1.0 / below) / (3.0 * below);
+            assert!((q[1][0].re - expected).abs() <= f64::from_bits(1));
+            for x in [square_overflow, above, 1e160] {
+                let (q, d) = xsf::assoc_legendre_q_all(2, 0, c64(sign * x, lip));
+                let inverse = 1.0 / x;
+                assert_eq!(q[1][0].re, inverse / (3.0 * x));
+                assert_eq!(q[1][0].im.to_bits(), (-sign * lip).to_bits());
+                assert_eq!(d[0][0].re, -inverse / x);
+                assert_eq!(d[0][0].im.to_bits(), (sign * lip).to_bits());
+                // The leading Q_2 and Q_1' terms scale as x^-3.
+                assert_eq!(q[2][0].re.to_bits(), (sign * 0.0).to_bits());
+                assert_eq!(d[1][0].re.to_bits(), (-sign * 0.0).to_bits());
+                assert_eq!(d[1][0].im.to_bits(), lip.to_bits());
+            }
+        }
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x() {
     // NaN in xsf, since the backward recurrences in `lqmn` overflow; Arb references
     let (qm, qd) = xsf::assoc_legendre_q_all(30, 26, 907.57);
