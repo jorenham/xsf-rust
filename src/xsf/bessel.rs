@@ -556,9 +556,13 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if ierr == 2 && kode == 1 && z.is_real() && z.re.abs() >= f64::MIN_POSITIVE && v >= 1.0 {
         let x = z.re.abs();
         let cut = z.re < 0.0;
+        let log_leading = bessel_y_axis_log_leading(v, x);
+        // Strong saturation makes J round to zero and each nonzero Y component overflow.
+        if log_leading > 2.0 * MAXLOG && x * x < 4.0 * (v + 1.0) {
+            return hankel_axis_saturated(v, sign < 0, cut, m);
+        }
         if x <= 1.0 && (sign > 0 && !cut || v == v.trunc()) {
             let order = if sign < 0 { -v } else { v };
-            let log_leading = bessel_y_axis_log_leading(v, x);
             let y = cyl_bessel_y_f64(order, x);
             if (y.is_finite() && log_leading + 0.5 * x < MAXLOG - BESSEL_Y_OVERFLOW_LOG_MARGIN)
                 || (y.is_infinite() && log_leading > MAXLOG + BESSEL_Y_OVERFLOW_LOG_MARGIN)
@@ -585,6 +589,38 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         cy = rotate(cy, if m == 1 { v } else { -v });
     }
     cy
+}
+
+// If J rounds to zero and every nonzero multiple of Y overflows, only
+// the coefficients from DLMF 10.4.6 and 10.11.5 are needed.
+fn hankel_axis_saturated(v: f64, neg_order: bool, cut: bool, m: i32) -> C64 {
+    let component = |j, y: f64| {
+        if y == 0.0 {
+            0.0_f64.copysign(j)
+        } else {
+            f64::INFINITY.copysign(-y)
+        }
+    };
+    let h = if m == 1 { 1.0 } else { -1.0 };
+    match (cut, neg_order, m) {
+        (false, false, _) => c64(0.0, f64::INFINITY.copysign(-h)),
+        (true, true, 1) => c64(-0.0, f64::NEG_INFINITY),
+        (true, true, _) => {
+            let sin = cephes_sinpi(2.0 * v);
+            let cos = cephes_cospi(2.0 * v);
+            // The coefficient 2 + cos(2 pi v) is positive.
+            c64(component(1.0, -sin), component(-sin, -cos))
+        },
+        (cut, _, _) => {
+            let sin = cephes_sinpi(v);
+            let cos = cephes_cospi(v);
+            if cut {
+                c64(component(-h * cos, h * sin), component(sin, h * cos))
+            } else {
+                c64(component(cos, -sin), component(h * sin, h * cos))
+            }
+        },
+    }
 }
 
 // On the upper cut, the real part of H2 at an integer order is ±3J. Round
