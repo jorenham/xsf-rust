@@ -6,6 +6,24 @@ xsref::tests! {
 }
 
 #[test]
+fn test_loggamma_c64_taylor_cutoff() {
+    for (z, expected) in [
+        (
+            c64(0.919_660_915_069_406_1, 0.183_154_665_331_011_46),
+            c64(0.021_089_888_719_317_225, -0.128_428_682_915_316_14),
+        ),
+        (
+            c64(1.937_555_037_215_635_2, 0.190_001_649_000_368_64),
+            c64(-0.037_211_529_359_037_95, 0.073_021_395_401_304_9),
+        ),
+    ] {
+        let w = xsf::loggamma(z);
+        assert!((w - expected).norm() < 2e-15 * expected.norm());
+        assert_eq!(xsf::loggamma(z.conj()), w.conj());
+    }
+}
+
+#[test]
 fn test_loggamma_c64_stirling_overflow() {
     let x = 8.988_465_674_311_05e307;
     for y in [x, -x] {
