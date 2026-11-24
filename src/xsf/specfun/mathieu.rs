@@ -484,7 +484,19 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
 
                 for j in 1..=km {
                     if j <= kb + 1 {
-                        fc[(j - 1) as usize] = s0 * fc[(j - 1) as usize] * f3 / f2;
+                        let coefficient = &mut fc[(j - 1) as usize];
+                        let scaled = s0 * *coefficient;
+                        // Unlike in xsf, apply the matching scale first if this product underflows.
+                        if scaled.abs() < f64::MIN_POSITIVE && *coefficient != 0.0 {
+                            let matched = s0 * f3;
+                            let factor = matched / f2;
+                            let restored = *coefficient * factor;
+                            if matched.is_normal() && factor.is_normal() && restored.is_normal() {
+                                *coefficient = restored;
+                                continue;
+                            }
+                        }
+                        *coefficient = scaled * f3 / f2;
                     } else {
                         fc[(j - 1) as usize] *= s0;
                     }
