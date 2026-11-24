@@ -497,6 +497,31 @@ fn test_assoc_legendre_q_all_extreme_order_two() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_extreme_degree_one_order_one() {
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            // Arb at the exact binary64 arguments and at both imaginary-axis lips.
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 1, c64(sx * 1e160, sy * 1e159));
+            assert_eq!(q[1][1], c64(-sx * f64::from_bits(0x51e), sy * f64::from_bits(0x109)));
+            assert_eq!(dq[1][1].re.to_bits(), 0);
+            assert_eq!(dq[1][1].im.to_bits(), (-sx * sy * 0.0).to_bits());
+
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 1, c64(sx * 0.0, sy * 1e160));
+            assert_eq!(q[1][1].re, sx * f64::from_bits(0x545));
+            assert_eq!(q[1][1].im.to_bits(), (sy * 0.0).to_bits());
+            assert_eq!(dq[1][1].re.to_bits(), 0);
+            assert_eq!(dq[1][1].im.to_bits(), (sx * sy * 0.0).to_bits());
+        }
+    }
+
+    // The axis approximation is a 3.5-minsubnormal imaginary projection.
+    let a = 5991.0_f64;
+    let z = c64(a * 2.0_f64.powi(467), 21.0 * a.powi(3) * 2.0_f64.powi(324));
+    let (q, _) = xsf::assoc_legendre_q_all(1, 1, z);
+    assert_eq!(q[1][1].im.to_bits(), 3);
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x_and_z() {
     // where the backward recurrences are rescaled; mpmath: legenq(n, m, x, type=3), and Arb for
     // complex z
