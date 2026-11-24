@@ -152,6 +152,19 @@ fn test_stdtr_huge_nu() {
 }
 
 #[test]
+fn test_stdtr_huge_nu_half_minsub() {
+    // Adjacent x values on either side of 2^-1075, from the normalized density integral.
+    for (nu, below, above) in [
+        (1_000_000_000.000_000_1, -38.485_422_595_634_134, -38.485_422_595_634_13),
+        (1e14, -38.485_408_335_709_95, -38.485_408_335_709_94),
+        (9.894_668_870_662_003e17, -38.485_408_335_567_36, -38.485_408_335_567_35),
+    ] {
+        assert_eq!(xsf::stdtr(nu, below).to_bits(), 0);
+        assert_eq!(xsf::stdtr(nu, above).to_bits(), 1);
+    }
+}
+
+#[test]
 fn test_stdtri() {
     const NU: [f64; 6] = [0.5, 1.0, 2.0, 3.0, 4.0, 10.0];
     const P: [f64; 7] = [0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999];

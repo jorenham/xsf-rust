@@ -175,29 +175,12 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
     } else if x == 0.0 {
         0.5
     } else if nu > 1e9 {
-        // The normal limit with its 1/nu series, where 4 terms suffice: `incbet` loses up to ~300
-        // eps for huge nu (and its continued fraction terms ~nu^2 overflow).
-        //
-        // F(x) = Phi(x) - phi(x) (g_1(x) / nu + g_2(x) / nu^2 + ...)
-        // g_1(x) = (x^3 + x) / 4, g_2(x) = (3x^7 - 7x^5 - 5x^3 - 3x) / 96, ...
-        //
-        // `G` holds g_k(x) / x as polynomials in x^2, and their denominators. Where ndtr(x) doesn't
-        // underflow (|x| < 38.5), the first neglected term phi g_5 / nu^5 is relatively below
-        // 4.1e26 / nu^5 < 0.002 eps. Rounding x^2 costs phi(x) up to x^2 eps / 4, but the whole sum
-        // is relatively below 5.6e5 / nu, so F loses < 0.25 eps. Clamping x at +-40, where phi(x)
-        // underflows, keeps x^15 finite.
-        const G: [(&[f64], f64); 4] = [
-            (&[1.0, 1.0], 4.0),
-            (&[3.0, -7.0, -5.0, -3.0], 96.0),
-            (&[1.0, -11.0, 14.0, 6.0, -3.0, -15.0], 384.0),
-            (&[15.0, -375.0, 2225.0, -2141.0, -939.0, -213.0, 915.0, 945.0], 92160.0),
-        ];
-        let t = x.clamp(-40.0, 40.0);
-        let s = G
-            .iter()
-            .rev()
-            .fold(0.0, |s, &(p, d)| (s + polevl(t * t, p) / d) / nu);
-        ndtr(x) - (-0.5 * t * t).exp() / SQRT_TAU * t * s
+        // At -39 this tail is below exp(-760). At -38 even the normal term exceeds 1e-316.
+        if x > -39.0 && x < -38.0 {
+            stdtr_huge_tail(nu, x)
+        } else {
+            stdtr_huge_approx(nu, x).0
+        }
     } else if nu > STDTR_TAIL_NU && x < -STDTR_TAIL_X {
         stdtr_tail(nu, x)
     } else if nu == 1.0 {
@@ -274,6 +257,50 @@ fn stdtr_tail(nu: f64, x: f64) -> f64 {
     let e = u * u * (-0.5 * a) + a * u.hi.powi(3) * rest;
     let m = 0.5 * cf * (xc / a).sqrt() / SQRT_PI * g * (-e.hi).exp() * (1.0 - e.lo);
     mul_exp_sq(m, -0.5, t)
+}
+
+#[inline]
+fn stdtr_huge_approx(nu: f64, x: f64) -> (f64, f64) {
+    // The normal limit with its 1/nu series, where 4 terms suffice: `incbet` loses up to ~300
+    // eps for huge nu (and its continued fraction terms ~nu^2 overflow).
+    //
+    // F(x) = Phi(x) - phi(x) (g_1(x) / nu + g_2(x) / nu^2 + ...)
+    // g_1(x) = (x^3 + x) / 4, g_2(x) = (3x^7 - 7x^5 - 5x^3 - 3x) / 96, ...
+    //
+    // `G` holds g_k(x) / x as polynomials in x^2, and their denominators. Where ndtr(x) doesn't
+    // underflow (|x| < 38.5), the first neglected term phi g_5 / nu^5 is relatively below
+    // 4.1e26 / nu^5 < 0.002 eps. Rounding x^2 costs phi(x) up to x^2 eps / 4, but the whole sum
+    // is relatively below 5.6e5 / nu, so F loses < 0.25 eps. Clamping x at +-40, where phi(x)
+    // underflows, keeps x^15 finite.
+    const G: [(&[f64], f64); 4] = [
+        (&[1.0, 1.0], 4.0),
+        (&[3.0, -7.0, -5.0, -3.0], 96.0),
+        (&[1.0, -11.0, 14.0, 6.0, -3.0, -15.0], 384.0),
+        (&[15.0, -375.0, 2225.0, -2141.0, -939.0, -213.0, 915.0, 945.0], 92160.0),
+    ];
+    let t = x.clamp(-40.0, 40.0);
+    let s = G
+        .iter()
+        .rev()
+        .fold(0.0, |s, &(p, d)| (s + polevl(t * t, p) / d) / nu);
+    let p = ndtr(x) - (-0.5 * t * t).exp() / SQRT_TAU * t * s;
+    (p, s)
+}
+
+#[cold]
+#[inline(never)]
+fn stdtr_huge_tail(nu: f64, t: f64) -> f64 {
+    let (p, s) = stdtr_huge_approx(nu, t);
+    if p == 0.0 && s > 0.0 {
+        // Combine the terms before applying their shared exponential. Compare with
+        // half the smallest subnormal in units of MIN_POSITIVE, with room for rounding.
+        let m = 0.5 * crate::xsf::faddeeva::erfcx(-t * FRAC_1_SQRT_2) - t * s / SQRT_TAU;
+        let scaled = mul_exp_sq(m / f64::MIN_POSITIVE, -0.5, t);
+        if scaled > 0.5 * f64::EPSILON * (1.0 + 12.0 * f64::EPSILON) {
+            return f64::from_bits(1);
+        }
+    }
+    p
 }
 
 /// Inverse of [`stdtr`]
