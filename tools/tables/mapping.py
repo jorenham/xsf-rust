@@ -4465,6 +4465,20 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             ),
         ),
     ),
+    ("riemann_zeta", "cd-cd"): _complex(
+        "riemann_zeta",
+        specs._c(mp.zeta),
+        flint.acb.zeta,
+        overrides=(
+            Override(
+                _inputs(
+                    (-294.86605461349745,),
+                    (-16.147667799398363, 13.992648136816397),
+                ),
+                "xsf's reflection mixes infinities and produces a NaN component (xsf-rust#1736)",
+            ),
+        ),
+    ),
     ("zetac", "d-d"): _real(
         "zetac",
         specs.r_zetac,
