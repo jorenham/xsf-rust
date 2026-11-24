@@ -64,57 +64,93 @@ impl ErfArg for Complex64 {
 }
 
 fn erfc_c64(z: C64) -> C64 {
+    use crate::xsf::faddeeva::erfc_c64 as raw_erfc;
+
+    let (x_abs, y_abs) = (z.re.abs(), z.im.abs());
+    // The rounded phase has at least one radian between representable values here.
+    let wide_phase = || (2.0 * x_abs) * y_abs > pow2(53);
+    // Unlike in xsf, try certifying overflow before evaluation in this wedge,
+    // where the exact Gaussian exponent exceeds MAX.
+    if y_abs >= pow2(513)
+        && y_abs.is_finite()
+        && x_abs != 0.0
+        && x_abs <= y_abs * 0.5
+        && wide_phase()
+    {
+        return erfc_overflow(z).unwrap_or_else(|| raw_erfc(z));
+    }
+    let result = raw_erfc(z);
+    if result.is_nan() || (result.re.is_infinite() && result.im.is_infinite() && wide_phase()) {
+        return erfc_overflow(z).unwrap_or(result);
+    }
+    result
+}
+
+#[cold]
+fn erfc_overflow(z: C64) -> Option<C64> {
     // Leave roundoff margin above ln(4*MAX).
     const LOG_OVERFLOW_BOUND: f64 = 713.0;
-    let result = crate::xsf::faddeeva::erfc_c64(z);
+
     let (x, y) = (z.re, z.im);
     let (x_abs, y_abs) = (x.abs(), y.abs());
-    if !result.is_nan() || !z.is_finite() || x == 0.0 || x_abs >= y_abs {
-        return result;
+    if !z.is_finite() || x == 0.0 || x_abs >= y_abs {
+        return None;
     }
 
     // Unlike in xsf, recover signed infinities when the leading term of erfcx
-    // certifies both signs. Reduce the original product even when it overflows.
-    let (exponent, margin) = if y_abs >= 64.0 && x_abs <= y_abs * 0.5 {
+    // certifies both signs. Use the original argument for the phase.
+    let exponent = if y_abs >= 64.0 && x_abs <= y_abs * 0.5 {
         // In this wedge the exponent is at least 3072; the sign test suffices.
-        (f64::INFINITY, pow2(-10))
+        f64::INFINITY
     } else {
         let exponent = (y_abs - x_abs) * (y_abs + x_abs);
         // A positive clearance is below one, and ln(|y|) > 3 whenever
         // the exponent exceeds LOG_OVERFLOW_BOUND.
         if exponent <= LOG_OVERFLOW_BOUND + 3.0 {
-            return result;
+            return None;
         }
-        let margin = if y_abs >= 64.0 {
-            pow2(-10)
-        } else {
-            (4.0 / y_abs) / y_abs
-        };
-        (exponent, margin)
+        exponent
     };
     let (hi, lo) = two_prod(-x, y);
     let phase = 2.0 * hi;
-    let (rotation, error) = if phase.abs() > pow2(53) {
-        let (quadrant, r) = crate::xsf::faddeeva::phase::reduce_product_phase(-x, y);
-        reduced_phase_rotation(quadrant, r)
-    } else if let Some(rotation) = bounded_phase_rotation(phase, 2.0 * lo) {
-        rotation
+    let (quadrant, r) = if phase.abs() > pow2(53) {
+        crate::xsf::faddeeva::phase::reduce_product_phase(-x, y)
     } else {
-        return result;
+        // Keep the rounded quadrant within the exact-integer range of f64.
+        let (quadrant, r) = split_phase(phase, 2.0 * lo);
+        // The rounded product can select a neighboring quadrant.
+        let step = if r.abs() > 1.0 {
+            1.0_f64.copysign(r)
+        } else {
+            0.0
+        };
+        ((quadrant + step) as i64 as u64 & 3, r - step * FRAC_PI_2_DD.hi)
     };
-    // Bound the Taylor errors and the normalized erfcx remainder.
+    if r.abs() > 1.0 {
+        return None;
+    }
+
+    // Fifth-degree sine and fourth-degree cosine bound the component
+    // error by |r|^6/600 for |r| <= 1 and |x/y| <= 1.
+    let r2 = r * r;
+    let sin = r * (1.0 - r2 * (1.0 / 6.0 - r2 / 120.0));
+    let cos = 1.0 - r2 * (0.5 - r2 / 24.0);
+    let rotation = rotate_quadrant(quadrant, sin, cos);
+
     let leading = c64(x / y_abs, -y.signum()) * rotation;
-    let error = error + margin;
+    // The normalized erfcx remainder is bounded by 3/|y|².
+    // Allow for phase reduction and floating-point evaluation.
+    let error = r2 * r2 * r2 / 600.0 + (4.0 / y_abs) / y_abs + pow2(-44);
     let clearance = leading.re.abs().min(leading.im.abs()) - error;
     // The exact scale is at least exp(y² - x²) / (4*|y|).
-    // Positive clearance gives true normalized magnitudes above 2^-13, so
+    // Positive clearance gives true normalized magnitudes above 2^-45, so
     // exponent >= 1536 suffices even at |y| = MAX.
     if clearance > 0.0
         && (exponent >= 1536.0 || exponent - y_abs.ln() + clearance.ln() > LOG_OVERFLOW_BOUND)
     {
-        c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
+        Some(c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im)))
     } else {
-        result
+        None
     }
 }
 
@@ -124,26 +160,30 @@ pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> 
     if phase.abs() > pow2(53) {
         return None;
     }
-    let quadrant = (phase * FRAC_2_PI).round();
-    let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase) + (-quadrant).mul_add(FRAC_PI_2_DD.lo, lo);
+    let (quadrant, r) = split_phase(phase, lo);
     if r.abs() > 1.0 {
         return None;
     }
-    Some(reduced_phase_rotation((quadrant as i64).rem_euclid(4) as u64, r))
-}
-
-fn reduced_phase_rotation(quadrant: u64, r: f64) -> (C64, f64) {
-    // Cubic sine and quadratic cosine suffice to resolve signs with clearance.
     let r2 = r * r;
     let sin = r * (1.0 - r2 / 6.0);
     let cos = 1.0 - 0.5 * r2;
-    let rotation = match quadrant {
+    let rotation = rotate_quadrant((quadrant as i64).rem_euclid(4) as u64, sin, cos);
+    Some((rotation, r2 * r2 / 20.0))
+}
+
+fn split_phase(phase: f64, lo: f64) -> (f64, f64) {
+    let quadrant = (phase * FRAC_2_PI).round();
+    let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase) + (-quadrant).mul_add(FRAC_PI_2_DD.lo, lo);
+    (quadrant, r)
+}
+
+fn rotate_quadrant(quadrant: u64, sin: f64, cos: f64) -> C64 {
+    match quadrant {
         0 => c64(cos, sin),
         1 => c64(-sin, cos),
         2 => c64(-cos, -sin),
         _ => c64(sin, -cos),
-    };
-    (rotation, r2 * r2 / 20.0)
+    }
 }
 
 /// Error function $\erf(z)$ for real or complex input
