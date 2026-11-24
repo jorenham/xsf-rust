@@ -12,6 +12,7 @@ from fractions import Fraction
 from typing import Final, Protocol
 
 import flint
+import hankel
 import mathieu
 import mpmath as mp
 import specs
@@ -1810,6 +1811,8 @@ def _cbessel(
     def value(v: mp.mpf, re: mp.mpf, im: mp.mpf, lost: int) -> mp.mpc:
         with specs.wdps(specs.xd(v, re, im) + lost):
             z = mp.mpc(re, im)
+            if s and not scaled and im == 0:
+                return hankel.axis(int(f), v, re)
             if not s:
                 y = {
                     "j": BESSEL_J,
@@ -1829,7 +1832,9 @@ def _cbessel(
         # with up to 4 times the precision, until the ball can confirm a reference
         for k in range(3):
             with flint.ctx.extraprec(flint.ctx.prec * (2**k - 1)):
-                if not s:
+                if s and not scaled and z.imag == 0:
+                    y = hankel.axis_arb(int(f), v, z.real)
+                elif not s:
                     g = {
                         "j": z.bessel_j,
                         "y": z.bessel_y,
@@ -2262,6 +2267,23 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
     return ("cyl_bessel_y", "d_cd-cd"), Entry((out,))
 
 
+def _hankel_amos_overflow(a: tuple[float, ...]) -> bool:
+    """AMOS's early overflow on the real axis, diagnosed by Y's leading factor (DLMF 10.9.7)."""
+    v, x, y = a
+    v, x = abs(v), abs(x)
+    if y != 0 or x == 0 or v < 1 or _amos_range(a):
+        return False
+    return (
+        math.lgamma(v) + v * (math.log(2) - math.log(x)) - math.log(math.pi) > AMOS_ELIM
+    )
+
+
+HANKEL_AMOS_OVERFLOW: Final = Override(
+    _hankel_amos_overflow,
+    "AMOS's Hankel path returns a NaN pair before a real-axis component rounds",
+)
+
+
 def _bessel_c() -> dict[tuple[str, str], Entry]:
     """Reference tables for Bessel and Hankel functions of real order and complex argument."""
 
@@ -2332,6 +2354,18 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                 ),
                 overrides=(I_OVERRIDE, *I_PART_OVERRIDES),
                 floors=(I_REFLECTION_FLOOR, I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
+            ),
+            entry("1", CBESSEL_AT_0, AMOS_RANGE, overrides=(HANKEL_AMOS_OVERFLOW,)),
+            entry(
+                "2",
+                Rule(
+                    lambda a: a == (0.0, 0.0, 0.0),
+                    complex(math.nan, math.inf),
+                    "H2_0 at zero keeps the xsf wrapper convention",
+                ),
+                CBESSEL_AT_0,
+                AMOS_RANGE,
+                overrides=(HANKEL_AMOS_OVERFLOW,),
             ),
             entry("je"),
             entry("ye"),
