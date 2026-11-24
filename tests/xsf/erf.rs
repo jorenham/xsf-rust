@@ -303,6 +303,8 @@ fn test_complex_erf_diagonal_phase() {
     // Arb at the exact inputs, including a finite square just before overflow.
     let finite_square = f64::from_bits(0x5fe6_a09e_667f_3bcb);
     for (x, tail, atol) in [
+        (2.0_f64.powi(55), -1.101_181_121_889_039_2e-17, 8.0e-33),
+        (36_028_797_018_963_976.0, -1.104_582_757_127_772_3e-17, 8.0e-33),
         (2.0_f64.powi(82), 4.273_248_405_561_108e-27, 4.0e-42),
         (4.777_560_510_820_643_5e25, 5.534_338_826_722_963e-27, 4.0e-42),
         (2.0_f64.powi(86), 5.137_282_552_751_807e-27, 4.0e-42),
