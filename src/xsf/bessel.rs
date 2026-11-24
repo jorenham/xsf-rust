@@ -351,11 +351,9 @@ fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C
     if !(i.is_finite() && v >= 2.0 && z.re > 0.0 && !z.is_real() && z.norm_sqr() <= v) {
         return None;
     }
-    let mut weight = FRAC_2_PI * cephes_sinpi(v);
-    if kode == 2 {
-        // The seeds are unscaled K, so Ie only needs exp(-|Re z|).
-        weight *= (-z.re).exp();
-    }
+    // The seeds are unscaled K, so Ie only needs exp(-|Re z|).
+    let scale = if kode == 2 { (-z.re).exp() } else { 1.0 };
+    let weight = (FRAC_2_PI * cephes_sinpi(v)) * scale;
     if !weight.is_normal() {
         return None;
     }
@@ -363,21 +361,16 @@ fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C
     let mut ierr = 0;
     let mut seeds = [C64::NAN; 2];
     let nz = amos::besk(z, v - 2.0, 1, 2, &mut seeds, &mut ierr);
-    let [k0, k1] = seeds;
-    if ierr != 0 || nz != 0 || !k0.is_finite() || !k1.is_finite() {
+    if ierr != 0 || nz != 0 {
         return None;
     }
-    let k0 = k0 * weight;
-    let k1 = (k1 * weight / z) * (2.0 * (v - 1.0));
-    let value = i + k0 + k1;
-    let (re, im) = (value.re.abs(), value.im.abs());
-    let min_part = re.min(im);
-    let scale = i.norm() + k0.norm() + k1.norm();
-    (value.is_finite()
-        && re.max(im) <= 0.5 * f64::MAX
-        && min_part >= 2.0 * f64::MIN_POSITIVE
-        && min_part >= I_ROTATED_PART_MIN * scale)
-        .then_some(value)
+    let [lower, upper] = seeds.map(|seed| seed * weight);
+    let step = (upper / z) * (2.0 * (v - 1.0));
+    let value = i + lower + step;
+    let amplitude = i.norm() + lower.norm() + step.norm();
+    let minimum = (I_ROTATED_PART_MIN * amplitude).max(2.0 * f64::MIN_POSITIVE);
+    let range = minimum..=0.5 * f64::MAX;
+    (range.contains(&value.re.abs()) && range.contains(&value.im.abs())).then_some(value)
 }
 
 /// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
