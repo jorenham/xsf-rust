@@ -964,31 +964,29 @@ fn hyp2f1_gauss_dd(c: f64, d: Dd, denominators: [(Dd, Option<f64>); 2]) -> Optio
 #[cold]
 fn rounded_euler_power_is_complex(a: f64, b: f64, c: f64, x: f64, d: f64) -> bool {
     let is_rounded_power = |e: f64| e <= -1.0 && e.fract() == 0.0;
-    if !is_rounded_power(d) && !is_rounded_power(c - b - a) {
-        return false;
-    }
-    let nonzero = |terminating: f64, opposite: f64| {
-        if !(0.0 < opposite && opposite < c && opposite.fract() != 0.0) {
-            return false;
-        }
-        let (m, tail) = two_sum(terminating, -c);
-        if !(m > 0.0 && m.fract() == 0.0 && tail.fract() == 0.0) {
-            return false;
-        }
-        // The beta integral of (1-xt)^m is positive for even m.
-        if (m % 2.0 == 0.0) == (tail % 2.0 == 0.0) {
-            return true;
-        }
-        // For odd m it strictly decreases in x. Pairing t and 1-t gives
-        // the sign of 2*opposite-c at x=2.
+    // For odd degree the beta integral of (1-xt)^m strictly decreases in x.
+    // Pairing t and 1-t gives the sign of 2*opposite-c at x=2.
+    let odd_nonzero = |opposite: f64| {
         let twice = 2.0 * opposite;
-        match x.partial_cmp(&2.0) {
-            Some(core::cmp::Ordering::Less) => twice >= c,
-            Some(core::cmp::Ordering::Greater) => twice <= c,
-            _ => twice != c,
+        if x < 2.0 {
+            twice >= c
+        } else if x > 2.0 {
+            twice <= c
+        } else {
+            twice != c
         }
     };
-    nonzero(a, b) || nonzero(b, a)
+    let nonzero = |terminating: f64, opposite: f64| {
+        let in_beta_domain = 0.0 < opposite && opposite < c && opposite.fract() != 0.0;
+        let (m, tail) = two_sum(terminating, -c);
+        let exact_positive_degree = m > 0.0 && m.fract() == 0.0 && tail.fract() == 0.0;
+        in_beta_domain && exact_positive_degree && {
+            // The integral is positive for even degree.
+            let even_degree = (m % 2.0 == 0.0) == (tail % 2.0 == 0.0);
+            even_degree || odd_nonzero(opposite)
+        }
+    };
+    (is_rounded_power(d) || is_rounded_power(c - b - a)) && (nonzero(a, b) || nonzero(b, a))
 }
 
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
