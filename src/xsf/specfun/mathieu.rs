@@ -744,16 +744,22 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, xr: f64, csf: &mut f64, csd: &mut f6
     Status::Ok
 }
 
-fn first_kind_at_origin(kd: i32, m: i32, q: f64, a: f64, x: f64, fg: &[f64]) -> Option<(f64, f64)> {
+fn first_kind_near_origin(
+    kd: i32,
+    m: i32,
+    q: f64,
+    a: f64,
+    x: f64,
+    fg: &[f64],
+) -> Option<(f64, f64)> {
     let w = a - 2.0 * q;
     // Use the low-q characteristic solver above fcoef's linear approximation.
-    // Stay away from a turning point.
-    if !(x == 0.0
-        && q > 1.0e-7
+    // Stay away from a turning point and keep the Taylor step small.
+    if !(q > 1.0e-7
         && q <= 3.0 * f64::from(m)
         && a >= 1.0
         && w >= a / 32.0
-        && a.is_finite())
+        && a.sqrt() * x.abs() <= 1.0 / 64.0)
     {
         return None;
     }
@@ -769,7 +775,7 @@ fn first_kind_at_origin(kd: i32, m: i32, q: f64, a: f64, x: f64, fg: &[f64]) -> 
     }
 
     // Unlike in xsf, take the origin normalization from the single-Bessel
-    // expansions (DLMF 28.23.7, 9, 11, 13).
+    // expansions (DLMF 28.23.7, 9, 11, 13) before advancing the first kind by its ODE.
     let (norm, abs_sum) = fg
         .iter()
         .enumerate()
@@ -795,11 +801,31 @@ fn first_kind_at_origin(kd: i32, m: i32, q: f64, a: f64, x: f64, fg: &[f64]) -> 
         return None;
     }
 
-    let zero = anchor * x;
-    Some(if kd >= 3 {
-        (zero, anchor)
+    // Power series of y'' = (a - 2q cosh(2x)) y, with exact parity.
+    let odd = u32::from(kd >= 3);
+    let p1 = -4.0 * q;
+    let p2 = p1 / 3.0;
+    let p3 = 2.0 * p2 / 15.0;
+    let potential = [w, p1, p2, p3, p3 / 14.0];
+    let mut coeff = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0];
+    let mut diff = [0.0; 5];
+    for (i, d) in diff.iter_mut().enumerate().rev() {
+        let j = f64::from(2 * (5 - i as u32) + odd);
+        coeff[i] = potential
+            .iter()
+            .zip(&coeff[i + 1..])
+            .map(|(p, b)| p * b)
+            .sum::<f64>()
+            / (j * (j - 1.0));
+        *d = j * coeff[i];
+    }
+    let xx = x * x;
+    let value = anchor * (1.0 + xx * polevl(xx, &coeff[..5]));
+    let d = polevl(xx, &diff);
+    Some(if odd != 0 {
+        (value * x, anchor * (1.0 + xx * d))
     } else {
-        (anchor, zero)
+        (value, anchor * d * x)
     })
 }
 
@@ -972,7 +998,7 @@ pub(crate) fn mtu12(
             // Unlike in xsf, use origin normalization only for components
             // where cancellation can amplify cross-product roundoff by 32.
             let fg = &fg[..km as usize];
-            if let Some((value, derivative)) = first_kind_at_origin(kd, m, q, a, x, fg) {
+            if let Some((value, derivative)) = first_kind_near_origin(kd, m, q, a, x, fg) {
                 let offset = match kd {
                     1 => 0,
                     4 => 2,
@@ -988,11 +1014,12 @@ pub(crate) fn mtu12(
                     abs_value += c.abs() * pair(&bj1, &bj2);
                     abs_derivative += c.abs() * (c2 * pair(&bj1, &dj2) + c1 * pair(&dj1, &bj2));
                 }
+                // The anchor error cannot resolve subnormal rounding midpoints.
                 for (out, new, sum, abs_sum) in [
                     (f1r, value, value_sum, abs_value),
                     (d1r, derivative, derivative_sum, abs_derivative),
                 ] {
-                    if sum.abs() * 32.0 < abs_sum {
+                    if (new.is_normal() || x == 0.0) && sum.abs() * 32.0 < abs_sum {
                         *out = new;
                     }
                 }
