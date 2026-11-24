@@ -751,26 +751,20 @@ fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
         match b.iter().position(|&bj| bj == a) {
             Some(j) => pfq_entire(&[], &[b[1 - j]], z, series_first),
             None => pfq_entire(&[a], &b, z, series_first).or_better(|| {
-                if series_first || a <= 0.0 {
-                    return None;
-                }
-                let b = if b1 == 2.0 * a {
-                    b2
-                } else if b2 == 2.0 * a {
-                    b1
+                // DLMF 16.12.1, for the exact parameters in either order.
+                let (b, low) = two_sum(a, 0.5);
+                let pair = (b, 2.0 * a);
+                if !series_first && a > 0.0 && low == 0.0 && (pair == (b1, b2) || pair == (b2, b1))
+                {
+                    let root = pfq_entire(&[], &[b], z * 0.25, false)?;
+                    let y = root.y * root.y;
+                    // Propagate the relative error of the factor and the rounding of its square.
+                    let err = (2.0 + root.err) * root.err + f64::EPSILON;
+                    (err <= PFQ_TOL && y.is_finite() && y.mul_add(-err, y) > f64::MIN_POSITIVE)
+                        .then(|| Estimate::new(y, err))
                 } else {
-                    return None;
-                };
-                // DLMF 16.12.1, for the exact parameters.
-                if two_sum(a, 0.5) != (b, 0.0) {
-                    return None;
+                    None
                 }
-                let root = pfq_entire(&[], &[b], z * 0.25, false)?;
-                let y = root.y * root.y;
-                // Propagate the relative error of the factor and the rounding of its square.
-                let err = (2.0 + root.err) * root.err + f64::EPSILON;
-                (err <= PFQ_TOL && y.is_finite() && y.mul_add(-err, y) > f64::MIN_POSITIVE)
-                    .then(|| Estimate::new(y, err))
             }),
         }
     }
