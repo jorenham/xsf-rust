@@ -810,6 +810,27 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
 }
 
 #[test]
+fn test_eval_gegenbauer_near_minus_half() {
+    // Arb at the exact binary64 inputs.
+    let cases = [
+        (-0.499_999_999_999_999_9, 0.75, -1.703_659_157_684_927_5e-5),
+        (-0.5, 0.75, -1.703_659_157_684_926_2e-5),
+        (-0.500_000_000_000_000_1, 0.75, -1.703_659_157_684_925e-5),
+    ];
+    for (alpha, x, expected) in cases {
+        let integer = eval_gegenbauer(1000, alpha, x);
+        let real = eval_gegenbauer(1000.0, alpha, x);
+        assert_eq!(integer, real);
+        np_assert_allclose!([real], [expected], rtol = 2e-13);
+    }
+
+    let alpha = -0.500_000_000_000_000_1;
+    let endpoint = eval_gegenbauer(100_000, alpha, 1.0);
+    np_assert_allclose!([endpoint], [2.220_468_253_932_847e-26], rtol = 2e-14);
+    assert_eq!(eval_gegenbauer(1000, -0.5, 1.0), 0.0);
+}
+
+#[test]
 fn test_eval_gegenbauer_large_alpha() {
     // mpmath: gegenbauer(n, alpha, x)
     let c = [

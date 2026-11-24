@@ -696,6 +696,10 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
         return sign * p;
     }
 
+    // Unlike in xsf, cancel the common zero in the recurrence and normalization on |x| <= 1.
+    if x <= 1.0 && gegenbauer_rounds_to_pole(n as f64, alpha) {
+        return sign * gegenbauer_near_minus_half(n, alpha, x);
+    }
     let p = gegenbauer_hyp2f1_l(n, alpha, x);
     let n = n as f64;
     if (alpha / n).abs() < 1e-8 {
@@ -705,14 +709,45 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
     sign * crate::binom(n + 2.0 * alpha - 1.0, n) * p
 }
 
+// Whether the top of binom(n + 2α - 1, n) rounds to n - 2.
+#[inline]
+pub(super) fn gegenbauer_rounds_to_pole(n: f64, alpha: f64) -> bool {
+    n + 2.0 * alpha - 1.0 == n - 2.0
+}
+
+// Cancel the factor δ=2α+1 in the prefactor and the first recurrence division.
+#[cold]
+fn gegenbauer_near_minus_half(n: i64, alpha: f64, x: f64) -> f64 {
+    let alpha2 = 2.0 * alpha;
+    let delta = alpha2 + 1.0;
+    let n1 = (n - 1) as f64;
+    // Prefactor / δ = α₂ Γ(n−1+δ) / (n(n−1) Γ(n−1) Γ(1+δ)).
+    let scale = alpha2 / n as f64 / n1
+        * crate::xsf::cephes::lgam_ratio(n1, delta).exp()
+        * crate::rgamma(1.0 + delta);
+    let xm1 = x - 1.0;
+    let d = (scale * xm1) * (1.0 + delta).mul_add(x, 1.0);
+    let p = (scale * delta).mul_add(x, d);
+    gegenbauer_difference(2..n, alpha, &xm1, d, p)
+}
+
 /// `C_n^(alpha)(x) / binom(n + 2 alpha - 1, n)` by the recurrence of `eval_gegenbauer_l`, for
 /// `n >= 1`, i.e. `2F1(-n, n + 2 alpha; alpha + 1/2; (1 - x) / 2)`
 fn gegenbauer_hyp2f1_l<Z: sealed::OrthoPolyArg>(n: i64, alpha: f64, x: Z) -> Z {
     let xm1 = x.clone() - 1.0;
-    let mut d = xm1.clone();
-    let mut p = x;
-    for kk in 0..n - 1 {
-        let k = kk as f64 + 1.0;
+    gegenbauer_difference(1..n, alpha, &xm1, xm1.clone(), x)
+}
+
+#[inline]
+fn gegenbauer_difference<Z: sealed::OrthoPolyArg>(
+    ks: Range<i64>,
+    alpha: f64,
+    xm1: &Z,
+    mut d: Z,
+    mut p: Z,
+) -> Z {
+    for k in ks {
+        let k = k as f64;
         d = xm1.clone() * (2.0 * (k + alpha) / (k + 2.0 * alpha)) * p.clone()
             + d * (k / (k + 2.0 * alpha));
         p = p + d.clone();

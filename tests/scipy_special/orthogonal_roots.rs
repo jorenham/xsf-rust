@@ -147,10 +147,11 @@ fn test_roots_gegenbauer() {
     // `C_n` would underflow
     assert_eq!(xsf::roots_gegenbauer(3, 1e-310), xsf::roots_chebyshev_t(3));
 
-    // a known limitation, see `roots_gegenbauer` (the true weights are about 2^53, 4/3, 2^53)
+    // The two outer roots round to the endpoints. These weights follow from
+    // the exact second moment and the zeros of C_3 at this alpha.
     let (x, w) = xsf::roots_gegenbauer(3, -0.499_999_999_999_999_94);
     np_assert_allclose!(x, [-1.0, 0.0, 1.0], atol = 1e-15);
-    assert!(w[0].is_nan() && w[2].is_nan());
+    np_assert_allclose!(w, [2f64.powi(53), 4.0 / 3.0, 2f64.powi(53)], rtol = 1e-15);
 }
 
 #[test]
