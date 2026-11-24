@@ -85,7 +85,11 @@ fn decompose(x: f64) -> (u64, i32) {
     (mantissa, exponent)
 }
 
-// Payne–Hanek reduction of pi/4 + 2*x^2 when the doubled square overflows.
+// The leading diagonal tail has relative remainder below 2^-57 from here:
+// 1/(4*x^2) divided by the 2^-117 lower bound on the sine magnitude.
+pub(super) const MIN_DIAGONAL_TAIL_ARG: f64 = pow2(86);
+
+// Payne–Hanek reduction of pi/4 + 2*x^2 without rounding the doubled square.
 #[cold]
 pub(super) fn sin_diagonal_phase(x: f64) -> f64 {
     let (quadrant, angle) = reduce_diagonal_phase(x);
@@ -121,7 +125,7 @@ fn read_quadrant_window(words: &[u64; 5], offset: usize) -> [u64; 4] {
 }
 
 pub(super) fn reduce_diagonal_phase(x: f64) -> (Quadrant, f64) {
-    debug_assert!(x.is_normal() && (2.0 * x * x).is_infinite());
+    debug_assert!(x.is_finite() && x.abs() >= MIN_DIAGONAL_TAIL_ARG);
     let (mantissa, exponent) = decompose(x);
     // The exact distance from an axis is > 2^-117 quadrants (continued-fraction bound).
     center_pi_4(quadrant_window(u128::from(mantissa).pow(2), 2 * exponent + 1))
