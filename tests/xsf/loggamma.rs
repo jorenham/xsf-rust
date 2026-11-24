@@ -50,3 +50,18 @@ fn test_rgamma_f64_near_overflow() {
 xsref::tests! {
     test_rgamma_c64: "rgamma", "cd-cd", |x| xsf::rgamma(c64(x[0], x[1]));
 }
+
+#[test]
+fn test_rgamma_c64_overflow_at_large_even_real_part() {
+    let inf = f64::INFINITY;
+    for (x, y, expected) in [
+        (-9_007_199_254_740_992.0, f64::from_bits(1), c64(inf, inf)),
+        (-2.998_076_996_061_15e154, 1.268_434_288_203_711_7e-10, c64(inf, inf)),
+        (-2.998_076_996_061_15e154, 8.333_333_333_333_334, c64(-inf, inf)),
+        (-8.988_465_674_311_05e307, 10.0, c64(-inf, -inf)),
+    ] {
+        assert_eq!(xsf::rgamma(c64(x, y)), expected);
+        assert_eq!(xsf::rgamma(c64(x, -y)), expected.conj());
+        assert_eq!(xsf::rgamma(c64(x, 0.0)), c64(0.0, 0.0));
+    }
+}

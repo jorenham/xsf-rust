@@ -20,7 +20,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int};
+use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::complex::Num;
 
@@ -175,6 +175,24 @@ fn crgamma(z: C64) -> C64 {
     if z.is_real() && is_nonpos_int(z.re) {
         // Zeros at 0, -1, -2, ...
         return C64::ZERO;
+    }
+    // Unlike in xsf, recover the signs from the reflected phase (DLMF 5.5.3).
+    // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
+    // For z = -N + iy, the conservative bound |y| <= 10 keeps the error from
+    // replacing Im(log Gamma(N + 1 - iy)) with -y*ln(N) below 2*|y|/N.
+    if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= 10.0 {
+        let phase = -z.im * (-z.re).ln();
+        let sign = z.im.signum();
+        // The reflected magnitude forces overflow in both components, even for subnormal y.
+        // Near zero the signs follow directly from the quadrant.
+        if phase.abs() <= 0.5 {
+            return c64(f64::INFINITY, f64::INFINITY.copysign(sign));
+        }
+        let (sin, cos) = phase.sin_cos();
+        // Leave room for the O(Im(z)/Re(z)) phase correction and rounding.
+        if sin.abs().min(cos.abs()) > 16.0 * f64::EPSILON * phase.abs() {
+            return c64(f64::INFINITY.copysign(-sign * sin), f64::INFINITY.copysign(sign * cos));
+        }
     }
     (-cloggamma(z)).exp()
 }
