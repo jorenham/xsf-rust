@@ -1545,10 +1545,6 @@ Y_FLOOR: Final = Floor(
     "for a non-integer v < 0, the error of cos(pi |v|) Y_|v| + sin(pi |v|) J_|v| depends on"
     " the platform's libm (1.37e-15 at (-7.37, 2.22) on macOS and Windows)",
 )
-K_OVERRIDE: Final = Override(
-    _inputs((-20.0, -10.0, -1.0, -0.5, 0.0, 1.0, 12.0, 12.49), (700.6,)),
-    "xsf returns 0 where AMOS underflows, which K_v(700.6) of about 3e-306 does",
-)
 
 
 def _bessel_arb(f: str) -> Arb:
@@ -1652,7 +1648,6 @@ def _bessel_v() -> dict[tuple[str, str], Entry]:
                 _bessel_arb("k"),
                 cut("K_v"),
                 k0,
-                overrides=(K_OVERRIDE,),
             ),
             entry("ke", specs.r_ke, ke, cut("K_v"), k0),
         ]
@@ -2065,9 +2060,6 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " (`ierr = 2`)",
                 ),
                 overrides=(
-                    Override(
-                        lambda a: a[2] == 0 and K_OVERRIDE.when(a[:2]), K_OVERRIDE.why
-                    ),
                     Override(
                         lambda a: abs(a[0]) == 10 and a[1] == a[2] == -1e-30,
                         "xsf returns NaN where |K_v(z)| exceeds AMOS's overflow threshold"
