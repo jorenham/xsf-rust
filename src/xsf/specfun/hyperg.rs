@@ -577,9 +577,8 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
 ///
 /// The recurrence is linear in `(d, p)`, so they are scaled up by `2^512` (exactly) whenever both
 /// are below `2^-512`, far from the subnormals, where the arithmetic is inexact and slow, and down
-/// whenever one is above `2^512` (e.g. `~ 1/b` for tiny `b`). Returns `scale M`, as `M` can
-/// overflow when `scale M` doesn't.
-fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
+/// whenever one is above `2^512` (e.g. `~ 1/b` for tiny `b`). Returns `exp(log_scale) M`.
+fn chgm_poly(n: i32, b: f64, x: f64, log_scale: f64) -> f64 {
     let (mut d, mut p) = (0.0, 1.0);
     // `M = p 2^-e`
     let mut e = 0_i32;
@@ -594,7 +593,11 @@ fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
             (d, p, e) = (d / SCALE, p / SCALE, e.saturating_sub(LOG2_SCALE));
         }
     }
-    ldexp_f64(p * scale, -e)
+    if log_scale > GRADUAL_EXP_X0 {
+        ldexp_f64(p * log_scale.exp(), -e)
+    } else {
+        Scaled::new(p, -e, 0.0).map_or(p, |y| y.with_l(log_scale.into()).to_f64().0)
+    }
 }
 
 /// `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` (cf. DLMF 13.2.39), where `e^x0` is applied
@@ -1216,10 +1219,24 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // Unlike in xsf (scipy/xsf#365), the polynomial M(-n, b, x) from `chgm_poly` if finite, up to
     // n = 10^6 (the cost bound of `hyp1f1_neg_a`)
     let poly = a < 0.0 && a == a.trunc() && a >= -MAX_SERIES_ITERATIONS && b > 0.0 && -a * x > b;
-    if poly && x0 > GRADUAL_EXP_X0 {
-        let p = chgm_poly(-a as i32, b, x, x0.min(0.0).exp());
-        if p.is_finite() {
-            return p;
+    if poly {
+        let ordinary = x0 > GRADUAL_EXP_X0;
+        // Unlike in xsf, keep the exponential separate for an exactly terminating Kummer
+        // transform beyond the Laguerre root bound 4n + 2b.
+        if ordinary || (x.is_finite() && x > (-4.0 * a + 2.0 * b) && two_sum(b, -a1).1 == 0.0) {
+            if !ordinary {
+                // Beyond the last root, |M| <= x^n/(b)_n. Here b >= 2^-52 and n <= 10^6,
+                // so log(exp(-x) |M|) <= n (1 + log(x/n)) + 50 - x.
+                // The tangent at x/n = 4 bounds this by 1.39*n + 50 - 0.75*x.
+                if x.mul_add(-0.75, (-a).mul_add(1.39, 50.0)) <= -750.0 {
+                    return neg_if_odd(a, 0.0);
+                }
+            }
+            let p = chgm_poly(-a as i32, b, x, x0.min(0.0));
+            // The old path still handles values near the normal/subnormal boundary and below.
+            if p.is_finite() && (ordinary || p.abs() >= 2.0 * f64::MIN_POSITIVE) {
+                return p;
+            }
         }
     }
     // Unlike in xsf (scipy/xsf#365), all of the series DLMF 13.2.2, also for x <= -700; for b < 0
