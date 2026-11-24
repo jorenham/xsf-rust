@@ -24,6 +24,7 @@ use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2};
 use crate::xsf::complex::Num;
+use crate::xsf::digamma::negative_real_psi_sign;
 
 use core::f64::consts::TAU;
 use num_complex::Complex;
@@ -206,6 +207,16 @@ fn crgamma(z: C64) -> C64 {
         // Zeros at 0, -1, -2, ...
         return C64::ZERO;
     }
+    // Unlike in xsf, use the real reciprocal gamma on the negative real axis.
+    if z.is_real() && z.re < 0.0 {
+        if let Some(psi_negative) = negative_real_psi_sign(z.re) {
+            let re = crate::xsf::cephes::rgamma(z.re);
+            if re.is_finite() && re != 0.0 {
+                let derivative_negative = re.is_sign_negative() == psi_negative;
+                return c64(re, if derivative_negative { -z.im } else { z.im });
+            }
+        }
+    }
     // Unlike in xsf, recover the signs from the reflected phase (DLMF 5.5.3).
     // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
     // For z = -N + iy, the conservative bound |y| <= 10 keeps the error from
@@ -275,6 +286,10 @@ pub fn loggamma<T: LogGammaArg>(z: T) -> T {
 }
 
 /// Reciprocal Gamma function $1 / \Gamma(z)$
+///
+/// On the negative real axis, the imaginary zero of a finite, nonzero result follows
+/// the sign of `y * (1/Γ)′(x)` for input `x + i y` with `y = ±0`.
+/// An imaginary residual can remain near a stationary point.
 ///
 /// Corresponds to [`scipy.special.rgamma`][rgamma] in scipy
 ///

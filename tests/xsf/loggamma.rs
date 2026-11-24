@@ -89,6 +89,26 @@ xsref::tests! {
 }
 
 #[test]
+fn test_rgamma_c64_negative_real_axis() {
+    for im in [0.0_f64, -0.0] {
+        for (x, expected, im_neg) in [
+            (-0.5, -0.282_094_791_773_878_14, false),
+            (-0.9, -0.094_602_330_550_059_98, true),
+            (-169.1, 7.016_094_122_732_882e303, true),
+        ] {
+            let z = xsf::rgamma(c64(x, im));
+            assert!((z.re / expected - 1.0).abs() <= 4.0 * f64::EPSILON);
+            assert_eq!(z.im.to_bits(), if im_neg { -im } else { im }.to_bits());
+        }
+
+        let min_subnormal = f64::from_bits(1);
+        let z = xsf::rgamma(c64(-min_subnormal, im));
+        assert_eq!(z.re, -min_subnormal);
+        assert_eq!(z.im.to_bits(), im.to_bits());
+    }
+}
+
+#[test]
 fn test_rgamma_c64_overflow_at_large_even_real_part() {
     let inf = f64::INFINITY;
     for (x, y, expected) in [
