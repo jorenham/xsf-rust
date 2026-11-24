@@ -522,6 +522,41 @@ fn test_assoc_legendre_q_all_extreme_degree_one_order_one() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_extreme_degree_one_order_two() {
+    // Exact rational Q₁² = 2/(z² − 1) and its derivative.
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 1e160, sy * 1e159));
+            assert_eq!(q[1][2], c64(f64::from_bits(0xf59), -sx * sy * f64::from_bits(0x31a)));
+            assert_eq!(dq[1][2].re.to_bits(), (-sx * 0.0).to_bits());
+            assert_eq!(dq[1][2].im.to_bits(), (sy * 0.0).to_bits());
+
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 0.0, sy * 1e160));
+            assert_eq!(q[1][2].re, -f64::from_bits(0xfd0));
+            assert_eq!(q[1][2].im.to_bits(), 0);
+            assert_eq!(dq[1][2].re.to_bits(), 0);
+            assert_eq!(dq[1][2].im.to_bits(), (-sy * 0.0).to_bits());
+        }
+    }
+    // The first correction decides the real half-minsubnormal on either side of 1/sqrt(3).
+    let x = 2.0_f64.powi(538);
+    let y = 0.577_350_269_189_625_7_f64;
+    let next = f64::from_bits(y.to_bits() + 1);
+    assert_eq!(
+        xsf::assoc_legendre_q_all(1, 2, c64(x, y)).0[1][2]
+            .re
+            .to_bits(),
+        1
+    );
+    assert_eq!(
+        xsf::assoc_legendre_q_all(1, 2, c64(x, next)).0[1][2]
+            .re
+            .to_bits(),
+        0
+    );
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x_and_z() {
     // where the backward recurrences are rescaled; mpmath: legenq(n, m, x, type=3), and Arb for
     // complex z
