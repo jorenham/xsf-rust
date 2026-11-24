@@ -16,14 +16,55 @@ use crate::ext::tridiag::eigvals;
 use crate::utils::{SQRT_PI, SQRT_TAU_DOWN};
 use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LOG2, ldexp_f64, two_sum};
-use crate::xsf::cephes::incbet_lnpow;
+use crate::xsf::cephes::{incbet_lnpow, lgam_ratio, lgam1p};
 use Nodes::{Plain, Shifted, Symmetric};
 
-/// Corresponds to `_gen_roots_and_weights`: Gauss quadrature by the Golub-Welsch algorithm
+/// Compute the Golub-Welsch nodes and refine them by Newton iteration.
 ///
 /// The monic orthogonal polynomials satisfy `p_{k+1}(x) = (x - a_k) p_k(x) - b_k^2 p_{k-1}(x)`,
 /// so the roots of `f(n, x)` are the eigenvalues of the tridiagonal matrix with diagonal `a_k` and
 /// off-diagonal `b_k`. They are refined by a Newton step with the derivative `df(n, x)`.
+fn refined_roots(
+    n: i32,
+    an: impl Fn(f64) -> f64,
+    bn: impl Fn(f64) -> f64,
+    f: impl Fn(i32, f64) -> f64,
+    df: impl Fn(i32, f64) -> f64,
+    sigma: impl Fn(f64, f64) -> f64,
+) -> (Vec<f64>, Vec<f64>) {
+    let d: Vec<f64> = (0..n).map(|k| an(f64::from(k))).collect();
+    let e: Vec<f64> = (1..n).map(|k| bn(f64::from(k))).collect();
+    let mut x = eigvals(&d, &e);
+
+    // improve roots by Newton's method
+    //
+    // Unlike in SciPy, which takes one step, at most 4 steps are taken while
+    // `step^2 > eps sigma^2`, i.e. while the error of a step, about `step^2 / sigma`, matters for
+    // `sigma` and thus for the weights. This only happens for a root very close to an endpoint (a
+    // zero of `sigma`), e.g. within 1e-14 of -1 for alpha and beta near -1.
+    //
+    // Unlike in SciPy, a root and its weight where the polynomials overflow (e.g. `L_n` for
+    // n >= 400) are the eigenvalue and 0, instead of NaN for all.
+    // the rounding errors of the refined roots
+    let mut dx = vec![0.0; x.len()];
+    for (xi, dxi) in x.iter_mut().zip(&mut dx) {
+        for _ in 0..4 {
+            let step = f(n, *xi) / df(n, *xi);
+            if !step.is_finite() {
+                break;
+            }
+            (*xi, *dxi) = two_sum(*xi, -step);
+            let s = sigma(*xi, *dxi);
+            if step * step <= f64::EPSILON * s * s {
+                break;
+            }
+        }
+    }
+
+    (x, dx)
+}
+
+/// Corresponds to `_gen_roots_and_weights` in SciPy.
 ///
 /// The weights sum to `mu0`, and are proportional to `1 / (sigma(x) df(n, x)^2)` at the roots,
 /// where `sigma f'' + tau f' + lambda f = 0` (DLMF Table 18.8.1). For a root `x + dx` with the
@@ -40,8 +81,8 @@ fn gen_roots_and_weights(
     tau: impl Fn(f64) -> f64,
     nodes: Nodes,
 ) -> (Vec<f64>, Vec<f64>) {
-    let (mut x, dx) = refined_roots(n, an, bn, &f, &df, &sigma);
     let n = i32::try_from(n).expect("n is too large");
+    let (mut x, dx) = refined_roots(n, an, bn, f, &df, &sigma);
 
     // Unlike in SciPy, the weights are computed from `df` at the refined roots, instead of
     // `1 / (f(n - 1, x) df(n, x))` with `df` at the eigenvalues, which is more sensitive to the
@@ -101,47 +142,6 @@ fn gen_roots_and_weights(
         },
     }
     (x, w)
-}
-
-fn refined_roots(
-    n: usize,
-    an: impl Fn(f64) -> f64,
-    bn: impl Fn(f64) -> f64,
-    f: impl Fn(i32, f64) -> f64,
-    df: impl Fn(i32, f64) -> f64,
-    sigma: impl Fn(f64, f64) -> f64,
-) -> (Vec<f64>, Vec<f64>) {
-    let d: Vec<f64> = (0..n).map(|k| an(k as f64)).collect();
-    let e: Vec<f64> = (1..n).map(|k| bn(k as f64)).collect();
-    let mut x = eigvals(&d, &e);
-
-    // improve roots by Newton's method
-    //
-    // Unlike in SciPy, which takes one step, at most 4 steps are taken while
-    // `step^2 > eps sigma^2`, i.e. while the error of a step, about `step^2 / sigma`, matters for
-    // `sigma` and thus for the weights. This only happens for a root very close to an endpoint (a
-    // zero of `sigma`), e.g. within 1e-14 of -1 for alpha and beta near -1.
-    //
-    // Unlike in SciPy, a root and its weight where the polynomials overflow (e.g. `L_n` for
-    // n >= 400) are the eigenvalue and 0, instead of NaN for all.
-    let n = i32::try_from(n).expect("n is too large");
-    // the rounding errors of the refined roots
-    let mut dx = vec![0.0; x.len()];
-    for (xi, dxi) in x.iter_mut().zip(&mut dx) {
-        for _ in 0..4 {
-            let step = f(n, *xi) / df(n, *xi);
-            if !step.is_finite() {
-                break;
-            }
-            (*xi, *dxi) = two_sum(*xi, -step);
-            let s = sigma(*xi, *dxi);
-            if step * step <= f64::EPSILON * s * s {
-                break;
-            }
-        }
-    }
-
-    (x, dx)
 }
 
 /// What [`gen_roots_and_weights`] does with the roots
@@ -370,15 +370,14 @@ pub fn roots_gegenbauer(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
         let ni = i32::try_from(n).expect("n is too large");
         let degree = f64::from(ni);
         let gap = delta / (degree * (degree - 1.0 + delta));
-        let at_one = (crate::xsf::cephes::lgam_ratio(degree, delta)
-            - crate::xsf::cephes::lgam1p(delta))
-        .exp();
+        let at_one = (lgam_ratio(degree, delta) - lgam1p(delta)).exp();
         let slope = |x: f64| {
             let value = gegenbauer_hyp2f1_l(i64::from(ni - 1), alpha + 1.0, x.abs());
             if x < 0.0 && n % 2 == 0 { -value } else { value }
         };
+        // Unlike in SciPy, use the shifted Gegenbauer derivative as alpha nears -1/2.
         let df = |_, x| 2.0 * alpha * at_one * slope(x);
-        let (mut x, dx) = refined_roots(n, an, bn, f, df, one_minus_x2);
+        let (mut x, dx) = refined_roots(ni, an, bn, f, df, one_minus_x2);
         // Gaussian weight prefactor with the normalized Gegenbauer slope.
         let norm = mu0 * gap / at_one;
         let mut w = vec![0.0; n];
@@ -396,7 +395,7 @@ pub fn roots_gegenbauer(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
         w[0] = 0.5 * (mu0 - w[1..n - 1].iter().sum::<f64>());
         w[n - 1] = w[0];
         let outer = if delta <= f64::EPSILON.sqrt() {
-            // The first two Taylor terms of the outer root's distance from 1.
+            // Unlike in SciPy, use the first two Taylor terms for the outer root's gap.
             let curvature = 0.5 * (degree - 1.0) * (degree + delta) / (2.0 + delta);
             1.0 - gap.mul_add(gap * curvature, gap)
         } else {
