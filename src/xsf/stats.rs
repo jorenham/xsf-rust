@@ -43,8 +43,16 @@ impl StatsArg for f64 {
 fn ndtr_c64_with_overflow(z: C64) -> C64 {
     let result = ndtr_c64(z);
     let (x, y) = (z.re, z.im);
+    if !result.is_nan() {
+        // Unlike in xsf, keep underflow-zero signs using the phase of the original argument.
+        return if result.im == 0.0 && y != 0.0 {
+            crate::xsf::erf::gaussian_tail_zeros(-z, 1.0, result)
+        } else {
+            result
+        };
+    }
     let y_abs = y.abs();
-    if !result.is_nan() || !z.is_finite() || x == 0.0 || y_abs < 64.0 || x.abs() > y_abs * 0.5 {
+    if !z.is_finite() || x == 0.0 || y_abs < 64.0 || x.abs() > y_abs * 0.5 {
         return result;
     }
 

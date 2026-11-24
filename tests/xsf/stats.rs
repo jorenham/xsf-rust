@@ -340,6 +340,27 @@ fn test_ndtr_complex_small_phase_overflow() {
 }
 
 #[test]
+fn test_ndtr_complex_underflow_signs() {
+    for (y, negative_re) in [(-0.0625, true), (-f64::from_bits(1), false)] {
+        let z = c64(-40.0, y);
+        let p = xsf::ndtr(z);
+        assert_eq!(p, c64(0.0, 0.0));
+        assert_eq!(p.re.is_sign_negative(), negative_re);
+        assert!(p.im.is_sign_negative());
+
+        let conjugate = xsf::ndtr(z.conj());
+        assert_eq!(conjugate, c64(0.0, 0.0));
+        assert_eq!(conjugate.re.to_bits(), p.re.to_bits());
+        assert_eq!(conjugate.im.to_bits(), 0);
+
+        let reflected = xsf::ndtr(-z);
+        assert_eq!(reflected.re.to_bits(), 1.0_f64.to_bits());
+        assert_eq!(reflected.im.to_bits(), 0);
+        assert_eq!(xsf::ndtr(-z.conj()).im.to_bits(), p.im.to_bits());
+    }
+}
+
+#[test]
 fn test_ndtr_tails() {
     // Reference values from mpmath (`ncdf`, `owens_t` in tools/accuracy/specs.py, 50 digits),
     // confirmed with Wolfram (`CDF[NormalDistribution[], x]`, NIntegrate of Owen's T)
