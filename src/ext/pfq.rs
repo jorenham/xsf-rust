@@ -8,7 +8,7 @@ use core::iter::zip;
 use core::ops::Add;
 
 use super::{Scaled, add_exp, add_exp_in, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
-use crate::utils::{EPSILON_SQ, is_nonpos_int, pow2};
+use crate::utils::{EPSILON_SQ, is_nonpos_int, next_up_nonneg, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::gammasgn;
@@ -337,15 +337,6 @@ fn sort_descending(v: &mut [f64]) {
 fn descending<P: AsMut<[f64]>>(mut v: P) -> P {
     sort_descending(v.as_mut());
     v
-}
-
-/// Smallest `f64` above a finite non-negative `x`, or `x` if non-finite
-fn next_up_nonneg(x: f64) -> f64 {
-    if x.is_finite() {
-        f64::from_bits((x + 0.0).to_bits() + 1)
-    } else {
-        x
-    }
 }
 
 /// Upper bound on `1 / |z|`

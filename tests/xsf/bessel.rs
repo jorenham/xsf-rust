@@ -1257,10 +1257,10 @@ fn test_hankel_positive_axis_overflow_recovery() {
         }
     }
 
-    let x = 8.415_836_302_186_89e-155_f64;
-    let v = f64::from_bits(2.0_f64.to_bits() + 1);
+    // The next order above 2 and adjacent arguments near the overflow boundary.
+    let v = 2.000_000_000_000_000_4;
     for im in [0.0, -0.0] {
-        for x in [x, f64::from_bits(x.to_bits() + 1)] {
+        for x in [8.415_836_302_186_89e-155, 8.415_836_302_186_891e-155] {
             let z = c64(x, im);
             for h in [xsf::hankel_1(v, z), xsf::hankel_2(v, z)] {
                 assert!(h.re.is_nan() && h.im.is_nan());

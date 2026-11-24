@@ -853,6 +853,8 @@ fn bessel_y_axis_log_leading(v: f64, x: f64) -> f64 {
 }
 
 fn bessel_j_axis_rounding_is_clear(v: f64, x: f64, log_y_leading: f64, j: f64) -> bool {
+    use crate::utils::{next_down_nonneg as down, next_up_nonneg as up};
+
     const LOG_HALF_MIN_SUBNORMAL: f64 = -1075.0 * LN_2;
     if j.is_normal() {
         return true;
@@ -869,8 +871,6 @@ fn bessel_j_axis_rounding_is_clear(v: f64, x: f64, log_y_leading: f64, j: f64) -
     }
     // Bound the first term in units of MIN_POSITIVE, then include the first
     // correction as a lower bound for the alternating series (DLMF 10.2.2).
-    let down = |s: f64| f64::from_bits(s.to_bits().saturating_sub(1));
-    let up = |s: f64| f64::from_bits(s.to_bits() + 1);
     let (x_lo, x_hi) = (down(0.5 * x), up(0.5 * x));
     let (mut lo, mut hi) = (1.0 / f64::MIN_POSITIVE, 1.0 / f64::MIN_POSITIVE);
     for k in 1..=v as u32 {
