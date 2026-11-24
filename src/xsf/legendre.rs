@@ -1133,16 +1133,27 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
         lqmn_large(x, xq, q0, Mdspan::new(qm.data, qm.extents));
     }
 
+    let exterior = ls < 0.0 && x.is_finite();
+    let derivative = |value: f64, i, j| {
+        // Unlike in xsf, restore the derivative's exterior parity after underflow.
+        if value == 0.0 && exterior {
+            utils::neg_if_odd(if x < 0.0 { j } else { i }, -0.0)
+        } else {
+            value
+        }
+    };
     qd[(0, 0)] = ls / xs;
     for j in 1..=n {
-        qd[(0, j)] = ls * f64::from(j) * (qm[(0, j - 1)] - x * qm[(0, j)]) / xs;
+        let value = ls * f64::from(j) * (qm[(0, j - 1)] - x * qm[(0, j)]) / xs;
+        qd[(0, j)] = derivative(value, 0, j);
     }
 
     for i in 1..=m {
         for j in 0..=n {
             let (i_, j_) = (f64::from(i), f64::from(j));
-            qd[(i, j)] =
+            let value =
                 ls * i_ * x / xs * qm[(i, j)] + (i_ + j_) * (j_ - i_ + 1.) / xq * qm[(i - 1, j)];
+            qd[(i, j)] = derivative(value, i, j);
         }
     }
 }
