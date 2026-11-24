@@ -364,6 +364,14 @@ fn test_hypu_poly_rounded() {
     let actual = xsf::hypu(-91.0, -7.000_000_000_000_001, 1.5);
     xsref::np_assert_allclose!([actual], [2.103_429_582_028_915_4e131], rtol = 1e-13);
 
+    // Arb; the representable neighbors of b = -26 must retain the last terms.
+    let x = 0.106_487_567_336_884_2;
+    let actual =
+        [-26.000_000_000_000_004, -26.0, -25.999_999_999_999_996].map(|b| xsf::hypu(-73.0, b, x));
+    let expected =
+        [1.064_395_514_461_791_3e70, 1.879_562_635_411_726_4e51, -1.064_395_514_461_795_6e70];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
     // Arb; d is negligible here, and the result with it less accurate than the polynomial of n
     let actual = xsf::hypu(-172.200_760_242_633_46, -22.200_760_242_633_46, 9.877_946_432_208_7);
     xsref::np_assert_allclose!([actual], [1.121_373_992_140_344_8e298], rtol = 1e-13);
