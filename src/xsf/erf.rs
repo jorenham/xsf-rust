@@ -73,16 +73,29 @@ fn erfc_c64(z: C64) -> C64 {
     // Unlike in xsf, recover signed infinities when the leading term of erfcx
     // certifies both signs. Use the original argument for the phase.
     let (hi, lo) = two_prod(-x, y);
-    let phase = 2.0 * hi;
+    let Some((rotation, error)) = bounded_phase_rotation(2.0 * hi, 2.0 * lo) else {
+        return result;
+    };
+    // A margin of 2^-10 covers the normalized erfcx remainder (at most 3/4096),
+    // reflection and rounding.
+    let leading = c64(x / y.abs(), -y.signum()) * rotation;
+    if leading.re.abs().min(leading.im.abs()) > error + pow2(-10) {
+        c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
+    } else {
+        result
+    }
+}
+
+// Rotation and the sum of the sine/cosine Taylor errors for a split phase.
+pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> {
     // Keep the rounded quadrant within the exact-integer range of f64.
     if phase.abs() > pow2(53) {
-        return result;
+        return None;
     }
     let quadrant = (phase * FRAC_2_PI).round();
-    let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase)
-        + (-quadrant).mul_add(FRAC_PI_2_DD.lo, 2.0 * lo);
+    let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase) + (-quadrant).mul_add(FRAC_PI_2_DD.lo, lo);
     if r.abs() > 1.0 {
-        return result;
+        return None;
     }
 
     // Cubic sine and quadratic cosine suffice to resolve signs with clearance.
@@ -95,14 +108,7 @@ fn erfc_c64(z: C64) -> C64 {
         2 => c64(-cos, -sin),
         _ => c64(sin, -cos),
     };
-    // The Taylor errors sum to at most r^4/20. A margin of 2^-10 covers
-    // the normalized erfcx remainder (at most 3/4096), reflection and rounding.
-    let leading = c64(x / y.abs(), -y.signum()) * rotation;
-    if leading.re.abs().min(leading.im.abs()) > r2 * r2 / 20.0 + pow2(-10) {
-        c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
-    } else {
-        result
-    }
+    Some((rotation, r2 * r2 / 20.0))
 }
 
 /// Error function $\erf(z)$ for real or complex input

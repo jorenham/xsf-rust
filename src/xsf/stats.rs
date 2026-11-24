@@ -12,10 +12,10 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 
-use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT_TAU};
+use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT_TAU, pow2};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{
     betainc_xy, gamma, incbet_cf_factor, incbet_pseries_sum, lgam, lgam1p, mul_exp_sq,
@@ -40,10 +40,33 @@ impl StatsArg for f64 {
     }
 }
 
+fn ndtr_c64_with_overflow(z: C64) -> C64 {
+    let result = ndtr_c64(z);
+    let (x, y) = (z.re, z.im);
+    let y_abs = y.abs();
+    if !result.is_nan() || !z.is_finite() || x == 0.0 || y_abs < 64.0 || x.abs() > y_abs * 0.5 {
+        return result;
+    }
+
+    // Unlike in xsf, recover overflow signs from the phase -x*y of the original argument.
+    let (phase, lo) = two_prod(-x, y);
+    let Some((rotation, error)) = crate::xsf::erf::bounded_phase_rotation(phase, lo) else {
+        return result;
+    };
+    let leading = c64(-x / y_abs, y.signum()) * rotation;
+    // The scaled erfcx remainder is at most 6/|y|². The margin also allows for
+    // roundoff; in this wedge (y² - x²)/2 >= 1536, so both components overflow.
+    if leading.re.abs().min(leading.im.abs()) > error + pow2(-9) {
+        c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
+    } else {
+        result
+    }
+}
+
 impl StatsArg for Complex64 {
     #[inline]
     fn ndtr(self) -> Self {
-        self.via(ndtr_c64)
+        self.via(ndtr_c64_with_overflow)
     }
 
     #[inline]
