@@ -936,7 +936,7 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
 /// 10.14.4), the rest after `B_n` is at most `3 p_n` times that maximum, and `sum |B_n| < 5`.
 /// `None` if `q > 1/2`, after 500 terms, if underflowing terms aren't negligible, or if the result
 /// isn't finite.
-fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
+fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64, correct_phase: bool) -> Option<f64> {
     let c = b - 2.0 * a;
     let t = (2.0 * c * x).sqrt();
     let w2 = x / (2.0 * c);
@@ -945,9 +945,29 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
     if !(q <= 0.5) {
         return None;
     }
+    let (t, dt) = if correct_phase {
+        // Unlike in xsf, retain the Bessel argument residual for long polynomials.
+        let arg = ((DoubleDouble::new(b) - 2.0 * a) * 2.0 * x).sqrt();
+        if arg.hi < b {
+            return None;
+        }
+        (arg.hi, arg.lo)
+    } else {
+        (t, 0.0)
+    };
     let ln_scale = gammaln(b) + (1.0 - b) * (t / 2.0).ln();
     let scaled = b > t && ln_scale > 0.0;
-    let j = |v| cyl_bessel_j_f64(v, t);
+    let j = |v: f64| {
+        let value = cyl_bessel_j_f64(v, t);
+        if dt == 0.0 {
+            value
+        } else {
+            // J'_v(t) = (v/t) J_v(t) - J_(v+1)(t). On this retry,
+            // t < 2^16 and the second-order error is below 2^-74.
+            let derivative = (v / t).mul_add(value, -cyl_bessel_j_f64(v + 1.0, t));
+            dt.mul_add(derivative, value)
+        }
+    };
     let f = |n| {
         if scaled {
             hyp0f1(b + n, -t * t / 4.0)
@@ -957,6 +977,11 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
         } else {
             j(b - 1.0 + n)
         }
+    };
+    let amplitude = if correct_phase {
+        (2.0 / (PI * t)).sqrt()
+    } else {
+        0.0
     };
     let mut sum = f(0.0);
     let mut abs_sum = sum.abs();
@@ -970,6 +995,10 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
         let term = bn * p * f(n);
         sum += term;
         abs_sum += term.abs();
+        // Decline at a small or cancelling projection without waiting for convergence.
+        if correct_phase && sum.abs() < abs_sum.max(amplitude) / 8.0 {
+            return None;
+        }
         if 3.0 * bn.abs().max(bn1.abs()).max(bn2.abs()) * p <= f64::EPSILON * abs_sum {
             // the terms that underflow add less than `5 MIN_POSITIVE`, i.e. `5 EPSILON abs_sum`
             if abs_sum < f64::MIN_POSITIVE / f64::EPSILON {
@@ -1157,7 +1186,7 @@ fn chgm_fallback(
     // doesn't converge; below that the series is usually more accurate
     let neg_a = a < -1.0 && b > 0.0;
     if neg_a && sum.cancellation() > 1e3 {
-        if let Some(hg) = chgm_tricomi(a, b, x, x0) {
+        if let Some(hg) = chgm_tricomi(a, b, x, x0, false) {
             return Some(hg);
         }
     }
@@ -1181,6 +1210,22 @@ fn chgm_fallback(
         }
     }
     None
+}
+
+#[inline]
+pub(crate) fn chgm_long_poly(a: f64, b: f64, x: f64) -> Option<f64> {
+    const MIN_TRICOMI_DEGREE: f64 = 32_768.0;
+    // Unlike in xsf, try the phase-corrected Tricomi expansion before
+    // stepping through a long Laguerre recurrence for low positive b.
+    if (-MAX_SERIES_ITERATIONS..=-MIN_TRICOMI_DEGREE).contains(&a)
+        && a == a.trunc()
+        && (0.5..=8.0).contains(&b)
+        && -a * x > b
+    {
+        chgm_tricomi(a, b, x, x, true)
+    } else {
+        None
+    }
 }
 
 /// Kummer's function `M(a, b, x)`.

@@ -85,7 +85,8 @@ impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
-        let hg = hyp1f1_neg_b_fallback(a, b, self, chgm(self, a, b));
+        let hg = hyperg::chgm_long_poly(a, b, self).unwrap_or_else(|| chgm(self, a, b));
+        let hg = hyp1f1_neg_b_fallback(a, b, self, hg);
         hyp1f1_small_b(a, b, c64(self, 0.0), c64(hg, 0.0)).re
     }
 }

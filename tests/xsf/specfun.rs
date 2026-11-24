@@ -1263,6 +1263,15 @@ fn test_hyp1f1_neg_int_a() {
 }
 
 #[test]
+fn test_hyp1f1_long_laguerre() {
+    // Arb at b = 2.5 and x = 3. The recurrence loses accuracy at these degrees.
+    let cases = [(-100_000.0, 6.385_968_463_628_578e-6), (-1_000_000.0, 5.349_303_121_651_742e-7)];
+    let actual = cases.map(|(a, _)| xsf::hyp1f1(a, 2.5, 3.0));
+    let expected = cases.map(|(_, value)| value);
+    xsref::np_assert_allclose!(actual, expected, rtol = 4e-15);
+}
+
+#[test]
 fn test_hyp1f1_complex_large_a() {
     // mpmath; in xsf these have a relative error of 3.5e3, 1.3e-6, 9.7e72, and 8.6e248
     let abz = [
