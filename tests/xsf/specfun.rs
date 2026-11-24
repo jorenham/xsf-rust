@@ -1473,6 +1473,22 @@ fn test_hyp1f1_kummer_polynomial_deep_tail() {
 }
 
 #[test]
+fn test_hyp1f1_kummer_linear_subnormal() {
+    // Round exp(x) * (b + x) / b at high precision.
+    let cases = [
+        (2.0, 1.0, -745.0, (-f64::from_bits(425)).to_bits()),
+        (1.5, 0.5, -750.0, (-f64::from_bits(6)).to_bits()),
+        (0.5, -0.5, -750.0, f64::from_bits(6).to_bits()),
+        (1_098.337_123_444_633_3, 1_097.337_123_444_633_3, -744.0, 0),
+        (2.0, 1.0, -f64::MAX, (-0.0_f64).to_bits()),
+        (0.5, -0.5, -f64::MAX, 0),
+    ];
+    for (a, b, x, expected) in cases {
+        assert_eq!(xsf::hyp1f1(a, b, x).to_bits(), expected, "{a}, {b}, {x}");
+    }
+}
+
+#[test]
 fn test_hyp1f1_huge_neg_a_tricomi() {
     // Arb; the series cancels, and the recurrences in a lose digits or take over 10^6 steps
     // (condition numbers 1e3, 1e2, 4e2, 1e2, 2e5, and 3e3)
