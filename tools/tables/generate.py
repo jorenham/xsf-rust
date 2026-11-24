@@ -13,7 +13,8 @@ For each entry of `mapping.ENTRIES`, every logical output of every row gets a st
   same f64 (or f32, for an f32 output), and be confirmed by Arb where its Arb version applies
   (or by an identity, without one). xsf-rust must be NaN or an infinity exactly where the
   reference is. The tolerance is the error of xsf (C++) in the table metric (see `tolerance`).
-- legacy (0): the reference timed out, so xsref's value and tolerance stay.
+- legacy (0): the reference timed out, so xsref's value and tolerance stay. An output
+  previously marked computed for the same input cannot fall back to legacy.
 
 Anything else is an error, and then no table is written. The inputs, their order, and the row
 flags stay as they are. The references are cached in `.cache/refs/` (see `stamp`), which does
@@ -169,6 +170,43 @@ def read_baseline(path: Path) -> Baseline:
     body = data[HEADER.size :]
     rows = [body[r * width : (r + 1) * width] for r in range(n_rows)]
     return Baseline(n_in, n_out, n_tol, rows, body[n_rows * width :])
+
+
+def computed_inputs(
+    path: Path, inputs: set[bytes], baseline: Baseline
+) -> set[tuple[bytes, int]]:
+    """Inputs and logical output indices already marked computed in the destination table."""
+    if not path.exists():
+        return set()
+    data = path.read_bytes()
+    invalid = f"{path}: invalid existing table"
+    require(len(data) >= HEADER.size, invalid)
+    magic, version, n_rows, n_in, n_out, n_tol, flags = HEADER.unpack_from(data)
+    require(
+        (magic, version) == (MAGIC, VERSION)
+        and flags & ~(STATUS | SCALES) == 0
+        and n_rows > 0
+        and (n_in, n_out, n_tol) == (baseline.n_in, baseline.n_out, baseline.n_tol),
+        invalid,
+    )
+    width = 8 * (n_in + n_out + n_tol + (n_tol if flags & SCALES else 0))
+    statuses = data[HEADER.size + n_rows * (width + 1) :]
+    require(
+        len(data)
+        == HEADER.size + n_rows * (width + 1 + (n_tol if flags & STATUS else 0))
+        and set(statuses) <= {LEGACY, COMPUTED, CONVENTION},
+        invalid,
+    )
+    if not flags & STATUS:
+        return set()
+    computed = set()
+    for r, start in enumerate(range(HEADER.size, HEADER.size + n_rows * width, width)):
+        args = data[start : start + 8 * n_in]
+        if args in inputs:
+            computed.update(
+                (args, i) for i in range(n_tol) if statuses[r * n_tol + i] == COMPUTED
+            )
+    return computed
 
 
 def f64s(data: bytes) -> tuple[float, ...]:
@@ -473,6 +511,20 @@ def generate(
     }
     todo = [t for ts in tasks.values() for lo_hi in ts for t in lo_hi]
     refs = references(todo, use_cache, pool) if todo else {}
+    timed_out = {
+        cell
+        for cell, ts in tasks.items()
+        if any(t not in refs for lo_hi in ts for t in lo_hi)
+    }
+    previous = (
+        computed_inputs(
+            TABLES / table / f"{sig}.bin",
+            {old.rows[r][: 8 * old.n_in] for r, _ in timed_out},
+            old,
+        )
+        if timed_out
+        else set()
+    )
     lines = [(entry.outs[i].func, inputs[r]) for r, i in cells]
     rust, xsf = (
         dict(zip(cells, accuracy.run(cmd, lines), strict=True)) for cmd in cmds
@@ -507,7 +559,11 @@ def generate(
                     notes[i][f"conventions that {name} does not follow"] += differs
                 ref = struct.pack(f"<{widths[i]}d", *parts(rule.value))
                 new[r, i] = Cell(CONVENTION, ref, struct.pack("<d", 0.0))
-            elif any(t not in refs for lo_hi in tasks[r, i] for t in lo_hi):
+            elif (r, i) in timed_out:
+                require(
+                    (old.rows[r][: 8 * old.n_in], i) not in previous,
+                    "reference timed out for an existing computed output",
+                )
                 notes[i]["legacy: the reference timed out"] += 1
                 # the bytes of xsref's reference and tolerance
                 ref = old.rows[r][8 * a :][: 8 * widths[i]]
@@ -640,7 +696,10 @@ def main() -> None:
             if table not in only:
                 continue
             old = read_baseline(baseline / table / f"{sig}.bin")
-            res = generate(table, sig, old, cmds, not opts.no_cache, pool)
+            try:
+                res = generate(table, sig, old, cmds, not opts.no_cache, pool)
+            except Problem as e:
+                sys.exit(f"no table written: {e}")
             results.append(res)
             index[table, sig][-1] = hashlib.sha256(res.data).hexdigest()
             (CACHE / "reports").mkdir(parents=True, exist_ok=True)
