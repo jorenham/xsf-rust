@@ -112,6 +112,13 @@ fn test_stdtr_extreme() {
 }
 
 #[test]
+fn test_stdtr_invalid_degree() {
+    for x in [f64::NEG_INFINITY, -1.0, -0.0, 0.0, 1.0, f64::INFINITY, f64::NAN] {
+        assert!(xsf::stdtr(f64::NAN, x).is_nan());
+    }
+}
+
+#[test]
 fn test_stdtr_cauchy_tail() {
     // Cauchy CDF at exact binary64 inputs, evaluated in high precision.
     for (x, reference) in [

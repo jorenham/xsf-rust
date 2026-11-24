@@ -207,7 +207,7 @@ fn log_ndtr_c64(mut z: C64) -> C64 {
 #[must_use]
 #[inline]
 pub fn stdtr(nu: f64, x: f64) -> f64 {
-    if nu <= 0.0 {
+    if nu <= 0.0 || nu.is_nan() {
         f64::NAN
     } else if x == 0.0 {
         0.5
