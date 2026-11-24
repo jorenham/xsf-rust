@@ -406,11 +406,14 @@ fn rj_far_p<T: Num>(xyz: [T; 3], p: T) -> Option<T> {
     let max_p = p.max_norm();
     let real_p = p.real() > 0.0 && p.imag() == 0.0;
     let balanced_p = p.real().abs().min(p.imag().abs()) >= 0.5 * max_p;
+    // For near-real p, each projection of 1/(p+t) differs relatively from
+    // that of 1/p by at most 2t/(Re(p)+t).
+    let near_real_p = p.real() > 0.0 && !real_p && p.imag().abs() < 0.5 * p.real();
     // For balanced p, cos(arg(p)/2) > 1/5 and each projection of 1/p
     // is at least 1/sqrt(5) of its magnitude.
     let spatial_range = 0.0..=pow2(-120) * max_p;
     if !p.is_finite()
-        || !(real_p || balanced_p)
+        || !(real_p || balanced_p || near_real_p)
         || xyz
             .iter()
             .any(|a| a.imag() != 0.0 || !spatial_range.contains(&a.real()))
@@ -424,7 +427,15 @@ fn rj_far_p<T: Num>(xyz: [T; 3], p: T) -> Option<T> {
     let [x, y, z] = xyz.map(T::real);
     let (status, f) = rf(x, y, z, ELLINT_CARLSON_RERR * 0.5);
     let (man, exp) = common::frexp(p);
-    let value = (T::from(3.0 * f) / man).ldexp(-exp);
+    let value = if near_real_p {
+        // Unlike in xsf, keep the smaller projection's exponent through division.
+        let (im, im_exp) = common::frexp(p - p.real());
+        let den = man.real().mul_add(man.real(), man.imag() * man.imag());
+        let scaled = 3.0 * f / den;
+        T::from(scaled * man.real()).ldexp(-exp) - (im * scaled).ldexp(im_exp - 2 * exp)
+    } else {
+        (T::from(3.0 * f) / man).ldexp(-exp)
+    };
     let clear_normal = |x: f64| x.is_finite() && x.abs() >= 2.0 * f64::MIN_POSITIVE;
     (status == ExitStatus::Success
         && clear_normal(value.real())
