@@ -141,6 +141,29 @@ fn test_complex_erf_phase_product_overflow() {
     }
 }
 
+#[test]
+fn test_complex_erf_diagonal_phase() {
+    let boundary = f64::from_bits(0x5fe6_a09e_667f_3bcd);
+    let boundary_tail = 4.162_221_635_295_825e-155_f64;
+    let ulp = f64::from_bits(boundary_tail.to_bits() + 1) - boundary_tail;
+    for (x, tail, atol) in [
+        (8.988_465_674_311_05e307, -1.427_172_851_852_344e-309, 0.0),
+        (boundary, boundary_tail, 4.0 * ulp),
+    ] {
+        for sx in [-1.0, 1.0] {
+            for sy in [-1.0, 1.0] {
+                let z = c64(sx * x, sy * x);
+                let erf = xsf::erf(z);
+                let erfi = xsf::erfi(z);
+                assert_eq!(erf.re, sx);
+                assert_eq!(erfi.im, sy);
+                assert!((erf.im - sy * tail).abs() <= atol, "erf({z}) = {erf}");
+                assert!((erfi.re - sx * tail).abs() <= atol, "erfi({z}) = {erfi}");
+            }
+        }
+    }
+}
+
 // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
 
 #[test]
