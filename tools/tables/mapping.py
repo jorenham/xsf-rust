@@ -4256,10 +4256,17 @@ SW_ANGLE: Final = Rule(
     lambda a: not -1 < a[-1] < 1, math.nan, "NaN outside of -1 < x < 1"
 )
 SW_PROLATE_X: Final = Rule(lambda a: not a[-1] > 1, math.nan, "NaN outside of x > 1")
+SW_PROLATE_R1_CANCELLATION: Final = Override(
+    lambda a: a == (1, 1, 30, 1.1),
+    "the first-kind radial expansion in xsf loses accuracy to cancellation",
+)
 
 
 def _spheroidal(
-    name: str, rules: tuple[Rule, ...], cvs: tuple[bool, ...] = (False, True)
+    name: str,
+    rules: tuple[Rule, ...],
+    cvs: tuple[bool, ...] = (False, True),
+    overrides: tuple[Override, ...] = (),
 ) -> dict[tuple[str, str], Entry]:
     """The tables of a spheroidal wave function (`prolate_aswfa`, ..., `oblate_radial2`) and
     its derivative: of (m, n, c, x) (`_nocv`), and of (m, n, c, cv, x) for `True` in `cvs`."""
@@ -4278,6 +4285,7 @@ def _spheroidal(
                 f"{name}{'' if cv else '_nocv'}.{i}",
                 (spheroidal.with_cv(refs(kd, i), kd, angular) if cv else refs(kd, i),),
                 rules=rules,
+                overrides=overrides,
             )
             for i in range(2)
         )
@@ -5377,7 +5385,9 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     **_spheroidal("prolate_aswfa", (SW_MODE, SW_ANGLE)),
     **_spheroidal("oblate_aswfa", (SW_MODE, SW_ANGLE)),
-    **_spheroidal("prolate_radial1", (SW_PROLATE_X,), (True,)),
+    **_spheroidal(
+        "prolate_radial1", (SW_PROLATE_X,), overrides=(SW_PROLATE_R1_CANCELLATION,)
+    ),
     **_spheroidal("prolate_radial2", (SW_PROLATE_X,)),
     **_spheroidal("oblate_radial1", (), (False,)),
     **_spheroidal("oblate_radial2", (), (False,)),
