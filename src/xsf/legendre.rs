@@ -728,6 +728,18 @@ fn q0_c64(z: C64) -> C64 {
     c64(t.ln_1p() / 4.0, (2.0 * w.im).atan2(1.0 - w.norm_sqr()) / 2.0)
 }
 
+fn q0_derivative_near_pole(z: C64) -> Option<C64> {
+    let (x, y) = (z.re, z.im);
+    let ay = y.abs();
+    // Unlike in xsf, keep the real part of 1/(1-z²) on x=±1 by dividing out y first.
+    if x.abs() == 1.0 && 0.0 < ay && ay <= 1.0 {
+        let d = y.mul_add(y, 4.0);
+        Some(c64(1.0 / d, (2.0 * x / d) / y))
+    } else {
+        None
+    }
+}
+
 /// Replaces the imaginary parts of `Q` and `Q'` (by `lq`, `lqn_c64` or `lqmn_c64`, up to degree
 /// plus order `n`) at `z` with a tiny `y = Im z` by those at `z` with `y` lifted by a power of 2
 /// to about `2^-36 d`, scaled back, with `d` the distance of `Re z` to `+-1` over `n + 1`, or
@@ -940,7 +952,7 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         }
         cqn[0] = cq0;
     }
-    cqd[0] = (cqn[1] - z * cqn[0]) / (z * z - 1.0);
+    cqd[0] = q0_derivative_near_pole(z).unwrap_or_else(|| (cqn[1] - z * cqn[0]) / (z * z - 1.0));
 
     for k in 1..=n {
         let k_ = f64::from(k);
@@ -1296,7 +1308,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         lqmn_large(z, zq, cq0, Mdspan::new(cqm.data, cqm.extents));
     }
 
-    cqd[(0, 0)] = f64::from(ls) / zs;
+    cqd[(0, 0)] = q0_derivative_near_pole(z).unwrap_or_else(|| f64::from(ls) / zs);
     for j in 1..=n {
         cqd[(0, j)] = (cqm[(0, j - 1)] - z * cqm[(0, j)]) * (f64::from(ls) * f64::from(j)) / zs;
     }

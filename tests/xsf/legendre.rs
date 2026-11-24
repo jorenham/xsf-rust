@@ -225,6 +225,30 @@ fn test_legendre_q_all_c64_pole_at_one() {
 }
 
 #[test]
+fn test_legendre_q_c64_degree_zero_derivative_near_poles() {
+    let overflow_ordinate = 1_u64 << 49;
+    let first_finite = f64::from_bits(0x7fef_ffff_ffff_fff0);
+    for x in [-1.0, 1.0] {
+        for side in [-1.0, 1.0] {
+            for (y, magnitude) in [
+                (f64::from_bits(1), f64::INFINITY),
+                (f64::from_bits(overflow_ordinate - 1), f64::INFINITY),
+                (f64::from_bits(overflow_ordinate), f64::INFINITY),
+                (f64::from_bits(overflow_ordinate + 1), first_finite),
+                (1e-10, 5e9),
+            ] {
+                let z = c64(x, side * y);
+                let (_, qd) = xsf::legendre_q_all(0, z);
+                let (_, qmd) = xsf::assoc_legendre_q_all(0, 0, z);
+                let expected = c64(0.25, x * side * magnitude);
+                assert_eq!(qd[0], expected, "{z:?}");
+                assert_eq!(qmd[0][0], expected, "{z:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn test_legendre_q_all_backward_seeds() {
     // mpmath legenq with type=3, reflected by Q_k(-x) = (-1)^(k+1) Q_k(x).
     let (negative, _) = xsf::legendre_q_all(100, -1.02101);
