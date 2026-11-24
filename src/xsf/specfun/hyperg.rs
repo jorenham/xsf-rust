@@ -3,6 +3,7 @@
 
 use core::cell::LazyCell;
 use core::f64::consts::{FRAC_PI_2, LN_2, PI};
+use core::ops::ControlFlow;
 use core::ops::{Div, Mul};
 
 use super::hyp1f1_recurrence::{
@@ -1125,8 +1126,46 @@ impl KummerSum {
     }
 }
 
+// Every term before termination is positive.
+fn chgm_positive_pole(a: f64, b: f64, x0: f64) -> bool {
+    (-MAX_SERIES_ITERATIONS..-500.0).contains(&a)
+        && b < a
+        && b.is_finite()
+        && x0 > 0.0
+        && x0.is_finite()
+        && is_nonpos_int(a)
+        && is_nonpos_int(b)
+}
+
+fn chgm_positive_term(t: f64, a: f64, b: f64, x: f64, n: f64) -> f64 {
+    t * ((a + n) / (n + 1.0) * (x / (b + n)))
+}
+
+#[cold]
+fn chgm_positive_tail(a: f64, b: f64, x: f64, start: i32, head: f64, seed: f64) -> Option<f64> {
+    // (a+k)/(b+k) decreases until termination; include rounding in the bound.
+    let radius = x * (a / b) * (1.0 + 4.0 * f64::EPSILON);
+    let tail_term = |t, n| chgm_positive_term(t, a, b, x, n + f64::from(start));
+    let degree = -a as i32 - start;
+    let half_seed = seed * 0.5;
+    let (tail, err) = hyp1f1_sum(a, b, radius, tail_term, half_seed, 0.0, Some(degree))?;
+    // The tail includes its starting term, already present in the head.
+    let half = head * 0.5 + (tail - half_seed);
+    // Cover the term products and additions of the at most 500-term prefix.
+    let err = err + (4096.0 * f64::EPSILON) * half;
+    if err <= SQRT_EPSILON * half {
+        if half < (0.5 * f64::MAX) * (1.0 - SQRT_EPSILON) {
+            return Some(2.0 * half);
+        }
+        if half > (0.5 * f64::MAX) * (1.0 + 2.0 * SQRT_EPSILON) {
+            return Some(f64::INFINITY);
+        }
+    }
+    None
+}
+
 /// The series of `chgm`: up to `max_terms` terms of DLMF 13.2.2
-fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
+fn chgm_sum(a: f64, b: f64, x: f64, x0: f64, max_terms: i32) -> ControlFlow<f64, KummerSum> {
     let mut hg = 1.0;
     let mut rg = 1.0;
     // the term `rg` as scaled `k` times by `rescale_term`
@@ -1137,11 +1176,17 @@ fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
     let mut last_finite = 0;
     for j in 1..=max_terms {
         terms = j;
-        (t, rg, _) = rescale_term(kummer_term(t, a, b, j) * x, f64::abs, &mut k);
-        hg += rg;
-        if hg.is_finite() {
+        let (next, term, _) = rescale_term(kummer_term(t, a, b, j) * x, f64::abs, &mut k);
+        let total = hg + term;
+        if total.is_finite() {
             last_finite = j;
+        } else if hg.is_finite() && chgm_positive_pole(a, b, x0) {
+            // Unlike in xsf, retry before the first overflowing term or sum.
+            if let Some(value) = chgm_positive_tail(a, b, x, j - 1, hg, rg) {
+                return ControlFlow::Break(value);
+            }
         }
+        (t, rg, hg) = (next, term, total);
         rs += rg.abs();
         let rest_negligible = || rest_is_negligible(a, b, x, f64::from(j));
         let ended = || series_ended(a, f64::from(j));
@@ -1162,14 +1207,14 @@ fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
             break;
         }
     }
-    KummerSum {
+    ControlFlow::Continue(KummerSum {
         hg,
         rg,
         rs,
         terms,
         last_finite,
         converged,
-    }
+    })
 }
 
 /// What `chgm` tries in turn in place of its series `sum`, which gave `hg = e^min(x0, 0) sum.hg`
@@ -1185,30 +1230,12 @@ fn chgm_fallback(
     // Unlike in xsf, finish a positive terminating series when the first
     // omitted term at the 500-term cap exceeds the rounding estimate.
     if sum.terms == 500
-        && (-MAX_SERIES_ITERATIONS..-500.0).contains(&a)
-        && b < a
-        && b.is_finite()
-        && x0 > 0.0
-        && x0.is_finite()
         && hg.is_finite()
-        && is_nonpos_int(a)
-        && is_nonpos_int(b)
+        && chgm_positive_pole(a, b, x0)
+        && chgm_positive_term(sum.rg / hg, a, b, x, 500.0) > 2.0 * SQRT_EPSILON
     {
-        let next_term = |t, n| t * ((a + n) / (n + 1.0) * (x / (b + n)));
-        if next_term(sum.rg / hg, 500.0) > 2.0 * SQRT_EPSILON {
-            // (a+k)/(b+k) decreases until termination; include rounding in the bound.
-            let radius = x * (a / b) * (1.0 + 4.0 * f64::EPSILON);
-            let tail_term = |t, n| next_term(t, n + 500.0);
-            let degree = -a as i32 - 500;
-            if let Some((tail, err)) =
-                hyp1f1_sum(a, b, radius, tail_term, sum.rg, 0.0, Some(degree))
-            {
-                // The tail sum includes term 500 as its starting value.
-                let p = hg + (tail - sum.rg);
-                if err <= SQRT_EPSILON * p && p < f64::MAX * (1.0 - SQRT_EPSILON) {
-                    return Some(p);
-                }
-            }
+        if let Some(value) = chgm_positive_tail(a, b, x, 500, hg, sum.rg) {
+            return Some(value);
         }
     }
     // for -1 < a < 2 and b > 0, the series in full if it doesn't converge within 500 terms
@@ -1401,7 +1428,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if (x <= 30.0 + b.abs()) || (a < 0.0) {
             // Unlike in xsf (scipy/xsf#365), with more than 500 terms for non-integer b < 0, and
             // NaN in the end if the sum is wrong or lossy
-            let sum = chgm_sum(a, b, x, if check && neg_b { MAX_TERMS } else { 500 });
+            let sum = match chgm_sum(a, b, x, x0, if check && neg_b { MAX_TERMS } else { 500 }) {
+                ControlFlow::Break(value) => return value,
+                ControlFlow::Continue(sum) => sum,
+            };
             accurate = sum.accurate();
             wrong |= check && (sum.wrong(a, b, x, neg_b) || sum.lossy(a, b, x));
             // |M| > MAX if the sum overflows where its terms keep their sign (not `wrong`)

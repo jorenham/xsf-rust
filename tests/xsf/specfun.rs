@@ -1418,6 +1418,19 @@ fn test_hyp1f1_long_terminating_series_at_pole() {
 }
 
 #[test]
+fn test_hyp1f1_long_terminating_pole_near_overflow() {
+    // Arb at the exact inputs, summing the positive terminating polynomial.
+    let actual = [xsf::hyp1f1(-600.0, -700.0, 1022.0), xsf::hyp1f1(-600.0, -700.0, 1024.2)];
+    xsref::np_assert_allclose!(
+        actual,
+        [5.895_178_797_470_871e307, 1.737_627_851_185_089_2e308],
+        rtol = 1e-14
+    );
+    assert_eq!(xsf::hyp1f1(-600.0, -700.0, 1024.4), f64::INFINITY);
+    assert_eq!(xsf::hyp1f1(-501.0, -502.0, 772.55), f64::INFINITY);
+}
+
+#[test]
 fn test_hyp1f1_poly_underflow() {
     // Arb, rounded to the nearest subnormal
     let abx = [(-1e5, 300.0, 15.0), (-1e5, 300.0, 17.0)];
