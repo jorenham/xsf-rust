@@ -565,20 +565,16 @@ fn radial(m: f64, n: f64, c: f64, cv: Option<f64>, x: f64, kd: i32, kf: i32) -> 
     {
         return (f64::NAN, f64::NAN);
     }
-    let cv = if let Some(cv) = cv {
-        cv
-    } else {
-        let Some(cv) = segv(m, n, c, kd) else {
-            return (f64::NAN, f64::NAN);
-        };
-        // Unlike in xsf, normalize the far oscillatory solution at infinity.
-        if kd == 1 && kf == 1 && c > 0.0 && x >= 2.0 && cx >= 32.0 {
-            if let Some(result) = prolate_radial1_far(m, n as i32, c, cv, x) {
-                return result;
-            }
-        }
-        cv
+    let try_far = cv.is_none() && kd == 1 && kf == 1 && c > 0.0 && x >= 2.0 && cx >= 32.0;
+    let Some(cv) = cv.or_else(|| segv(m, n, c, kd)) else {
+        return (f64::NAN, f64::NAN);
     };
+    // Unlike in xsf, normalize the far oscillatory solution at infinity.
+    if try_far {
+        if let Some(result) = prolate_radial1_far(m, n as i32, c, cv, x) {
+            return result;
+        }
+    }
     let rswf = if kd == 1 {
         specfun::rswfp
     } else {
@@ -623,56 +619,45 @@ fn prolate_radial1_far(m: f64, n: i32, c: f64, cv: f64, x: f64) -> Option<(f64, 
     let alpha = c.mul_add(c, -cv) / z;
     let beta = (1.0 - m * m) * d / z;
     // z*Q(z/t) = alpha*t^2/(1-d*t^2) + beta*t^4/(1-d*t^2)^2.
-    let q = [alpha, -(alpha * d + beta), d * (alpha * d + 2.0 * beta)];
-    let aq = [alpha.abs(), alpha.abs() * d + beta.abs(), d * (alpha.abs() * d + 2.0 * beta.abs())];
-    let mut a = [0.0; N + 1];
-    let mut majorant = a;
-    a[0] = 1.0;
-    majorant[0] = 1.0;
-    for k in 1..=N {
-        let factor = ((k - 1) * k) as f64 / z;
-        let mut coeff = factor * a[k - 1];
-        let mut bound = factor * majorant[k - 1];
-        for (j, (&qj, &aqj)) in q.iter().zip(&aq).take(k.div_ceil(2)).enumerate() {
-            let i = k - 1 - 2 * j;
-            coeff += qj * a[i];
-            bound += aqj * majorant[i];
+    let coefficients = |q: [f64; 3]| {
+        let mut a = [0.0; N + 1];
+        a[0] = 1.0;
+        for k in 1..=N {
+            let first = ((k - 1) * k) as f64 / z * a[k - 1];
+            a[k] = q
+                .iter()
+                .zip(a[..k].iter().rev().step_by(2))
+                .fold(first, |sum, (qj, aj)| sum + qj * aj)
+                / (2 * k) as f64;
         }
-        a[k] = coeff / (2 * k) as f64;
-        majorant[k] = bound / (2 * k) as f64;
-    }
-    // After clearing the denominator, the residual starts at degree N+2.
-    // Each monomial's integral on z..infinity divides by at least N+1.
-    let tail = |offset| majorant.iter().enumerate().skip(N + 2 - offset);
-    let residual = [1.0, 2.0 * d, d * d]
-        .into_iter()
-        .enumerate()
-        .map(|(j, weight)| {
-            let shift = 2 * j;
-            let first = tail(1 + shift)
-                .map(|(k, a)| (2 * k) as f64 * a)
-                .sum::<f64>();
-            let second = tail(2 + shift)
-                .map(|(k, a)| (k * (k + 1)) as f64 * a)
-                .sum::<f64>();
-            weight * (first + second / z)
-        })
-        .sum::<f64>()
-        + alpha.abs() * majorant[N]
-        + aq[1] * majorant[N - 2..].iter().sum::<f64>();
-    let residual = residual / (N + 1) as f64;
-
+        a
+    };
+    let (alpha_abs, beta_abs) = (alpha.abs(), beta.abs());
+    let majorant =
+        coefficients([alpha_abs, alpha_abs * d + beta_abs, d * (alpha_abs * d + 2.0 * beta_abs)]);
+    // The residual starts at degree N+2. Bound its second derivative term
+    // and the omitted geometric tails of Q, grouped by first omitted power.
+    // Integrating each residual monomial divides by at least N+1.
     let gap = 1.0 - d;
-    let integral = alpha.abs() / gap + beta.abs() / (3.0 * gap * gap);
+    let alpha_bound = alpha_abs / gap;
+    let beta_bound = beta_abs / (gap * gap);
+    let d2 = d * d;
+    let [b0, b1, b2, b3, b4, b5, b6] = majorant;
+    let residual = b6 * ((N * (N + 1)) as f64 / z + alpha_bound + beta_bound)
+        + (b4 + b5) * (alpha_bound * d + beta_bound)
+        + (b2 + b3) * (alpha_bound * d2 + beta_bound * d * (1.0 + gap))
+        + (b0 + b1) * (alpha_bound * d2 * d + beta_bound * d2 * (1.0 + 2.0 * gap));
+    let integral = alpha_bound + beta_bound / 3.0;
     // The Volterra bound covers both outputs. The extra factor allows bound rounding.
     // Unlike in xsf, fall back to the Bessel sum when the far residual is too large.
-    if !(residual / (gap * gap) * integral.exp() <= f64::EPSILON / 4.0) {
+    if !(residual / (N + 1) as f64 * integral.exp() <= f64::EPSILON / 4.0) {
         return None;
     }
 
     let (sin, cos) = product.sin_cos();
     let (cos, sin) = Quadrant::from_index((n as u64).wrapping_neg()).rotate(sin, cos);
-    let [a0, a1, a2, a3, a4, a5, a6] = a;
+    let [a0, a1, a2, a3, a4, a5, a6] =
+        coefficients([alpha, -(alpha * d + beta), d * (alpha * d + 2.0 * beta)]);
     let (re, im) = (a0 - a2 + a4 - a6, -a1 + a3 - a5);
     let (dr, di) = (-2.0 * a2 + 4.0 * a4 - 6.0 * a6, -a1 + 3.0 * a3 - 5.0 * a5);
     let u = sin * re + cos * im;
