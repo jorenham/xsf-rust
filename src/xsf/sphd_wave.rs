@@ -3,6 +3,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::phase::Quadrant;
 use crate::xsf::specfun::{self, Status, try_zeroed};
 
 /// Characteristic value of prolate spheroidal function
@@ -541,7 +543,7 @@ fn aswfa_nocv(m: f64, n: f64, c: f64, x: f64, kd: i32) -> (f64, f64) {
 
 /// `specfun::rswfp` (`kd = 1`) or `specfun::rswfo` (`kd = -1`), returning `(r1f, r1d)` if `kf = 1`,
 /// or `(r2f, r2d)` if `kf = 2`
-fn radial(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
+fn radial(m: f64, n: f64, c: f64, cv: Option<f64>, x: f64, kd: i32, kf: i32) -> (f64, f64) {
     // as in `aswfa`, and `kmn` requires `nn = 25 + (int)(0.5 (n - m) + c) + m >= m + 2`
     if out_of_bounds(m, n, c, -24.0, 175.0) {
         return (f64::NAN, f64::NAN);
@@ -550,7 +552,8 @@ fn radial(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f6
     // with `nm = 25 + (n - m) / 2 + (int)c`, and `msta1(c x, ..)` (`rmn1`) converts `1.1 |c x|` to
     // `int`
     let nm = 25.0 + ((n - m) / 2.0).floor() + c.trunc();
-    if 2.0 * nm + m > 251.0 || !((c * x).abs() < 1e9) {
+    let cx = c * x;
+    if 2.0 * nm + m > 251.0 || !(cx.abs() < 1e9) {
         return (f64::NAN, f64::NAN);
     }
     // `kmn` (`rmn2so`, `rmn2sp`) writes up to index `25 + (int)(0.5 (n - m) + c) + m` in buffers
@@ -561,6 +564,16 @@ fn radial(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f6
             || (2.0 * (nm - c.trunc() + c) + m).trunc() > 250.0)
     {
         return (f64::NAN, f64::NAN);
+    }
+    let try_far = cv.is_none() && kd == 1 && kf == 1 && c > 0.0 && x >= 2.0 && cx >= 32.0;
+    let Some(cv) = cv.or_else(|| segv(m, n, c, kd)) else {
+        return (f64::NAN, f64::NAN);
+    };
+    // Unlike in xsf, normalize the far oscillatory solution at infinity.
+    if try_far {
+        if let Some(result) = prolate_radial1_far(m, n as i32, c, cv, x) {
+            return result;
+        }
     }
     let rswf = if kd == 1 {
         specfun::rswfp
@@ -585,15 +598,72 @@ fn radial_cv(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64,
     if radial_x_invalid(x, kd) || (n < m) {
         return (f64::NAN, f64::NAN);
     }
-    radial(m, n, c, cv, x, kd, kf)
+    radial(m, n, c, Some(cv), x, kd, kf)
 }
 
 fn radial_nocv(m: f64, n: f64, c: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
     if radial_x_invalid(x, kd) || (n < m) || ((n - m) > 198.0) {
         return (f64::NAN, f64::NAN);
     }
-    let Some(cv) = segv(m, n, c, kd) else {
-        return (f64::NAN, f64::NAN);
+    radial(m, n, c, None, x, kd, kf)
+}
+
+// For z=c*x, U=c*sqrt(x²-1)*R satisfies U''+(1+Q)U=0. The
+// outgoing solution is normalized to exp(i*(z-n*pi/2)) at infinity.
+#[cold]
+fn prolate_radial1_far(m: f64, n: i32, c: f64, cv: f64, x: f64) -> Option<(f64, f64)> {
+    const N: usize = 6;
+    let product = DoubleDouble::from(c) * x;
+    let z = product.hi;
+    let d = (c / z).powi(2);
+    let alpha = c.mul_add(c, -cv) / z;
+    let beta = (1.0 - m * m) * d / z;
+    // z*Q(z/t) = alpha*t^2/(1-d*t^2) + beta*t^4/(1-d*t^2)^2.
+    let coefficients = |q: [f64; 3]| {
+        let mut a = [0.0; N + 1];
+        a[0] = 1.0;
+        for k in 1..=N {
+            let first = ((k - 1) * k) as f64 / z * a[k - 1];
+            a[k] = q
+                .iter()
+                .zip(a[..k].iter().rev().step_by(2))
+                .fold(first, |sum, (qj, aj)| sum + qj * aj)
+                / (2 * k) as f64;
+        }
+        a
     };
-    radial(m, n, c, cv, x, kd, kf)
+    let (alpha_abs, beta_abs) = (alpha.abs(), beta.abs());
+    let majorant =
+        coefficients([alpha_abs, alpha_abs * d + beta_abs, d * (alpha_abs * d + 2.0 * beta_abs)]);
+    // The residual starts at degree N+2. Bound its second derivative term
+    // and the omitted geometric tails of Q, grouped by first omitted power.
+    // Integrating each residual monomial divides by at least N+1.
+    let gap = 1.0 - d;
+    let alpha_bound = alpha_abs / gap;
+    let beta_bound = beta_abs / (gap * gap);
+    let d2 = d * d;
+    let [b0, b1, b2, b3, b4, b5, b6] = majorant;
+    let residual = b6 * ((N * (N + 1)) as f64 / z + alpha_bound + beta_bound)
+        + (b4 + b5) * (alpha_bound * d + beta_bound)
+        + (b2 + b3) * (alpha_bound * d2 + beta_bound * d * (1.0 + gap))
+        + (b0 + b1) * (alpha_bound * d2 * d + beta_bound * d2 * (1.0 + 2.0 * gap));
+    let integral = alpha_bound + beta_bound / 3.0;
+    // The Volterra bound covers both outputs. The extra factor allows bound rounding.
+    // Unlike in xsf, fall back to the Bessel sum when the far residual is too large.
+    if !(residual / (N + 1) as f64 * integral.exp() <= f64::EPSILON / 4.0) {
+        return None;
+    }
+
+    let (sin, cos) = product.sin_cos();
+    let (cos, sin) = Quadrant::from_index((n as u64).wrapping_neg()).rotate(sin, cos);
+    let [a0, a1, a2, a3, a4, a5, a6] =
+        coefficients([alpha, -(alpha * d + beta), d * (alpha * d + 2.0 * beta)]);
+    let (re, im) = (a0 - a2 + a4 - a6, -a1 + a3 - a5);
+    let (dr, di) = (-2.0 * a2 + 4.0 * a4 - 6.0 * a6, -a1 + 3.0 * a3 - 5.0 * a5);
+    let u = sin * re + cos * im;
+    let v = cos * re - sin * im - (sin * dr + cos * di) / z;
+    let scale = gap.sqrt();
+    let value = u / z / scale;
+    let derivative = (v - value / scale) / x / scale;
+    Some((value, derivative))
 }
