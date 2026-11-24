@@ -1457,6 +1457,17 @@ fn test_hyp1f1_long_terminating_pole_near_overflow() {
     );
     assert_eq!(xsf::hyp1f1(-600.0, -700.0, 1024.4), f64::INFINITY);
     assert_eq!(xsf::hyp1f1(-501.0, -502.0, 772.55), f64::INFINITY);
+    assert_eq!(xsf::hyp1f1(-550.0, -551.0, 753.310_249_804_173_7), f64::INFINITY);
+
+    for (a, b, x, value) in [
+        (-501.0, -502.0, 772.517_306_908_151_7_f64, 1.797_693_134_862_289_2e308),
+        (-600.0, -700.0, 1_024.269_218_830_369_7, 1.797_693_134_862_250_2e308),
+        (-1000.0, -1e100, 1.033_549_346_583_912_3e100, 1.797_693_134_862_161_2e308),
+    ] {
+        assert_eq!(xsf::hyp1f1(a, b, x), value);
+        let next = f64::from_bits(x.to_bits() + 1);
+        assert_eq!(xsf::hyp1f1(a, b, next), f64::INFINITY);
+    }
 }
 
 #[test]
