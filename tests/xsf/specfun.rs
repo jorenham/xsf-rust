@@ -1350,6 +1350,17 @@ fn test_hyp1f1_huge_neg_a() {
 }
 
 #[test]
+fn test_hyp1f1_long_terminating_series_at_pole() {
+    // Arb evaluation of the positive terminating polynomial.
+    let actual = [xsf::hyp1f1(-600.0, -700.0, 1000.0), xsf::hyp1f1(-1e6, -1e100, 6.8e96)];
+    xsref::np_assert_allclose!(
+        actual,
+        [1.084_726_577_449_080_7e303, 1.659_144_858_243_358_7e295],
+        rtol = 1e-13
+    );
+}
+
+#[test]
 fn test_hyp1f1_poly_underflow() {
     // Arb, rounded to the nearest subnormal
     let abx = [(-1e5, 300.0, 15.0), (-1e5, 300.0, 17.0)];
