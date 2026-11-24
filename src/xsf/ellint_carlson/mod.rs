@@ -31,7 +31,7 @@ pub trait CarlsonArg: crate::sealed::Sealed + Sized {
 
 /// `CarlsonArg` for the public type `$T`, computed with the type `$U`
 macro_rules! impl_carlson_arg {
-    ($T:ty, $U:ty) => {
+    ($T:ty, $U:ty, $rj:path) => {
         impl CarlsonArg for $T {
             #[inline]
             fn elliprc(self, y: Self) -> Self {
@@ -56,16 +56,14 @@ macro_rules! impl_carlson_arg {
             #[inline]
             fn elliprj(self, y: Self, z: Self, p: Self) -> Self {
                 let [x, y, z, p] = [self, y, z, p].map(Into::into);
-                rj::rj::<$U>(x, y, z, p, ELLINT_CARLSON_RERR, false)
-                    .1
-                    .into()
+                $rj(x, y, z, p).into()
             }
         }
     };
 }
 
-impl_carlson_arg!(f64, f64);
-impl_carlson_arg!(Complex64, C64);
+impl_carlson_arg!(f64, f64, rj::rj::<f64>);
+impl_carlson_arg!(Complex64, C64, rj::rj_cplx);
 
 /// Degenerate symmetric elliptic integral $R_C(x, y)$ for real or complex input
 ///

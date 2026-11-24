@@ -650,6 +650,29 @@ fn test_elliprj_conjugate_cut() {
 }
 
 #[test]
+fn test_elliprj_same_lip_near_negative_cut() {
+    let x = c64(-0.842_814_680_851_514_1, 3.286_08e-318);
+    let y = c64(0.001_870_932_373_571_374_9, 0.0);
+    let z = c64(x.re, 4.589_8e-319);
+    let p = c64(2.396_480_352_068_059, -6.975_027_149_762_841);
+    // Arb integration of the exact inputs along a ray into the shared lip.
+    let re = 0.653_020_290_925_941_2;
+    let im = -0.482_885_548_046_805_6;
+    let normal = c64(x.re, 1e-300);
+    for (u, v) in [(x, z), (normal, normal)] {
+        for (a, b, c) in [(u, y, v), (v, u, y), (y, v, u)] {
+            let upper = xsf::elliprj(a, b, c, p);
+            let lower = xsf::elliprj(a.conj(), b.conj(), c.conj(), p.conj());
+            xsref::np_assert_allclose!(
+                [upper.re, upper.im, lower.re, lower.im],
+                [re, im, re, -im],
+                rtol = 2e-14
+            );
+        }
+    }
+}
+
+#[test]
 fn test_elliprj_real_cut() {
     // real `x, y, z` with `p` near `-lambda` of the steps 0, 1 and 2 and a tiny `Im p` (Arb)
     let at_3 = c64(-0.544_010_195_874_729_4, 0.589_048_622_548_086_2);

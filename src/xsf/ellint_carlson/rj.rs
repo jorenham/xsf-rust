@@ -34,6 +34,7 @@
 //! `catan`, so it isn't bit-identical to the glibc one that is used by g++.
 
 use core::cell::Cell;
+use core::f64::consts::FRAC_PI_2;
 
 use super::arithmetic::{comp_horner, dot2, ndot2, nsum2, ocrt};
 use super::common::{ExitStatus, config, constants, is_horrible, is_troublesome, sort_by};
@@ -41,9 +42,9 @@ use super::rc::rc;
 use super::rf::rf;
 use super::rg::rg;
 use super::typing::Num;
-use super::{argcheck, common};
+use super::{ELLINT_CARLSON_RERR, argcheck, common};
 use crate::utils::pow2;
-use crate::xsf::c64::C64;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::complex::atanh;
 
 mod rjimpl {
@@ -492,8 +493,83 @@ fn underflows_in_loop<T: Num>(a: T) -> bool {
 /// steps, which quarter it from at most 2^1024 to 2^256.
 const MAX_NESTED: u32 = 512;
 
-pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
-    rj_nested(x, y, z, p, rerr, noasymp, &Cell::new(Some(MAX_NESTED)))
+pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T) -> T {
+    rj_nested(x, y, z, p, ELLINT_CARLSON_RERR, false, &Cell::new(Some(MAX_NESTED))).1
+}
+
+pub(super) fn rj_cplx(x: C64, y: C64, z: C64, p: C64) -> C64 {
+    // Retain the stock result when both components are already within
+    // the accuracy tolerance of the cut tests.
+    const AGREEMENT_TOL: f64 = 1e-13;
+
+    let old = rj(x, y, z, p);
+    // Unlike in xsf, recover the same-lip coalescence limit on the negative cut.
+    if p.re > 0.0 && (x.re < 0.0 || y.re < 0.0 || z.re < 0.0) {
+        let mut xyz = [x, y, z];
+        sort_by(&mut xyz, rjimpl::rcmp);
+        if let Some(value) = rj_cut_confluent(xyz, p) {
+            if !old.is_finite()
+                || (old.re - value.re).abs() > AGREEMENT_TOL * value.re.abs()
+                || (old.im - value.im).abs() > AGREEMENT_TOL * value.im.abs()
+            {
+                return value;
+            }
+        }
+    }
+    old
+}
+
+fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
+    if !(x.re == y.re
+        && x.re < 0.0
+        && x.im != 0.0
+        && y.im != 0.0
+        && x.im.is_sign_negative() == y.im.is_sign_negative()
+        && z.re > 0.0
+        && z.is_real()
+        && [x, y, z, p].iter().all(|value| value.is_finite()))
+    {
+        return None;
+    }
+
+    let a = -x.re;
+    let offset = x.im.abs() + y.im.abs();
+    // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) makes larger
+    // offsets ineligible for the relative perturbation check below.
+    if 0.5 * offset > f64::EPSILON * a {
+        return None;
+    }
+    let denominator = p + a;
+    let cut_distance = z.re + a;
+    if !denominator.is_finite() || !cut_distance.is_finite() {
+        return None;
+    }
+    // At the shared lip RJ(-a,-a,z,p) = 3 (RC(z,-a) - RC(z,p))/(p+a).
+    // The negative real RC returns a principal value, so restore the lip residue.
+    let (left_status, left) = rc(z.re, -a, ELLINT_CARLSON_RERR);
+    let (right_status, right) = rc(z, p, ELLINT_CARLSON_RERR);
+    if left_status != ExitStatus::Success || right_status != ExitStatus::Success {
+        return None;
+    }
+    let left = c64(left, -(FRAC_PI_2 / cut_distance.sqrt()).copysign(x.im));
+    let value = (left - right) / denominator * 3.0;
+    let smallest = value.re.abs().min(value.im.abs());
+    let scale = 3.0 * ((left.norm() + right.norm()) / denominator.max_norm());
+    // Keep both components normal and allow at most four bits of cancellation.
+    if !(value.is_finite()
+        && value.max_norm() <= 0.5 * f64::MAX
+        && smallest >= 2.0 * f64::MIN_POSITIVE
+        && scale / 16.0 <= smallest)
+    {
+        return None;
+    }
+
+    // Rotating the integration ray by +/- pi/4 bounds the omitted imaginary
+    // offsets by 8 (|Im x| + |Im y|)/(a² sqrt(Re p)).
+    let perturbation = [a, a, p.re.sqrt()]
+        .into_iter()
+        .fold(8.0 * offset, |error, divisor| (error / divisor).max(f64::MIN_POSITIVE));
+    (perturbation <= f64::EPSILON * smallest).then_some(value)
 }
 
 /// [`rj`] with the number of evaluations that are `left` of [`MAX_NESTED`], `None` if it ran out
