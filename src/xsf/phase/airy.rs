@@ -80,6 +80,7 @@ pub(in crate::xsf) fn reduce_airy_phase(x: f64) -> Option<(Quadrant, f64)> {
     let words = product.get(word - 3..)?.first_chunk()?;
     let window = read_quadrant_window(words, bit);
     let [_, lo, mid, hi] = window;
+    // Unlike in xsf, decline if the quadrant or the remainder sign cannot be resolved.
     // Truncation is downward and costs < two quanta of the 192-bit window.
     if hi == u64::MAX && mid == u64::MAX && lo >= u64::MAX - 2 {
         return None;

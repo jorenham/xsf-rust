@@ -340,6 +340,7 @@ fn airy_negative_asymptotic(t: f64, f: f64, g: f64, z: f64) -> [f64; 4] {
 pub(in crate::xsf) fn airy_wide_negative(a: f64) -> Option<[f64; 4]> {
     let (quadrant, angle) = phase::reduce_airy_phase(a)?;
     let t = a.sqrt();
+    // Unlike in xsf, compute the reciprocal without forming an overflowing zeta.
     let z = (1.5 / a) / t;
     // The odd asymptotic corrections are small compared with both trigonometric factors.
     if angle.abs() < 8.0 * z {
