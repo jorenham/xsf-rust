@@ -228,7 +228,10 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
             0.5 + FRAC_1_PI * x.atan()
         }
     } else if nu == 2.0 {
-        if x < 0.0 {
+        // At |x| = 2^510, the upper bound 1/(2x²) is twice MIN_POSITIVE.
+        if x <= -const { pow2(510) } {
+            stdtr_two_tiny_tail(x)
+        } else if x < 0.0 {
             // (1 + x / s) / 2 = 1 / (s (s - x)) with s = sqrt(2 + x^2) avoids the cancellation, and
             // hypot the overflow
             let s = x.hypot(SQRT_2);
@@ -257,6 +260,21 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
             };
         if x >= 0.0 { 1.0 - p } else { p }
     }
+}
+
+#[cold]
+#[inline(never)]
+fn stdtr_two_tiny_tail(x: f64) -> f64 {
+    // The exact tail is below 1/(2x²), which is half a minsubnormal at |x| = 2^537.
+    if x <= -const { pow2(537) } {
+        return 0.0;
+    }
+    // The next term is negligible. With t = |x| 2^-512, 1/(2x²) is 2^49/t²
+    // in units of the smallest subnormal.
+    let t = DoubleDouble::new(-x * const { pow2(-512) });
+    (DoubleDouble::ONE / (t * t))
+        .ldexp(49)
+        .round_subnormal_units()
 }
 
 /// Above this `nu`, `stdtr` underflows below `x = -40`, where `stdtr_tail` clamps `x`
