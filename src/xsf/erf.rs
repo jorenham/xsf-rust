@@ -5,7 +5,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_PI, PI};
 
 use num_complex::Complex64;
 
-use crate::utils::{SQRT_TAU_DOWN, pow2};
+use crate::utils::{SQRT_FRAC_2_PI, SQRT_TAU_DOWN, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{FRAC_PI_2_DD, two_prod};
 
@@ -80,10 +80,53 @@ fn erfc_c64(z: C64) -> C64 {
         return erfc_overflow(z).unwrap_or_else(|| raw_erfc(z));
     }
     let result = raw_erfc(z);
+    if result.is_nan() && z.is_finite() && x_abs == y_abs && (2.0 * z.re * z.re).is_infinite() {
+        return erfc_overrange_diagonal(z, result);
+    }
     if result.is_nan() || (result.re.is_infinite() && result.im.is_infinite() && wide_phase()) {
         return erfc_overflow(z).unwrap_or(result);
     }
     result
+}
+
+#[cold]
+fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
+    let x = z.re.abs();
+    let (quadrant, r) = crate::xsf::faddeeva::phase::reduce_diagonal_phase(x);
+    let (sin, cos) = r.sin_cos();
+    let rotation = rotate_quadrant(quadrant, sin.abs().copysign(r), cos.abs());
+    // On |r| <= pi/4, Taylor bounds give 7|r|/8 <= |sin r| <= |r|
+    // and 11/16 <= cos r <= 1. Odd quadrants exchange the magnitudes.
+    let sin_bounds = (0.875 * r.abs(), r.abs());
+    let cos_bounds = (0.6875, 1.0);
+    let (re_bounds, im_bounds) = if quadrant & 1 == 0 {
+        (cos_bounds, sin_bounds)
+    } else {
+        (sin_bounds, cos_bounds)
+    };
+
+    // Unlike in xsf, rotate the diagonal tail before dividing to retain subnormals.
+    let component = |factor: f64, (lo, hi): (f64, f64), old: f64| {
+        const PAD: f64 = 8.0 * f64::EPSILON;
+        if !old.is_nan() {
+            return old;
+        }
+        let scale = 0.5 * SQRT_FRAC_2_PI;
+        let value = (scale * factor) / x;
+        let lower = ((scale * lo) * (1.0 - PAD)) / x;
+        let upper = ((scale * hi) * (1.0 + PAD)) / x;
+        if lower.classify() == upper.classify() && lower.classify() == value.classify() {
+            value
+        } else {
+            old
+        }
+    };
+    let re = if z.re < 0.0 && result.re.is_nan() {
+        2.0
+    } else {
+        component(rotation.re, re_bounds, result.re)
+    };
+    c64(re, component(-z.im.signum() * rotation.im, im_bounds, result.im))
 }
 
 #[cold]

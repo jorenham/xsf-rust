@@ -217,6 +217,29 @@ fn test_complex_erf_diagonal_phase() {
     }
 }
 
+#[test]
+fn test_complex_erfc_overrange_diagonal() {
+    let x = 8.988_465_674_311_05e307;
+    let r = f64::from_bits(0x0003_05a4_7c24_0ed3);
+    let i = f64::from_bits(0x0001_06b8_2891_590f);
+    let tol = 2.0 * f64::from_bits(1);
+    for sy in [-1.0, 1.0] {
+        let right = xsf::erfc(c64(x, sy * x));
+        assert!(right.re.is_subnormal() && right.im.is_subnormal());
+        assert!((right.re - r).abs() <= tol);
+        assert!((right.im - sy * i).abs() <= tol);
+        let left = xsf::erfc(c64(-x, sy * x));
+        assert_eq!(left, c64(2.0, right.im));
+    }
+
+    let x = f64::from_bits(0x5fe6_a09e_667f_3bcd);
+    let z = xsf::erfc(c64(x, x));
+    let r = f64::from_bits(0x9fb5_3a53_34fc_2b35);
+    let i = f64::from_bits(0x9fe1_dba6_454b_b024);
+    assert!((z.re - r).abs() <= 4.0 * f64::EPSILON * r.abs());
+    assert!((z.im - i).abs() <= 4.0 * f64::EPSILON * i.abs());
+}
+
 // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
 
 #[test]
