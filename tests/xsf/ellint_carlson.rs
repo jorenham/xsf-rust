@@ -673,6 +673,28 @@ fn test_elliprj_same_lip_near_negative_cut() {
 }
 
 #[test]
+fn test_elliprj_repeated_complex_negative_cut_arguments() {
+    let b = c64(0.001_870_932_373_571_374_9, 0.0);
+    let p = c64(2.396_480_352_068_059, -6.975_027_149_762_841);
+    // Arb contour integrals at the exact repeated arguments.
+    for (im, re, expected_im) in [
+        (1e-17, 0.653_020_290_925_941_3, -0.482_885_548_046_805_6),
+        (0.1, 0.658_740_100_467_864_7, -0.436_453_274_131_001),
+    ] {
+        let a = c64(-0.842_814_680_851_514_1, im);
+        for (x, y, z) in [(a, a, b), (a, b, a), (b, a, a)] {
+            let upper = xsf::elliprj(x, y, z, p);
+            let lower = xsf::elliprj(x.conj(), y.conj(), z.conj(), p.conj());
+            xsref::np_assert_allclose!(
+                [upper.re, upper.im, lower.re, lower.im],
+                [re, expected_im, re, -expected_im],
+                rtol = 5e-15
+            );
+        }
+    }
+}
+
+#[test]
 fn test_elliprj_real_cut() {
     // real `x, y, z` with `p` near `-lambda` of the steps 0, 1 and 2 and a tiny `Im p` (Arb)
     let at_3 = c64(-0.544_010_195_874_729_4, 0.589_048_622_548_086_2);
