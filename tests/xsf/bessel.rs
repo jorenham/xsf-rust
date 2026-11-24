@@ -1321,6 +1321,28 @@ fn test_unscaled_hankel_upper_cut_overflow() {
     }
 }
 
+#[test]
+fn test_unscaled_hankel_large_order_overflow() {
+    for zero in [0.0, -0.0] {
+        let v = 31_622_776_601.683_792;
+        let inf = f64::INFINITY;
+        for (v, x, expected1, expected2) in [
+            (v, 10.0, c64(0.0, -inf), c64(0.0, inf)),
+            (-v, 10.0, c64(-inf, -inf), c64(-inf, inf)),
+            (v, -10.0, c64(inf, -inf), c64(-inf, inf)),
+            (-v, -10.0, c64(-0.0, -inf), c64(-inf, -inf)),
+        ] {
+            let z = c64(x, zero);
+            for (actual, expected) in
+                [(xsf::hankel_1(v, z), expected1), (xsf::hankel_2(v, z), expected2)]
+            {
+                assert_eq!(actual.re.to_bits(), expected.re.to_bits());
+                assert_eq!(actual.im.to_bits(), expected.im.to_bits());
+            }
+        }
+    }
+}
+
 // Bessel zeros
 
 /// Based on `scipy.special.tests.test_basic.TestBessel.test_jnyn_zeros`
