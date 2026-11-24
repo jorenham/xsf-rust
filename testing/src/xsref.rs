@@ -223,10 +223,19 @@ impl Check {
     }
 }
 
-/// The table metric: the extended relative error, or the extended absolute error over the
-/// `scale` (if it isn't 0) where that is smaller
-fn table_error<T: ExtendedErrorArg>(actual: T, expected: T, scale: f64) -> f64 {
+/// The table metric also checks the relative error of a finite component next to an infinity.
+/// Use the extended absolute error over a nonzero `scale` where that is smaller.
+fn table_error<T: TestOutputValue>(actual: T, expected: T, scale: f64) -> f64 {
+    let [re, im] = expected.parts();
+    let [a_re, a_im] = actual.parts();
     let error = extended_relative_error(actual, expected);
+    let error = if re.is_infinite() && im.is_finite() {
+        error.max(extended_relative_error(a_im, im))
+    } else if im.is_infinite() && re.is_finite() {
+        error.max(extended_relative_error(a_re, re))
+    } else {
+        error
+    };
     if scale == 0.0 {
         error
     } else {

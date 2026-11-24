@@ -114,11 +114,17 @@ def magnitude(f: float) -> float:
 
 def table_error(y: complex, f: complex, scale: float = 0.0) -> float:
     """The table metric of `y` for the reference `f`, like in `testing/src/xsref.rs`."""
-    d = math.hypot(*map(abs_error, parts(y), parts(f)))
-    m = [magnitude(x) for x in parts(f)]
+    f_parts = parts(f)
+    errors = tuple(map(abs_error, parts(y), f_parts))
+    d = math.hypot(*errors)
+    m = [magnitude(x) for x in f_parts]
     e = d / math.hypot(*m)
     if math.isinf(math.hypot(*m)):  # the modulus of a complex reference overflows
         e = d / 2 / math.hypot(*(x / 2 for x in m))
+    if any(map(math.isinf, f_parts)):
+        for ref, error, mag in zip(f_parts, errors, m, strict=True):
+            if math.isfinite(ref):
+                e = max(e, error / abs(mag))
     return min(e, d / scale) if scale else e
 
 
@@ -385,12 +391,17 @@ def tolerance(
     """The tolerance of a computed output: the error of xsf, so that the test (which accepts
     4 max(eps, tol)) means "at most 4 times less accurate than xsf". Under an override it is
     at most `budget`, the largest error of xsf-rust there, and an error of xsf above
-    `XSF_WRONG` needs one. It is at least `floor`, the floor of the mapping there, and for an
-    f32 output, the f32 eps (the eps of the test is that of f64)."""
+    `XSF_WRONG` needs one. For a mixed finite/infinite reference with no usable xsf error,
+    use an explicit floor if the stricter test already passes it. The tolerance is at least
+    the mapped floor and, for an f32 output, the f32 eps (the test uses f64 eps)."""
     tol = min(c.e_xsf, budget) if override else c.e_xsf
     errors = f"xsf-rust: {c.e_rust:.2e}, xsf: {c.e_xsf:.2e}"
     wrong = XSF_WRONG_F32 if f32 else XSF_WRONG
     require(tol <= wrong, f"xsf is wrong, which needs an override ({errors})")
+    if override and floor and math.isinf(c.e_xsf) and c.e_rust <= 4 * max(EPS, floor):
+        ref_parts = parts(c.ref)
+        if any(map(math.isinf, ref_parts)) and any(map(math.isfinite, ref_parts)):
+            tol = floor
     tol = max(tol, floor, F32_EPS if f32 else 0)
     require(c.e_rust <= 4 * max(EPS, tol), f"xsf-rust fails the test ({errors})")
     return tol
@@ -522,8 +533,6 @@ def generate(
                 # no tolerance covers NaN or an infinity
                 ok = same_class(rust[r, i], f, zeros=False)
                 require(ok, f"xsf-rust has {rust[r, i]}, the reference {f}")
-                # Complex reference parts use the modulus for agreement, apart from
-                # any explicit error scale recorded for the whole output.
                 scale = checked[0][1] if widths[i] == 1 else 0.0
                 if out.scale_at is not None:
                     scale = out.scale_at(inputs[r], f)
