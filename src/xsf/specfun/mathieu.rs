@@ -744,6 +744,65 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, xr: f64, csf: &mut f64, csd: &mut f6
     Status::Ok
 }
 
+fn first_kind_at_origin(kd: i32, m: i32, q: f64, a: f64, x: f64, fg: &[f64]) -> Option<(f64, f64)> {
+    let w = a - 2.0 * q;
+    // Use the low-q characteristic solver above fcoef's linear approximation.
+    // Stay away from a turning point.
+    if !(x == 0.0
+        && q > 1.0e-7
+        && q <= 3.0 * f64::from(m)
+        && a >= 1.0
+        && w >= a / 32.0
+        && a.is_finite())
+    {
+        return None;
+    }
+    // An O(q²) pivot can spoil the Fourier normalization.
+    let pivot = match (kd, m) {
+        (1, 2) => a - 4.0 - 2.0 * q * q / a,
+        (2 | 3, 1) => a - 1.0 - neg_one_pow(kd) * q,
+        (4, 2) => a - 4.0,
+        _ => a,
+    };
+    if pivot.abs() < a / 64.0 {
+        return None;
+    }
+
+    // Unlike in xsf, take the origin normalization from the single-Bessel
+    // expansions (DLMF 28.23.7, 9, 11, 13).
+    let (norm, abs_sum) = fg
+        .iter()
+        .enumerate()
+        .fold((0.0, 0.0), |(sum, abs_sum), (k, &c)| {
+            let weight = if kd % 2 == 0 {
+                f64::from(2 * k as u32) + 0.5 * f64::from(kd)
+            } else {
+                1.0
+            };
+            let term = weight * c;
+            (sum + neg_one_pow(k) * term, abs_sum + term.abs())
+        });
+    if !(norm.abs() >= abs_sum / 8.0) {
+        return None;
+    }
+    let scale = match kd {
+        1 => 1.0,
+        4 => -q,
+        _ => q.sqrt(),
+    };
+    let anchor = neg_one_pow(m / 2) * (scale * fg[0]) / norm;
+    if !anchor.is_normal() {
+        return None;
+    }
+
+    let zero = anchor * x;
+    Some(if kd >= 3 {
+        (zero, anchor)
+    } else {
+        (anchor, zero)
+    })
+}
+
 pub(crate) fn mtu12(
     kf: i32,
     kc: i32,
@@ -880,6 +939,7 @@ pub(crate) fn mtu12(
             w1 = *f1r;
         }
 
+        let value_sum = *f1r;
         *f1r /= fg[0];
 
         *d1r = 0.0;
@@ -906,8 +966,37 @@ pub(crate) fn mtu12(
             }
             w2 = *d1r;
         }
+        let derivative_sum = *d1r;
         *d1r *= q.sqrt() / fg[0];
         if kc == 1 {
+            // Unlike in xsf, use origin normalization only for components
+            // where cancellation can amplify cross-product roundoff by 32.
+            let fg = &fg[..km as usize];
+            if let Some((value, derivative)) = first_kind_at_origin(kd, m, q, a, x, fg) {
+                let offset = match kd {
+                    1 => 0,
+                    4 => 2,
+                    _ => 1,
+                };
+                let (mut abs_value, mut abs_derivative) = (0.0, 0.0);
+                for (n, &c) in fg.iter().enumerate() {
+                    let j = n + offset;
+                    let pair = |u: &[f64], v: &[f64]| {
+                        let a = (u[n] * v[j]).abs();
+                        if j == n { a } else { a + (u[j] * v[n]).abs() }
+                    };
+                    abs_value += c.abs() * pair(&bj1, &bj2);
+                    abs_derivative += c.abs() * (c2 * pair(&bj1, &dj2) + c1 * pair(&dj1, &bj2));
+                }
+                for (out, new, sum, abs_sum) in [
+                    (f1r, value, value_sum, abs_value),
+                    (d1r, derivative, derivative_sum, abs_derivative),
+                ] {
+                    if sum.abs() * 32.0 < abs_sum {
+                        *out = new;
+                    }
+                }
+            }
             return Status::Ok;
         }
     }
