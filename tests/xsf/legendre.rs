@@ -418,9 +418,9 @@ fn test_legendre_q_all_extreme_degree_two() {
             [q[2].re, q[2].im, d[2].re, d[2].im].map(f64::to_bits),
             expected.map(f64::to_bits)
         );
-        let (q, d) = xsf::assoc_legendre_q_all(2, 2, z);
-        for (order, expected) in [expected, order_one, expected].into_iter().enumerate() {
-            let (q, d) = (q[2][order], d[2][order]);
+        let (q, d) = xsf::assoc_legendre_q_all(2, 73, z);
+        for (order, (&q, &d)) in q[2].iter().zip(&d[2]).enumerate() {
+            let expected = if order % 2 == 0 { expected } else { order_one };
             assert_eq!([q.re, q.im, d.re, d.im].map(f64::to_bits), expected.map(f64::to_bits));
         }
     };
@@ -447,6 +447,10 @@ fn test_legendre_q_all_extreme_degree_two() {
             );
         }
     }
+
+    // The next order need not underflow at the dispatch boundary.
+    let (q, _) = xsf::assoc_legendre_q_all(2, 74, c64(scale, 1.0));
+    assert_eq!(q[2][74].re.to_bits(), 7);
 }
 
 #[test]
