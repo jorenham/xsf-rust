@@ -38,9 +38,10 @@ fn test_bessel_y_c64_positive_axis_overflow_recovery() {
     assert_eq!(overflow, c64(f64::NEG_INFINITY, 0.0));
 
     let x = 8.415_836_302_186_89e-155_f64;
+    let v = f64::from_bits(2.0_f64.to_bits() + 1);
     for im in [0.0, -0.0] {
-        for x in [x, x.next_up()] {
-            let y = xsf::bessel_y(2.0_f64.next_up(), c64(x, im));
+        for x in [x, f64::from_bits(x.to_bits() + 1)] {
+            let y = xsf::bessel_y(v, c64(x, im));
             assert_eq!(y, c64(f64::NEG_INFINITY, 0.0));
         }
     }
