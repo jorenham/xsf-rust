@@ -1482,6 +1482,17 @@ pub(crate) fn chgu(
     let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0 && !unbounded;
     if il1 || il2 || il3 || il4 {
         hu = chgul(x, a, b, d, &mut id);
+        // Unlike in xsf, retry with the exact degree when the alternate
+        // terminating parameter is integral only after rounding.
+        if il1 && il2 && aa > f64::from(i32::MIN) && d == 0.0 && b.fract() != 0.0 && hu.is_normal()
+        {
+            // Keep the existing result when it already agrees to 12 digits.
+            if let Some(value) = chgul_exact_polynomial(x, a, b)
+                .filter(|&value| (value - hu).abs() > 1e-12 * value.abs())
+            {
+                (hu, id) = (value, ID_MIN);
+            }
+        }
         *md = 2;
         if id >= ID_MIN {
             *digits = super::subnormal_digits(hu, id.into()) as i32;
@@ -2090,6 +2101,43 @@ pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
     // (the rounding is exact if d is an integer: 0 below 2^53, where s + 1 is exact too)
     let rounded = b < 1.0 && !is_nonpos_int(a) && is_nonpos_int(s + 1.0) && d.fract() != 0.0;
     (rounded, d)
+}
+
+fn chgul_exact_polynomial(x: f64, a: f64, b: f64) -> Option<f64> {
+    // Each term uses at most five roundings per iteration. Bound the
+    // error with room for the sum and final scaling (1000 eps < 1e-12).
+    const ROUNDING_LIMIT: f64 = 1000.0;
+    let error_factor = -8.0 * a;
+    if !(0.0 < error_factor && error_factor <= ROUNDING_LIMIT) {
+        return None;
+    }
+    let degree = -a as i32;
+    let scale = x.powi(degree);
+    if !scale.is_normal() {
+        return None;
+    }
+    let (mut term, mut sum, mut absolute_sum) = (1.0, 1.0, 1.0);
+    for k in 1..=degree {
+        let k = f64::from(k);
+        let numerator = -(a + (k - 1.0)) * ((a + k) - b);
+        let denominator = k * x;
+        let ratio = numerator / denominator;
+        term *= ratio;
+        if !(numerator.is_normal()
+            && denominator.is_normal()
+            && ratio.is_normal()
+            && term.is_normal())
+        {
+            return None;
+        }
+        sum += term;
+        absolute_sum += term.abs();
+    }
+    let value = sum * scale;
+    // Keep the retry away from the normal-range endpoints.
+    (error_factor * (absolute_sum / sum.abs()) <= ROUNDING_LIMIT
+        && (2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX).contains(&value.abs()))
+    .then_some(value)
 }
 
 fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
