@@ -1667,6 +1667,30 @@ fn test_hyp1f1_neg_b() {
 }
 
 #[test]
+fn test_hyp1f1_positive_linear_kummer_root() {
+    for (a, b) in [(0.5, -0.5_f64), (1.0 - f64::EPSILON / 2.0, -f64::EPSILON / 2.0)] {
+        let root = -b;
+        assert_eq!(xsf::hyp1f1(a, b, root).to_bits(), 0);
+        for bits in [root.to_bits() - 1, root.to_bits() + 1] {
+            let x = f64::from_bits(bits);
+            let expected = (b + x) / b * x.exp();
+            xsref::np_assert_allclose!(
+                [xsf::hyp1f1(a, b, x)],
+                [expected],
+                rtol = 2e-15,
+                atol = 0.0
+            );
+        }
+    }
+    // The rounded value of b - a is -1, but its exact value is not.
+    let b = -f64::EPSILON / 4.0;
+    assert_eq!(xsf::hyp1f1(1.0, b, -b), b);
+
+    let b = -1_125_899_906_842_623.5_f64;
+    assert_eq!(xsf::hyp1f1(b + 1.0, b, -b).to_bits(), 0);
+}
+
+#[test]
 fn test_hyp1f1_neg_b_cancellation() {
     // mpmath; in xsf these are 4.6e169, -0.0, and NaN
     let abx = [(500.5, -200.25, 5.5), (99.7, -0.3, -800.0), (340.5, -90.25, 140.5)];

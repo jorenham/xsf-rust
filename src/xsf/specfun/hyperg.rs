@@ -1366,6 +1366,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     // Unlike in xsf (scipy/xsf#365), non-integer b < 0 has its own methods (see `chgm_neg_b`)
     if neg_b && a.is_finite() && x.is_finite() {
+        // Unlike in xsf, return the exact zero of exp(x) * (b + x) / b when a - b = 1.
+        if x == -b && two_sum(b, -a) == (-1.0, 0.0) {
+            return 0.0;
+        }
         if let Some(hg) = chgm_neg_b(x, a, b) {
             return hg;
         }
