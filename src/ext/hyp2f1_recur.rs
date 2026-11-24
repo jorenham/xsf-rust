@@ -618,9 +618,16 @@ fn best_combination(combs: Combinations, c: Dd, z: f64, w: Dd, ln_1mx: Dd) -> Op
     let key = |i: usize| (combs[i].0.hi < 0.0, combs[i].0.hi.abs());
     let mut order = [0, 1, 2, 3];
     order.sort_by(|&i, &j| key(i).partial_cmp(&key(j)).unwrap_or(Ordering::Equal));
+    // At exact Euler balance, both twin pairs can have the same parameters.
+    // Keep one pair so each still uses the same first series and budget.
+    let bits = |(p, q, s): (Dd, Dd, Dd)| [p, q, s].map(|d| (d.hi.to_bits(), d.lo.to_bits()));
+    let duplicate = bits(combs[0]) == bits(combs[1]) && bits(combs[2]) == bits(combs[3]);
     // the step-2 sums of the twins
     let mut shared = [None; 2];
-    best_of(order.into_iter().map(|i| {
+    let order = order
+        .into_iter()
+        .filter(|&i| !duplicate || i == 0 || i == 3);
+    best_of(order.map(|i| {
         let (p, q, s) = combs[i];
         // `c - q` is the `p` of the twin, while `c - (c - p)` would round a tiny `p`
         let r = combs[3 - i].0;
