@@ -8,6 +8,7 @@ use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{self, TWO_THIRDS};
 
+const AIRY_REAL_UNSCALING_START: f64 = 103.892;
 const AIRY_REAL_UNDERFLOW_BOUND: f64 = 108.0;
 
 pub trait AiryArg: crate::sealed::Sealed + Sized {
@@ -98,7 +99,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
             .unwrap_or(q_inf);
         (w * (1.0 + d * (q - 0.5 / z + c) / s), wp * (1.0 + d * (z / q - 1.0 / z + c) / s))
     };
-    let (bi, bip) = undo(bi, bip, C64::ZERO);
+    let (mut bi, mut bip) = undo(bi, bip, C64::ZERO);
     // (a decaying Ai is its `airye` here, which varies slowly)
     let c = if kode == 2 { s } else { C64::ZERO };
     let (ai, aip) = if decays { (ai, aip) } else { undo(ai, aip, c) };
@@ -108,6 +109,20 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         let (a, e) = (zta.re.abs(), d.re * zta.re.signum());
         let fb = 1.0 - if e < -a { -2.0 * a - e } else { e };
         return [ai, aip, bi * fb, bip * fb];
+    }
+    // Unlike in xsf, recover the positive real Bi components that AMOS loses to overflow.
+    if z.is_real()
+        && z.re > AIRY_REAL_UNSCALING_START
+        && z.re < AIRY_REAL_UNDERFLOW_BOUND
+        && (bi.is_nan() || bip.is_nan())
+    {
+        let [_, _, real_bi, real_bip] = airy_f64(z.re);
+        if bi.is_nan() {
+            bi = c64(real_bi, 0.0);
+        }
+        if bip.is_nan() {
+            bip = c64(real_bip, 0.0);
+        }
     }
     if !decays || taylor.is_some() {
         return [ai, aip, bi, bip];
@@ -228,7 +243,7 @@ fn airye_f64(z: f64) -> [f64; 4] {
 fn airy_f64(x: f64) -> [f64; 4] {
     // Unlike in xsf, Cephes is used instead of AMOS for x > 10 (and x < -10, scipy/xsf#532), as
     // its double-double zeta makes it more accurate.
-    if x > 103.892 && x < AIRY_REAL_UNDERFLOW_BOUND {
+    if x > AIRY_REAL_UNSCALING_START && x < AIRY_REAL_UNDERFLOW_BOUND {
         // Unlike in xsf (scipy/xsf#614), `airye` is unscaled here, as Cephes returns
         // (0, 0, inf, inf) for x > 103.892, while Bi(x) only overflows at x = 104.44 and Ai(x)
         // underflows at x = 107.47.

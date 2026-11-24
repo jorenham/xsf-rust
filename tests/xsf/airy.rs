@@ -403,6 +403,26 @@ fn test_airy_c64_positive_axis_underflow_and_overflow() {
 }
 
 #[test]
+fn test_airy_c64_positive_axis_bi_overflow_transition() {
+    for (x, bi, bip) in [
+        (104.2, 1.611_489_275_957_690_5e307, 1.644_595_627_865_468_7e308),
+        (104.4, 1.241_898_624_243_905e308, f64::INFINITY),
+    ] {
+        for y in [0.0, -0.0] {
+            let [_, _, actual_bi, actual_bip] = xsf::airy(c64(x, y));
+            assert!((actual_bi.re / bi - 1.0).abs() < 2e-15);
+            if bip.is_infinite() {
+                assert_eq!(actual_bip.re, bip);
+            } else {
+                assert!((actual_bip.re / bip - 1.0).abs() < 2e-15);
+            }
+            assert_eq!(actual_bi.im.to_bits(), 0.0_f64.to_bits());
+            assert_eq!(actual_bip.im.to_bits(), 0.0_f64.to_bits());
+        }
+    }
+}
+
+#[test]
 fn test_airye_c64_large_re() {
     // Arb: acb(z).airy()[2:] e^-|Re zeta|
     let [_, _, bi, bip] = xsf::airy_scaled(c64(50.0, -10.0));
