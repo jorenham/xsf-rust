@@ -368,6 +368,49 @@ fn test_assoc_legendre_q_all_q0_tiny_and_large_x() {
 }
 
 #[test]
+fn test_legendre_q_all_extreme_complex() {
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            // Arb at exact binary64 arguments.
+            let z = c64(sx * 1e160, sy * 1e159);
+            let q1 = c64(f64::from_bits(0x28f), -sx * sy * f64::from_bits(0x84));
+            let dq0 = c64(-f64::from_bits(0x7ac), sx * sy * f64::from_bits(0x18d));
+            let (q, dq) = xsf::legendre_q_all(1, z);
+            assert_eq!((q[1], dq[0]), (q1, dq0));
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 0, z);
+            assert_eq!((q[1][0], dq[0][0]), (q1, dq0));
+
+            let z = c64(sx * 1e160, sy * 0.0);
+            let (q, dq) = xsf::legendre_q_all(1, z);
+            assert_eq!(q[1].re.to_bits(), 0x2a3);
+            assert_eq!(q[1].im.to_bits(), (-sx * sy * 0.0).to_bits());
+            assert_eq!(dq[0].re.to_bits(), 0x8000_0000_0000_07e8);
+            assert_eq!(dq[0].im.to_bits(), (sx * sy * 0.0).to_bits());
+
+            let z = c64(sx * 2.0_f64.powi(511), sy * 0.0);
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 0, z);
+            assert_eq!(q[1][0].re.to_bits(), 0x0005_5555_5555_5555);
+            assert_eq!(q[1][0].im.to_bits(), (-sx * sy * 0.0).to_bits());
+            assert_eq!(dq[0][0].re.to_bits(), (-f64::MIN_POSITIVE).to_bits());
+            assert_eq!(dq[0][0].im.to_bits(), (sx * sy * 0.0).to_bits());
+        }
+    }
+
+    // The small imaginary-coordinate correction rounds the derivative down to max subnormal.
+    let z = c64(2.0_f64.powi(511), 5.048_054_719_547_867e145);
+    let (_, dq) = xsf::legendre_q_all(0, z);
+    assert_eq!(dq[0].re.to_bits(), 0x800f_ffff_ffff_ffff);
+
+    let x = 2.0_f64.powi(537);
+    let (q, dq) = xsf::legendre_q_all(1, c64(x, x));
+    // Here the leading imaginary derivative is the half-minsub midpoint.
+    assert_eq!(dq[0].re.to_bits(), 0);
+    assert_eq!(dq[0].im.to_bits(), 0);
+    assert_eq!(q[1].re.to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(q[1].im.to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x_and_z() {
     // where the backward recurrences are rescaled; mpmath: legenq(n, m, x, type=3), and Arb for
     // complex z
