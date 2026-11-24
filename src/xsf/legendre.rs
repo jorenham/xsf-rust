@@ -881,7 +881,8 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     let mut cqf0 = C64::ZERO;
     let (mut cqf1, mut cqf2);
 
-    if z.re == 1.0 {
+    // Unlike in xsf, require zero imaginary part for the pole at 1.
+    if z.re == 1.0 && z.is_real() {
         for k in 0..=n {
             cqn[k] = c64(SPECFUN_INF, 0.0);
             cqd[k] = c64(SPECFUN_INF, 0.0);

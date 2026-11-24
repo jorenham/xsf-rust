@@ -206,6 +206,25 @@ fn test_legendre_q_all_c64() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_pole_at_one() {
+    for sign in [-1.0, 1.0] {
+        let z = c64(1.0, sign * 0.25);
+        let (q, d) = xsf::legendre_q_all(0, z);
+        // Q_0(z) = log(1 - 8i) / 2 on the upper side and Q_0'(z) = 1 / (1 - z^2).
+        let expected = c64(65.0_f64.ln() / 4.0, -sign * 8.0_f64.atan() / 2.0);
+        let expected_derivative = c64(16.0 / 65.0, sign * (128.0 / 65.0));
+        xsref::np_assert_allclose!([q[0], d[0]], [expected, expected_derivative], rtol = 1e-15);
+
+        let (q, _) = xsf::legendre_q_all(0, c64(1.0, sign * f64::from_bits(1)));
+        let expected = c64(1075.0 * consts::LN_2 / 2.0, sign * consts::FRAC_PI_4);
+        xsref::np_assert_allclose!([q[0]], [expected], rtol = f64::EPSILON);
+
+        let (q, d) = xsf::legendre_q_all(0, c64(1.0, sign * 0.0));
+        assert_eq!([q[0], d[0]], [c64(1e300, 0.0); 2]);
+    }
+}
+
+#[test]
 fn test_legendre_q_all_backward_seeds() {
     // mpmath legenq with type=3, reflected by Q_k(-x) = (-1)^(k+1) Q_k(x).
     let (negative, _) = xsf::legendre_q_all(100, -1.02101);
