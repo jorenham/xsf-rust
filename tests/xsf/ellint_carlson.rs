@@ -693,7 +693,15 @@ fn test_elliprj_real_cut() {
 }
 
 #[test]
-#[cfg_attr(debug_assertions, ignore = "overflows a debug stack (#1765)")]
+fn test_elliprj_real_huge_p() {
+    // Arb at the exact binary64 inputs.
+    let x = c64(f64::MIN_POSITIVE, 0.0);
+    let actual = xsf::elliprj(x, x, x, c64(2.0_f64.powi(1023), 0.0));
+    xsref::np_assert_allclose!([actual.re], [2.237_502_219_360_062e-154], rtol = 1e-14);
+    assert_eq!(actual.im, 0.0);
+}
+
+#[test]
 fn test_elliprj_real_cut_huge_p() {
     // real `x, y, z` with a huge `p`, whose distance to them overflows (Arb)
     let x = c64(2.0_f64.powi(-256), 0.0);
