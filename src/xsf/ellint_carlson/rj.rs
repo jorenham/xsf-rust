@@ -518,52 +518,50 @@ pub(super) fn rj_cplx(x: C64, y: C64, z: C64, p: C64) -> C64 {
 }
 
 fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
-    // The caller sorts the spatial arguments and has already found a negative real part.
-    if !(x.re == y.re
-        && x.im.abs().min(y.im.abs()) > 0.0
-        && x.im.is_sign_negative() == y.im.is_sign_negative()
-        && z.re > 0.0
-        && z.is_real()
-        && [x, y, z, p].iter().all(|value| value.is_finite()))
-    {
-        return None;
+    fn rc_value<T: Num>(x: T, y: T) -> Option<T> {
+        let (status, value) = rc(x, y, ELLINT_CARLSON_RERR);
+        (status == ExitStatus::Success).then_some(value)
     }
 
     let a = -x.re;
     let offset = x.im.abs() + y.im.abs();
-    // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) makes larger
-    // offsets ineligible for the relative perturbation check below.
-    if 0.5 * offset > f64::EPSILON * a {
-        return None;
-    }
     let denominator = p + a;
     let cut_distance = z.re + a;
-    if !denominator.is_finite() || !cut_distance.is_finite() {
+    // The caller sorts the spatial arguments and has already found a negative real part.
+    let same_lip = x.re == y.re
+        && x.im.abs().min(y.im.abs()) > 0.0
+        && x.im.is_sign_negative() == y.im.is_sign_negative();
+    let finite_geometry = z.re > 0.0
+        && z.is_real()
+        && [x, y, z, p, denominator]
+            .iter()
+            .all(|value| value.is_finite())
+        && cut_distance.is_finite();
+    // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) excludes larger offsets.
+    if !(same_lip && finite_geometry && 0.5 * offset <= f64::EPSILON * a) {
         return None;
     }
+
     // At the shared lip RJ(-a,-a,z,p) = 3 (RC(z,-a) - RC(z,p))/(p+a).
     // The negative real RC returns a principal value, so restore the lip residue.
-    let (left_status, left) = rc(z.re, -a, ELLINT_CARLSON_RERR);
-    let (right_status, right) = rc(z, p, ELLINT_CARLSON_RERR);
-    if left_status != ExitStatus::Success || right_status != ExitStatus::Success {
-        return None;
-    }
+    let left = rc_value(z.re, -a)?;
+    let right = rc_value(z, p)?;
     let left = c64(left, -(FRAC_PI_2 / cut_distance.sqrt()).copysign(x.im));
     let value = (left - right) / denominator * 3.0;
     let smallest = value.re.abs().min(value.im.abs());
     let scale = 3.0 * ((left.norm() + right.norm()) / denominator.max_norm());
-    // Allow at most four bits of cancellation in either component.
-    if !(value.is_finite() && value.max_norm() <= 0.5 * f64::MAX && scale / 16.0 <= smallest) {
-        return None;
-    }
-
     // Rotating the integration ray by +/- pi/4 bounds the omitted imaginary
     // offsets by 8 (|Im x| + |Im y|)/(a² sqrt(Re p)). The floor also keeps
     // accepted components normal in the relative check.
     let perturbation = [a, a, p.re.sqrt()]
         .into_iter()
         .fold(8.0 * offset, |error, divisor| (error / divisor).max(f64::MIN_POSITIVE));
-    (perturbation <= f64::EPSILON * smallest).then_some(value)
+    // Allow at most four bits of cancellation in either component.
+    (value.is_finite()
+        && value.max_norm() <= 0.5 * f64::MAX
+        && scale / 16.0 <= smallest
+        && perturbation <= f64::EPSILON * smallest)
+        .then_some(value)
 }
 
 /// [`rj`] with the number of evaluations that are `left` of [`MAX_NESTED`], `None` if it ran out
