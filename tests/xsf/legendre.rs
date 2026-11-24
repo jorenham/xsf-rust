@@ -709,6 +709,24 @@ fn test_assoc_legendre_q_all_near_minus_one() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_extreme_real_x() {
+    for x in [1.0e160_f64, -1.0e160] {
+        let (q, dq) = xsf::assoc_legendre_q_all(1, 1, x);
+        assert_eq!(q[0][0], x.recip());
+        assert_eq!(q[0][1], -x.abs().recip());
+        assert_eq!(q[1][0].to_bits(), 0x2a3);
+        assert_eq!(dq[0][0].to_bits(), 0x8000_0000_0000_07e8);
+        assert_eq!(dq[0][1].abs().to_bits(), 0x7e8);
+        assert_eq!(dq[0][1].is_sign_negative(), x.is_sign_negative());
+    }
+    let x = f64::from_bits((538_u64 + 1023) << 52);
+    let (_, dq) = xsf::assoc_legendre_q_all(0, 2, x);
+    // The leading term is exactly halfway to the least subnormal. The
+    // derivative of 2x/(x²−1) has strictly greater magnitude.
+    assert_eq!(dq[0][2].to_bits(), 0x8000_0000_0000_0001);
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x() {
     // NaN in xsf, since the backward recurrences in `lqmn` overflow; Arb references
     let (qm, qd) = xsf::assoc_legendre_q_all(30, 26, 907.57);

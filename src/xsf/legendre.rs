@@ -22,7 +22,7 @@ use num_complex::Complex64;
 
 use crate::utils;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
+use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64};
 use crate::xsf::complex::Num;
 use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF};
 
@@ -1077,6 +1077,58 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
     }
 }
 
+// At this scale Q_n^m(x) is given by its leading term in 1/x, with relative error below
+// 2^-880. Keep the exponent separate as increasing the order may recover an underflowed value.
+fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
+    let (xm, xe) = frexp_f64(x.abs());
+    let xe = i64::from(xe);
+    let inv = DoubleDouble::ONE / xm;
+    let mut seed = inv;
+    let mut seed_e = -xe;
+    let x_sign = x.signum();
+    let mut degree_sign = x_sign;
+    let scaled = |a: DoubleDouble, e: i64| {
+        // The largest factor multiplying the normalized mantissa is
+        // (n+1)/xm < 2^32.
+        if e >= -1021 {
+            return ldexp_f64(a.hi, e.min(4096) as i32);
+        }
+        if e < -1074 - 33 {
+            return 0.0;
+        }
+        let (a, shift) = a.frexp();
+        let e = e as i32 + shift;
+        if e >= -1021 {
+            ldexp_f64(a.hi, e)
+        } else if e < -1074 {
+            0.0
+        } else {
+            // Round in units of the least subnormal. The first omitted term
+            // increases the magnitude at an exact midpoint.
+            let units = a.ldexp(e + 1074);
+            let rounded = if units.hi.fract() == 0.5 {
+                units.hi.floor() + f64::from(units.lo >= 0.0)
+            } else {
+                units.hi.round_ties_even()
+            };
+            ldexp_f64(rounded, -1074)
+        }
+    };
+    for n in 0..int(qm.extent(1)) {
+        let nf = f64::from(n);
+        let (mut value, mut exp, mut sign) = (seed, seed_e, degree_sign);
+        let d = inv * (nf + 1.0);
+        for m in 0..int(qm.extent(0)) {
+            qm[(m, n)] = scaled(value, exp).copysign(sign);
+            qd[(m, n)] = scaled(value * d, exp - xe).copysign(-x_sign * sign);
+            let (v, e) = (value * (nf + f64::from(m) + 1.0)).frexp();
+            (value, exp, sign) = (v, exp + i64::from(e), -x_sign * sign);
+        }
+        let (v, e) = (seed * (nf + 1.0) * inv / nf.mul_add(2.0, 3.0)).frexp();
+        (seed, seed_e, degree_sign) = (v, seed_e + i64::from(e) - xe, x_sign * degree_sign);
+    }
+}
+
 // ==========================================================
 // Purpose: Compute the associated Legendre functions of the
 //          second kind, Qmn(x) and Qmn'(x)
@@ -1101,6 +1153,13 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
         }
         return;
     }
+    // Unlike in xsf, use the leading large-argument terms before the recurrence can overflow.
+    // Its largest intermediate includes the factors x, 2*k+3, and SPECFUN_BIG (2^512).
+    if x.abs() >= utils::pow2(479) && x.is_finite() {
+        lqmn_extreme_real(x, qm, qd);
+        return;
+    }
+
     let mut ls = 1.0;
     if x.abs() > 1.0 {
         ls = -1.0;
