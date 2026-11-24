@@ -658,36 +658,19 @@ fn test_elliprj_same_lip_near_negative_cut() {
     // Arb integration of the exact inputs along a ray into the shared lip.
     let re = 0.653_020_290_925_941_2;
     let im = -0.482_885_548_046_805_6;
-    let normal = c64(x.re, 1e-300);
-    for (u, v) in [(x, z), (normal, normal)] {
+    let repeated = |im| c64(x.re, im);
+    for (u, v, re, im) in [
+        (x, z, re, im),
+        (repeated(1e-300), repeated(1e-300), re, im),
+        (repeated(1e-17), repeated(1e-17), 0.653_020_290_925_941_3, im),
+        (repeated(0.1), repeated(0.1), 0.658_740_100_467_864_7, -0.436_453_274_131_001),
+    ] {
         for (a, b, c) in [(u, y, v), (v, u, y), (y, v, u)] {
             let upper = xsf::elliprj(a, b, c, p);
             let lower = xsf::elliprj(a.conj(), b.conj(), c.conj(), p.conj());
             xsref::np_assert_allclose!(
                 [upper.re, upper.im, lower.re, lower.im],
                 [re, im, re, -im],
-                rtol = 2e-14
-            );
-        }
-    }
-}
-
-#[test]
-fn test_elliprj_repeated_complex_negative_cut_arguments() {
-    let b = c64(0.001_870_932_373_571_374_9, 0.0);
-    let p = c64(2.396_480_352_068_059, -6.975_027_149_762_841);
-    // Arb contour integrals at the exact repeated arguments.
-    for (im, re, expected_im) in [
-        (1e-17, 0.653_020_290_925_941_3, -0.482_885_548_046_805_6),
-        (0.1, 0.658_740_100_467_864_7, -0.436_453_274_131_001),
-    ] {
-        let a = c64(-0.842_814_680_851_514_1, im);
-        for (x, y, z) in [(a, a, b), (a, b, a), (b, a, a)] {
-            let upper = xsf::elliprj(x, y, z, p);
-            let lower = xsf::elliprj(x.conj(), y.conj(), z.conj(), p.conj());
-            xsref::np_assert_allclose!(
-                [upper.re, upper.im, lower.re, lower.im],
-                [re, expected_im, re, -expected_im],
                 rtol = 5e-15
             );
         }
