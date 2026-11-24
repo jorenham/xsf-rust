@@ -236,10 +236,12 @@ fn best_of(ys: impl IntoIterator<Item = Option<Scaled>>) -> Option<Scaled> {
     best
 }
 
+const RESCALE_LIMIT_EXP: i32 = 500;
+
 /// The exponent `k` that scales `|x|` to about 1 by `2^-k`, if `|x|` is outside `[2^-500, 2^500]`
 fn rescale_exp(x: f64) -> Option<i32> {
     // (|x| is finite and nonzero, so log2(|x|) is in [-1075, 1024])
-    let big = pow2(500);
+    let big = pow2(RESCALE_LIMIT_EXP);
     let x = x.abs();
     (x != 0.0 && x.is_finite() && !(1.0 / big..=big).contains(&x)).then(|| x.log2().round() as i32)
 }
@@ -326,7 +328,14 @@ fn series_weighted(
             (t, te) = mul_scaled((t, te), f0, pk)?;
             (t, te) = mul_scaled((t, te), fw, rk)?;
         }
-        let term = if te == 0 { t } else { ldexp_f64(t, te) };
+        let term = if te == 0 {
+            t
+        } else if te < -1075 - RESCALE_LIMIT_EXP {
+            // |t| <= 2^RESCALE_LIMIT_EXP, so this term rounds to signed zero.
+            0.0_f64.copysign(t)
+        } else {
+            ldexp_f64(t, te)
+        };
         let term_abs = term.abs();
         k += 1.0;
         if weights.is_some() {
