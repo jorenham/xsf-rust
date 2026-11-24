@@ -664,6 +664,12 @@ fn test_elliprj_same_lip_near_negative_cut() {
         (repeated(1e-300), repeated(1e-300), re, im),
         (repeated(1e-17), repeated(1e-17), 0.653_020_290_925_941_3, im),
         (repeated(0.1), repeated(0.1), 0.658_740_100_467_864_7, -0.436_453_274_131_001),
+        (
+            repeated(0.1),
+            repeated(0.1_f64.next_up()),
+            0.658_740_100_467_864_7,
+            -0.436_453_274_131_001,
+        ),
     ] {
         for (a, b, c) in [(u, y, v), (v, u, y), (y, v, u)] {
             let upper = xsf::elliprj(a, b, c, p);
