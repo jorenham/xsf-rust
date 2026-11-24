@@ -1303,6 +1303,37 @@ fn test_hankel_positive_axis_overflow_recovery() {
 }
 
 #[test]
+fn test_hankel_finite_real_axis_small_components() {
+    // Arb J_v(x) and Y_v(x), with the integer-order signs on the upper lip.
+    for (v, x, j, y, parity) in [
+        (
+            2.0,
+            2.435_883_882_567_585e-154,
+            7.416_912_861_690_665e-309,
+            -2.145_838_114_317_773e307,
+            1.0,
+        ),
+        (3.0, 2.0_f64.powi(-340), 1.854_228_215_422_666e-309, -5.722_234_971_514_057e307, -1.0),
+    ] {
+        for im in [0.0, -0.0] {
+            let z = c64(x, im);
+            let cut = c64(-x, im);
+            for (h, re, im) in [
+                (xsf::hankel_1(v, z), j, y),
+                (xsf::hankel_2(v, z), j, -y),
+                (xsf::hankel_1(v, cut), -parity * j, parity * y),
+                (xsf::hankel_1(-v, z), parity * j, parity * y),
+                (xsf::hankel_2(-v, z), parity * j, -parity * y),
+                (xsf::hankel_1(-v, cut), -j, y),
+            ] {
+                assert_eq!(h.re, re);
+                assert!((h.im / im - 1.0).abs() < 8.0 * f64::EPSILON);
+            }
+        }
+    }
+}
+
+#[test]
 fn test_unscaled_hankel_upper_cut_overflow() {
     let large = 1.182_804_904_943_348_4e308;
     let small_h1: f64 = -2.691_144_455_467_36e-310;

@@ -588,6 +588,35 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if sign == -1 {
         cy = rotate(cy, if m == 1 { v } else { -v });
     }
+    // Unlike in xsf, recover a small real component from the scalar J on
+    // the integer-order real axis before the turning point. When |Re| >= |Im|/2,
+    // the norm is at most sqrt(5) times |Re|.
+    let x = z.re.abs();
+    if kode == 1
+        && z.is_real()
+        && (m == 1 || z.re > 0.0)
+        && x > 0.0
+        && x <= v
+        && cy.re.abs() < 0.5 * cy.im.abs()
+        && v == v.trunc()
+        && cy.is_finite()
+    {
+        let cut = z.re < 0.0;
+        let j = if v == 1.0 {
+            bessel_j1(x)
+        } else {
+            cyl_bessel_j_f64(v, x)
+        };
+        if j.is_finite() {
+            // Both imaginary zeros take the upper lip, where H1(-x).re = -(-1)^v J_v(x).
+            let parity = if (sign < 0) == cut {
+                1.0
+            } else {
+                cephes_cospi(v)
+            };
+            cy.re = if cut { -parity * j } else { parity * j };
+        }
+    }
     cy
 }
 
