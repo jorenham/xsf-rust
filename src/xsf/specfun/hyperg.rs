@@ -1205,9 +1205,23 @@ fn chgm_sum(a: f64, b: f64, x: f64, x0: f64, max_terms: i32) -> ControlFlow<f64,
     let mut converged = false;
     let mut terms = 0;
     let mut last_finite = 0;
+    // At these integer poles the loop is capped at 500 terms.
+    let split_denominator = b < -f64::MAX / 512.0
+        && b.is_finite()
+        && (-MAX_SERIES_ITERATIONS..=-1.0).contains(&a)
+        && a == a.trunc()
+        && x0 > 0.0
+        && x0.is_finite();
     for j in 1..=max_terms {
         terms = j;
-        let (next, term, _) = rescale_term(kummer_term(t, a, b, j) * x, f64::abs, &mut k);
+        let n = f64::from(j - 1);
+        // Unlike in xsf, use the split ratio if j * (b+n) overflows.
+        let next = if split_denominator && (f64::from(j) * (b + n)).is_infinite() {
+            chgm_positive_term(t, a, b, x, n)
+        } else {
+            kummer_term(t, a, b, j) * x
+        };
+        let (next, term, _) = rescale_term(next, f64::abs, &mut k);
         let total = hg + term;
         if total.is_finite() {
             last_finite = j;
