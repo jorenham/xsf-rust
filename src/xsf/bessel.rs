@@ -354,16 +354,12 @@ fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C
     // The seeds are unscaled K, so Ie only needs exp(-|Re z|).
     let scale = if kode == 2 { (-z.re).exp() } else { 1.0 };
     let weight = (FRAC_2_PI * cephes_sinpi(v)) * scale;
-    if !weight.is_normal() {
-        return None;
-    }
+    let weight = weight.is_normal().then_some(weight)?;
 
     let mut ierr = 0;
     let mut seeds = [C64::NAN; 2];
     let nz = amos::besk(z, v - 2.0, 1, 2, &mut seeds, &mut ierr);
-    if ierr != 0 || nz != 0 {
-        return None;
-    }
+    let seeds = (ierr == 0 && nz == 0).then_some(seeds)?;
     let [lower, upper] = seeds.map(|seed| seed * weight);
     let step = (upper / z) * (2.0 * (v - 1.0));
     let value = i + lower + step;
