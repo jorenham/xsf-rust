@@ -552,26 +552,31 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         sign = -1;
     }
     let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
-    // Unlike in xsf, recover an overflowing unscaled H on the positive real axis
-    // from the real-valued components J and ±Y (DLMF 10.4.3).
-    // Negative noninteger orders mix components during reflection and can overflow early.
-    if ierr == 2
-        && kode == 1
-        && z.is_real()
-        && (f64::MIN_POSITIVE..=1.0).contains(&z.re)
-        && v >= 1.0
-        && (sign > 0 || v == v.trunc())
-    {
-        let order = if sign < 0 { -v } else { v };
-        let y = cyl_bessel_y_f64(order, z.re);
-        let log_leading = bessel_y_axis_log_leading(v, z.re);
-        // DLMF 10.9.7 also gives -Y_v(x) >= Gamma(v) (2/x)^v / pi - 1 - 2/(pi v).
-        if (y.is_finite() && log_leading + 0.5 * z.re < MAXLOG - BESSEL_Y_OVERFLOW_LOG_MARGIN)
-            || (y.is_infinite() && log_leading > MAXLOG + BESSEL_Y_OVERFLOW_LOG_MARGIN)
-        {
-            let j = cyl_bessel_j_f64(order, z.re);
-            if j.is_finite() && bessel_j_axis_rounding_is_clear(v, z.re, log_leading, j) {
-                return c64(j, if m == 1 { y } else { -y });
+    // Unlike in xsf, recover overflowing unscaled Hankel components on the real axis.
+    if ierr == 2 && kode == 1 && z.is_real() && z.re.abs() >= f64::MIN_POSITIVE && v >= 1.0 {
+        let x = z.re.abs();
+        let cut = z.re < 0.0;
+        if x <= 1.0 && (sign > 0 && !cut || v == v.trunc()) {
+            let order = if sign < 0 { -v } else { v };
+            let log_leading = bessel_y_axis_log_leading(v, x);
+            let y = cyl_bessel_y_f64(order, x);
+            if (y.is_finite() && log_leading + 0.5 * x < MAXLOG - BESSEL_Y_OVERFLOW_LOG_MARGIN)
+                || (y.is_infinite() && log_leading > MAXLOG + BESSEL_Y_OVERFLOW_LOG_MARGIN)
+            {
+                let j = cyl_bessel_j_f64(order, x);
+                let re = if cut && m == 2 {
+                    hankel_cut_triple_j(v, x, log_leading, j)
+                } else if j.is_finite() && bessel_j_axis_rounding_is_clear(v, x, log_leading, j) {
+                    Some(j)
+                } else {
+                    None
+                };
+                if let Some(j) = re {
+                    let parity = if cut { cephes_cospi(v) } else { 1.0 };
+                    let re = if cut && m == 1 { -j } else { j };
+                    let im = if m == 1 { y } else { -y };
+                    return c64(parity * re, parity * im);
+                }
             }
         }
     }
@@ -580,6 +585,48 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         cy = rotate(cy, if m == 1 { v } else { -v });
     }
     cy
+}
+
+// On the upper cut, the real part of H2 at an integer order is ±3J. Round
+// the product directly if the scalar J is subnormal.
+fn hankel_cut_triple_j(v: f64, x: f64, log_y_leading: f64, j: f64) -> Option<f64> {
+    use crate::utils::{next_down_nonneg as down, next_up_nonneg as up};
+
+    const INV_MIN_NORMAL: f64 = 1.0 / f64::MIN_POSITIVE;
+    const ROUNDING_MARGIN: f64 = f64::EPSILON * f64::EPSILON * 16_777_216.0;
+    let result = 3.0 * j;
+    if j.is_normal()
+        || (result == 0.0
+            && -log_y_leading - LN_PI - v.ln() + 3.0_f64.ln()
+                < -1075.0 * LN_2 - BESSEL_Y_OVERFLOW_LOG_MARGIN)
+    {
+        return Some(result);
+    }
+    if !result.is_finite() || v >= 200.0 || x < 2.0 * f64::MIN_POSITIVE {
+        return None;
+    }
+
+    let xh = 0.5 * x;
+    let mut leading = Dd::new(3.0 * INV_MIN_NORMAL);
+    for k in 1..=v as u32 {
+        leading = leading * xh / f64::from(k);
+        if leading.hi < 0.25 * f64::EPSILON {
+            return None;
+        }
+    }
+    // In units of MIN_POSITIVE, bound the first correction by the alternating
+    // series and allow 2^-80 relative error for normal double-double operations.
+    let error = leading * ROUNDING_MARGIN;
+    let correction = leading * up(up(xh * xh) / (v + 1.0));
+    let lo = leading - error - correction;
+    let hi = leading + error;
+    let center = (leading - correction * 0.5).hi * f64::MIN_POSITIVE;
+    let midpoint =
+        |a: f64, b: f64| (Dd::new(a * INV_MIN_NORMAL) + b * INV_MIN_NORMAL).mul_pwr2(0.5);
+    [center, down(center), up(center)]
+        .into_iter()
+        .find(|&y| lo > midpoint(down(y), y) && hi < midpoint(y, up(y)))
+        .map(|y| y.copysign(j))
 }
 
 pub(crate) fn cyl_bessel_j_c64(v: f64, z: C64) -> C64 {

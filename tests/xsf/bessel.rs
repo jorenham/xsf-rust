@@ -1302,6 +1302,25 @@ fn test_hankel_positive_axis_overflow_recovery() {
     }
 }
 
+#[test]
+fn test_unscaled_hankel_upper_cut_overflow() {
+    let large = 1.182_804_904_943_348_4e308;
+    let small_h1: f64 = -2.691_144_455_467_36e-310;
+    let small_h2: f64 = 8.073_433_366_402_14e-310;
+
+    for zero in [0.0, -0.0] {
+        for v in [10.0, -10.0] {
+            let z = c64(-1e-30, zero);
+            let h1 = xsf::hankel_1(v, z);
+            let h2 = xsf::hankel_2(v, z);
+            assert_eq!(h1.re.to_bits(), small_h1.to_bits());
+            assert_eq!(h2.re.to_bits(), small_h2.to_bits());
+            assert!((h1.im / -large - 1.0).abs() < 8.0 * f64::EPSILON);
+            assert!((h2.im / large - 1.0).abs() < 8.0 * f64::EPSILON);
+        }
+    }
+}
+
 // Bessel zeros
 
 /// Based on `scipy.special.tests.test_basic.TestBessel.test_jnyn_zeros`
