@@ -85,9 +85,9 @@ fn decompose(x: f64) -> (u64, i32) {
     (mantissa, exponent)
 }
 
-// The leading diagonal tail has relative remainder below 2^-57 from here:
-// 1/(4*x^2) divided by the 2^-117 lower bound on the sine magnitude.
-pub(super) const MIN_DIAGONAL_TAIL_ARG: f64 = pow2(86);
+// In each binade, the continued-fraction phase bound and the 1/(4*x^2)
+// tail bound give a relative remainder below 2^-57.
+pub(super) const MIN_DIAGONAL_TAIL_ARG: f64 = pow2(82);
 
 // Payne–Hanek reduction of pi/4 + 2*x^2 without rounding the doubled square.
 #[cold]
