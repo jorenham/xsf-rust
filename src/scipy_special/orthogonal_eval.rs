@@ -10,7 +10,7 @@ use num_traits::Zero;
 
 use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
-use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2, ldexp_f64, two_prod, two_sum};
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
@@ -1230,6 +1230,42 @@ fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
     yn
 }
 
+const MAX_HERMITE_RETRY_DEGREE: u32 = 1024;
+
+// Recur in negative integer degree at -x. Both seeds share exp(scale*x²), and
+// powers of two keep the positive recurrence away from underflow.
+#[cold]
+fn hermite_negative_integer(x: f64, degree: u32, scale: f64) -> f64 {
+    const OVERFLOW_X: f64 = 128.0;
+    const SHIFT: i32 = 512;
+    const RESCALE: f64 = pow2(SHIFT);
+
+    if x >= OVERFLOW_X {
+        // Degree -1 exceeds 0.8 exp(x²/2); each further step retains at least
+        // x/k >= 1/8 of the latest value. Even 1023 such steps force overflow.
+        return f64::INFINITY;
+    }
+    // Below OVERFLOW_X, the recurrence can grow by at most exp(x+1) between
+    // rescalings: each step grows the larger term by at most max(1, (x+1)/k).
+    let exponent = DoubleDouble::new(scale * x) * x;
+    let power = (exponent.hi / LN_2).round();
+    let (mut previous, mut current) =
+        ((-exponent.hi).exp(), (0.5 * SQRT_PI / scale.sqrt()) * crate::erfc(-scale.sqrt() * x));
+    let mut shift = 0;
+    for k in 1..degree {
+        let k = f64::from(k);
+        let next = (x / k).mul_add(current, previous / (2.0 * scale * k));
+        (previous, current) = (current, next);
+        if previous.max(current) < 1.0 / RESCALE {
+            previous *= RESCALE;
+            current *= RESCALE;
+            shift -= SHIFT;
+        }
+    }
+    let residual = f64::from(exponent - LOG2 * power);
+    ldexp_f64(current * residual.exp(), power as i32 + shift)
+}
+
 #[inline]
 fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
     if x.is_nan() || n.is_nan() {
@@ -1285,7 +1321,13 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             let l1 = w.ln() + k1.ln() - crate::gammaln(g1);
             let l = l0.max(l1);
             let sum = (l0 - l).exp() + (l1 - l).exp();
-            return (0.5 * LN_PI + scale * n * LN_2 + z + l + sum.ln()).exp();
+            let h = (0.5 * LN_PI + scale * n * LN_2 + z + l + sum.ln()).exp();
+            // Unlike in xsf, retry an indeterminate Kummer result at negative integer
+            // degrees with a bounded positive recurrence.
+            if h.is_nan() && n >= -f64::from(MAX_HERMITE_RETRY_DEGREE) && n.fract() == 0.0 {
+                return hermite_negative_integer(-x, (-n) as u32, scale);
+            }
+            return h;
         }
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
