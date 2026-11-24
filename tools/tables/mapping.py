@@ -4075,6 +4075,55 @@ def _mathieu_floor(tol: float, why: str) -> Floor:
     )
 
 
+def _mathieu_radial1(odd: int) -> Entry:
+    family = "s" if odd else "c"
+    return Entry(
+        tuple(
+            Out(
+                f"mathieu_mod{family}em1.{int(derivative)}",
+                (mathieu.radial1(odd, derivative),),
+                rules=(
+                    _mathieu_m(odd, f"M{family}1"),
+                    Rule(lambda a: a[1] < 0, math.nan, "q must be nonnegative"),
+                    Rule(
+                        lambda a: mathieu.km(a) >= 251,
+                        math.nan,
+                        "mtu12 cannot safely index 251 Fourier coefficients",
+                    ),
+                    Rule(lambda a: a[1] == 0 and a[0] == 1, 0.0, "zero at q = 0"),
+                    *(
+                        (Rule(lambda a: a[2] == 0, 0.0, "odd in x"),)
+                        if derivative != bool(odd)
+                        else ()
+                    ),
+                ),
+                overrides=(
+                    MATHIEU_KM,
+                    Override(
+                        lambda a: a[0] >= 2 and a[1] >= 1 and abs(a[2]) < 0.01,
+                        "the Bessel cross-products cancel near the origin",
+                    ),
+                    *(
+                        (
+                            Override(
+                                lambda a: (a[0], a[1], abs(a[2])) == (10.0, 1.0, 1.0),
+                                "the xsf first-kind odd cross-products lose over half their digits",
+                            ),
+                        )
+                        if odd
+                        else ()
+                    ),
+                ),
+            )
+            for derivative in (False, True)
+        ),
+        Identity(
+            lambda a: odd <= a[0] <= 12 and 0 < a[1] <= 10 and abs(a[2]) <= 1,
+            mathieu.radial1_residual(odd),
+        ),
+    )
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -5113,6 +5162,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     **_spheroidal("prolate_radial2", (SW_PROLATE_X,)),
     **_spheroidal("oblate_radial1", (), (False,)),
     **_spheroidal("oblate_radial2", (), (False,)),
+    ("mcm1", "d_d_d-d_d"): _mathieu_radial1(0),
+    ("msm1", "d_d_d-d_d"): _mathieu_radial1(1),
     ("cem_cva", "d_d-d"): Entry(
         (Out("mathieu_a", (specs.r_mathieu_a,), rules=(_mathieu_m(0, "a_m"),)),),
         Identity(
