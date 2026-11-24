@@ -91,7 +91,14 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_y(self, v: f64) -> Self {
-        self.via(|z| cyl_bessel_y_c64(v, z))
+        self.via(|z| {
+            let y = cyl_bessel_y_c64(v, z);
+            // Unlike in xsf, recover signed overflow at positive half-integer orders.
+            if y.re.is_nan() && y.im.is_nan() {
+                return bessel_half_order_overflow(v, z).map_or(y, |k| -k);
+            }
+            y
+        })
     }
     #[inline]
     fn bessel_ye(self, v: f64) -> Self {
@@ -111,7 +118,14 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_k(self, v: f64) -> Self {
-        self.via(|z| cyl_bessel_k_c64(v, z))
+        self.via(|z| {
+            let k = cyl_bessel_k_c64(v, z);
+            // Unlike in xsf, return signed overflow when both components can be resolved.
+            if k.re.is_nan() && k.im.is_nan() {
+                return bessel_half_order_overflow(v.abs(), z).unwrap_or(k);
+            }
+            k
+        })
     }
     #[inline]
     fn bessel_ke(self, v: f64) -> Self {
@@ -1031,6 +1045,26 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
         return bessel_y_axis_continuation(v, z).unwrap_or(y);
     }
     y
+}
+
+// Both functions have a leading multiple of z^(-v) with opposite signs.
+#[cold]
+fn bessel_half_order_overflow(v: f64, z: C64) -> Option<C64> {
+    let m = z.re.abs().max(z.im.abs());
+    if v.fract() != 0.5 || !z.is_finite() || z.re == 0.0 || z.im == 0.0 || m > 0.125 {
+        return None;
+    }
+    let (im, re) = (-v * z.im.atan2(z.re)).sin_cos();
+    // With r = |z| <= 2m <= 1/4, the relative tails are at most exp(2r)-1
+    // for K and exp(r²/2)-1 for Y. Both are less than 8m.
+    let clearance = re.abs().min(im.abs()) - 8.0 * m - 16.0 * f64::EPSILON * v;
+    if clearance <= 0.0 {
+        return None;
+    }
+    // Gamma(v) m^(-v) / pi is below either leading magnitude since r <= 2m.
+    let log_component = crate::gammaln(v) - v * m.ln() - LN_PI + clearance.ln();
+    (log_component > MAXLOG + 1.0)
+        .then(|| c64(f64::INFINITY.copysign(re), f64::INFINITY.copysign(im)))
 }
 
 fn bessel_y_axis_continuation(v: f64, z: C64) -> Option<C64> {
