@@ -702,6 +702,26 @@ fn test_elliprj_real_huge_p() {
 }
 
 #[test]
+fn test_elliprj_huge_near_real_p() {
+    let x = c64(f64::MIN_POSITIVE, 0.0);
+    // Arb at exact inputs, including a ratio Im(p)/Re(p) that rounds to zero.
+    for (pr, pi, re, im) in [
+        (2.0_f64.powi(264), 1.0, 6.784_692_728_748_996e74, 2.288_818_359_375e-5),
+        (
+            2.0_f64.powi(257),
+            2.0_f64.powi(-818),
+            8.684_406_692_798_715e76,
+            2.145_333_500_712_820_5e-247,
+        ),
+    ] {
+        for sign in [-1.0, 1.0] {
+            let actual = xsf::elliprj(x, x, x, c64(pr, sign * pi));
+            xsref::np_assert_allclose!([actual.re, actual.im], [re, -sign * im], rtol = 1e-14);
+        }
+    }
+}
+
+#[test]
 fn test_elliprj_real_cut_huge_p() {
     // real `x, y, z` with a huge `p`, whose distance to them overflows (Arb)
     let x = c64(2.0_f64.powi(-256), 0.0);
