@@ -155,6 +155,22 @@ fn test_roots_gegenbauer() {
 }
 
 #[test]
+fn test_roots_gegenbauer_weights_near_minus_half() {
+    // Eigenvalues and first eigenvector components of the exact Jacobi matrix.
+    let alpha = -0.499_999_999_999_999_83;
+    let (x, w) = xsf::roots_gegenbauer(2, alpha);
+    np_assert_allclose!(x, [-0.999_999_999_999_999_9, 0.999_999_999_999_999_9], rtol = 1e-15);
+    np_assert_allclose!(w, [3.002_399_751_580_331_5e15; 2], rtol = 1e-14);
+
+    let (x, w) = xsf::roots_gegenbauer(4, alpha);
+    let inner = 0.447_213_595_499_957_9;
+    np_assert_allclose!(x, [-1.0, -inner, inner, 1.0], rtol = 1e-15);
+    let outer_weight = 3.002_399_751_580_330_5e15;
+    let inner_weight = 1.041_666_666_666_666_5;
+    np_assert_allclose!(w, [outer_weight, inner_weight, inner_weight, outer_weight], rtol = 1e-14);
+}
+
+#[test]
 fn test_roots_chebyshev_t() {
     assert_gauss(xsf::roots_chebyshev_t(25), xsf::eval_chebyshev_t, PI, 1e-14);
 

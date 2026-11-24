@@ -9,7 +9,7 @@ use core::f64::consts::{LN_2, PI, SQRT_2};
 
 use super::orthogonal_eval::{
     eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_legendre,
-    gegenbauer_rounds_to_pole,
+    gegenbauer_hyp2f1_l,
 };
 use crate::ext::ln_gamma;
 use crate::ext::tridiag::eigvals;
@@ -40,35 +40,8 @@ fn gen_roots_and_weights(
     tau: impl Fn(f64) -> f64,
     nodes: Nodes,
 ) -> (Vec<f64>, Vec<f64>) {
-    let d: Vec<f64> = (0..n).map(|k| an(k as f64)).collect();
-    let e: Vec<f64> = (1..n).map(|k| bn(k as f64)).collect();
-    let mut x = eigvals(&d, &e);
-
-    // improve roots by Newton's method
-    //
-    // Unlike in SciPy, which takes one step, at most 4 steps are taken while
-    // `step^2 > eps sigma^2`, i.e. while the error of a step, about `step^2 / sigma`, matters for
-    // `sigma` and thus for the weights. This only happens for a root very close to an endpoint (a
-    // zero of `sigma`), e.g. within 1e-14 of -1 for alpha and beta near -1.
-    //
-    // Unlike in SciPy, a root and its weight where the polynomials overflow (e.g. `L_n` for
-    // n >= 400) are the eigenvalue and 0, instead of NaN for all.
+    let (mut x, dx) = refined_roots(n, an, bn, &f, &df, &sigma);
     let n = i32::try_from(n).expect("n is too large");
-    // the rounding errors of the refined roots
-    let mut dx = vec![0.0; x.len()];
-    for (xi, dxi) in x.iter_mut().zip(&mut dx) {
-        for _ in 0..4 {
-            let step = f(n, *xi) / df(n, *xi);
-            if !step.is_finite() {
-                break;
-            }
-            (*xi, *dxi) = two_sum(*xi, -step);
-            let s = sigma(*xi, *dxi);
-            if step * step <= f64::EPSILON * s * s {
-                break;
-            }
-        }
-    }
 
     // Unlike in SciPy, the weights are computed from `df` at the refined roots, instead of
     // `1 / (f(n - 1, x) df(n, x))` with `df` at the eigenvalues, which is more sensitive to the
@@ -128,6 +101,47 @@ fn gen_roots_and_weights(
         },
     }
     (x, w)
+}
+
+fn refined_roots(
+    n: usize,
+    an: impl Fn(f64) -> f64,
+    bn: impl Fn(f64) -> f64,
+    f: impl Fn(i32, f64) -> f64,
+    df: impl Fn(i32, f64) -> f64,
+    sigma: impl Fn(f64, f64) -> f64,
+) -> (Vec<f64>, Vec<f64>) {
+    let d: Vec<f64> = (0..n).map(|k| an(k as f64)).collect();
+    let e: Vec<f64> = (1..n).map(|k| bn(k as f64)).collect();
+    let mut x = eigvals(&d, &e);
+
+    // improve roots by Newton's method
+    //
+    // Unlike in SciPy, which takes one step, at most 4 steps are taken while
+    // `step^2 > eps sigma^2`, i.e. while the error of a step, about `step^2 / sigma`, matters for
+    // `sigma` and thus for the weights. This only happens for a root very close to an endpoint (a
+    // zero of `sigma`), e.g. within 1e-14 of -1 for alpha and beta near -1.
+    //
+    // Unlike in SciPy, a root and its weight where the polynomials overflow (e.g. `L_n` for
+    // n >= 400) are the eigenvalue and 0, instead of NaN for all.
+    let n = i32::try_from(n).expect("n is too large");
+    // the rounding errors of the refined roots
+    let mut dx = vec![0.0; x.len()];
+    for (xi, dxi) in x.iter_mut().zip(&mut dx) {
+        for _ in 0..4 {
+            let step = f(n, *xi) / df(n, *xi);
+            if !step.is_finite() {
+                break;
+            }
+            (*xi, *dxi) = two_sum(*xi, -step);
+            let s = sigma(*xi, *dxi);
+            if step * step <= f64::EPSILON * s * s {
+                break;
+            }
+        }
+    }
+
+    (x, dx)
 }
 
 /// What [`gen_roots_and_weights`] does with the roots
@@ -316,8 +330,7 @@ pub fn roots_gengegenbauer(n: usize, p: f64, q: f64) -> (Vec<f64>, Vec<f64>) {
 /// [`roots_chebyshev_t`].
 ///
 /// The weights are NaN if $C_n^{(\alpha)}$ overflows at all nodes, e.g. for $n = 150$ and
-/// $\alpha = 10^4$ (also in SciPy). Near $\alpha = -1/2$, some weights can be inaccurate or NaN,
-/// especially when a node rounds to an endpoint.
+/// $\alpha = 10^4$ (also in SciPy). Near $\alpha = -1/2$, some weights can lose accuracy.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -349,12 +362,51 @@ pub fn roots_gegenbauer(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
         }
     };
     let f = |n, x| eval_gegenbauer(n, alpha, x);
+    let delta = 2.0 * alpha + 1.0;
+    // Unlike in SciPy, normalize the near-endpoint weights by total mass minus
+    // the interior weights. Up to δ = 1/8 the two endpoints carry at least 1/34
+    // of the total mass for every supported degree.
+    if n > 1 && delta <= 0.125 {
+        let ni = i32::try_from(n).expect("n is too large");
+        let degree = f64::from(ni);
+        let gap = delta / (degree * (degree - 1.0 + delta));
+        let at_one = (crate::xsf::cephes::lgam_ratio(degree, delta)
+            - crate::xsf::cephes::lgam1p(delta))
+        .exp();
+        let slope = |x: f64| {
+            let value = gegenbauer_hyp2f1_l(i64::from(ni - 1), alpha + 1.0, x.abs());
+            if x < 0.0 && n % 2 == 0 { -value } else { value }
+        };
+        let df = |_, x| 2.0 * alpha * at_one * slope(x);
+        let (mut x, dx) = refined_roots(n, an, bn, f, df, one_minus_x2);
+        // Gaussian weight prefactor with the normalized Gegenbauer slope.
+        let norm = mu0 * gap / at_one;
+        let mut w = vec![0.0; n];
+        for j in 1..n.div_ceil(2) {
+            let k = n - 1 - j;
+            let (difference, error) = two_sum(x[k], -x[j]);
+            let xi = 0.5 * difference;
+            let dxi = 0.5 * (error + (dx[k] - dx[j]));
+            let s = one_minus_x2(xi, dxi);
+            let df = slope(xi) * (1.0 + delta * xi * dxi / s);
+            w[j] = norm / s / df / df;
+            w[k] = w[j];
+            (x[j], x[k]) = (-xi, xi);
+        }
+        w[0] = 0.5 * (mu0 - w[1..n - 1].iter().sum::<f64>());
+        w[n - 1] = w[0];
+        let outer = if delta <= f64::EPSILON.sqrt() {
+            // The first two Taylor terms of the outer root's distance from 1.
+            let curvature = 0.5 * (degree - 1.0) * (degree + delta) / (2.0 + delta);
+            1.0 - gap.mul_add(gap * curvature, gap)
+        } else {
+            0.5 * (x[n - 1] - x[0])
+        };
+        (x[0], x[n - 1]) = (-outer, outer);
+        return (x, w);
+    }
     let df = |n: i32, x: f64| {
         let c = f64::from(n);
-        // Unlike in SciPy, use the shifted derivative where the unshifted formula loses accuracy near an endpoint.
-        if n > 1 && gegenbauer_rounds_to_pole(c, alpha) {
-            return 2.0 * alpha * eval_gegenbauer(n - 1, alpha + 1.0, x);
-        }
         (-c * x * f(n, x) + ((c - 1.0) + 2.0 * alpha) * f(n - 1, x)) / one_minus_x2(x, 0.0)
     };
     gen_roots_and_weights(
