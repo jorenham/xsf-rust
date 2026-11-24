@@ -1237,6 +1237,49 @@ xsref::tests! {
     test_hankel_2e_c64: "cyl_hankel_2e", "d_cd-cd", |x| xsf::hankel_2e(x[0], c64(x[1], x[2]));
 }
 
+#[test]
+fn test_hankel_positive_axis_overflow_recovery() {
+    for (v, x, j, y) in [
+        (10.0, 1e-30, 2.691_144_455_467_36e-310, -1.182_804_904_943_348_4e308),
+        (-10.0, 1e-30, 2.691_144_455_467_36e-310, -1.182_804_904_943_348_4e308),
+        (-9.0, 3e-34, -1.059_395_926_339_3e-310, f64::INFINITY),
+    ] {
+        for im in [0.0, -0.0] {
+            let z = c64(x, im);
+            for (h, expected_im) in [(xsf::hankel_1(v, z), y), (xsf::hankel_2(v, z), -y)] {
+                assert!((h.re / j - 1.0).abs() < 5e-13);
+                if expected_im.is_finite() {
+                    assert!((h.im / expected_im - 1.0).abs() < 8.0 * f64::EPSILON);
+                } else {
+                    assert_eq!(h.im.to_bits(), expected_im.to_bits());
+                }
+            }
+        }
+    }
+
+    // The next order above 2 and adjacent arguments near the overflow boundary.
+    let v = 2.000_000_000_000_000_4;
+    for im in [0.0, -0.0] {
+        for x in [8.415_836_302_186_89e-155, 8.415_836_302_186_891e-155] {
+            let z = c64(x, im);
+            for h in [xsf::hankel_1(v, z), xsf::hankel_2(v, z)] {
+                assert!(h.re.is_nan() && h.im.is_nan());
+            }
+        }
+        // At these inputs the scalar J rounds to the wrong zero or subnormal value.
+        for (v, x) in [
+            (-4.0, 5.561_119_111_738_597e-81),
+            (121.985_541_617_449_4, 0.205_105_923_264_596_23),
+            (27.664_275_283_543_983, 4.663_746_669_313_24e-11),
+        ] {
+            let z = c64(x, im);
+            for h in [xsf::hankel_1(v, z), xsf::hankel_2(v, z)] {
+                assert!(h.re.is_nan() && h.im.is_nan());
+            }
+        }
+    }
+}
+
 // Bessel zeros
 
 /// Based on `scipy.special.tests.test_basic.TestBessel.test_jnyn_zeros`

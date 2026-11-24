@@ -34,6 +34,27 @@ pub(crate) const fn pow2(k: i32) -> f64 {
     f64::from_bits(((1023 + k) as u64) << 52)
 }
 
+// The standard adjacent-float methods require Rust 1.86.
+/// Smallest float above a finite nonnegative `x`. Infinity and NaN are returned unchanged.
+#[inline]
+pub(crate) fn next_up_nonneg(x: f64) -> f64 {
+    if x.is_finite() {
+        f64::from_bits((x + 0.0).to_bits() + 1)
+    } else {
+        x
+    }
+}
+
+/// Adjacent float below a nonnegative `x`, clamped at zero. NaN is returned unchanged.
+#[inline]
+pub(crate) fn next_down_nonneg(x: f64) -> f64 {
+    if x.is_nan() {
+        x
+    } else {
+        f64::from_bits((x + 0.0).to_bits().saturating_sub(1))
+    }
+}
+
 /// `m * e^e`, without spurious over- or underflow of `e^e`
 ///
 /// This is `m * h * h` with `h = e^(e/2)`, which is a normal float for `|e| <= 1400 = 2 * 700`
@@ -103,6 +124,23 @@ mod tests {
     use super::*;
     use core::f64::consts::{FRAC_2_PI, FRAC_2_SQRT_PI, LN_2, LN_10, SQRT_2, TAU};
     use std::hint::black_box;
+
+    #[test]
+    fn test_adjacent_nonnegative() {
+        let min_subnormal = f64::from_bits(1);
+        for zero in [0.0, -0.0] {
+            assert_eq!(next_up_nonneg(zero).to_bits(), min_subnormal.to_bits());
+            assert_eq!(next_down_nonneg(zero).to_bits(), 0);
+        }
+        assert_eq!(next_down_nonneg(min_subnormal).to_bits(), 0);
+        assert_eq!(next_up_nonneg(min_subnormal).to_bits(), 2);
+        assert_eq!(next_down_nonneg(f64::MIN_POSITIVE).to_bits(), (1 << 52) - 1);
+        assert_eq!(next_up_nonneg(f64::MAX), f64::INFINITY);
+        assert_eq!(next_up_nonneg(f64::INFINITY), f64::INFINITY);
+        assert_eq!(next_down_nonneg(f64::INFINITY), f64::MAX);
+        assert!(next_up_nonneg(f64::NAN).is_nan());
+        assert!(next_down_nonneg(f64::NAN).is_nan());
+    }
 
     /// The constants must be bit-identical to the expressions they replace
     #[test]
