@@ -85,14 +85,20 @@ fn decompose(x: f64) -> (u64, i32) {
     (mantissa, exponent)
 }
 
-// In each binade, the continued-fraction phase bound and the 1/(4*x^2)
-// tail bound give a relative remainder below 2^-57.
-pub(super) const MIN_DIAGONAL_TAIL_ARG: f64 = pow2(82);
+// In each binade from 2^55 to 2^82, the phase separation exceeds 8/(4*x^2).
+pub(super) const MIN_DIAGONAL_TAIL_ARG: f64 = pow2(55);
 
 // Payne–Hanek reduction of pi/4 + 2*x^2 without rounding the doubled square.
 #[cold]
-pub(super) fn sin_diagonal_phase(x: f64) -> f64 {
+pub(super) fn sin_diagonal_tail_phase(x: f64) -> f64 {
     let (quadrant, angle) = reduce_diagonal_phase(x);
+    // Unlike in xsf, absorb the first erfc tail correction into the reduced angle.
+    // The leading term alone has a relative remainder below 2^-57 from 2^82.
+    let angle = if x.abs() < pow2(82) {
+        angle - 0.25 / (x * x)
+    } else {
+        angle
+    };
     match quadrant {
         Quadrant::Zero => angle.sin(),
         Quadrant::QuarterTurn => angle.cos(),

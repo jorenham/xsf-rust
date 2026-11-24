@@ -157,7 +157,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
     let mIm_z2 = -2.0 * x * y; // Im(-z^2)
     if x.abs() >= phase::MIN_DIAGONAL_TAIL_ARG && x.is_finite() && x.abs() == y.abs() {
         // Unlike in xsf, reduce the exact phase before evaluating the diagonal tail.
-        let sine = phase::sin_diagonal_phase(x);
+        let sine = phase::sin_diagonal_tail_phase(x);
         let im = (0.5 * SQRT_FRAC_2_PI * sine * y.signum()) / x.abs();
         return c64(x.signum(), im);
     }
