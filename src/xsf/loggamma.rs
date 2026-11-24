@@ -20,8 +20,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int};
+use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::{DoubleDouble, FRAC_PI_2_DD, LOG2};
 use crate::xsf::complex::Num;
 
 use core::f64::consts::TAU;
@@ -137,6 +138,10 @@ pub(crate) fn zlog1_c64(mut z: C64) -> C64 {
     res
 }
 
+fn uses_stirling(z: C64) -> bool {
+    z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY
+}
+
 /// `xsf::loggamma` for complex `z`
 pub(crate) fn cloggamma(z: C64) -> C64 {
     // Compute the principal branch of log-Gamma
@@ -147,7 +152,7 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
     if z.is_real() && is_nonpos_int(z.re) {
         return C64::NAN;
     }
-    if z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY {
+    if uses_stirling(z) {
         return loggamma_stirling(z);
     }
     if (z - 1.0).norm() < LOGGAMMA_TAYLOR_RADIUS {
@@ -167,6 +172,37 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
         return loggamma_recurrence(z);
     }
     loggamma_recurrence(z.conj()).conj()
+}
+
+fn cloggamma_public(z: C64) -> C64 {
+    let mut w = cloggamma(z);
+    // Unlike in xsf, the public loggamma recomputes overflowing Stirling
+    // components as z * (log(z) - 1), with scaling and double-double intermediates.
+    if !w.is_finite() && z.is_finite() && uses_stirling(z) {
+        const SCALE: f64 = pow2(1020);
+        let x = DoubleDouble::new(z.re / SCALE);
+        let y = DoubleDouble::new(z.im / SCALE);
+        let (a, b) = (x.abs(), y.abs());
+        let log_r_minus_one = (a * a + b * b).sqrt().log() + (LOG2 * 1020.0 - 1.0);
+        let arg = if b > a {
+            FRAC_PI_2_DD - (a / b).atan()
+        } else {
+            (b / a).atan()
+        };
+        let arg = if z.re.is_sign_negative() {
+            2.0 * FRAC_PI_2_DD - arg
+        } else {
+            arg
+        };
+        let arg = if z.im.is_sign_negative() { -arg } else { arg };
+        if !w.re.is_finite() {
+            w.re = (x * log_r_minus_one - y * arg).hi * SCALE;
+        }
+        if !w.im.is_finite() {
+            w.im = (y * log_r_minus_one + x * arg).hi * SCALE;
+        }
+    }
+    w
 }
 
 /// `xsf::rgamma` for complex `z`
@@ -203,7 +239,7 @@ impl LogGammaArg for f64 {
 impl LogGammaArg for Complex<f64> {
     #[inline]
     fn xsf_loggamma(self) -> Self {
-        self.via(cloggamma)
+        self.via(cloggamma_public)
     }
 
     #[inline]

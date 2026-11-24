@@ -6,6 +6,25 @@ xsref::tests! {
 }
 
 #[test]
+fn test_loggamma_c64_stirling_overflow() {
+    let x = 8.988_465_674_311_05e307;
+    for y in [x, -x] {
+        assert_eq!(xsf::loggamma(c64(-x, y)), c64(f64::NEG_INFINITY, f64::INFINITY.copysign(y)));
+    }
+    let z = c64(-6e307, 2.659_791_818_217_255_6e305);
+    let w = xsf::loggamma(z);
+    assert_eq!(w.re, f64::NEG_INFINITY);
+    assert!((w.im / 8.224_587_161_873_372e290 - 1.0).abs() < 1e-13);
+    assert_eq!(xsf::loggamma(z.conj()), w.conj());
+
+    let z = c64(3.978_414_405_427_773e305, f64::MAX);
+    let w = xsf::loggamma(z);
+    assert!((w.re / -2.901_477_737_953_569e292 - 1.0).abs() < 1e-13);
+    assert_eq!(w.im, f64::INFINITY);
+    assert_eq!(xsf::loggamma(z.conj()), w.conj());
+}
+
+#[test]
 fn test_loggamma_c64_negative_axis() {
     // the sign of the zero imaginary part selects the side of the branch cut
     let w = xsf::loggamma(c64(-2.5, 0.0));
