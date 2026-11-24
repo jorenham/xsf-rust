@@ -743,6 +743,18 @@ fn test_eval_hermite_negative_degree_large_neg_x() {
 }
 
 #[test]
+fn test_eval_hermite_negative_integer_kummer_overflow() {
+    // Arb at the exact binary64 arguments.
+    np_assert_allclose!(
+        [eval_hermite_h(-600.0, -31.0), eval_hermite_he(-600.0, -45.0)],
+        [3.404_066_397_481_739_5e-63, 4.639_117_125_357_654e55],
+        rtol = 5e-14
+    );
+    assert_eq!(eval_hermite_h(-5.0, -1e100), f64::INFINITY);
+    assert_eq!(eval_hermite_he(-5.0, -1e100), f64::INFINITY);
+}
+
+#[test]
 fn test_eval_hermite_neg_x_overflow() {
     // mpmath; x^2 overflows, and H_n(x) -> inf / Gamma(-n) for x -> -inf
     let h = [
