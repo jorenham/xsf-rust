@@ -124,6 +124,26 @@ fn test_complex_erfc_overflow_exponent_range() {
 }
 
 #[test]
+fn test_complex_erfc_overflow_phase_signs() {
+    for (z, expected) in [
+        (
+            c64(22_254_854.105_771_724, 108_004_952.648_255_74),
+            c64(f64::NEG_INFINITY, f64::NEG_INFINITY),
+        ),
+        (
+            c64(-98_072_459.290_448_9, -179_629_882.932_427_44),
+            c64(f64::NEG_INFINITY, f64::INFINITY),
+        ),
+        (c64(1e-30, -8.988_465_674_311_05e307), c64(f64::NEG_INFINITY, f64::INFINITY)),
+    ] {
+        assert_eq!(xsf::erfc(z), expected);
+        assert_eq!(xsf::erfc(z.conj()), expected.conj());
+        assert_eq!(xsf::erfc(-z), -expected);
+        assert_eq!(xsf::erfc(-z.conj()), -expected.conj());
+    }
+}
+
+#[test]
 fn test_complex_erfc_near_component_overflow() {
     let actual = xsf::erfc(c64(13.411_601_942_156_58, 29.896_363_007_581_32));
     assert!(!actual.re.is_infinite());
