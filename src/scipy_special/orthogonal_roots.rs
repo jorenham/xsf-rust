@@ -9,6 +9,7 @@ use core::f64::consts::{LN_2, PI, SQRT_2};
 
 use super::orthogonal_eval::{
     eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_legendre,
+    gegenbauer_rounds_to_pole,
 };
 use crate::ext::ln_gamma;
 use crate::ext::tridiag::eigvals;
@@ -315,10 +316,8 @@ pub fn roots_gengegenbauer(n: usize, p: f64, q: f64) -> (Vec<f64>, Vec<f64>) {
 /// [`roots_chebyshev_t`].
 ///
 /// The weights are NaN if $C_n^{(\alpha)}$ overflows at all nodes, e.g. for $n = 150$ and
-/// $\alpha = 10^4$ (also in SciPy). Near $\alpha = -1/2$, they lose accuracy (also in SciPy): for
-/// odd $n$, the relative error is about $n \cdot 10^{-16} / (\alpha + 1/2)$, and within about
-/// $10^{-15}$ of $-1/2$, some can be NaN. [`roots_jacobi`] with $\alpha - 1/2$ for both
-/// parameters doesn't have this problem.
+/// $\alpha = 10^4$ (also in SciPy). Near $\alpha = -1/2$, some weights can be inaccurate or NaN,
+/// especially when a node rounds to an endpoint.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -352,6 +351,10 @@ pub fn roots_gegenbauer(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
     let f = |n, x| eval_gegenbauer(n, alpha, x);
     let df = |n: i32, x: f64| {
         let c = f64::from(n);
+        // Unlike in SciPy, use the shifted derivative where the unshifted formula loses accuracy near an endpoint.
+        if n > 1 && gegenbauer_rounds_to_pole(c, alpha) {
+            return 2.0 * alpha * eval_gegenbauer(n - 1, alpha + 1.0, x);
+        }
         (-c * x * f(n, x) + ((c - 1.0) + 2.0 * alpha) * f(n - 1, x)) / one_minus_x2(x, 0.0)
     };
     gen_roots_and_weights(
