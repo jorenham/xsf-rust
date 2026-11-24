@@ -130,11 +130,13 @@
 
 use core::f64::consts::FRAC_2_SQRT_PI;
 
-use crate::utils::{FRAC_1_SQRT_PI, mul_exp};
+use crate::utils::{FRAC_1_SQRT_PI, SQRT_FRAC_2_PI, mul_exp};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::dd_real::two_prod;
 use crate::xsf::cephes::polevl::polevl;
+
+mod phase;
 
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
 
@@ -153,6 +155,13 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
 
     let mRe_z2 = (y - x) * (x + y); // Re(-z^2), being careful of overflow
     let mIm_z2 = -2.0 * x * y; // Im(-z^2)
+    if mIm_z2.is_infinite() && x.is_finite() && x.abs() == y.abs() {
+        // Unlike in xsf, reduce the exact phase before evaluating the diagonal tail.
+        // The first omitted erfc term is smaller than one subnormal ulp here.
+        let sine = phase::sin_diagonal_phase(x);
+        let im = (0.5 * SQRT_FRAC_2_PI * sine * y.signum()) / x.abs();
+        return c64(x.signum(), im);
+    }
     if mRe_z2 < -750.0 {
         // underflow
         return c64(if x >= 0.0 { 1.0 } else { -1.0 }, 0.0);
