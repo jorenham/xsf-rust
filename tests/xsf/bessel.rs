@@ -48,6 +48,28 @@ fn test_bessel_j1_subnormal_midpoints() {
 }
 
 #[test]
+fn test_bessel_y_and_k_signed_half_order_overflow() {
+    // Arb signs on both sides of the positive and negative real axes.
+    let inf = f64::INFINITY;
+    for x in [1e-100, f64::from_bits(1)] {
+        for re in [-x, x] {
+            for im in [-x, x] {
+                let z = c64(re, im);
+                let k = c64(-inf, -inf.copysign(im));
+                assert_eq!(xsf::bessel_k(3.5, z), k);
+                assert_eq!(xsf::bessel_k(-3.5, z), k);
+                assert_eq!(xsf::bessel_y(3.5, z), -k);
+            }
+        }
+    }
+    // A nonreal point close to the cut can still have a finite component.
+    let near_cut = c64(-1e-208, f64::from_bits(1));
+    for value in [xsf::bessel_y(1.5, near_cut), xsf::bessel_k(1.5, near_cut)] {
+        assert!(!(value.re.is_infinite() && value.im.is_infinite()));
+    }
+}
+
+#[test]
 fn test_bessel_y_c64_positive_axis_overflow_recovery() {
     for (v, x, expected, imaginary_zero) in [
         (10.0, 1e-30, -1.182_804_904_943_348_4e308, 0.0_f64),
