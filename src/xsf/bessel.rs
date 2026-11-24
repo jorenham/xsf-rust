@@ -513,13 +513,7 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
 }
 
 fn cyl_bessel_ye_c64(v: f64, z: C64) -> C64 {
-    let y = cyl_bessel_y_kode(v, z, 2);
-    // Unlike in xsf, recover a failed scaled result from a finite unscaled result.
-    if can_retry_scaled_bessel(y, z) {
-        let raw = cyl_bessel_y_kode(v, z, 1);
-        return rescale_bessel(raw, 0.0, -z.im.abs()).unwrap_or(y);
-    }
-    y
+    scaled_bessel(z, c64(-z.im.abs(), 0.0), |kode| cyl_bessel_y_kode(v, z, kode))
 }
 
 fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
@@ -537,18 +531,24 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
     cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye)
 }
 
-fn can_retry_scaled_bessel(value: C64, z: C64) -> bool {
-    value.re.is_nan() && value.im.is_nan() && z.is_finite() && !z.is_real()
+fn scaled_bessel(z: C64, exponent: C64, evaluate: impl Fn(i32) -> C64) -> C64 {
+    let value = evaluate(2);
+    // Unlike in xsf, recover a failed scaled result from the unscaled kernel.
+    if value.re.is_nan() && value.im.is_nan() && z.is_finite() && !z.is_real() {
+        rescale_bessel(evaluate(1), exponent).unwrap_or(value)
+    } else {
+        value
+    }
 }
 
 #[cold]
-fn rescale_bessel(raw: C64, phase: f64, exponent: f64) -> Option<C64> {
+fn rescale_bessel(raw: C64, exponent: C64) -> Option<C64> {
     // Halve before rotating so the sum of two components cannot overflow.
     if !raw.is_finite() {
         return None;
     }
     let raw = 0.5 * raw;
-    let rotated = raw * C64::cis(phase);
+    let rotated = raw * C64::cis(exponent.im);
     // The rotation amplifies errors by at most sqrt(2) in max norm. Keep
     // components large enough to limit the subsequent relative error.
     let min = (raw.re.abs().max(raw.im.abs()) / 32.0).max(2.0 * f64::MIN_POSITIVE);
@@ -556,23 +556,16 @@ fn rescale_bessel(raw: C64, phase: f64, exponent: f64) -> Option<C64> {
         return None;
     }
     // Apply the exponential in two steps, sharing the factor between components.
-    let factor = (0.5 * exponent).exp();
+    let factor = (0.5 * exponent.re).exp();
     let value = rotated * factor * factor * 2.0;
     // Leave headroom from the overflow and subnormal thresholds.
-    (value.re.abs().max(value.im.abs()) <= 0.5 * f64::MAX
-        && value.re.abs().min(value.im.abs()) >= 2.0 * f64::MIN_POSITIVE)
-        .then_some(value)
+    let range = 2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX;
+    (range.contains(&value.re.abs()) && range.contains(&value.im.abs())).then_some(value)
 }
 
 fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
-    let h = cyl_hankel_c64(v, z, 2, m);
-    // Unlike in xsf, retry a failed scaled Hankel evaluation with the unscaled kernel.
-    if can_retry_scaled_bessel(h, z) {
-        let sign = if m == 1 { 1.0 } else { -1.0 };
-        let raw = cyl_hankel_c64(v, z, 1, m);
-        return rescale_bessel(raw, -sign * z.re, sign * z.im).unwrap_or(h);
-    }
-    h
+    let sign = if m == 1 { 1.0 } else { -1.0 };
+    scaled_bessel(z, c64(sign * z.im, -sign * z.re), |kode| cyl_hankel_c64(v, z, kode, m))
 }
 
 /// Unlike in xsf, the four Hankel functions share this implementation, with `kode = 2` for the
