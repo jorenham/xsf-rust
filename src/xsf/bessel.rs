@@ -840,7 +840,46 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
     {
         y.re = cyl_bessel_y_overflow(v, z.re, y.re);
     }
+    // Unlike in xsf, recover finite integer-order values on the other axes by continuation.
+    if y.re.is_nan() && y.im.is_nan() && order >= 1.0 && order == order.trunc() {
+        return bessel_y_axis_continuation(v, z).unwrap_or(y);
+    }
     y
+}
+
+fn bessel_y_axis_continuation(v: f64, z: C64) -> Option<C64> {
+    let order = v.abs();
+    let x = if z.is_real() && z.re < 0.0 {
+        -z.re
+    } else if z.re == 0.0 {
+        z.im.abs()
+    } else {
+        return None;
+    };
+    if !(x > 0.0
+        && x <= 1.0
+        && bessel_y_axis_log_leading(order, x) + 0.5 * x < MAXLOG - BESSEL_Y_OVERFLOW_LOG_MARGIN)
+    {
+        return None;
+    }
+    let odd = order % 2.0 == 1.0;
+    let value = if z.is_real() {
+        // AMOS takes the upper lip for either imaginary zero (DLMF 10.11.6).
+        let y = cyl_bessel_y_f64(v, x);
+        let j = cyl_bessel_j_f64(v, x);
+        let upper = c64(y, 2.0 * j);
+        if odd { -upper } else { upper }
+    } else {
+        // DLMF 10.27.8 with H1 = J + iY. Scale the K seeds before raising the order.
+        let seed = |n, z| c64(cyl_bessel_k_c64(n, z).re * FRAC_2_PI, 0.0);
+        let k = cyl_bessel_overflow(seed, 1.0, order, x, seed(order, c64(x, 0.0)).re);
+        let i = crate::xsf::cephes::iv(order, x);
+        let upper = rotate(c64(-k, if odd { -i } else { i }), -0.5 * order);
+        let value = if z.im < 0.0 { upper.conj() } else { upper };
+        if v < 0.0 && odd { -value } else { value }
+    };
+    // The finite Y bound keeps both true components above half the smallest subnormal.
+    (value.is_finite() && value.re != 0.0 && value.im != 0.0).then_some(value)
 }
 
 // This margin covers arithmetic rounding and the additive terms in the bounds.
