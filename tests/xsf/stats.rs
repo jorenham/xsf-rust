@@ -112,6 +112,31 @@ fn test_stdtr_extreme() {
 }
 
 #[test]
+fn test_stdtr_cauchy_tail() {
+    // Cauchy CDF at exact binary64 inputs, evaluated in high precision.
+    for (x, reference) in [
+        (-1.000_000_000_000_000_2, 0.249_999_999_999_999_97),
+        (-1.0, 0.25),
+        (-0.999_999_999_999_999_9, 0.25),
+        (-1e8, 3.183_098_861_837_906_6e-9),
+        (-1e20, 3.183_098_861_837_906_7e-21),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::stdtr(1.0, x)], &[reference], rtol = 6e-16);
+    }
+    for (x, reference) in
+        [(-1e308, 3.183_098_861_837_906e-309_f64), (-f64::MAX, 1.770_657_516_629_887e-309)]
+    {
+        assert!(xsf::stdtr(1.0, x).to_bits().abs_diff(reference.to_bits()) <= 1);
+        assert_eq!(xsf::stdtr(1.0, -x), 1.0);
+    }
+    assert_eq!(xsf::stdtr(1.0, f64::NEG_INFINITY).to_bits(), 0);
+    assert_eq!(xsf::stdtr(1.0, -0.0), 0.5);
+    assert_eq!(xsf::stdtr(1.0, 0.0), 0.5);
+    assert_eq!(xsf::stdtr(1.0, f64::INFINITY), 1.0);
+    assert!(xsf::stdtr(1.0, f64::NAN).is_nan());
+}
+
+#[test]
 fn test_stdtr_tail() {
     // Arb
     for &(nu, x, p) in &[

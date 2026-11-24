@@ -201,7 +201,12 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
     } else if nu > STDTR_TAIL_NU && x < -STDTR_TAIL_X {
         stdtr_tail(nu, x)
     } else if nu == 1.0 {
-        0.5 + FRAC_1_PI * x.atan()
+        // The reciprocal form avoids cancellation in the lower Cauchy tail.
+        if x < -1.0 {
+            FRAC_1_PI * (-x).recip().atan()
+        } else {
+            0.5 + FRAC_1_PI * x.atan()
+        }
     } else if nu == 2.0 {
         if x < 0.0 {
             // (1 + x / s) / 2 = 1 / (s (s - x)) with s = sqrt(2 + x^2) avoids the cancellation, and
