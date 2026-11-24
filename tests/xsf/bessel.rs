@@ -448,6 +448,16 @@ fn test_scaled_bessel_negative_order_with_overflowing_unscaled_value() {
 }
 
 #[test]
+fn test_scaled_hankel_recovers_both_overflow_signs() {
+    let z = c64(24.827_927_967_836_224, -184.775_114_068_472_28);
+    // Arb, with the Hankel phase and magnitude scaled before rounding.
+    for (order, real) in [(750.25, f64::NEG_INFINITY), (-750.25, f64::INFINITY)] {
+        assert_eq!(xsf::hankel_2e(order, z), c64(real, f64::INFINITY));
+        assert_eq!(xsf::hankel_1e(order, z.conj()), c64(real, f64::NEG_INFINITY));
+    }
+}
+
+#[test]
 fn test_bessel_ye_large_order_large_imag() {
     // Arb: |z| < v, where e^-2|Im z| underflows (was half the value)
     let z = [
