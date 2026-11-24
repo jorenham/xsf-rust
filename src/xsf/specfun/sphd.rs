@@ -473,12 +473,104 @@ fn qstar(m: i32, n: i32, c: f64, ck1: f64, ck: &[f64], qs: &mut f64, qt: &mut f6
     Status::Ok
 }
 
+fn rmn1_equator(
+    m: i32,
+    p: i32,
+    c: f64,
+    x: f64,
+    df: &[f64],
+    sj: &mut [f64],
+    dj: &mut [f64],
+) -> Option<(f64, f64)> {
+    let nm = 25 + c as i32;
+    let order = 2 * nm + m;
+    let sj = sj.get_mut(..=order as usize)?;
+    let dj = dj.get_mut(..=order as usize)?;
+    let rho = ((x - 1.0) * (x + 1.0)).sqrt();
+    let z = c * rho;
+    let half_precision = f64::EPSILON.sqrt();
+    if !(z >= 1e-100 && z * half_precision < 1.0) {
+        return None;
+    }
+    let mut last = order;
+    sphj(z, order, &mut last, sj, dj);
+    if last <= m + p {
+        return None;
+    }
+
+    // At eta = 0 (even parity), or after differentiating there (odd parity), the
+    // associated Legendre weights alternate and cancel the signs of the Bessel terms.
+    let mut w = 1.0;
+    let sign = df[0].signum();
+    let mut norm = 0.0;
+    let (mut sum, mut abs_sum) = (0.0, 0.0);
+    let (mut deriv, mut abs_deriv) = (0.0, 0.0);
+    let mut missing_weight = 0.0;
+    for (k, &d) in (0..nm).zip(df.get(..nm as usize)?) {
+        let l = m + p + 2 * k;
+        let t = w * d;
+        w *= f64::from(l + m + 1 + p) / f64::from(l - m + 2 - p);
+        // The lowest angular mode of each parity has alternating coefficients.
+        let angular_term = t * neg_one_pow(k);
+        if angular_term * sign < 0.0 {
+            return None;
+        }
+        norm += angular_term;
+        if l >= last {
+            missing_weight += t.abs();
+            continue;
+        }
+        let j = sj[l as usize];
+        let j1 = sj[l as usize + 1];
+        sum += t * j;
+        abs_sum += (t * j).abs();
+        // Differentiate the spherical Bessel function together with rho^(-p).
+        let slope = f64::from(l - p) / z * j;
+        deriv += t * (slope - j1);
+        abs_deriv += (t * slope).abs() + (t * j1).abs();
+    }
+    let slope_scale = c * x / rho;
+    let parity_term = f64::from(p) * sum / x;
+    let derivative = slope_scale * deriv + parity_term;
+    // Use a joint amplitude so either component can be near a zero without rejecting an
+    // accurate pair. The derivative has one extra factor of the frequency c.
+    let amplitude = sum.abs().max(derivative.abs() / c);
+    let derivative_amplitude = derivative.abs().max(c * sum.abs());
+
+    if missing_weight != 0.0 {
+        // The integral for j_l gives |j_l(z)| <= z^l/(2l+1)!! <= (e*z/(2l))^l.
+        // If the latter bound decreases beyond the first omitted order, it bounds both
+        // the omitted j_l and j_(l+1) terms in the derivative.
+        let first = last + i32::from((last - m - p) % 2 != 0);
+        let ratio = core::f64::consts::E * z / (2.0 * f64::from(first));
+        if ratio >= 1.0 {
+            return None;
+        }
+        let tail = missing_weight * ratio.powi(first).max(f64::MIN_POSITIVE);
+        if !(tail <= f64::EPSILON * amplitude
+            && tail * (slope_scale * (f64::from(order) / z + 1.0) + 1.0 / x)
+                <= f64::EPSILON * derivative_amplitude)
+        {
+            return None;
+        }
+    }
+    let pref = if p == 0 { 1.0 } else { x / rho } / norm;
+    let r = pref * sum;
+    let d = pref * derivative;
+    (r.is_normal()
+        && d.is_normal()
+        && half_precision * abs_sum <= amplitude
+        && half_precision * (slope_scale * abs_deriv + parity_term.abs()) <= derivative_amplitude)
+        .then_some((r, d))
+}
+
 fn rmn1(
     m: i32,
     n: i32,
     c: f64,
     x: f64,
     kd: i32,
+    prolate_first_kind_only: bool,
     df: &[f64],
     r1f: &mut f64,
     r1d: &mut f64,
@@ -523,18 +615,36 @@ fn rmn1(
     // NOTE: here and below, `df[k - 1]` for k <= nm is out of bounds if nm > df.len() (200 in
     // rswfp/rswfo) and the sum hasn't converged yet; from rswfp/rswfo, sdmn already indexes out of
     // bounds (df[nm] with an nm that is >= this nm) in that case.
+    let use_equator = prolate_first_kind_only && n - m <= 1 && c > 0.0 && x > 1.0;
     let mut suc = r * df[0];
+    let mut abs_sum = suc.abs();
     let mut sw = 0.0;
 
     for k in 2..=nm {
         r = r * (f64::from(m + k) - 1.0) * (f64::from(m + k + ip) - 1.5)
             / (f64::from(k) - 1.0)
             / (f64::from(k + ip) - 1.5);
-        suc += r * df[(k - 1) as usize];
+        let term = r * df[(k - 1) as usize];
+        suc += term;
+        if use_equator {
+            abs_sum += term.abs();
+        }
         if (k > nm1) && ((suc - sw).abs() < suc.abs() * eps) {
             break;
         }
         sw = suc;
+    }
+
+    // Unlike in xsf, use the equatorial expansion for the lowest mode of each
+    // prolate parity when cancellation in the original normalization is severe.
+    if use_equator && suc.abs() < f64::EPSILON.sqrt() * abs_sum {
+        if let Some((f, d)) = rmn1_equator(m, ip, c, x, df, &mut sj, &mut dj) {
+            *r1f = f;
+            *r1d = d;
+            return Status::Ok;
+        }
+        sj.fill(0.0);
+        dj.fill(0.0);
     }
 
     if x == 0.0 {
@@ -896,7 +1006,7 @@ fn rmn2so(
         }
     } else {
         gmn(m, n, c, x, &bk, &mut gf, &mut gd);
-        if rmn1(m, n, c, x, kd, df, &mut r1f, &mut r1d) == Status::NoMemory {
+        if rmn1(m, n, c, x, kd, false, df, &mut r1f, &mut r1d) == Status::NoMemory {
             return Status::NoMemory;
         }
         let h0 = x.atan() - FRAC_PI_2;
@@ -1157,7 +1267,7 @@ pub(crate) fn rswfp(
         return Status::NoMemory;
     }
 
-    if kf != 2 && rmn1(m, n, c, x, kd, &df, r1f, r1d) == Status::NoMemory {
+    if kf != 2 && rmn1(m, n, c, x, kd, kf == 1, &df, r1f, r1d) == Status::NoMemory {
         return Status::NoMemory;
     }
     if kf > 1 {
@@ -1200,7 +1310,7 @@ fn r2_by_wronskian(
 ) -> Status {
     let (mut f, mut d) = (0.0, 0.0);
     if small(&mut f, &mut d) == Status::NoMemory
-        || kf == 2 && rmn1(m, n, c, x, kd, df, r1f, r1d) == Status::NoMemory
+        || kf == 2 && rmn1(m, n, c, x, kd, false, df, r1f, r1d) == Status::NoMemory
     {
         return Status::NoMemory;
     }
@@ -1273,7 +1383,7 @@ pub(crate) fn rswfo(
         return Status::NoMemory;
     }
 
-    if kf != 2 && rmn1(m, n, c, x, kd, &df, r1f, r1d) == Status::NoMemory {
+    if kf != 2 && rmn1(m, n, c, x, kd, false, &df, r1f, r1d) == Status::NoMemory {
         return Status::NoMemory;
     }
     if kf > 1 {
