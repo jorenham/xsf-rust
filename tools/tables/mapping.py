@@ -2079,12 +2079,22 @@ def _y_arb(v: flint.arb, z: flint.acb) -> flint.acb | None:
 
 def _y_local_scale(a: tuple[float, ...], f: complex) -> float:
     v, x, y = a
-    if v != 0 or not 0 < math.hypot(x, y) <= 8 or abs(f) >= 2**-23:
-        return 0.0
-    with flint.ctx.workprec(256):
-        z = flint.acb(x, y)
-        scale = float(abs(z * z.bessel_y(1)))
-    return scale if abs(f) < 2**-26 * scale else 0.0
+    magnitude = abs(f)
+    if v == 0 and 0 < math.hypot(x, y) <= 8 and magnitude < 2**-23:
+        with flint.ctx.workprec(256):
+            z = flint.acb(x, y)
+            scale = float(abs(z * z.bessel_y(1)))
+        if magnitude < 2**-26 * scale:
+            return scale
+
+    # |J| <= 1 for real x and nonnegative order (DLMF 10.14.1).
+    if y == 0 and magnitude < 0.125 and x > max(2, v) and 0 <= v <= AMOS_FNUL:
+        # Y = M sin(theta) has phase derivative J = M cos(theta) (DLMF 10.18.4).
+        with flint.ctx.workprec(256):
+            scale = float(abs(flint.arb(x).bessel_j(flint.arb(v))))
+        if magnitude < scale / 8:
+            return scale
+    return 0.0
 
 
 def _y_huge_axis(a: tuple[float, ...]) -> bool:
@@ -2130,6 +2140,18 @@ def _y_rotated_mlri(a: tuple[float, ...]) -> bool:
     )
 
 
+# Relative error limits after moving the Miller normalization's complex norm by
+# one ULP in either direction for positive real 2 < x < v <= AMOS_FNUL.
+_Y_MILLER_NORM_LIMITS: Final = {
+    (18.0, 6.773_850_440_979_004): 1.4e-15,
+    (21.0, 6.773_850_440_979_004): 1.7e-15,
+    (24.0, 13.924_911_499_023_438): 1.18e-15,
+    (5.833_333_333_333_334, 2.5): 1e-15,
+    (18.0, 11.051_702_499_389_648): 1.55e-15,
+    (39.0, 15.408_351_898_193_36): 1.65e-15,
+}
+
+
 def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
     rules = tuple(
         Rule(
@@ -2172,6 +2194,11 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
                 _y_rotated_mlri,
                 MLRI_FLOOR.tol,
                 "the rotated Hankel continuation uses AMOS's Miller algorithm with a different normalization",
+            ),
+            Floor(
+                lambda a: a[2] == 0 and a[:2] in _Y_MILLER_NORM_LIMITS,
+                lambda a: _Y_MILLER_NORM_LIMITS[a[:2]] / 4,
+                "the Hankel Miller normalization uses the platform complex norm twice",
             ),
             Y_FLOOR,
         ),
