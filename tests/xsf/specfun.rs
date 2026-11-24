@@ -1362,6 +1362,22 @@ fn test_hyp1f1_poly_underflow() {
 }
 
 #[test]
+fn test_hyp1f1_kummer_polynomial_deep_tail() {
+    // Arb applied to the terminating Kummer polynomial.
+    for (a, x, expected) in [
+        (20.0, -750.0, -4.034_504_366_728_602e-289),
+        (20.0, -745.0, -5.255_218_942_910_365e-287),
+        (10.0, -750.0, -3.527_617_500_936_624e-306),
+    ] {
+        xsref::np_assert_allclose!([xsf::hyp1f1(a, 1.0, x)], [expected], rtol = 4e-15);
+    }
+    let below_half_min_subnormal = xsf::hyp1f1(67.0, 10.0, -929.640_411_636_305_1);
+    assert_eq!(below_half_min_subnormal.to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(xsf::hyp1f1(999_998.0, 1.0, -4_000_003.0).to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(xsf::hyp1f1(1_000_001.0, 1.0, -4_000_003.0).to_bits(), 0.0_f64.to_bits());
+}
+
+#[test]
 fn test_hyp1f1_huge_neg_a_tricomi() {
     // Arb; the series cancels, and the recurrences in a lose digits or take over 10^6 steps
     // (condition numbers 1e3, 1e2, 4e2, 1e2, 2e5, and 3e3)
