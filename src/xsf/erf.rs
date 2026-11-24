@@ -117,11 +117,11 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
     let (x, y) = (z.re.abs(), z.im);
     let partial = result.is_nan();
     let min_real = if partial { 8.0 } else { 32.0 };
-    // In this region w uses between four and nine Gaussian continued-fraction levels.
+    // In this region the general Gaussian continued fraction has degree four through nine.
     if !(x >= min_real && x < y.abs() && x + y.abs() <= 512.0) {
         return None;
     }
-    let w = crate::xsf::faddeeva::w(c64(-y, x));
+    let (w, degree) = crate::xsf::faddeeva::w_continued_fraction(-y, x);
     let theta = (Dd::new(-x) * y).mul_pwr2(2.0);
     let (sin, cos) = theta.sin_cos();
     let projected = c64(cos, sin) * w;
@@ -132,29 +132,50 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
 
     // The Gaussian Cauchy-transform remainder is bounded by 1/(x*(|z|-4)^8).
     // Pad for the continued fraction and its rotation and scale.
-    let error = scale * (1.0 / (x * (z.norm() - 4.0).powi(8)) + w.l1_norm() * pow2(-44));
+    let distance_squared = (z.norm() - 4.0).powi(2);
+    let remainder = 1.0 / (x * distance_squared.powi(4));
+    let roundoff = w.l1_norm() * pow2(-44);
+    let error = scale * (remainder + roundoff);
     let scaled = projected * scale;
-    let finite = |val: f64| {
+    let finite = |val: f64, error: f64| {
         let a = val.abs();
         (a > error && a + error < limit).then(|| val / f64::MIN_POSITIVE)
     };
     let reflect_real = |re| if z.re < 0.0 { 2.0 - re } else { re };
-    let certify = |val: f64| {
+    let certify = |val: f64, error: f64| {
         if val.abs() - error > limit {
             Some(f64::INFINITY.copysign(val))
         } else {
-            finite(val)
+            finite(val, error)
         }
     };
     if partial {
+        let companion = |val: f64| {
+            certify(val, error).or_else(|| {
+                // Unlike in xsf, tighten the overflow test for an infinite companion
+                // whose sign is already known. The degree-n remainder uses the squared
+                // Hermite norm n!/2^n and the squared distance to its zeros per level.
+                if !(val.abs() > error && degree > 4.0) {
+                    return None;
+                }
+                let mut remainder = remainder;
+                let mut n = 5.0;
+                while n <= degree {
+                    remainder *= n / (2.0 * distance_squared);
+                    n += 1.0;
+                }
+                certify(val, scale * (remainder + roundoff))
+            })
+        };
         return if result.re.is_nan() {
-            finite(scaled.re)
-                .map(|re| c64(reflect_real(re), certify(scaled.im).unwrap_or(result.im)))
+            finite(scaled.re, error)
+                .map(|re| c64(reflect_real(re), companion(scaled.im).unwrap_or(result.im)))
         } else {
-            finite(scaled.im).map(|im| c64(certify(scaled.re).map_or(result.re, reflect_real), im))
+            finite(scaled.im, error)
+                .map(|im| c64(companion(scaled.re).map_or(result.re, reflect_real), im))
         };
     }
-    let (re, im) = (certify(scaled.re)?, certify(scaled.im)?);
+    let (re, im) = (certify(scaled.re, error)?, certify(scaled.im, error)?);
     (re.is_finite() || im.is_finite()).then(|| c64(reflect_real(re), im))
 }
 
