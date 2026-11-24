@@ -31,6 +31,7 @@ use num_complex::Complex;
 const LOGGAMMA_SMALLX: f64 = 7.0;
 const LOGGAMMA_SMALLY: f64 = 7.0;
 pub(crate) const LOGGAMMA_TAYLOR_RADIUS: f64 = 0.2;
+const LOGGAMMA_TAYLOR_RADIUS_SQ: f64 = LOGGAMMA_TAYLOR_RADIUS * LOGGAMMA_TAYLOR_RADIUS;
 
 fn loggamma_stirling(z: C64) -> C64 {
     /* Stirling series for log-Gamma
@@ -155,10 +156,11 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
     if uses_stirling(z) {
         return loggamma_stirling(z);
     }
-    if (z - 1.0).norm() < LOGGAMMA_TAYLOR_RADIUS {
+    // Unlike in xsf, compare squared distances to avoid hypot rounding at the Taylor cutoff.
+    if (z - 1.0).norm_sqr() < LOGGAMMA_TAYLOR_RADIUS_SQ {
         return loggamma_taylor(z);
     }
-    if (z - 2.0).norm() < LOGGAMMA_TAYLOR_RADIUS {
+    if (z - 2.0).norm_sqr() < LOGGAMMA_TAYLOR_RADIUS_SQ {
         // Recurrence relation and the Taylor series around 1.
         return zlog1_c64(z - 1.0) + loggamma_taylor(z - 1.0);
     }
