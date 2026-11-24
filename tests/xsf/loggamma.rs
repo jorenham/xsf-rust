@@ -6,6 +6,20 @@ xsref::tests! {
 }
 
 #[test]
+fn test_complex_gamma_family_at_positive_real_infinity() {
+    for im in [0.0_f64, -0.0] {
+        let z = c64(f64::INFINITY, im);
+        for w in [xsf::gamma(z), xsf::loggamma(z)] {
+            assert_eq!(w.re, f64::INFINITY);
+            assert_eq!(w.im.to_bits(), im.to_bits());
+        }
+        let reciprocal = xsf::rgamma(z);
+        assert_eq!(reciprocal.re.to_bits(), 0.0_f64.to_bits());
+        assert_eq!(reciprocal.im.to_bits(), (-im).to_bits());
+    }
+}
+
+#[test]
 fn test_loggamma_c64_taylor_cutoff() {
     for (z, expected) in [
         (
