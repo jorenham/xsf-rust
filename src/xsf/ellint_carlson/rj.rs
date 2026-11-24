@@ -43,7 +43,7 @@ use super::rf::rf;
 use super::rg::rg;
 use super::typing::Num;
 use super::{ELLINT_CARLSON_RERR, argcheck, common};
-use crate::utils::pow2;
+use crate::utils::{SQRT_EPSILON, pow2};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::complex::atanh;
 
@@ -594,8 +594,14 @@ fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64, old: C64) -> Option<C64> {
     let offset = x.im.abs() + y.im.abs();
     // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) excludes larger offsets.
     let near_cut = 0.5 * offset <= f64::EPSILON * a;
-    let repeat = old.re.is_nan() && old.im.is_nan() && x == y && x.im.is_normal();
-    if !(near_cut || repeat) {
+    let gap = (x.im - y.im).abs();
+    // The quadratic error bound cannot pass for wider gaps: |RJ| <= 3*pi/(a*sqrt(Re p)).
+    let try_repeated_formula = old.re.is_nan()
+        && old.im.is_nan()
+        && x.im.is_normal()
+        && y.im.is_normal()
+        && (x == y || (!near_cut && gap <= a * SQRT_EPSILON));
+    if !(near_cut || try_repeated_formula) {
         return None;
     }
 
@@ -627,12 +633,35 @@ fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64, old: C64) -> Option<C64> {
         (perturbation <= f64::EPSILON * value.re.abs().min(value.im.abs())).then_some(value)
     };
     limit().or_else(|| {
-        // Unlike in xsf, use RJ(x,x,z,p) = 3 (RC(z,x) - RC(z,p))/(p-x) on exact repeats.
-        let denominator = p - x;
-        if !(repeat && denominator.is_finite()) {
+        if !try_repeated_formula {
             return None;
         }
-        project(rc_value(z, x)?, denominator).filter(|v| v.re.is_normal() && v.im.is_normal())
+        // Unlike in xsf, use RJ(x,x,z,p) = 3 (RC(z,x) - RC(z,p))/(p-x) on exact repeats.
+        let repeated = |w: C64| {
+            let denominator = p - w;
+            if !denominator.is_finite() {
+                return None;
+            }
+            project(rc_value(z, w)?, denominator).filter(|v| v.re.is_normal() && v.im.is_normal())
+        };
+        let first = repeated(x)?;
+        if x == y {
+            return Some(first);
+        }
+        // Unlike in xsf, average the two repeated-argument integrals.
+        // On the rotated contour the error is at most 16*(Im x-Im y)^2/(a^3 sqrt(Re p)).
+        let separation = gap / a;
+        let perturbation = [a, p.re.sqrt()]
+            .into_iter()
+            .fold((16.0 * separation * separation).max(f64::MIN_POSITIVE), |error, divisor| {
+                (error / divisor).max(f64::MIN_POSITIVE)
+            });
+        let second = repeated(y)?;
+        let value = 0.5 * (first + second);
+        (first.re.is_sign_negative() == second.re.is_sign_negative()
+            && first.im.is_sign_negative() == second.im.is_sign_negative()
+            && perturbation <= f64::EPSILON * value.re.abs().min(value.im.abs()))
+        .then_some(value)
     })
 }
 
