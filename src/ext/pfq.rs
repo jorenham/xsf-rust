@@ -1006,6 +1006,9 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
         _ if z.is_infinite() => None,
         (&[a1, a2], &[]) if z < 0.0 => borel::hyp2f0_borel(a1, a2, z),
+        (&[a1, a2, a3], &[]) if z < 0.0 => {
+            borel::pfq_borel(&a, &b, z).or_better(|| borel::hyp3f0_near_coincident([a1, a2, a3], z))
+        },
         (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2_estimate(a1, a2, a3, b1, b2, z),
