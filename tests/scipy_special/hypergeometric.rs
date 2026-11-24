@@ -595,6 +595,30 @@ fn test_hyp0f1_tiny_v_cancelling_real_part() {
 }
 
 #[test]
+fn test_hyp0f1_near_imaginary_axis_overflow() {
+    // Arb at the exact binary64 inputs, near both component overflow midpoints.
+    for x in [-f64::from_bits(1), 0.0, f64::from_bits(1)] {
+        for sign_v in [-1.0, 1.0] {
+            for sign_y in [-1.0, 1.0] {
+                let at = |v, y| xsf::hyp0f1(sign_v * v, c64(x, sign_y * y));
+                assert_eq!(
+                    at(4.323_145_233_125_194e-309, 0.823_590_971_967_126_9).im,
+                    sign_v * sign_y * f64::INFINITY,
+                );
+                assert_eq!(
+                    at(2.545_804_768_984_307e-309, 0.962_931_959_008_188_4).re,
+                    -sign_v * f64::INFINITY,
+                );
+                assert_eq!(
+                    at(2.334_621_786_009_635e-309, 0.921_625_154_151_644_8).re,
+                    -sign_v * f64::from_bits(f64::MAX.to_bits() - 1),
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp0f1_tiny_v_unscaled() {
     // `z / v` is exact, unlike `1 / v * z`
     let v = 49.0 * 2f64.powi(-600);
