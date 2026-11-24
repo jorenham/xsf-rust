@@ -389,6 +389,20 @@ fn test_airy_c64_signed_zero_im() {
 }
 
 #[test]
+fn test_airy_c64_positive_axis_underflow_and_overflow() {
+    let expected =
+        [c64(0.0, 0.0), c64(-0.0, -0.0), c64(f64::INFINITY, 0.0), c64(f64::INFINITY, 0.0)];
+    for x in [108.0, 2.998_076_996_061_15e154, 8.988_465_674_311_05e307, f64::MAX] {
+        for y in [0.0, -0.0] {
+            let actual = xsf::airy(c64(x, y));
+            for (a, e) in actual.into_iter().zip(expected) {
+                assert_eq!((a.re.to_bits(), a.im.to_bits()), (e.re.to_bits(), e.im.to_bits()));
+            }
+        }
+    }
+}
+
+#[test]
 fn test_airye_c64_large_re() {
     // Arb: acb(z).airy()[2:] e^-|Re zeta|
     let [_, _, bi, bip] = xsf::airy_scaled(c64(50.0, -10.0));

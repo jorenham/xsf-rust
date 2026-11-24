@@ -8,6 +8,8 @@ use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{self, TWO_THIRDS};
 
+const AIRY_REAL_UNDERFLOW_BOUND: f64 = 108.0;
+
 pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
     fn airye(self) -> [Self; 4];
@@ -44,6 +46,12 @@ impl AiryArg for Complex64 {
 fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     // as AMOS, with -0 as +0 for real `z`
     let z = c64(z.re, z.im + 0.0);
+    // Unlike in xsf, reuse the real Airy limits where Ai and Ai' underflow
+    // and Bi and Bi' overflow on the positive real axis.
+    if kode == 1 && z.is_real() && z.re >= AIRY_REAL_UNDERFLOW_BOUND && z.re.is_finite() {
+        let [ai, aip, bi, bip] = airy_f64(z.re);
+        return [c64(ai, 0.0), c64(-aip.abs(), -0.0), c64(bi, 0.0), c64(bip, 0.0)];
+    }
     let zeta = zeta_err(z);
     // whether Ai decays: AMOS evaluates it as sqrt(z) K(zta) for |ph z| <= pi/3, and continues K
     // from -zta beyond that
@@ -220,7 +228,7 @@ fn airye_f64(z: f64) -> [f64; 4] {
 fn airy_f64(x: f64) -> [f64; 4] {
     // Unlike in xsf, Cephes is used instead of AMOS for x > 10 (and x < -10, scipy/xsf#532), as
     // its double-double zeta makes it more accurate.
-    if x > 103.892 && x < 108.0 {
+    if x > 103.892 && x < AIRY_REAL_UNDERFLOW_BOUND {
         // Unlike in xsf (scipy/xsf#614), `airye` is unscaled here, as Cephes returns
         // (0, 0, inf, inf) for x > 103.892, while Bi(x) only overflows at x = 104.44 and Ai(x)
         // underflows at x = 107.47.
