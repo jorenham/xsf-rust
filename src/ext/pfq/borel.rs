@@ -48,26 +48,24 @@ pub(super) fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
 
 // The Laplace kernel (1 + |z| X Y)^(-a) lies in [0,1] and is symmetric in X,Y.
 #[cold]
-pub(super) fn hyp3f0_near_coincident(mut a: [f64; 3], z: f64) -> Option<Estimate> {
-    a.sort_unstable_by(f64::total_cmp);
-    let [lo, mid, hi] = a;
+pub(super) fn hyp3f0_near_coincident(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+    let mut upper: [f64; 3] = a.try_into().ok()?;
+    upper.sort_unstable_by(f64::total_cmp);
+    let [lo, mid, hi] = upper;
     let delta = mid - lo;
-    // Sterbenz's lemma gives exact differences when both ratios are at most two.
-    if !(lo > 0.0 && delta > 0.0 && hi <= 2.0 * mid && mid <= 2.0 * lo && hi - mid == delta) {
-        return None;
-    }
-    // The symmetrized Gamma densities have likelihood ratio cosh(delta*ln(X/Y))/M,
-    // with M = Gamma(lo)*Gamma(hi)/Gamma(mid)^2. Their TV distance is at most
+    // The symmetrized Gamma density ratio is cosh(delta*ln(X/Y))/M,
+    // with M = Gamma(lo)*Gamma(hi)/Gamma(mid)^2. The absolute error is at most
     // 1 - 1/M <= ln(M) <= delta² (1/lo² + 1/lo), using the trigamma series.
     let ratio = delta / lo;
     let bound = 2.0 * ratio * (ratio + delta); // allow for rounding in the bound
-    if bound > PFQ_TOL {
-        return None;
+    // The bound forces mid - lo < lo. Equal spacings then give exact subtractions by Sterbenz.
+    if b.is_empty() && lo > 0.0 && delta > 0.0 && delta == hi - mid && bound <= PFQ_TOL {
+        let mut centered = pfq_borel(&[mid; 3], &[], z).filter(|e| e.y.is_normal() && e.y > 0.0)?;
+        centered.err += bound / centered.y;
+        centered.is_accurate().then_some(centered)
+    } else {
+        None
     }
-    let centered = pfq_borel(&[mid; 3], &[], z)?;
-    let err = centered.err + bound / centered.y;
-    (centered.y.is_normal() && centered.y > 0.0 && err <= PFQ_TOL)
-        .then_some(Estimate::new(centered.y, err))
 }
 
 /// Cached evaluation of the Borel sum `x^a1 U(a1, a1 - a2 + 1, x)` for `2F0(a1, a2;; -1/x)`,
