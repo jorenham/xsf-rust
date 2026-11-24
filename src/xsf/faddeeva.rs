@@ -159,16 +159,38 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
     }
 
     let rotate = |w: C64| {
-        if mRe_z2 > MAXLOG && mIm_z2.is_finite() {
-            // Unlike in xsf, split the finite phase into high and low parts when exp(Re(-z^2))
-            // overflows, since rounding the phase can reverse the signs of the components.
-            let (hi, lo) = two_prod(-2.0 * x, y);
-            let rotated = C64::cis(hi) * C64::cis(lo) * w;
-            // Allow for trig and product roundoff before using either sign. Angle addition
-            // can cancel near a quadrant boundary.
-            let margin = (16.0 * f64::EPSILON * w.re.abs().max(w.im.abs())).max(f64::from_bits(4));
-            if rotated.re.abs().min(rotated.im.abs()) > margin {
-                return rotated;
+        if mRe_z2 > MAXLOG {
+            let mut a = -2.0 * x;
+            let mut hi = mIm_z2;
+            let mut doublings = 0;
+            if hi.is_infinite() && x.is_finite() && y.is_finite() && mRe_z2 > 3.0 * MAXLOG {
+                // Unlike in xsf, reduce an overflowing phase by up to four
+                // halvings. Here any resolved nonzero component must overflow.
+                a = -x;
+                for n in 1..=4 {
+                    hi = a * y;
+                    doublings = n;
+                    if hi.is_finite() {
+                        break;
+                    }
+                    a *= 0.5;
+                }
+            }
+            if hi.is_finite() {
+                // Unlike in xsf, split the finite phase into high and low parts when
+                // exp(Re(-z^2)) overflows, since rounding can reverse component signs.
+                let (hi, lo) = two_prod(a, y);
+                let mut phase = C64::cis(hi) * C64::cis(lo);
+                for _ in 0..doublings {
+                    phase *= phase;
+                }
+                let rotated = phase * w;
+                // Each angle doubling can double the phase error.
+                let eps = 16.0 * f64::EPSILON * f64::from(1 << doublings);
+                let margin = (eps * w.re.abs().max(w.im.abs())).max(f64::from_bits(4));
+                if rotated.re.abs().min(rotated.im.abs()) > margin {
+                    return rotated;
+                }
             }
         }
         C64::cis(mIm_z2) * w
