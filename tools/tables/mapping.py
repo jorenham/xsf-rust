@@ -1921,6 +1921,37 @@ MLRI_FLOOR: Final = Floor(
 AMOS_ELIM: Final = 2.303 * (1021 * math.log10(2) - 3)
 
 
+def _hankel_amos_overflow(a: tuple[float, ...]) -> bool:
+    """AMOS's early overflow on the real axis, diagnosed by Y's leading factor (DLMF 10.9.7)."""
+    v, x, y = a
+    v, x = abs(v), abs(x)
+    if y != 0 or x == 0 or v < 1 or _amos_range(a):
+        return False
+    return (
+        math.lgamma(v) + v * (math.log(2) - math.log(x)) - math.log(math.pi) > AMOS_ELIM
+    )
+
+
+HANKEL_AMOS_OVERFLOW: Final = Override(
+    _hankel_amos_overflow,
+    "AMOS's Hankel path returns a NaN pair before a real-axis component rounds",
+)
+
+
+# Relative limits after moving the norm in AMOS's Miller normalization by one ULP.
+_HANKEL_MILLER_NORM_LIMITS: Final = {
+    (-8.571_428_571_428_571, 5.0): 1.0e-15,
+    (-10.0, -4.285_714_285_714_286): 1.1e-15,
+    (10.0, -4.285_714_285_714_286): 1.1e-15,
+}
+
+HANKEL_MILLER_NORM_FLOOR: Final = Floor(
+    lambda a: a[2] == 0 and (a[0], a[1]) in _HANKEL_MILLER_NORM_LIMITS,
+    lambda a: _HANKEL_MILLER_NORM_LIMITS[a[0], a[1]] / 4,
+    "the Hankel Miller normalization uses the platform complex norm twice",
+)
+
+
 @functools.cache
 def _i_ball(a: tuple[float, ...]) -> flint.acb:
     """`_arb_besseli` of v, Re z, Im z = `a`, to some 30 digits."""
@@ -2267,23 +2298,6 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
     return ("cyl_bessel_y", "d_cd-cd"), Entry((out,))
 
 
-def _hankel_amos_overflow(a: tuple[float, ...]) -> bool:
-    """AMOS's early overflow on the real axis, diagnosed by Y's leading factor (DLMF 10.9.7)."""
-    v, x, y = a
-    v, x = abs(v), abs(x)
-    if y != 0 or x == 0 or v < 1 or _amos_range(a):
-        return False
-    return (
-        math.lgamma(v) + v * (math.log(2) - math.log(x)) - math.log(math.pi) > AMOS_ELIM
-    )
-
-
-HANKEL_AMOS_OVERFLOW: Final = Override(
-    _hankel_amos_overflow,
-    "AMOS's Hankel path returns a NaN pair before a real-axis component rounds",
-)
-
-
 def _bessel_c() -> dict[tuple[str, str], Entry]:
     """Reference tables for Bessel and Hankel functions of real order and complex argument."""
 
@@ -2355,7 +2369,13 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                 overrides=(I_OVERRIDE, *I_PART_OVERRIDES),
                 floors=(I_REFLECTION_FLOOR, I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
             ),
-            entry("1", CBESSEL_AT_0, AMOS_RANGE, overrides=(HANKEL_AMOS_OVERFLOW,)),
+            entry(
+                "1",
+                CBESSEL_AT_0,
+                AMOS_RANGE,
+                overrides=(HANKEL_AMOS_OVERFLOW,),
+                floors=(HANKEL_MILLER_NORM_FLOOR,),
+            ),
             entry(
                 "2",
                 Rule(
@@ -2366,6 +2386,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                 CBESSEL_AT_0,
                 AMOS_RANGE,
                 overrides=(HANKEL_AMOS_OVERFLOW,),
+                floors=(HANKEL_MILLER_NORM_FLOOR,),
             ),
             entry("je"),
             entry("ye"),

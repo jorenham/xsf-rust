@@ -12,8 +12,7 @@ def _axis[R: (mp.mpf, flint.arb)](
     x: R,
     j: R,
     y: R,
-    sinpi: Callable[[R], R],
-    cospi: Callable[[R], R],
+    phase: Callable[[int], tuple[R, R]],
 ) -> tuple[R, R]:
     """H1 or H2 from J and Y at the positive order and argument.
 
@@ -21,8 +20,7 @@ def _axis[R: (mp.mpf, flint.arb)](
     (DLMF 10.4.6 and 10.11.5). In particular, H1 of negative order on the upper cut is
     exactly -J + iY, even when Y is many orders of magnitude larger than J.
     """
-    u = abs(v)
-    s, c = sinpi(u), cospi(u)
+    s, c = phase(1)
     if x > 0:
         re, im = (j, y) if v >= 0 else (c * j - s * y, s * j + c * y)
         return re, im if kind == 1 else -im
@@ -32,14 +30,17 @@ def _axis[R: (mp.mpf, flint.arb)](
         return 3 * c * j - s * y, s * j - c * y
     if kind == 1:
         return -j, y
-    s2, c2 = sinpi(2 * u), cospi(2 * u)
+    s2, c2 = phase(2)
     return (2 + c2) * j - s2 * y, -s2 * j - c2 * y
 
 
 def axis(kind: int, v: mp.mpf, x: mp.mpf) -> mp.mpc:
     """H1 or H2 on the real axis, with the upper limit on the cut."""
-    j, y = mp.besselj(abs(v), abs(x)), mp.bessely(abs(v), abs(x))
-    return mp.mpc(*_axis(kind, v, x, j, y, mp.sinpi, mp.cospi))
+    u = abs(v)
+    j, y = mp.besselj(u, abs(x)), mp.bessely(u, abs(x))
+    return mp.mpc(
+        *_axis(kind, v, x, j, y, lambda m: (mp.sinpi(m * u), mp.cospi(m * u)))
+    )
 
 
 def _arb_jy(u: flint.arb, x: flint.arb) -> tuple[flint.arb, flint.arb]:
@@ -71,5 +72,8 @@ def _arb_jy(u: flint.arb, x: flint.arb) -> tuple[flint.arb, flint.arb]:
 
 def axis_arb(kind: int, v: flint.arb, x: flint.arb) -> flint.acb:
     """Arb version of axis."""
-    j, y = _arb_jy(abs(v), abs(x))
-    return flint.acb(*_axis(kind, v, x, j, y, flint.arb.sin_pi, flint.arb.cos_pi))
+    u = abs(v)
+    j, y = _arb_jy(u, abs(x))
+    return flint.acb(
+        *_axis(kind, v, x, j, y, lambda m: ((m * u).sin_pi(), (m * u).cos_pi()))
+    )
