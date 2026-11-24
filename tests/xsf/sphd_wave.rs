@@ -70,6 +70,18 @@ fn test_prolate_radial1_near_endpoint() {
 }
 
 #[test]
+fn test_prolate_radial1_large_argument() {
+    let (c, x) = (7.1, 100_000_000.3);
+    for (n, expected) in [
+        (0, [-5.654_831_079_956_618e-10, 9.158_620_860_289_698e-9]),
+        (1, [-1.289_946_604_438_861_8e-9, -4.014_929_969_738_86e-9]),
+    ] {
+        let (value, derivative) = xsf::prolate_radial1_nocv(0, n, c, x);
+        xsref::np_assert_allclose!([value, derivative], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_prolate_radial1_near_stationary_point() {
     let (r, dr) = xsf::prolate_radial1_nocv(3, 3, 50.0, 10.038_989_929_290_016);
     assert!((r - -0.001_997_316_996_806_716_4).abs() <= 2e-15, "{r}");
