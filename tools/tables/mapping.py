@@ -2196,8 +2196,8 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
                 "the rotated Hankel continuation uses AMOS's Miller algorithm with a different normalization",
             ),
             Floor(
-                lambda a: a[2] == 0 and a[:2] in _Y_MILLER_NORM_LIMITS,
-                lambda a: _Y_MILLER_NORM_LIMITS[a[:2]] / 4,
+                lambda a: a[2] == 0 and (a[0], a[1]) in _Y_MILLER_NORM_LIMITS,
+                lambda a: _Y_MILLER_NORM_LIMITS[a[0], a[1]] / 4,
                 "the Hankel Miller normalization uses the platform complex norm twice",
             ),
             Y_FLOOR,
@@ -2209,8 +2209,7 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
 
 
 def _bessel_c() -> dict[tuple[str, str], Entry]:
-    """The tables of Y_v, I_v, K_v and of the exponentially scaled J_v, Y_v, I_v, K_v, H1_v, and H2_v, of
-    real order v and complex z."""
+    """Reference tables for Bessel and Hankel functions of real order and complex argument."""
 
     def entry(
         f: str,
