@@ -1916,3 +1916,19 @@ fn test_bernoulli_table_and_overflow() {
     assert_eq!(b[261], 0.0);
     assert_eq!(b[262], f64::INFINITY);
 }
+
+#[test]
+fn test_hypu_tiny_a_integer_b() {
+    for (a, b, x, expected) in [
+        (1e-315, 100.0, 0.01, 9.522_603_953_825_106e36),
+        (5e-324, 100.0, 0.01, 4.704_791_479_680_37e28),
+        (0.75 * f64::MIN_POSITIVE, 10_000.0, 6_666.666_666_666_667, 15_390.988_734_525_35),
+    ] {
+        xsref::np_assert_allclose!([xsf::hypu(a, b, x)], [expected], rtol = 1e-13);
+    }
+    assert_eq!(
+        xsf::hypu(0.75 * f64::MIN_POSITIVE, 20_000.0, 13_333.333_333_333_334),
+        f64::INFINITY
+    );
+    assert_eq!(xsf::hypu(f64::MIN_POSITIVE, 70_000.0, 56_000.0), f64::INFINITY);
+}

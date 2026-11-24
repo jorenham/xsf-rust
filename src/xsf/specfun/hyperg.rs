@@ -2109,12 +2109,24 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     // IL1: DLMF 13.2.7 with k=-s-a
     // IL2: DLMF 13.2.8
     if il1 || il2 {
-        hu = 1.0;
-        r = 1.0;
-        let mut rmax: f64 = 1.0;
-        // Unlike in xsf (scipy/xsf#380), the sum is hu 2^e_sum, where hu is scaled down (exactly)
-        // before it overflows, so that an infinite U has its sign
-        let mut e_sum = 0_i32;
+        // Unlike in xsf, scale the seed of the positive terminating sum
+        // to keep the first term from rounding to zero or losing digits.
+        let (seed, mut e_sum) = if il2
+            && 0.0 < a
+            && b > 1.0
+            // A term before later growth has magnitude at least a/k, where k < b.
+            && a < b * f64::MIN_POSITIVE
+            && b.fract() == 0.0
+            // This discards corrections below 2*b*a*exp(600), too small to affect 1.
+            && b * ((b - x).max(0.0) / x).powi(2) > 1200.0
+        {
+            (SCALE, -LOG2_SCALE)
+        } else {
+            (1.0, 0)
+        };
+        hu = seed;
+        r = seed;
+        let mut rmax = seed;
         // (a + k - 1) (a - b + k) < 0 for k between 1 - a and b - a, so the terms keep their sign
         // there, and a sum that is +-inf at k >= k_inf stays +-inf
         let (lo, hi) = ((1.0 - a).min(b - a), (1.0 - a).max(b - a));
@@ -2131,7 +2143,11 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
-            if rmax > SCALE {
+            // Unlike in xsf, restore early for small x, where the second term doubles.
+            // Otherwise the ratios are bounded, and an initial decline can reverse.
+            if rmax > SCALE
+                || e_sum < 0 && 4.0 * x <= b - 2.0 && r.abs() >= SCALE * f64::MIN_POSITIVE
+            {
                 (r, hu, rmax) = (r / SCALE, hu / SCALE, rmax / SCALE);
                 e_sum = e_sum.saturating_add(LOG2_SCALE);
             }
