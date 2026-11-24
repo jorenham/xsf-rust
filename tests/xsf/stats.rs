@@ -137,6 +137,17 @@ fn test_stdtr_cauchy_tail() {
 }
 
 #[test]
+fn test_stdtr_degree_two_subnormal_tail() {
+    // Arb evaluation of 1 / (sqrt(2 + x²) * (sqrt(2 + x²) - x)).
+    assert_eq!(xsf::stdtr(2.0, -4.740_375_954_054_59e153).to_bits(), 0x000f_ffff_ffff_fffd);
+
+    let x = -2.0_f64.powi(537);
+    let above = f64::from_bits(x.to_bits() - 1);
+    assert_eq!(xsf::stdtr(2.0, above).to_bits(), 1);
+    assert_eq!(xsf::stdtr(2.0, x).to_bits(), 0);
+}
+
+#[test]
 fn test_stdtr_tail() {
     // Arb
     for &(nu, x, p) in &[
