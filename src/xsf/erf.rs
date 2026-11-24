@@ -64,14 +64,34 @@ impl ErfArg for Complex64 {
 }
 
 fn erfc_c64(z: C64) -> C64 {
+    // Leave roundoff margin above ln(4*MAX).
+    const LOG_OVERFLOW_BOUND: f64 = 713.0;
     let result = crate::xsf::faddeeva::erfc_c64(z);
     let (x, y) = (z.re, z.im);
-    if !result.is_nan() || !z.is_finite() || x == 0.0 || y.abs() < 64.0 || x.abs() > y.abs() * 0.5 {
+    let (x_abs, y_abs) = (x.abs(), y.abs());
+    if !result.is_nan() || !z.is_finite() || x == 0.0 || x_abs >= y_abs {
         return result;
     }
 
     // Unlike in xsf, recover signed infinities when the leading term of erfcx
     // certifies both signs. Reduce the original product even when it overflows.
+    let (exponent, margin) = if y_abs >= 64.0 && x_abs <= y_abs * 0.5 {
+        // In this wedge the exponent is at least 3072; the sign test suffices.
+        (f64::INFINITY, pow2(-10))
+    } else {
+        let exponent = (y_abs - x_abs) * (y_abs + x_abs);
+        // A positive clearance is below one, and ln(|y|) > 3 whenever
+        // the exponent exceeds LOG_OVERFLOW_BOUND.
+        if exponent <= LOG_OVERFLOW_BOUND + 3.0 {
+            return result;
+        }
+        let margin = if y_abs >= 64.0 {
+            pow2(-10)
+        } else {
+            (4.0 / y_abs) / y_abs
+        };
+        (exponent, margin)
+    };
     let (hi, lo) = two_prod(-x, y);
     let phase = 2.0 * hi;
     let (rotation, error) = if phase.abs() > pow2(53) {
@@ -82,10 +102,16 @@ fn erfc_c64(z: C64) -> C64 {
     } else {
         return result;
     };
-    // A margin of 2^-10 covers the normalized erfcx remainder (at most 3/4096),
-    // reflection and rounding.
-    let leading = c64(x / y.abs(), -y.signum()) * rotation;
-    if leading.re.abs().min(leading.im.abs()) > error + pow2(-10) {
+    // Bound the Taylor errors and the normalized erfcx remainder.
+    let leading = c64(x / y_abs, -y.signum()) * rotation;
+    let error = error + margin;
+    let clearance = leading.re.abs().min(leading.im.abs()) - error;
+    // The exact scale is at least exp(y² - x²) / (4*|y|).
+    // Positive clearance gives true normalized magnitudes above 2^-13, so
+    // exponent >= 1536 suffices even at |y| = MAX.
+    if clearance > 0.0
+        && (exponent >= 1536.0 || exponent - y_abs.ln() + clearance.ln() > LOG_OVERFLOW_BOUND)
+    {
         c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
     } else {
         result
