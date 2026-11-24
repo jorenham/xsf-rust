@@ -5833,9 +5833,9 @@ fn unik(
     }
 }
 
-// Unlike in xsf, combine exp(-Re(w)) with the K exponent before testing for overflow.
-pub(super) fn k_with_decay(v: f64, w: C64) -> Option<C64> {
-    let (tol, elim, _, _, fnul) = MACH;
+// Unlike in xsf, expose the prefactor and exponent before applying the scaling.
+pub(super) fn k_debye_parts(v: f64, w: C64) -> Option<(C64, C64)> {
+    let (tol, _, _, _, fnul) = MACH;
     // Use the same sector as unk1 and limit rounding in the exponent and phase.
     if !(fnul..=4096.0).contains(&v) || w.re <= 0.0 || w.im.abs() > w.re * 1.7321 {
         return None;
@@ -5854,11 +5854,17 @@ pub(super) fn k_with_decay(v: f64, w: C64) -> Option<C64> {
         &mut sum,
         &mut [C64::ZERO; 16],
     );
-    let exponent = zeta1 - zeta2;
+    Some((phi * sum, zeta1 - zeta2))
+}
+
+// Unlike in xsf, combine exp(-Re(w)) with the K exponent before testing for overflow.
+pub(super) fn k_with_decay(v: f64, w: C64) -> Option<C64> {
+    let (factor, exponent) = k_debye_parts(v, w)?;
+    let (_, elim, _, _, _) = MACH;
     let projected = exponent.re - w.re;
     // Here the continued I term is negligible compared with the continued K term.
     (exponent.re > MAXLOG && (0.0..=elim).contains(&projected))
-        .then(|| (phi * sum) * C64::cis(exponent.im) * projected.exp())
+        .then(|| factor * C64::cis(exponent.im) * projected.exp())
 }
 
 fn unk1(

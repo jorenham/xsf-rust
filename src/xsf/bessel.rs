@@ -658,7 +658,7 @@ fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
             if sign * z.im < 0.0 {
                 scaled_bessel_from_k(v, z, true)
             } else {
-                None
+                scaled_hankel_overflow(v, z)
             }
         },
     )
@@ -689,6 +689,31 @@ fn scaled_bessel_from_k(v: f64, z: C64, hankel: bool) -> Option<C64> {
     let (re, im) = (value.re.abs(), value.im.abs());
     // Screen projections that amplify phase error through cancellation.
     (re.min(im) >= re.max(im) / 8.0).then_some(value)
+}
+
+// Unlike in xsf, classify both components before evaluating the overflowing exponential.
+#[cold]
+fn scaled_hankel_overflow(v: f64, z: C64) -> Option<C64> {
+    let w = c64(z.im.abs(), z.re);
+    let (factor, exponent) = amos::k_debye_parts(v.abs(), w)?;
+    let scaled_exponent = exponent + w;
+    // Keep a factor-of-two margin beyond overflow for both projections.
+    let limit = MAXLOG + LN_2;
+    if exponent.re <= 0.0 || scaled_exponent.re <= limit {
+        return None;
+    }
+
+    // Use H_2e in the lower half-plane and conjugate for H_1e in the upper.
+    let phase = factor * C64::cis(scaled_exponent.im);
+    let value = rotate(c64(-phase.im, phase.re), 0.5 * v);
+    let (re, im) = (value.re.abs(), value.im.abs());
+    let minor = re.min(im);
+    (minor >= re.max(im) / 8.0 && scaled_exponent.re + (FRAC_2_PI * minor).ln() > limit).then(
+        || {
+            let im_sign = if z.im < 0.0 { value.im } else { -value.im };
+            c64(f64::INFINITY.copysign(value.re), f64::INFINITY.copysign(im_sign))
+        },
+    )
 }
 
 /// Unlike in xsf, the four Hankel functions share this implementation, with `kode = 2` for the
