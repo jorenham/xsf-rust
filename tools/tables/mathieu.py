@@ -74,3 +74,62 @@ def km(a: tuple[float, ...]) -> float:
     else:
         qm = 17.0 + 3.1 * s - 0.126 * q + 0.0037 * s * q
     return qm + 0.5 * a[0]
+
+
+def radial1(
+    odd: int, derivative: bool
+) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf | tuple[mp.mpf, mp.mpf]]:
+    """The first-kind modified Mathieu function or its derivative."""
+
+    def reference(m: mp.mpf, q: mp.mpf, x: mp.mpf) -> mp.mpf | tuple[mp.mpf, mp.mpf]:
+        # The first kind has definite parity. Evaluate at positive x so the
+        # second-kind envelope is evaluated on its convergent side as well.
+        res = specs._mathieu_radial(odd, 1, m, q, abs(x), derivative)
+        if x < 0 and derivative != bool(odd):
+            return (-res[0], res[1]) if isinstance(res, tuple) else -res
+        return res
+
+    return reference
+
+
+def radial1_residual(odd: int) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf]:
+    """Check the cross-product reference against the single-Bessel expansions
+    in DLMF 28.23.7, 9, 11, 13. The Bessel recurrence removes the coth singularity."""
+
+    def residual(m: mp.mpf, q: mp.mpf, x: mp.mpf) -> mp.mpf:
+        order = int(m)
+        _, coef, _ = specs._mathieu_eig(odd, order, q)
+        h = mp.sqrt(q)
+        u = 2 * h * mp.sinh(x)
+        weighted = odd == (order % 2 == 0)
+        phase = (-1) ** (order // 2 + int(odd and order % 2 == 0))
+        norm = mp.fsum(
+            (-1) ** k * c * (n if weighted else 1) for k, (n, c) in enumerate(coef)
+        )
+
+        def coeff(n: int) -> tuple[mp.mpf, mp.mpf]:
+            j = mp.besselj(n, u)
+            return j, (mp.besselj(n - 1, u) - mp.besselj(n + 1, u)) / 2
+
+        if weighted:
+            pairs = [(c, coeff(n - 1), coeff(n + 1)) for n, c in coef]
+            g = mp.fsum(c * (a[0] + b[0]) for c, a, b in pairs)
+            dg = mp.fsum(c * (a[1] + b[1]) for c, a, b in pairs)
+            y = phase * h * mp.cosh(x) * g / norm
+            dy = phase * h * (mp.sinh(x) * g + 2 * h * mp.cosh(x) ** 2 * dg) / norm
+        else:
+            pairs = [(c, coeff(n)) for n, c in coef]
+            y = phase * mp.fsum(c * a[0] for c, a in pairs) / norm
+            dy = phase * 2 * h * mp.cosh(x) * mp.fsum(c * a[1] for c, a in pairs) / norm
+
+        errors: list[mp.mpf] = []
+        for j, actual in enumerate((y, dy)):
+            if x == 0 and j != odd:
+                errors.append(abs(actual))
+                continue
+            v = radial1(odd, bool(j))(m, q, x)
+            expected, scale = v if isinstance(v, tuple) else (v, abs(v))
+            errors.append(abs(actual - expected) / scale)
+        return max(errors)
+
+    return residual
