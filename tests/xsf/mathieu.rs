@@ -31,6 +31,19 @@ fn test_mathieu_sem_even_m() {
 }
 
 #[test]
+fn test_mathieu_small_q_low_modes() {
+    // References from the normalized Fourier eigenvector.
+    let at_zero = xsf::mathieu_cem(2, 1e-3, 0.0).0;
+    let derivative = xsf::mathieu_cem(2, 1e-3, 22.5).1;
+    let cv = xsf::mathieu_a(2, 1e-3);
+    xsref::np_assert_allclose!(
+        [at_zero, derivative, cv],
+        [1.000_166_603_258_439_3, -1.413_880_146_799_069_4, 4.000_000_416_666_611],
+        rtol = 2e-15
+    );
+}
+
+#[test]
 fn test_mathieu_cem_sem_large_m() {
     // zeros in xsf, because of an overflow in `fcoef` (scipy/xsf#344); the expected values
     // are from mpmath
