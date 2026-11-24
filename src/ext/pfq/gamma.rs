@@ -1,5 +1,6 @@
 //! Stirling double-double log-gamma and scaled Gamma-product helpers for `pFq`.
 
+use super::asymptotic::Alg;
 use super::{Dd, Scaled, SeriesReal, ln_dd, ln_gamma};
 use crate::xsf::cephes::dd_real::{LN_SQRT_2PI_DD, frexp_f64};
 
@@ -53,6 +54,25 @@ fn mul_dd(mut y: Scaled, v: Dd) -> Scaled {
     y.mul_exp(Dd::new(p.lo / p.hi))
 }
 
+type LogGamma = (Dd, f64, f64);
+pub(super) type LogGammaCache<'a> = &'a mut [Option<(Dd, LogGamma)>];
+
+// The Gamma product still applies every sign, error, and scale update in its original order.
+fn cached_ln_gamma(g: Dd, cache: LogGammaCache<'_>) -> Option<LogGamma> {
+    for slot in cache {
+        if let Some((key, value)) = *slot {
+            if key.hi.to_bits() == g.hi.to_bits() && key.lo.to_bits() == g.lo.to_bits() {
+                return Some(value);
+            }
+        } else {
+            let value = ln_gamma(g)?;
+            *slot = Some((g, value));
+            return Some(value);
+        }
+    }
+    ln_gamma(g)
+}
+
 /// `y` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, with the error bounds of the factors
 /// added, or `None` at a pole (or if the result is far out of range)
 ///
@@ -60,12 +80,13 @@ fn mul_dd(mut y: Scaled, v: Dd) -> Scaled {
 /// instead, divided by the rising factorial `(g)_n` (DLMF 5.2.5). There it is Stirling's formula
 /// in double-double, whose error is smaller than that of `lgam` at `g`. The `(g)_n` are multiplied
 /// in double-double, and rounded once.
+#[cfg(test)]
 fn mul_gammas(
     num: impl IntoIterator<Item = Dd>,
     den: impl IntoIterator<Item = Dd>,
     y: Scaled,
 ) -> Option<Scaled> {
-    mul_gammas_in(num, den, y, false)
+    mul_gammas_in(num, den, y, false, &mut [])
 }
 
 /// `mul_gammas` if not `dd`. Otherwise each factor is by `ln_gamma_stirling` at `g + n`, also for
@@ -76,6 +97,7 @@ fn mul_gammas_in(
     den: impl IntoIterator<Item = Dd>,
     mut y: Scaled,
     dd: bool,
+    cache: LogGammaCache<'_>,
 ) -> Option<Scaled> {
     // the product of the `(g)_n^-power`, as a mantissa and an exponent
     // (`rising_e` is an `f64`, which sums exactly, as many tiny factors can take it out of the
@@ -112,7 +134,7 @@ fn mul_gammas_in(
         let (v, sign, v_err) = if dd && g.hi >= PFQ_GAMMA_MAX {
             ln_gamma_stirling(g)
         } else {
-            ln_gamma(g)?
+            cached_ln_gamma(g, cache)?
         };
         (y.m, y.err) = (sign * y.m, y.err + v_err);
         y = y.mul_exp(v * power);
@@ -141,8 +163,9 @@ pub(super) fn gamma_series(
     den: impl IntoIterator<Item = Dd>,
     (sum, err): (f64, f64),
     l: Dd,
+    cache: LogGammaCache<'_>,
 ) -> Option<Scaled> {
-    mul_gammas(num, den, Scaled::new(sum, 0, err / sum.abs())?.with_l(l))
+    mul_gammas_in(num, den, Scaled::new(sum, 0, err / sum.abs())?.with_l(l), false, cache)
 }
 
 /// Appends `exp(l) sum` times `Gamma(num_0) ... / (Gamma(den_0) ...)` to `terms` for a term of
@@ -156,10 +179,12 @@ pub(super) fn gamma_alg_term(
     den: impl IntoIterator<Item = Dd>,
     (sum, err): (Dd, f64),
     l: Dd,
-    dd: bool,
-    sizes: bool,
+    mode: Alg,
     terms: &mut Vec<Scaled>,
+    cache: LogGammaCache<'_>,
 ) -> Option<()> {
+    let dd = mode == Alg::Dd;
+    let sizes = mode == Alg::Sizes;
     err.is_finite().then_some(())?;
     let rel = err / sum.hi.abs();
     let term = if sum.hi == 0.0 || !rel.is_finite() {
@@ -167,7 +192,8 @@ pub(super) fn gamma_alg_term(
         if abs_err == 0.0 {
             None
         } else {
-            let mut e = mul_gammas_in(num, den, Scaled::new(abs_err, 0, 0.0)?.with_l(l), dd)?;
+            let mut e =
+                mul_gammas_in(num, den, Scaled::new(abs_err, 0, 0.0)?.with_l(l), dd, cache)?;
             if sizes {
                 e.m = e.m.abs();
                 Some(e)
@@ -181,7 +207,7 @@ pub(super) fn gamma_alg_term(
         } else {
             Scaled::new(sum.hi, 0, rel)?.with_l(l)
         };
-        let mut y = mul_gammas_in(num, den, base, dd)?;
+        let mut y = mul_gammas_in(num, den, base, dd, cache)?;
         if sizes {
             y.m = y.m.abs();
         }
@@ -232,7 +258,7 @@ mod tests {
         assert!(mul_gammas([Dd::new(-2.0)], den, one).is_none());
         assert!(mul_gammas(num, [Dd::new(-2.0)], one).is_none());
         // in double-double, below `-PFQ_GAMMA_MAX`: Gamma(-30.5) / Gamma(-28.5)
-        let y = mul_gammas_in([Dd::new(-30.5)], [Dd::new(-28.5)], one, true);
+        let y = mul_gammas_in([Dd::new(-30.5)], [Dd::new(-28.5)], one, true, &mut []);
         check(y, 1.0 / (30.5 * 29.5), 1e-15);
     }
 
