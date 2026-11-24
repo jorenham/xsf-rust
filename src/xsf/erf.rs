@@ -5,9 +5,9 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_PI, PI};
 
 use num_complex::Complex64;
 
-use crate::utils::{SQRT_FRAC_2_PI, SQRT_TAU_DOWN, pow2};
+use crate::utils::{SQRT_FRAC_2_PI, SQRT_TAU_DOWN, mul_exp, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{FRAC_PI_2_DD, two_prod};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_PI_2_DD, two_prod};
 use crate::xsf::phase::{self, Quadrant};
 
 pub trait ErfArg: crate::sealed::Sealed {
@@ -84,14 +84,55 @@ fn erfc_c64(z: C64) -> C64 {
     if result.is_nan() && z.is_finite() && x_abs == y_abs && (2.0 * z.re * z.re).is_infinite() {
         return erfc_overrange_diagonal(z, result);
     }
-    if result.is_nan() || (result.re.is_infinite() && result.im.is_infinite() && wide_phase()) {
+    if result.is_nan() {
         return erfc_overflow(z).unwrap_or(result);
+    }
+    if result.re.is_infinite() && result.im.is_infinite() {
+        // Unlike in xsf, include the Faddeeva factor when deciding overflow.
+        return if wide_phase() {
+            erfc_overflow(z)
+        } else {
+            erfc_rescale_overflow(z)
+        }
+        .unwrap_or(result);
     }
     // Unlike in xsf, keep the sign of a component that rounds to zero in the Gaussian tail.
     if result.im == 0.0 && z.im != 0.0 {
         return gaussian_tail_zeros(z, 2.0, result);
     }
     result
+}
+
+#[cold]
+fn erfc_rescale_overflow(z: C64) -> Option<C64> {
+    let (x, y) = (z.re.abs(), z.im);
+    // In this region w uses four or five Gaussian continued-fraction levels.
+    if !(x >= 32.0 && x < y.abs() && x + y.abs() <= 512.0) {
+        return None;
+    }
+    let w = crate::xsf::faddeeva::w(c64(-y, x));
+    let theta = (Dd::new(-x) * y).mul_pwr2(2.0);
+    let (sin, cos) = theta.sin_cos();
+    let projected = c64(cos, sin) * w;
+    let exp = (Dd::new(y.abs()) - x) * (Dd::new(y.abs()) + x);
+    // Keep the upper and lower overflow tests at the same scaled magnitude.
+    let scale = mul_exp(f64::MIN_POSITIVE, exp.hi) * (1.0 + exp.lo);
+    let limit = f64::MAX * f64::MIN_POSITIVE;
+
+    // The Gaussian Cauchy-transform remainder is bounded by 1/(x*(|z|-4)^8).
+    // Pad for the continued fraction and its rotation and scale.
+    let error = scale * (1.0 / (x * (z.norm() - 4.0).powi(8)) + w.l1_norm() * pow2(-44));
+    let certify = |p: f64| {
+        let val = p * scale;
+        let a = val.abs();
+        if a - error > limit {
+            Some(f64::INFINITY.copysign(val))
+        } else {
+            (a > error && a + error < limit).then(|| val / f64::MIN_POSITIVE)
+        }
+    };
+    let (re, im) = (certify(projected.re)?, certify(projected.im)?);
+    (re.is_finite() || im.is_finite()).then(|| c64(if z.re < 0.0 { 2.0 - re } else { re }, im))
 }
 
 // Recover the zero signs of k/2 * erfc(z * sqrt(k/2)), with k = 1 or 2.

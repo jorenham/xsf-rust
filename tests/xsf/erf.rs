@@ -172,6 +172,28 @@ fn test_complex_erfc_near_component_overflow() {
 }
 
 #[test]
+fn test_complex_erfc_rescales_finite_overflow_companion() {
+    let x = 63.495_043_197_677_92;
+    let y = 68.897_756_302_938_25;
+    // Arb at the exact binary64 inputs, including the actual two-component overflow nearby.
+    for sign_re in [-1.0, 1.0] {
+        for sign_im in [-1.0, 1.0] {
+            let actual = xsf::erfc(c64(sign_re * x, sign_im * y));
+            xsref::np_assert_allclose!(
+                [actual.re],
+                [-sign_re * 1.797_693_134_861_679_2e308],
+                rtol = 2e-15
+            );
+            assert_eq!(actual.im, sign_im * f64::INFINITY);
+            assert_eq!(
+                xsf::erfc(c64(sign_re * x, sign_im * 68.897_756_302_938_65)),
+                c64(-sign_re * f64::INFINITY, sign_im * f64::INFINITY)
+            );
+        }
+    }
+}
+
+#[test]
 fn test_complex_erfc_phase_product_overflow() {
     let z = c64(5.0, 8.988_465_674_311_05e307);
     let expected = c64(f64::INFINITY, f64::NEG_INFINITY);
