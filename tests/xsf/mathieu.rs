@@ -218,7 +218,7 @@ fn test_mathieu_even_coef_match_underflow() {
     let (radial, _) = xsf::mathieu_modcem1(310, 892.1875, 0.0);
     xsref::np_assert_allclose!(
         [coefficients[0], radial],
-        [9.231_601_377_464_516e-276, 9.274_457_443_718_163e-276],
+        [9.231_601_377_464_515e-276, 9.274_457_443_718_162e-276],
         rtol = 1e-13
     );
 }
