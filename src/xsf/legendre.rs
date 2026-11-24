@@ -1014,14 +1014,41 @@ fn lq_extreme_complex_degree_one_order_one(z: C64) -> (C64, C64) {
     let re_units = (re / 3.0).ldexp(scale);
     let re = re_units.round_subnormal_units().copysign(re_sign);
     let im = lq_round_skew_projection(z, x.hi.min(y.hi), (im / 3.0).ldexp(scale), 3).copysign(z.im);
-    let (x2, y2) = (x * x, y * y);
+    let (cube_re, cube_im) = lq_inverse_cube_signs(x, y);
     let der_re = if z.re == 0.0 {
         0.0
     } else {
-        0.0_f64.copysign((x2 - y2 * 3.0).hi)
+        0.0_f64.copysign(cube_re)
     };
-    let der_im = 0.0_f64.copysign((y2 - x2 * 3.0).hi.signum() * side * z.im.signum());
+    let der_im = 0.0_f64.copysign(cube_im * side * z.im.signum());
     (c64(re, im), c64(der_re, der_im))
+}
+
+fn lq_inverse_cube_signs(x: DoubleDouble, y: DoubleDouble) -> (f64, f64) {
+    let (x2, y2) = (x * x, y * y);
+    ((x2 - y2 * 3.0).hi.signum(), (y2 - x2 * 3.0).hi.signum())
+}
+
+// Unlike in xsf, use the underflow signs of 2/(15z³) and -2/(5z⁴).
+fn lq_extreme_complex_degree_two(z: C64) -> (C64, C64) {
+    if z.re == 0.0 {
+        return (c64(0.0, 0.0_f64.copysign(z.im)), c64(-0.0, 0.0));
+    }
+    let (x, y, _) = lq_scaled_abs(z, z.re.abs().max(z.im.abs()));
+    let (cube_re, cube_im) = lq_inverse_cube_signs(x, y);
+    let side = z.re.signum();
+    let lip = z.im.signum();
+    let (major, minor) = (x.hi.max(y.hi), x.hi.min(y.hi));
+    // Factoring the real quartic leaves major² - 2*major*minor - minor².
+    // Near its zero, the subtraction major - 2*minor is exact by Sterbenz.
+    let quartic =
+        DoubleDouble::new(major) * (major - 2.0 * minor) - DoubleDouble::new(minor) * minor;
+    // At equal magnitudes the leading imaginary part vanishes and -4/(7z⁶) gives its sign.
+    let diagonal_sign = if z.re.abs() > z.im.abs() { 1.0 } else { -1.0 };
+    (
+        c64(0.0_f64.copysign(cube_re * side), 0.0_f64.copysign(cube_im * lip)),
+        c64(0.0_f64.copysign(-quartic.hi), 0.0_f64.copysign(diagonal_sign * side * lip)),
+    )
 }
 
 // ==================================================
@@ -1141,6 +1168,10 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
     if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
         (cqn[1], cqd[0]) = (q1, derivative);
+        // Unlike in xsf, restore the underflow signs for Q₂ and Q₂′.
+        if n >= 2 && !z.is_real() {
+            (cqn[2], cqd[2]) = lq_extreme_complex_degree_two(z);
+        }
     }
 }
 
@@ -1490,6 +1521,10 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
     if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
         (cqm[(0, 1)], cqd[(0, 0)]) = (q1, derivative);
+        // Unlike in xsf, restore the underflow signs for Q₂ and Q₂′.
+        if n >= 2 && !z.is_real() {
+            (cqm[(0, 2)], cqd[(0, 2)]) = lq_extreme_complex_degree_two(z);
+        }
         // Unlike in xsf, use scaled leading terms for Q_0^1 and its derivative too.
         (cqm[(1, 0)], cqd[(1, 0)]) = lq_extreme_complex_order_one(z, derivative);
         // Unlike in xsf, recover the degree-one order-one slot from its leading terms.
