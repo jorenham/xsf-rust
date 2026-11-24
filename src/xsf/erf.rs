@@ -85,14 +85,23 @@ fn erfc_c64(z: C64) -> C64 {
         return erfc_overrange_diagonal(z, result);
     }
     if result.is_nan() {
-        return erfc_overflow(z).unwrap_or(result);
+        return erfc_overflow(z)
+            .or_else(|| {
+                // Unlike in xsf, recover a finite component independently of its infinite companion.
+                if result.re.is_infinite() || result.im.is_infinite() {
+                    erfc_rescale_overflow(z, result)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(result);
     }
     if result.re.is_infinite() && result.im.is_infinite() {
         // Unlike in xsf, include the Faddeeva factor when deciding overflow.
         return if wide_phase() {
             erfc_overflow(z)
         } else {
-            erfc_rescale_overflow(z)
+            erfc_rescale_overflow(z, result)
         }
         .unwrap_or(result);
     }
@@ -104,10 +113,12 @@ fn erfc_c64(z: C64) -> C64 {
 }
 
 #[cold]
-fn erfc_rescale_overflow(z: C64) -> Option<C64> {
+fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
     let (x, y) = (z.re.abs(), z.im);
-    // In this region w uses four or five Gaussian continued-fraction levels.
-    if !(x >= 32.0 && x < y.abs() && x + y.abs() <= 512.0) {
+    let partial = result.is_nan();
+    let min_real = if partial { 8.0 } else { 32.0 };
+    // In this region w uses between four and nine Gaussian continued-fraction levels.
+    if !(x >= min_real && x < y.abs() && x + y.abs() <= 512.0) {
         return None;
     }
     let w = crate::xsf::faddeeva::w(c64(-y, x));
@@ -122,17 +133,29 @@ fn erfc_rescale_overflow(z: C64) -> Option<C64> {
     // The Gaussian Cauchy-transform remainder is bounded by 1/(x*(|z|-4)^8).
     // Pad for the continued fraction and its rotation and scale.
     let error = scale * (1.0 / (x * (z.norm() - 4.0).powi(8)) + w.l1_norm() * pow2(-44));
-    let certify = |p: f64| {
-        let val = p * scale;
+    let scaled = projected * scale;
+    let finite = |val: f64| {
         let a = val.abs();
-        if a - error > limit {
+        (a > error && a + error < limit).then(|| val / f64::MIN_POSITIVE)
+    };
+    let reflect_real = |re| if z.re < 0.0 { 2.0 - re } else { re };
+    let certify = |val: f64| {
+        if val.abs() - error > limit {
             Some(f64::INFINITY.copysign(val))
         } else {
-            (a > error && a + error < limit).then(|| val / f64::MIN_POSITIVE)
+            finite(val)
         }
     };
-    let (re, im) = (certify(projected.re)?, certify(projected.im)?);
-    (re.is_finite() || im.is_finite()).then(|| c64(if z.re < 0.0 { 2.0 - re } else { re }, im))
+    if partial {
+        return if result.re.is_nan() {
+            finite(scaled.re)
+                .map(|re| c64(reflect_real(re), certify(scaled.im).unwrap_or(result.im)))
+        } else {
+            finite(scaled.im).map(|im| c64(certify(scaled.re).map_or(result.re, reflect_real), im))
+        };
+    }
+    let (re, im) = (certify(scaled.re)?, certify(scaled.im)?);
+    (re.is_finite() || im.is_finite()).then(|| c64(reflect_real(re), im))
 }
 
 // Recover the zero signs of k/2 * erfc(z * sqrt(k/2)), with k = 1 or 2.

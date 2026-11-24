@@ -224,6 +224,34 @@ fn test_complex_erfc_rescales_finite_overflow_companion() {
 }
 
 #[test]
+fn test_complex_erfc_rescales_nan_companion() {
+    let x = 13.411_601_942_156_58;
+    // Arb at the exact binary64 inputs.
+    for (y, re, im) in [
+        (29.896_363_007_581_32, 7.349_056_666_811_188e307, f64::INFINITY),
+        (29.896_363_007_581_11, 7.349_056_666_618_002e307, 1.797_693_134_843_931_6e308),
+    ] {
+        let actual = xsf::erfc(c64(x, y));
+        xsref::np_assert_allclose!([actual.re], [re], rtol = 2e-15);
+        if im.is_infinite() {
+            assert_eq!(actual.im, im);
+        } else {
+            xsref::np_assert_allclose!([actual.im], [im], rtol = 2e-15);
+        }
+    }
+
+    // At the adjacent ordinate, the finite imaginary part is too close to the overflow
+    // boundary for the current certificate. The real part still must be recovered.
+    let adjacent = xsf::erfc(c64(x, 29.896_363_007_581_318));
+    xsref::np_assert_allclose!([adjacent.re], [7.349_056_666_807_914e307], rtol = 2e-15);
+
+    let z = c64(50.149_973_482_398_91, 56.836_113_599_097_594);
+    let actual = xsf::erfc(z);
+    assert_eq!(actual.re, f64::NEG_INFINITY);
+    xsref::np_assert_allclose!([actual.im], [-1.587_012_934_191_036_6e308], rtol = 2e-15);
+}
+
+#[test]
 fn test_complex_erfc_phase_product_overflow() {
     let z = c64(5.0, 8.988_465_674_311_05e307);
     let expected = c64(f64::INFINITY, f64::NEG_INFINITY);
