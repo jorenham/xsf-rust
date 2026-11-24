@@ -1502,10 +1502,22 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             cqm[(2, 0)] = c64(value.re.copysign(z.re), value.im.copysign(-z.im));
             let mut derivative =
                 lq_extreme_complex_low_scaled(z, z.re.abs().max(z.im.abs()), true).1;
-            if z.re == 0.0 {
+            // Unlike in xsf, use the doubled inverse square for Q₁² and the
+            // already computed cubic signs for its underflowed derivative.
+            let slope = cqd[(1, 1)] * -z.re.signum();
+            let y = z.im.abs();
+            let (q12, dq12) = if z.re == 0.0 {
                 derivative.im = 0.0;
-            }
+                (c64(-derivative.re, 0.0), c64(0.0, slope.im))
+            } else if z.re.abs() == const { utils::pow2(538) } && y < 1.0 && y * y > 1.0 / 3.0 {
+                // Between 1/sqrt(3) and 1, the Q₁² real midpoint rounds to zero
+                // while the existing (Q₀²)′ midpoint rounds away from zero.
+                (c64(0.0, -derivative.im), slope)
+            } else {
+                (-derivative, slope)
+            };
             cqd[(2, 0)] = derivative;
+            (cqm[(2, 1)], cqd[(2, 1)]) = (q12, dq12);
         }
     }
 }
