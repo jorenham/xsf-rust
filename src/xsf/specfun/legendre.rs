@@ -98,6 +98,9 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     // Routine called:  LPMV0
     // =======================================================
 
+    // The old factorial product fits at 170! and overflows at 171!.
+    const MIN_SCALED_ORDER: i32 = 85;
+
     let mut pmv;
     if (x == -1.0) && (v != f64::from(v as i32)) {
         if m == 0 {
@@ -145,11 +148,10 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     let seed = |degree| lpmv0(degree, mx, x, linear_seed);
     // Unlike in xsf, factor the first quadratic and cubic above the diagonal
     // from the Ferrers Rodrigues formula (DLMF 14.7.10).
-    // At m = 85 the old degree-(m + 1) normalization first overflows (171!).
     let order = f64::from(mx);
     let excess = vx - order;
     let cubic = excess == 3.0 && !linear_seed;
-    if (excess == 2.0 || cubic) && (0..=84).contains(&m) && x.abs() < 1.0 {
+    if (excess == 2.0 || cubic) && (0..MIN_SCALED_ORDER).contains(&m) && x.abs() < 1.0 {
         let linear = 2.0 * order + 1.0;
         let (coefficient, constant, weight) = if cubic {
             (linear + 4.0, 3.0, linear * (linear + 2.0) / 6.0)
@@ -166,8 +168,8 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         });
         return specfun_convinf(if cubic { value * x } else { value });
     }
-    // Unlike in xsf, share a scaled diagonal seed after the old factorial overflows.
-    if m >= 85 && v0 == 0.0 && nv > m && x.abs() < 1.0 {
+    // Unlike in xsf, use the scaled diagonal when the old factorial product overflows.
+    if m >= MIN_SCALED_ORDER && v0 == 0.0 && nv >= m.max(MIN_SCALED_ORDER + 1) && x.abs() < 1.0 {
         return lpmv_scaled_integer(x, m, nv - m);
     }
     if (nv > 2) && (nv > mx) {
@@ -225,7 +227,11 @@ fn lpmv_scaled_integer(x: f64, m: i32, gap: i32) -> f64 {
     // In the upward recurrence (DLMF 14.10.3), defer the factor x in odd members
     // (DLMF 14.7.17) until the final rescaling.
     let mut p0 = diagonal;
-    let mut p1 = diagonal * (2.0 * f64::from(m) + 1.0);
+    let mut p1 = if gap == 0 {
+        diagonal
+    } else {
+        diagonal * (2.0 * f64::from(m) + 1.0)
+    };
     for k in 2..=gap {
         let j = f64::from(m + k);
         let previous = if k % 2 == 0 { p1 * square } else { p1 };
