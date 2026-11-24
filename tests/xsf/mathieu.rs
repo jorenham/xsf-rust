@@ -170,6 +170,15 @@ fn test_mathieu_a_nan() {
 }
 
 #[test]
+fn test_mathieu_modcem1_small_q_derivative() {
+    let expected = 1.499_999_924_999_998e-16;
+    for sign in [1.0, -1.0] {
+        let derivative = xsf::mathieu_modcem1(2, 1.5e-7, sign * 1e-9).1;
+        xsref::np_assert_allclose!([derivative], [sign * expected], rtol = 2e-15);
+    }
+}
+
+#[test]
 fn test_mathieu_mod_first_kind_near_origin() {
     for sign in [-1.0, 0.0, 1.0] {
         let x = sign * 1.0e-9;
