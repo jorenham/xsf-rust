@@ -13,6 +13,24 @@ fn test_gamma_c64_real_axis() {
     let w = xsf::gamma(c64(200.0, 0.0));
     assert_eq!(w.re, f64::INFINITY);
     assert_eq!(w.im.to_bits(), 0.0_f64.to_bits());
+
+    for im in [0.0_f64, -0.0] {
+        let w = xsf::gamma(c64(-0.5, im));
+        assert!((w.re - (-3.544_907_701_811_032)).abs() <= 2.0 * f64::EPSILON);
+        assert_eq!(w.im.to_bits(), (-im).to_bits());
+
+        let w = xsf::gamma(c64(-0.9, im));
+        assert_eq!(w.im.to_bits(), im.to_bits());
+
+        let w = xsf::gamma(c64(-172.5, im));
+        assert!(w.re.is_subnormal() && w.re.is_sign_negative());
+        assert_eq!(w.im.to_bits(), (-im).to_bits());
+
+        // The reciprocal of this negative subnormal overflows.
+        let w = xsf::gamma(c64(-f64::from_bits(1 << 50), im));
+        assert_eq!(w.re, f64::NEG_INFINITY);
+        assert_eq!(w.im.to_bits(), (-im).to_bits());
+    }
 }
 
 xsref::tests! {

@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
 use crate::utils::is_nonpos_int;
-use crate::xsf::c64::{C64, ViaC64};
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::loggamma::cloggamma;
 
 pub trait GammaArg: crate::sealed::Sealed {
@@ -29,6 +29,22 @@ pub(crate) fn cgamma(z: C64) -> C64 {
         // Poles
         return C64::NAN;
     }
+    // Unlike in xsf, evaluate negative real non-poles on the real axis.
+    if z.is_real() && z.re < 0.0 {
+        let psi = crate::xsf::cephes::psi(z.re);
+        // Near a zero of ψ its reflection terms (of order log(1 − x)) nearly cancel.
+        // Keep the complex path when their rounding may obscure the derivative sign.
+        let sign_margin = 32.0 * f64::EPSILON * (1.0 + (-z.re).ln_1p());
+        if psi.abs() > sign_margin {
+            let mut re = crate::xsf::cephes::gamma(z.re);
+            // The real kernel's reflection denominator can overflow before Gamma underflows.
+            if re == 0.0 {
+                re = cloggamma(z).re.exp().copysign(re);
+            }
+            let derivative_negative = re.is_sign_negative() ^ psi.is_sign_negative();
+            return c64(re, if derivative_negative { -z.im } else { z.im });
+        }
+    }
     cloggamma(z).exp()
 }
 
@@ -41,6 +57,9 @@ pub(crate) fn cgamma(z: C64) -> C64 {
 /// $$
 ///
 /// for $\Re(z) > 0$, and is extended to the complex plane by analytic continuation.
+/// On the negative real axis away from poles and stationary points, the imaginary zero follows
+/// the sign of `y * Γ′(x)` for input `x + i y` with `y = ±0`.
+/// A small imaginary residual can remain near a stationary point.
 ///
 /// # Types
 /// - `T`: either [`f64`] or [`Complex<f64>`](num_complex::Complex)
