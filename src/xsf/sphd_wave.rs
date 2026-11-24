@@ -608,8 +608,9 @@ fn radial_nocv(m: f64, n: f64, c: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
     radial(m, n, c, None, x, kd, kf)
 }
 
-// For z=c*x, U=c*sqrt(x²-1)*R satisfies U''+(1+Q)U=0. The
-// outgoing solution is normalized to exp(i*(z-n*pi/2)) at infinity.
+// For z=c*x, U=c*sqrt(x²-1)*R satisfies U''+(1+Q)U=0 (DLMF 30.2.4).
+// The outgoing solution uses i times the spherical Hankel phase at infinity,
+// exp(i*(z-n*pi/2)) (DLMF 30.11.6 and 10.52.4).
 #[cold]
 fn prolate_radial1_far(m: f64, n: i32, c: f64, cv: f64, x: f64) -> Option<(f64, f64)> {
     const N: usize = 6;

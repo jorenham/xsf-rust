@@ -365,7 +365,8 @@ fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C
     if !(i.is_finite() && v >= 2.0 && z.re > 0.0 && !z.is_real() && z.norm_sqr() <= v) {
         return None;
     }
-    // The seeds are unscaled K, so Ie only needs exp(-|Re z|).
+    // Use the order reflection (DLMF 10.27.2). The seeds are unscaled K,
+    // so Ie only needs exp(-|Re z|).
     let scale = if kode == 2 { (-z.re).exp() } else { 1.0 };
     let weight = (FRAC_2_PI * cephes_sinpi(v)) * scale;
     let weight = weight.is_normal().then_some(weight)?;
@@ -380,7 +381,7 @@ fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C
     let (offset, seeds) = match evaluate(2) {
         Ok(seeds) => (2, seeds),
         Err(2) if v >= 4.0 => {
-            // The K integral bounds its relative displacement from K_v(Re z)
+            // The K integral (DLMF 10.32.9) bounds its relative displacement from K_v(Re z)
             // by |Im z| * (v/Re z + 1).
             // If I is also nearly real, their sum cannot pass the final imaginary-part check.
             let margin = I_ROTATED_PART_MIN / 2.0;
@@ -676,13 +677,16 @@ fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
 const MAX_PROJECTION_RATIO: f64 = 8.0;
 
 // Unlike in xsf, recover the damped Hankel and Y when their continued K term
-// dominates I and the ordinary intermediate K values overflow.
+// dominates I and the ordinary intermediate K values overflow. This
+// uses the K continuations (DLMF 10.27.8 and 10.27.11) and
+// H1 = 2J - H2 (DLMF 10.4.4).
 #[cold]
 fn scaled_bessel_from_k(v: f64, z: C64, hankel: bool) -> Option<C64> {
     let w = c64(z.im.abs(), z.re);
     let order = v.abs();
     let k = rotate(amos::k_with_decay(order, w)?, 0.5 * order) * FRAC_2_PI;
-    // Unlike in xsf, apply the order reflection to the recovered projection.
+    // Unlike in xsf, apply the order reflection (DLMF 10.4.5 and 10.4.6)
+    // to the recovered projection.
     let value = if hankel {
         let value = c64(0.0, -1.0) * k * C64::cis(-z.re);
         if v < 0.0 { rotate(value, order) } else { value }
@@ -713,7 +717,8 @@ fn scaled_hankel_overflow(v: f64, z: C64) -> Option<C64> {
         return None;
     }
 
-    // H_2e in the lower half-plane has a factor 2i/pi. Conjugate for H_1e in the upper.
+    // H_2e in the lower half-plane has a factor 2i/pi (DLMF 10.27.8).
+    // Conjugate for H_1e in the upper.
     let phase = factor * C64::cis(scaled_exponent.im);
     let value = rotate(C64::I * phase, 0.5 * v);
     let value = if z.im < 0.0 { value } else { value.conj() };
@@ -1169,8 +1174,9 @@ fn bessel_small_argument_overflow(v: f64, z: C64, weight: f64) -> Option<C64> {
     // and exp(|z|²/2)-1 (Y). For integers, the Laurent and logarithmic
     // tails (DLMF 10.8.1 and 10.31.1) are also less than 8m.
     // At fractional parts in [1/8, 7/8], every |k - v| is at least 1/8.
-    // This and |sin(pi*v)| >= sin(pi/8) bound the series and connection
-    // terms by the same relative 8m when v >= 1 and |z|/2 <= 1/8.
+    // This and |sin(pi*v)| >= sin(pi/8) bound the series and connection terms
+    // (DLMF 10.2.2–3, 10.25.2 and 10.27.4) by the same relative 8m
+    // when v >= 1 and |z|/2 <= 1/8.
     let clearance = re.abs().min(im.abs()) - 8.0 * m - 16.0 * f64::EPSILON * v;
     if clearance <= 0.0 {
         return None;

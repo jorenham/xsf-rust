@@ -349,7 +349,7 @@ fn logsinpi(z: C64) -> C64 {
     C64::I * PI * z + ((1.0 - exppi(-2.0 * z * C64::I)) / (2.0 * C64::I)).ln()
 }
 
-/// Logarithm of the leading factor in the reflection formula for zeta:
+/// Logarithm of the leading factor in the zeta reflection formula (DLMF 25.4.2):
 /// zeta(z) = 2^z * pi^(z-1) * sin(pi*z/2) * gamma(1 - z) * zeta(1 - z)
 /// TODO: Complexify the cephes zeta_reflection implementation, which uses
 /// the lanczos approximation for the gamma function.

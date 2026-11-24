@@ -636,7 +636,8 @@ fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64, old: C64) -> Option<C64> {
         if !try_repeated_formula {
             return None;
         }
-        // Unlike in xsf, use RJ(x,x,z,p) = 3 (RC(z,x) - RC(z,p))/(p-x) on exact repeats.
+        // Unlike in xsf, use DLMF 19.20.8 on exact repeats: RJ(x,x,z,p)
+        // = 3 (RC(z,x) - RC(z,p))/(p-x).
         let repeated = |w: C64| {
             let denominator = p - w;
             if !denominator.is_finite() {

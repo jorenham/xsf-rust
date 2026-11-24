@@ -130,7 +130,8 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
     let scale = mul_exp(f64::MIN_POSITIVE, exp.hi) * (1.0 + exp.lo);
     let limit = f64::MAX * f64::MIN_POSITIVE;
 
-    // The Gaussian Cauchy-transform remainder is bounded by 1/(x*(|z|-4)^8).
+    // Bound the remainder of the Gaussian Cauchy transform (DLMF 7.7.2)
+    // by 1/(x*(|z|-4)^8).
     // Pad for the continued fraction and its rotation and scale.
     let distance_squared = (z.norm() - 4.0).powi(2);
     let remainder = 1.0 / (x * distance_squared.powi(4));
@@ -154,7 +155,8 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
             certify(val, error).or_else(|| {
                 // Unlike in xsf, tighten the overflow test for an infinite companion
                 // whose sign is already known. The degree-n remainder uses the squared
-                // Hermite norm n!/2^n and the squared distance to its zeros per level.
+                // monic Hermite norm n!/2^n for the normalized weight (DLMF Table 18.3.1)
+                // and the squared distance to its zeros per level.
                 if !(val.abs() > error && degree > 4.0) {
                     return None;
                 }

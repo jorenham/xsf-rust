@@ -143,7 +143,8 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         }
     }
     let seed = |degree| lpmv0(degree, mx, x, linear_seed);
-    // Unlike in xsf, factor the first quadratic and cubic above the diagonal.
+    // Unlike in xsf, factor the first quadratic and cubic above the diagonal
+    // from the Ferrers Rodrigues formula (DLMF 14.7.10).
     // At m = 85 the old degree-(m + 1) normalization first overflows (171!).
     let order = f64::from(mx);
     let excess = vx - order;

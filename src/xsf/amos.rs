@@ -5833,7 +5833,8 @@ fn unik(
     }
 }
 
-// Unlike in xsf, expose the prefactor and exponent before applying the scaling.
+// Unlike in xsf, expose the Debye K prefactor and exponent (DLMF 10.41.4)
+// before applying the scaling.
 pub(super) fn k_debye_parts(v: f64, w: C64) -> Option<(C64, C64)> {
     let (tol, _, _, _, fnul) = MACH;
     // Use the same sector as unk1 and limit rounding in the exponent and phase.

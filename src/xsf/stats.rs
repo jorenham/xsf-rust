@@ -265,7 +265,8 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
 #[cold]
 #[inline(never)]
 fn stdtr_two_tiny_tail(x: f64) -> f64 {
-    // The exact tail is below 1/(2x²), which is half a minsubnormal at |x| = 2^537.
+    // With w = 2/(2 + x²), the exact tail I_w(1, 1/2)/2 (DLMF 8.17.1–2)
+    // is below 1/(2x²), which is half a minsubnormal at |x| = 2^537.
     if x <= -const { pow2(537) } {
         return 0.0;
     }

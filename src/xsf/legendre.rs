@@ -886,7 +886,8 @@ fn lq_scaled_abs(z: C64, max_part: f64) -> (DoubleDouble, DoubleDouble, i32) {
     (x, y, exponent)
 }
 
-// For very large |z|, use the leading terms of Q_0' and Q_1 in 1/z².
+// For very large |z|, use the leading terms of Q_0' and Q_1 in 1/z²
+// from the exterior Q series (DLMF 14.3.7 and 14.3.10, continued as in §14.21).
 #[cold]
 fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     let m = z.re.abs().max(z.im.abs());
@@ -1029,7 +1030,8 @@ fn lq_inverse_cube_signs(x: DoubleDouble, y: DoubleDouble) -> (f64, f64) {
     ((x2 - y2 * 3.0).hi.signum(), (y2 - x2 * 3.0).hi.signum())
 }
 
-// Unlike in xsf, use the underflow signs of 2/(15z³) and -2/(5z⁴).
+// Unlike in xsf, use the underflow signs of 2/(15z³) and -2/(5z⁴)
+// from the exterior Q series (DLMF 14.3.7 and 14.3.10).
 fn lq_extreme_complex_degree_two(z: C64) -> (C64, C64) {
     if z.re == 0.0 {
         return (c64(0.0, 0.0_f64.copysign(z.im)), c64(-0.0, 0.0));
@@ -1141,7 +1143,8 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
 
     // For a tiny real coordinate, use the first-order terms at z = i*y. The dominant parts
     // are even in Re z, so their values from the recurrence already include them to rounding
-    // accuracy. The small part of Q is x times Q', and Legendre's equation gives x times Q''.
+    // accuracy. The small part of Q is x times Q', and the associated Legendre
+    // equation (DLMF 14.2.2) gives x times Q''.
     let (x, y) = (z.re, z.im);
     let d = (y.abs() / f64::from(n + 1)).min(1.0);
     let denom = 1.0 + y * y;
@@ -1279,8 +1282,8 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
     }
 }
 
-// Use the leading term in 1/x. Keep its exponent separate because raising
-// the order can bring an underflowed value back into range.
+// Use the leading term in 1/x (DLMF 14.3.7 and 14.3.10). Keep its exponent
+// separate because raising the order can bring an underflowed value back into range.
 fn lqmn_extreme_real<T>(
     x: f64,
     mut qm: Mdspan<'_, T, 2>,
@@ -1478,7 +1481,8 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = -1.0 / zq;
         cqm[(0, 1)] = z * cq0 - 1.0;
-        // Unlike in xsf, use the exterior square-root factor for Q_1^1.
+        // Unlike in xsf, use the exterior square-root branch for Q_1^1 when ls < 0.
+        // The derivative relation on x > 1 is DLMF 14.7.12.
         let root = if ls < 0 { zq } else { -zq };
         cqm[(1, 1)] = root * (cq0 + z / (1.0 - z * z));
 
@@ -1526,8 +1530,9 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             let (q, dq) = lq_extreme_complex_degree_two(z);
             (cqm[(0, 2)], cqd[(0, 2)]) = (q, dq);
             // Unlike in xsf, restore the signs of the underflowed associated values.
-            // The leading coefficient is (m+2)!/15, and through order 73 even
-            // 75!/(15*|z|³) is below half a minsubnormal at this cutoff.
+            // The exterior Q series (DLMF 14.3.7 and 14.3.10) gives the leading
+            // coefficient magnitude (m+2)!/15. Even 75!/(15*|z|³) is below half
+            // a minsubnormal at this cutoff.
             // The positive (m²+12)/14 correction coefficient preserves the diagonal tie sign.
             let scale = -z.re.signum();
             let odd = if z.re == 0.0 {

@@ -416,7 +416,7 @@ fn jacobi_large_quadratic(a: f64, b: f64, z: num_complex::Complex64) -> Option<f
         return None;
     }
 
-    // Complete the square using q = (a - b + (a + b + 3)x)/2.
+    // Complete the square in DLMF 18.5.7 at n = 2, using q = (a - b + (a + b + 3)x)/2.
     let (sh, sl) = two_sum(0.5 * a, 0.5 * b);
     let q = (DoubleDouble::new(sh) * x + 0.5 * (a - b)) + DoubleDouble::new(sl) * x + 1.5 * x;
     // A lost intermediate here is possible only for large |x|, when
@@ -1250,8 +1250,9 @@ fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
 
 const MAX_HERMITE_RETRY_DEGREE: u32 = 1024;
 
-// Recur in negative integer degree at -x. Both seeds share exp(scale*x²), and
-// powers of two keep the positive recurrence away from underflow.
+// Recur in negative integer degree at -x using the parabolic cylinder U
+// recurrence (DLMF 12.8.1) and its degree -1 seed (DLMF 12.7.5). Both Hermite
+// seeds share exp(scale*x²), and powers of two keep the recurrence away from underflow.
 #[cold]
 fn hermite_negative_integer(x: f64, degree: u32, scale: f64) -> f64 {
     const OVERFLOW_X: f64 = 128.0;

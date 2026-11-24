@@ -55,7 +55,7 @@ pub(super) fn hyp3f0_near_coincident(a: &[f64], b: &[f64], z: f64) -> Option<Est
     let delta = mid - lo;
     // The symmetrized Gamma density ratio is cosh(delta*ln(X/Y))/M,
     // with M = Gamma(lo)*Gamma(hi)/Gamma(mid)^2. The absolute error is at most
-    // 1 - 1/M <= ln(M) <= delta² (1/lo² + 1/lo), using the trigamma series.
+    // 1 - 1/M <= ln(M) <= delta² (1/lo² + 1/lo), using the trigamma series (DLMF 5.15.1).
     let ratio = delta / lo;
     let bound = 2.0 * ratio * (ratio + delta); // allow for rounding in the bound
     // The bound forces mid - lo < lo. Equal spacings then give exact subtractions by Sterbenz.
