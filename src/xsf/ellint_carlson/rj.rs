@@ -34,6 +34,7 @@
 //! `catan`, so it isn't bit-identical to the glibc one that is used by g++.
 
 use core::cell::Cell;
+use core::f64::consts::FRAC_PI_2;
 
 use super::arithmetic::{comp_horner, dot2, ndot2, nsum2, ocrt};
 use super::common::{ExitStatus, config, constants, is_horrible, is_troublesome, sort_by};
@@ -41,9 +42,9 @@ use super::rc::rc;
 use super::rf::rf;
 use super::rg::rg;
 use super::typing::Num;
-use super::{argcheck, common};
+use super::{ELLINT_CARLSON_RERR, argcheck, common};
 use crate::utils::pow2;
-use crate::xsf::c64::C64;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::complex::atanh;
 
 mod rjimpl {
@@ -492,8 +493,75 @@ fn underflows_in_loop<T: Num>(a: T) -> bool {
 /// steps, which quarter it from at most 2^1024 to 2^256.
 const MAX_NESTED: u32 = 512;
 
-pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
-    rj_nested(x, y, z, p, rerr, noasymp, &Cell::new(Some(MAX_NESTED)))
+pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T) -> T {
+    rj_nested(x, y, z, p, ELLINT_CARLSON_RERR, false, &Cell::new(Some(MAX_NESTED))).1
+}
+
+pub(super) fn rj_cplx(x: C64, y: C64, z: C64, p: C64) -> C64 {
+    // Retain the stock result when both components are already within
+    // the accuracy tolerance of the cut tests.
+    const AGREEMENT_TOL: f64 = 1e-13;
+
+    let old = rj(x, y, z, p);
+    if !(p.re > 0.0 && (x.re < 0.0 || y.re < 0.0 || z.re < 0.0)) {
+        return old;
+    }
+    let mut xyz = [x, y, z];
+    sort_by(&mut xyz, rjimpl::rcmp);
+    // Unlike in xsf, recover the same-lip coalescence limit on the negative cut.
+    rj_cut_confluent(xyz, p)
+        .filter(|value| {
+            let agrees = |old: f64, new: f64| (old - new).abs() <= AGREEMENT_TOL * new.abs();
+            !(agrees(old.re, value.re) && agrees(old.im, value.im))
+        })
+        .unwrap_or(old)
+}
+
+fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
+    fn rc_value<T: Num>(x: T, y: T) -> Option<T> {
+        let (status, value) = rc(x, y, ELLINT_CARLSON_RERR);
+        (status == ExitStatus::Success).then_some(value)
+    }
+
+    let a = -x.re;
+    let offset = x.im.abs() + y.im.abs();
+    let denominator = p + a;
+    let cut_distance = z.re + a;
+    // The caller sorts the spatial arguments and has already found a negative real part.
+    let same_lip = x.re == y.re
+        && x.im.abs().min(y.im.abs()) > 0.0
+        && x.im.is_sign_negative() == y.im.is_sign_negative();
+    let finite_geometry = z.re > 0.0
+        && z.is_real()
+        && [x, y, z, p, denominator]
+            .iter()
+            .all(|value| value.is_finite())
+        && cut_distance.is_finite();
+    // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) excludes larger offsets.
+    if !(same_lip && finite_geometry && 0.5 * offset <= f64::EPSILON * a) {
+        return None;
+    }
+
+    // At the shared lip RJ(-a,-a,z,p) = 3 (RC(z,-a) - RC(z,p))/(p+a).
+    // The negative real RC returns a principal value, so restore the lip residue.
+    let left = rc_value(z.re, -a)?;
+    let right = rc_value(z, p)?;
+    let left = c64(left, -(FRAC_PI_2 / cut_distance.sqrt()).copysign(x.im));
+    let value = (left - right) / denominator * 3.0;
+    let smallest = value.re.abs().min(value.im.abs());
+    let scale = 3.0 * ((left.norm() + right.norm()) / denominator.max_norm());
+    // Rotating the integration ray by +/- pi/4 bounds the omitted imaginary
+    // offsets by 8 (|Im x| + |Im y|)/(a² sqrt(Re p)). The floor also keeps
+    // accepted components normal in the relative check.
+    let perturbation = [a, a, p.re.sqrt()]
+        .into_iter()
+        .fold(8.0 * offset, |error, divisor| (error / divisor).max(f64::MIN_POSITIVE));
+    // Allow at most four bits of cancellation in either component.
+    (value.is_finite()
+        && value.max_norm() <= 0.5 * f64::MAX
+        && scale / 16.0 <= smallest
+        && perturbation <= f64::EPSILON * smallest)
+        .then_some(value)
 }
 
 /// [`rj`] with the number of evaluations that are `left` of [`MAX_NESTED`], `None` if it ran out
