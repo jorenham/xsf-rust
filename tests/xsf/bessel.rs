@@ -22,6 +22,32 @@ xsref::tests! {
 }
 
 #[test]
+fn test_bessel_j1_subnormal_midpoints() {
+    let min_normal = f64::MIN_POSITIVE.to_bits();
+    for (input, expected) in [
+        (0, 0),
+        (1, 0),
+        (2, 1),
+        (3, 1),
+        (4, 2),
+        (min_normal - 1, min_normal / 2 - 1),
+        (min_normal + 3, min_normal / 2 + 1),
+        (2 * min_normal - 2, min_normal - 1),
+        (2 * min_normal - 1, min_normal - 1),
+        (2 * min_normal, min_normal),
+        (2 * min_normal + 1, min_normal + 1),
+    ] {
+        for sign in [0, (-0.0_f64).to_bits()] {
+            let x = f64::from_bits(input | sign);
+            assert_eq!(xsf::bessel_j1(x).to_bits(), expected | sign);
+            // The general-order function already returns +0 for either exact-zero input.
+            let general = if input == 0 { 0 } else { expected | sign };
+            assert_eq!(xsf::bessel_j(1.0, x).to_bits(), general);
+        }
+    }
+}
+
+#[test]
 fn test_bessel_y_c64_positive_axis_overflow_recovery() {
     for (v, x, expected, imaginary_zero) in [
         (10.0, 1e-30, -1.182_804_904_943_348_4e308, 0.0_f64),
