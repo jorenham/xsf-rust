@@ -691,7 +691,26 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
                 return result;
             }
         }
-        return hyp2f1_transform2_limiting_case(a, b, c, m, z);
+        let result = hyp2f1_transform2_limiting_case(a, b, c, m, z);
+        if result.re.is_nan()
+            && result.im.is_nan()
+            && ((a == c && b == 1.0) || (b == c && a == 1.0))
+            && z.re.is_finite()
+            && z.im.is_normal()
+        {
+            // Unlike in xsf, recover the unit-exponent case using 2F1(a, 1; a; z) = 1/(1 - z).
+            if z.re == 1.0 {
+                return c64(0.0, 1.0 / z.im);
+            }
+            let reciprocal = 1.0 / (1.0 - z);
+            // Stay clear of subnormal rounding in the mixed-component quotient.
+            if reciprocal.is_finite()
+                && reciprocal.re.abs().min(reciprocal.im.abs()) >= 2.0 * f64::MIN_POSITIVE
+            {
+                return reciprocal;
+            }
+        }
+        return result;
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
     let (result, cancellation) = series_eval_cancellation(series_generator);

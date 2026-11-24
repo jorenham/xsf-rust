@@ -7,6 +7,33 @@ xsref::tests! {
 }
 
 #[test]
+fn test_hyp2f1_c64_unit_exponent_reciprocal() {
+    for (a, b, c) in [
+        (1.0, 1.0, 1.0),
+        (2f64.powi(60), 1.0, 2f64.powi(60)),
+        (1.0, 2f64.powi(60), 2f64.powi(60)),
+    ] {
+        for sign in [-1.0, 1.0] {
+            let actual = xsf::hyp2f1(a, b, c, c64(10.0, sign * 10.0));
+            np_assert_allclose!(
+                [actual.re, actual.im],
+                [-9.0 / 181.0, sign * 10.0 / 181.0],
+                rtol = 4e-15
+            );
+            let actual = xsf::hyp2f1(a, b, c, c64(1.0, sign * f64::MAX));
+            assert_eq!(actual.re.to_bits(), 0.0_f64.to_bits());
+            assert_eq!(actual.im, sign / f64::MAX);
+        }
+    }
+    let below = f64::from_bits(1.0_f64.to_bits() - 1);
+    let above = f64::from_bits(1.0_f64.to_bits() + 1);
+    for x in [below, above] {
+        let actual = xsf::hyp2f1(1.0, 1.0, 1.0, c64(x, -1.0));
+        assert_eq!(actual, c64(1.0 - x, -1.0));
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_lopez_temme_symmetric_beta_weight() {
     for (a, b, c, z, expected) in [
         (
