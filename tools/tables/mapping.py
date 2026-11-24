@@ -2038,7 +2038,15 @@ def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
     return float(abs(k).log().mid()) > LOG_MAX
 
 
+def _i_positive_axis_overflows(a: tuple[float, ...]) -> bool:
+    return a[2] == 0 and a[1] > 0 and _i_overflows(a)
+
+
 I_PART_OVERRIDES: Final = (
+    Override(
+        _i_positive_axis_overflows,
+        "legacy xsref can have an imaginary residual for I_v(x) on the positive real axis",
+    ),
     Override(
         lambda a: a[0] >= 0 and _i_part_overflows(a),
         "xsf multiplies both parts of e^-|Re z| I_v(z) by inf where one part of I_v(z) overflows"
@@ -2395,7 +2403,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " where xsf's e^-|x| I_v(x) times inf is NaN, as AMOS underflows it to 0",
                 ),
                 Rule(
-                    lambda a: a[2] == 0 and a[1] > 0 and _i_overflows(a),
+                    _i_positive_axis_overflows,
                     complex(math.inf, 0),
                     "xsf returns inf where I_v(x) overflows for x > 0 (`ierr = 2`)",
                 ),
@@ -2497,6 +2505,9 @@ def _lambertw_at_inf(x: float, k: int) -> Rule:
     )
 
 
+LAMBERTW_NEGATIVE_INF: Final = _lambertw_at_inf(-math.inf, 1)
+
+
 LAMBERTW_RULES: Final = (
     Rule(
         lambda a: math.isnan(a[0]) and a[1] == 0 and math.copysign(1, a[1]) > 0,
@@ -2505,7 +2516,7 @@ LAMBERTW_RULES: Final = (
     ),
     _lambertw_at_inf(math.inf, 0),
     _lambertw_at_inf(math.inf, 1),
-    _lambertw_at_inf(-math.inf, 1),
+    LAMBERTW_NEGATIVE_INF,
     Rule(
         lambda a: a[0] == 0 and a[1] == 0 and a[2] != 0,
         complex(-math.inf, 0.0),
@@ -4497,6 +4508,14 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 ),
                 "the imaginary Stirling terms overflow with opposite signs in xsf",
             ),
+            Override(
+                lambda a: (
+                    a[0] > 7.0
+                    and math.isfinite(a[0])
+                    and 0.0 < abs(a[1]) <= sys.float_info.min * a[0]
+                ),
+                "xsf loses accuracy when the Stirling argument rounds to a subnormal or zero",
+            ),
         ),
     ),
     ("rgamma", "d-d"): Entry(
@@ -5045,7 +5064,21 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         (_e1_overflow(lambda a: -a[0]),),
     ),
     ("lambertw", "cd_p_d-cd"): Entry(
-        (_complex_out("lambertw", _lambertw, _lambertw_arb, LAMBERTW_RULES, tail=2),)
+        (
+            _complex_out(
+                "lambertw",
+                _lambertw,
+                _lambertw_arb,
+                LAMBERTW_RULES,
+                (
+                    Override(
+                        LAMBERTW_NEGATIVE_INF.when,
+                        "legacy xsref omits the branch increment",
+                    ),
+                ),
+                tail=2,
+            ),
+        )
     ),
     ("shichi", "cd-cd_cd"): Entry(
         (

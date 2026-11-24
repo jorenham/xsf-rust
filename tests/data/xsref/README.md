@@ -72,7 +72,9 @@ Each logical output of each row has a status:
 | 2 convention | a rule, e.g. NaN outside of the domain         | NaN, the infinities, and the zeros |
 
 An output passes if its error is at most `4 max(eps, tol)`, with `eps` the `f64::EPSILON`. The error
-is xsf's `extended_relative_error`, or its `extended_absolute_error` over the scale (the local
+is xsf's `extended_relative_error`. When one component is infinite and the other is finite,
+the error also includes the finite component's scalar relative error if larger. Use xsf's
+`extended_absolute_error` over the scale (the local
 amplitude of an oscillating function, the size of the terms that cancel in a sum near its zeros, 1
 for an absolute error, the smallest normal `f64` (or `f32`) for a subnormal reference without one,
 or 0 for none) if that is smaller.
