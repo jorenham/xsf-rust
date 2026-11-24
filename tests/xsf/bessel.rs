@@ -824,6 +824,22 @@ fn test_bessel_k_near_underflow() {
 }
 
 #[test]
+fn test_bessel_k_normal_near_underflow() {
+    // Regression cases from xsf where AMOS returned zero although K is normal, with mpmath references.
+    for (v, z, expected) in [
+        (0.0, c64(699.0, 0.0), c64(1.270_284_188_032_741_8e-305, 0.0)),
+        (50.0, c64(700.0, 0.0), c64(2.779_335_877_012_058_7e-305, 0.0)),
+        (0.5, c64(702.0, -50.0), c64(6.138_086_236_570_686e-307, -1.436_738_677_334_688_3e-307)),
+        (0.0, c64(700.0, 1e5), c64(-2.869_453_464_726_56e-307, 2.652_560_945_968_814_4e-307)),
+    ] {
+        np_assert_allclose!([xsf::bessel_k(v, z)], [expected], rtol = 5e-14);
+        if z.im == 0.0 {
+            np_assert_allclose!([xsf::bessel_k(v, z.re)], [expected.re], rtol = 5e-14);
+        }
+    }
+}
+
+#[test]
 fn test_bessel_k_large_order_near_underflow() {
     // Arb: besselk(v, x), where e^x K_v(x) overflows
     let actual = [
