@@ -549,7 +549,7 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
 }
 
 fn cyl_bessel_ye_c64(v: f64, z: C64) -> C64 {
-    cyl_bessel_y_kode(v, z, 2)
+    scaled_bessel(z, c64(-z.im.abs(), 0.0), |kode| cyl_bessel_y_kode(v, z, kode))
 }
 
 fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
@@ -565,6 +565,43 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
 
     let ye = cyl_bessel_ye_c64(v, c64(x, 0.0)).re;
     cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye)
+}
+
+fn scaled_bessel(z: C64, exponent: C64, evaluate: impl Fn(i32) -> C64) -> C64 {
+    let value = evaluate(2);
+    // Unlike in xsf, recover a failed scaled result from the unscaled kernel.
+    if value.re.is_nan() && value.im.is_nan() && z.is_finite() && !z.is_real() {
+        rescale_bessel(evaluate(1), exponent).unwrap_or(value)
+    } else {
+        value
+    }
+}
+
+#[cold]
+fn rescale_bessel(raw: C64, exponent: C64) -> Option<C64> {
+    // Halve before rotating so the sum of two components cannot overflow.
+    if !raw.is_finite() {
+        return None;
+    }
+    let raw = 0.5 * raw;
+    let rotated = raw * C64::cis(exponent.im);
+    // The rotation amplifies errors by at most sqrt(2) in max norm. Keep
+    // components large enough to limit the subsequent relative error.
+    let min = (raw.re.abs().max(raw.im.abs()) / 32.0).max(2.0 * f64::MIN_POSITIVE);
+    if rotated.re.abs().min(rotated.im.abs()) < min {
+        return None;
+    }
+    // Apply the exponential in two steps, sharing the factor between components.
+    let factor = (0.5 * exponent.re).exp();
+    let value = rotated * factor * factor * 2.0;
+    // Leave headroom from the overflow and subnormal thresholds.
+    let range = 2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX;
+    (range.contains(&value.re.abs()) && range.contains(&value.im.abs())).then_some(value)
+}
+
+fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
+    let sign = if m == 1 { 1.0 } else { -1.0 };
+    scaled_bessel(z, c64(sign * z.im, -sign * z.re), |kode| cyl_hankel_c64(v, z, kode, m))
 }
 
 /// Unlike in xsf, the four Hankel functions share this implementation, with `kode = 2` for the
@@ -1657,7 +1694,7 @@ pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[inline]
 pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     let z: Complex<f64> = z.into();
-    z.via(|z| cyl_hankel_c64(v, z, 2, 1))
+    z.via(|z| cyl_hankel_scaled_c64(v, z, 1))
 }
 
 // Hankel 2
@@ -1693,7 +1730,7 @@ pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[inline]
 pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     let z: Complex<f64> = z.into();
-    z.via(|z| cyl_hankel_c64(v, z, 2, 2))
+    z.via(|z| cyl_hankel_scaled_c64(v, z, 2))
 }
 
 // Integrals
