@@ -341,6 +341,27 @@ fn test_assoc_legendre_q_all_exterior_forward_seed() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_unit_circle_derivative() {
+    for z in [I, -I] {
+        let (q, dq) = xsf::assoc_legendre_q_all(0, 1, z);
+        assert_eq!(dq[0][0], c64(0.5, 0.0));
+        // Both branch conventions give the same magnitude for Q_0^1.
+        xsref::np_assert_allclose!([q[0][1].norm()], [consts::FRAC_1_SQRT_2], rtol = 1e-15);
+    }
+
+    // The norm rounds to one on both sides of the exact unit circle.
+    for (x, y) in [(0.6, 0.8), (0.28, 0.96)] {
+        for re in [-x, x] {
+            for im in [-y, y] {
+                let z = c64(re, im);
+                let (_, dq) = xsf::assoc_legendre_q_all(0, 0, z);
+                xsref::np_assert_allclose!([dq[0][0]], [1.0 / (1.0 - z * z)], rtol = 1e-15);
+            }
+        }
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
     // Arb: atanh(z), and acoth(z) for |z| > 1
     for (z, q0) in [
