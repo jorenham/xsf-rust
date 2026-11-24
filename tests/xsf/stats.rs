@@ -409,6 +409,8 @@ fn test_ndtr_c64_bounded_overflow_phase() {
     for (z, expected) in [
         (c64(10.0, 316.227_766_016_837_96), c64(f64::INFINITY, f64::NEG_INFINITY)),
         (c64(-316.227_766_016_837_96, 10_000.0), c64(f64::NEG_INFINITY, f64::INFINITY)),
+        // The initial quotient gives an adjacent quadrant; signs from the exact-product phase.
+        (c64(5_000_003.0, 1_000_000_002.0), c64(f64::INFINITY, f64::NEG_INFINITY)),
     ] {
         assert_eq!(xsf::ndtr(z), expected);
         assert_eq!(xsf::ndtr(z.conj()), expected.conj());
