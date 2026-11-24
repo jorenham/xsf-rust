@@ -588,6 +588,32 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if sign == -1 {
         cy = rotate(cy, if m == 1 { v } else { -v });
     }
+    // The first kind also allows the upper lip on the negative real axis.
+    let lower = if m == 1 { -v } else { 0.0 };
+    if kode != 1 || !z.is_real() || !(lower..=v).contains(&z.re) {
+        return cy;
+    }
+
+    // Unlike in xsf, recover a small real component from scalar J at integer
+    // orders. When |Re| >= |Im|/2, the norm is at most sqrt(5) times |Re|.
+    if cy.is_finite() && cy.re.abs() < 0.5 * cy.im.abs() && v == v.trunc() {
+        let x = z.re.abs();
+        let j = if v == 1.0 {
+            bessel_j1(x)
+        } else {
+            cyl_bessel_j_f64(v, x)
+        };
+        if j.is_finite() {
+            // Both imaginary zeros take the upper lip, where H1(-x).re = -(-1)^v J_v(x).
+            let cut = z.re < 0.0;
+            let parity = if (sign < 0) == cut {
+                1.0
+            } else {
+                cephes_cospi(v)
+            };
+            cy.re = if cut { -parity * j } else { parity * j };
+        }
+    }
     cy
 }
 
