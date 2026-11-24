@@ -384,6 +384,19 @@ fn test_log_ndtr() {
 }
 
 #[test]
+fn test_ndtr_c64_bounded_overflow_phase() {
+    for (z, expected) in [
+        (c64(10.0, 316.227_766_016_837_96), c64(f64::INFINITY, f64::NEG_INFINITY)),
+        (c64(-316.227_766_016_837_96, 10_000.0), c64(f64::NEG_INFINITY, f64::INFINITY)),
+    ] {
+        assert_eq!(xsf::ndtr(z), expected);
+        assert_eq!(xsf::ndtr(z.conj()), expected.conj());
+        assert_eq!(xsf::ndtr(-z), -expected);
+        assert_eq!(xsf::ndtr(-z.conj()), -expected.conj());
+    }
+}
+
+#[test]
 fn test_log_ndtr_c64_near_0() {
     // mpmath `log1p(-erfc(z / sqrt(2)) / 2)`, where `ndtr(-z)` is small
     let z = [
