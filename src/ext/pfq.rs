@@ -8,9 +8,11 @@ use core::iter::zip;
 use core::ops::Add;
 
 use super::{Scaled, add_exp, add_exp_in, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
-use crate::utils::{EPSILON_SQ, is_nonpos_int, next_up_nonneg, pow2};
+use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, next_up_nonneg, pow2};
 use crate::xsf::Real;
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{
+    DoubleDouble as Dd, FRAC_PI_2_DD, frexp_f64, ldexp_f64, two_sum,
+};
 use crate::xsf::cephes::gammasgn;
 use crate::xsf::cephes::hyp2f1::HYP2F1_LOST;
 use crate::xsf::cospi;
@@ -1016,7 +1018,13 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             let kappa = (b.len() + 1 - a.len()) as f64;
             let x = kappa * z.abs().powf(1.0 / kappa);
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
-            pfq_entire(&a, &b, z, z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST)
+            pfq_entire(&a, &b, z, z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST).or_better(|| {
+                if a.is_empty() && b.len() == 3 && [0.25, 0.5, 0.75].iter().all(|v| b.contains(v)) {
+                    hyp0f3_quarter_parameters(z)
+                } else {
+                    None
+                }
+            })
         },
         _ if z < 0.0 => {
             borel::pfq_borel(&a, &b, z).or_better(|| borel::hyp3f0_near_coincident(&a, &b, z))
@@ -1024,6 +1032,28 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         _ => None,
     };
     polynomial.or_better(|| y)
+}
+
+// The defining series (DLMF 16.2.1) for these parameters is sum (256z)^k/(4k)!.
+// For z < 0, grouping the four exponential series gives cosh(t) cos(t), t^4 = -64z.
+#[cold]
+fn hyp0f3_quarter_parameters(z: f64) -> Option<Estimate> {
+    // For 1 <= t <= 1024, reduce to the nearest zero of cos using double-double π/2.
+    if !(-pow2(34)..=-1.0 / 64.0).contains(&z) {
+        return None;
+    }
+    let t = Dd::new(-z).sqrt().mul_pwr2(8.0).sqrt();
+    let zero = (0.5 * (t.hi / FRAC_PI_2_DD.hi - 1.0)).round();
+    let reduced = t - (2.0 * zero + 1.0) * FRAC_PI_2_DD;
+    let cosine = neg_one_pow(zero + 1.0) * reduced.hi.sin();
+    // Bound the absolute phase error from the two roots and the reduction,
+    // then allow for rounding sin, the cosh factor and their product.
+    let err = 8.0 * EPSILON_SQ * t.hi / cosine.abs() + 8.0 * f64::EPSILON;
+    if err > PFQ_TOL {
+        return None;
+    }
+    let amplitude = cosine * (1.0 + (-2.0 * t.hi).exp());
+    Estimate::scaled_certain(Scaled::new(amplitude, -1, err)?.with_l(t))
 }
 
 /// Generalized hypergeometric function $_pF_q$ as `hyp![a_1, ..., a_p; b_1, ..., b_q; z]`
