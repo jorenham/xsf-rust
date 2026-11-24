@@ -910,7 +910,14 @@ fn lq_extreme_complex_low_scaled(z: C64, m: f64, double: bool) -> (C64, C64) {
     let re_sign = if z.im.abs() >= z.re.abs() { 1.0 } else { -1.0 };
     let q1 = c64(restore(re / 3.0, -re_sign), restore(im / 3.0, -im_sign));
     let im = lq_round_skew_projection(z, x.hi.min(y.hi), im.ldexp(scale), 1);
-    (q1, c64(restore(re, re_sign), im.copysign(im_sign)))
+    let re = if double && z.re.abs() == const { utils::pow2(538) } && z.im.abs() < 1.0 {
+        // Unlike in xsf, use the first correction to round this order-two derivative
+        // above half a minsubnormal in magnitude.
+        -f64::from_bits(1)
+    } else {
+        restore(re, re_sign)
+    };
+    (q1, c64(re, im.copysign(im_sign)))
 }
 
 #[inline]
@@ -1495,26 +1502,22 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             cqm[(2, 0)] = c64(value.re.copysign(z.re), value.im.copysign(-z.im));
             let mut derivative =
                 lq_extreme_complex_low_scaled(z, z.re.abs().max(z.im.abs()), true).1;
-            // Unlike in xsf, recover Q₁² = 2/(z²−1) from its leading term and its
-            // underflowed derivative from the same cubic signs as (Q₁¹)′.
-            let mut q12 = -derivative;
-            let mut derivative_q12 = cqd[(1, 1)] * -z.re.signum();
-            if z.re.abs() == const { utils::pow2(538) } && z.im.abs() < 1.0 {
-                // Unlike in xsf, resolve the real half-minsubnormal projections.
-                // The first corrections have factors 1−y² for (Q₀²)′ and 1−3y² for Q₁².
-                derivative.re = -f64::from_bits(1);
-                // The largest binary64 value below 1/sqrt(3).
-                if z.im.abs() <= 0.577_350_269_189_625_7 {
-                    q12.re = f64::from_bits(1);
-                }
-            }
-            if z.re == 0.0 {
+            // Unlike in xsf, use the doubled inverse square for Q₁² and the
+            // already computed cubic signs for its underflowed derivative.
+            let slope = cqd[(1, 1)] * -z.re.signum();
+            let y = z.im.abs();
+            let (q12, dq12) = if z.re == 0.0 {
                 derivative.im = 0.0;
-                q12.im = 0.0;
-                derivative_q12.re = 0.0;
-            }
+                (c64(-derivative.re, 0.0), c64(0.0, slope.im))
+            } else if z.re.abs() == const { utils::pow2(538) } && y < 1.0 && y * y > 1.0 / 3.0 {
+                // Between 1/sqrt(3) and 1, the Q₁² real midpoint rounds to zero
+                // while the existing (Q₀²)′ midpoint rounds away from zero.
+                (c64(0.0, -derivative.im), slope)
+            } else {
+                (-derivative, slope)
+            };
             cqd[(2, 0)] = derivative;
-            (cqm[(2, 1)], cqd[(2, 1)]) = (q12, derivative_q12);
+            (cqm[(2, 1)], cqd[(2, 1)]) = (q12, dq12);
         }
     }
 }

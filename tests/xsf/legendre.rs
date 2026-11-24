@@ -464,17 +464,24 @@ fn test_legendre_q_extreme_derivative_subnormal_midpoint() {
 fn test_assoc_legendre_q_all_extreme_order_two() {
     for sx in [-1.0, 1.0] {
         for sy in [-1.0, 1.0] {
-            // Exact rational Q_0^2 and its derivative at binary64 inputs.
-            let (q, dq) = xsf::assoc_legendre_q_all(0, 2, c64(sx * 1e160, sy * 1e159));
+            // Exact rational order-two values and derivatives at binary64 inputs.
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 1e160, sy * 1e159));
             let value = c64(sx * 1.980_198_019_801_980_3e-160, -sy * 1.980_198_019_801_98e-161);
             let slope = c64(-f64::from_bits(0xf59), sx * sy * f64::from_bits(0x31a));
             assert_eq!((q[0][2], dq[0][2]), (value, slope));
+            assert_eq!(q[1][2], -slope);
+            assert_eq!(dq[1][2].re.to_bits(), (-sx * 0.0).to_bits());
+            assert_eq!(dq[1][2].im.to_bits(), (sy * 0.0).to_bits());
 
-            let (q, dq) = xsf::assoc_legendre_q_all(0, 2, c64(sx * 0.0, sy * 1e160));
+            let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 0.0, sy * 1e160));
             assert_eq!(q[0][2].re.to_bits(), (sx * 0.0).to_bits());
             assert_eq!(q[0][2].im, -sy * 2e-160);
             assert_eq!(dq[0][2].re.to_bits(), 0xfd0);
             assert_eq!(dq[0][2].im.to_bits(), 0);
+            assert_eq!(q[1][2].re, -f64::from_bits(0xfd0));
+            assert_eq!(q[1][2].im.to_bits(), 0);
+            assert_eq!(dq[1][2].re.to_bits(), 0);
+            assert_eq!(dq[1][2].im.to_bits(), (-sy * 0.0).to_bits());
         }
     }
 
@@ -485,6 +492,12 @@ fn test_assoc_legendre_q_all_extreme_order_two() {
     let (q, dq) = xsf::assoc_legendre_q_all(0, 2, c64(x, 1.0));
     assert_eq!(dq[0][2].re.to_bits(), (-0.0_f64).to_bits());
     assert_eq!(q[0][2].im.to_bits(), (-f64::from_bits(1)).to_bits());
+
+    // The real Q₁² midpoint changes direction at 1/sqrt(3).
+    for (y, bits) in [(0.577_350_269_189_625_7, 1), (0.577_350_269_189_625_8, 0)] {
+        let (q, _) = xsf::assoc_legendre_q_all(1, 2, c64(x, y));
+        assert_eq!(q[1][2].re.to_bits(), bits);
+    }
 
     // The leading imaginary derivative at this input is 3.5 minsubnormals.
     let a = 5991.0_f64;
@@ -519,41 +532,6 @@ fn test_assoc_legendre_q_all_extreme_degree_one_order_one() {
     let z = c64(a * 2.0_f64.powi(467), 21.0 * a.powi(3) * 2.0_f64.powi(324));
     let (q, _) = xsf::assoc_legendre_q_all(1, 1, z);
     assert_eq!(q[1][1].im.to_bits(), 3);
-}
-
-#[test]
-fn test_assoc_legendre_q_all_extreme_degree_one_order_two() {
-    // Exact rational Q₁² = 2/(z² − 1) and its derivative.
-    for sx in [-1.0, 1.0] {
-        for sy in [-1.0, 1.0] {
-            let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 1e160, sy * 1e159));
-            assert_eq!(q[1][2], c64(f64::from_bits(0xf59), -sx * sy * f64::from_bits(0x31a)));
-            assert_eq!(dq[1][2].re.to_bits(), (-sx * 0.0).to_bits());
-            assert_eq!(dq[1][2].im.to_bits(), (sy * 0.0).to_bits());
-
-            let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 0.0, sy * 1e160));
-            assert_eq!(q[1][2].re, -f64::from_bits(0xfd0));
-            assert_eq!(q[1][2].im.to_bits(), 0);
-            assert_eq!(dq[1][2].re.to_bits(), 0);
-            assert_eq!(dq[1][2].im.to_bits(), (-sy * 0.0).to_bits());
-        }
-    }
-    // The first correction decides the real half-minsubnormal on either side of 1/sqrt(3).
-    let x = 2.0_f64.powi(538);
-    let y = 0.577_350_269_189_625_7_f64;
-    let next = f64::from_bits(y.to_bits() + 1);
-    assert_eq!(
-        xsf::assoc_legendre_q_all(1, 2, c64(x, y)).0[1][2]
-            .re
-            .to_bits(),
-        1
-    );
-    assert_eq!(
-        xsf::assoc_legendre_q_all(1, 2, c64(x, next)).0[1][2]
-            .re
-            .to_bits(),
-        0
-    );
 }
 
 #[test]
