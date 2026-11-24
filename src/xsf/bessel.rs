@@ -669,9 +669,19 @@ fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
 #[cold]
 fn scaled_bessel_from_k(v: f64, z: C64, hankel: bool) -> Option<C64> {
     let w = c64(z.im.abs(), z.re);
-    let k = rotate(amos::k_with_decay(v, w)?, 0.5 * v) * FRAC_2_PI;
+    let order = v.abs();
+    let k = rotate(amos::k_with_decay(order, w)?, 0.5 * order) * FRAC_2_PI;
+    // Unlike in xsf, apply the order reflection to the recovered projection.
     let value = if hankel {
-        c64(0.0, -1.0) * k * C64::cis(-z.re)
+        let value = c64(0.0, -1.0) * k * C64::cis(-z.re);
+        if v < 0.0 { rotate(value, order) } else { value }
+    } else if v < 0.0 {
+        let cos = cephes_cospi(order);
+        // When the Y term vanishes, the existing J evaluation supplies the result.
+        if cos == 0.0 {
+            return None;
+        }
+        -cos * k
     } else {
         -k
     };
