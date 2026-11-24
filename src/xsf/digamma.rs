@@ -93,6 +93,14 @@ fn digamma_asymptotic_series(z: C64) -> C64 {
     res
 }
 
+// The real-axis derivatives of gamma and reciprocal gamma depend on this sign.
+pub(super) fn negative_real_psi_sign(x: f64) -> Option<bool> {
+    let psi = crate::xsf::cephes::psi(x);
+    // Near a zero of ψ its reflection terms (of order log(1 − x)) nearly cancel.
+    let sign_margin = 32.0 * f64::EPSILON * (1.0 + (-x).ln_1p());
+    (psi.abs() > sign_margin).then(|| psi.is_sign_negative())
+}
+
 /// `xsf::digamma` for real `z`
 fn digamma_f64(z: f64) -> f64 {
     /* Wrap Cephes' psi to take advantage of the series expansion around
