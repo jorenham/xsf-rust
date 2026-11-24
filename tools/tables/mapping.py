@@ -673,6 +673,39 @@ def _erfcx_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return x.erfc() * (x * x).exp()
 
 
+def _complex_erfc(x: mp.mpf, y: mp.mpf) -> mp.mpc:
+    extra = 2 * specs.xd(x, y)
+    if x != 0 and y != 0:
+        extra += max(0, -math.floor(math.log10(min(abs(float(x)), abs(float(y))))))
+    with specs.wdps(extra):
+        if y == 0:
+            return mp.mpc(mp.erfc(x), 0)
+        if x == 0:
+            return mp.mpc(1, -mp.erfi(y))
+        if x > 0:
+            return mp.erfc(mp.mpc(x, y))
+        tail = mp.erfc(mp.mpc(-x, -y))
+        return mp.mpc(2 - tail.real, -tail.imag)
+
+
+def _complex_erfc_arb(z: flint.acb) -> flint.acb:
+    x, y = z.real, z.imag
+    ex, ey = (math.frexp(float(t))[1] for t in (x, y))
+    with flint.ctx.extraprec(2 * max(ex, ey, 0) + max(-ex, -ey, 0)):
+        if y.is_zero():
+            return flint.acb(x.erfc(), 0)
+        if x.is_zero():
+            return flint.acb(1, -y.erfi())
+        return z.erfc() if x > 0 else 2 - (-z).erfc()
+
+
+def _complex_erfc_overflow(a: tuple[float, ...]) -> bool:
+    x, y = a
+    return x != 0 and (
+        (y - x) * (x + y) > LOG_MAX or abs(x) == abs(y) and math.isinf((-2 * x) * y)
+    )
+
+
 def _dawsn_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return flint.arb.pi().sqrt() / 2 * (-x * x).exp() * x.erfi()
 
@@ -4596,6 +4629,17 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     ("erf", "d-d"): Entry(
         (Out("erf", (specs.r_erf,), (flint.arb.erf,), _limits(-1, 1)),)
+    ),
+    ("erfc", "cd-cd"): _complex(
+        "erfc",
+        _complex_erfc,
+        _complex_erfc_arb,
+        overrides=(
+            Override(
+                _complex_erfc_overflow,
+                "xsf can overflow in the exponential or phase product",
+            ),
+        ),
     ),
     ("erfc", "d-d"): Entry(
         (
