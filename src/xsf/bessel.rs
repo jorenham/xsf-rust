@@ -2,12 +2,12 @@
 
 use core::ops::{Add, Mul};
 
-use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, LN_2, PI, TAU};
 
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp, neg_if_odd};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, LN_PI, mul_exp, neg_if_odd};
 use crate::xsf::airy::{airy, airy_scaled};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
@@ -803,7 +803,32 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
 }
 
 pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
-    cyl_bessel_y_kode(v, z, 1)
+    let mut y = cyl_bessel_y_kode(v, z, 1);
+    // Unlike in xsf, use the real overflow recurrence on the positive real axis.
+    let order = v.abs();
+    if y.re.is_infinite()
+        && z.is_real()
+        && z.re > 0.0
+        && z.re <= 1.0
+        && order >= 1.0
+        && (v > 0.0 || order == order.trunc())
+        && bessel_y_axis_finite(order, z.re)
+    {
+        y.re = cyl_bessel_y_overflow(v, z.re, y.re);
+    }
+    y
+}
+
+/// Whether the upper bound for |Y_v(x)| is safely below overflow, for v >= 1 and 0 < x <= 1.
+fn bessel_y_axis_finite(v: f64, x: f64) -> bool {
+    // DLMF 10.9.7 with u = exp(t) bounds |Y_v(x)| by
+    // exp(x/2) Gamma(v) (2/x)^v / pi + 1 + 1/(pi v).
+    // The logarithmic margin covers arithmetic rounding and the additive terms.
+    crate::gammaln(v) + v * (LN_2 - x.ln()) - LN_PI + 0.5 * x < MAXLOG - 1e-8
+}
+
+fn cyl_bessel_y_overflow(v: f64, x: f64, y: f64) -> f64 {
+    cyl_bessel_overflow(|v, z| cyl_bessel_y_kode(v, z, 1), -1.0, v, x, y)
 }
 
 /// Unlike in xsf, `Y_v` and `e^-|Im z| Y_v` share this implementation (xsf duplicates it), with
@@ -850,12 +875,13 @@ pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
         return y;
     }
 
-    let res = cyl_bessel_y_c64(v, c64(x, 0.0));
+    // Unlike in xsf, apply the shared overflow recovery once, to the raw result.
+    let res = cyl_bessel_y_kode(v, c64(x, 0.0), 1);
     if res.re.is_nan() {
         return crate::xsf::cephes::yv(v, x);
     }
 
-    cyl_bessel_overflow(cyl_bessel_y_c64, -1.0, v, x, res.re)
+    cyl_bessel_y_overflow(v, x, res.re)
 }
 
 // Bessel J
