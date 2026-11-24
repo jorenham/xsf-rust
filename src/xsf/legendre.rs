@@ -705,6 +705,11 @@ fn q0_c64(z: C64) -> C64 {
     if z.re.is_infinite() || z.im.is_infinite() {
         return C64::ZERO;
     }
+    // Unlike in xsf, subtract the logs when the quotient can overflow or underflow.
+    // Here |z| rounds to 1 and the argument difference is on the principal branch.
+    if z.re.abs() == 1.0 && z.im.is_subnormal() {
+        return ((1.0 + z).ln() - (1.0 - z).ln()) * 0.5;
+    }
     // the quotient loses digits for `|z| < 1/2` and `|z| > 2`, where `Q_0(z) = atanh(w)`, with
     // `w = z` or `1 / z`, so there `Re atanh(w) = ln_1p(t) / 4` with `t = 4 Re w / |1 - w|^2`, and
     // `Im atanh(w) = atan2(2 Im w, 1 - |w|^2) / 2`

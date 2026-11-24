@@ -219,6 +219,22 @@ fn test_legendre_q_all_backward_seeds() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_q0_subnormal_near_pole() {
+    // At y = minsub, the real magnitude rounds to log(2 / y) / 2.
+    let re = 1075.0 * consts::LN_2 / 2.0;
+    for lip in [-1.0, 1.0] {
+        let y = lip * f64::from_bits(1);
+        let im = lip * consts::FRAC_PI_4;
+        let (q, _) = xsf::legendre_q_all(0, c64(-1.0, y));
+        xsref::np_assert_allclose!([q[0]], [c64(-re, im)], rtol = f64::EPSILON);
+        for sign in [-1.0, 1.0] {
+            let (q, _) = xsf::assoc_legendre_q_all(0, 0, c64(sign, y));
+            xsref::np_assert_allclose!([q[0][0]], [c64(sign * re, im)], rtol = f64::EPSILON);
+        }
+    }
+}
+
+#[test]
 fn test_legendre_q_all_f64_reflection() {
     // Q_n(-x) = (-1)^(n+1) Q_n(x) and Q_n'(-x) = (-1)^n Q_n'(x), see DLMF 14.24.2
     for x in [1.5, 951.41] {
