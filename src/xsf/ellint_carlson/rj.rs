@@ -503,27 +503,24 @@ pub(super) fn rj_cplx(x: C64, y: C64, z: C64, p: C64) -> C64 {
     const AGREEMENT_TOL: f64 = 1e-13;
 
     let old = rj(x, y, z, p);
-    // Unlike in xsf, recover the same-lip coalescence limit on the negative cut.
-    if p.re > 0.0 && (x.re < 0.0 || y.re < 0.0 || z.re < 0.0) {
-        let mut xyz = [x, y, z];
-        sort_by(&mut xyz, rjimpl::rcmp);
-        if let Some(value) = rj_cut_confluent(xyz, p) {
-            if !old.is_finite()
-                || (old.re - value.re).abs() > AGREEMENT_TOL * value.re.abs()
-                || (old.im - value.im).abs() > AGREEMENT_TOL * value.im.abs()
-            {
-                return value;
-            }
-        }
+    if !(p.re > 0.0 && (x.re < 0.0 || y.re < 0.0 || z.re < 0.0)) {
+        return old;
     }
-    old
+    let mut xyz = [x, y, z];
+    sort_by(&mut xyz, rjimpl::rcmp);
+    // Unlike in xsf, recover the same-lip coalescence limit on the negative cut.
+    rj_cut_confluent(xyz, p)
+        .filter(|value| {
+            let agrees = |old: f64, new: f64| (old - new).abs() <= AGREEMENT_TOL * new.abs();
+            !(agrees(old.re, value.re) && agrees(old.im, value.im))
+        })
+        .unwrap_or(old)
 }
 
 fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
+    // The caller sorts the spatial arguments and has already found a negative real part.
     if !(x.re == y.re
-        && x.re < 0.0
-        && x.im != 0.0
-        && y.im != 0.0
+        && x.im.abs().min(y.im.abs()) > 0.0
         && x.im.is_sign_negative() == y.im.is_sign_negative()
         && z.re > 0.0
         && z.is_real()
@@ -555,17 +552,14 @@ fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
     let value = (left - right) / denominator * 3.0;
     let smallest = value.re.abs().min(value.im.abs());
     let scale = 3.0 * ((left.norm() + right.norm()) / denominator.max_norm());
-    // Keep both components normal and allow at most four bits of cancellation.
-    if !(value.is_finite()
-        && value.max_norm() <= 0.5 * f64::MAX
-        && smallest >= 2.0 * f64::MIN_POSITIVE
-        && scale / 16.0 <= smallest)
-    {
+    // Allow at most four bits of cancellation in either component.
+    if !(value.is_finite() && value.max_norm() <= 0.5 * f64::MAX && scale / 16.0 <= smallest) {
         return None;
     }
 
     // Rotating the integration ray by +/- pi/4 bounds the omitted imaginary
-    // offsets by 8 (|Im x| + |Im y|)/(a² sqrt(Re p)).
+    // offsets by 8 (|Im x| + |Im y|)/(a² sqrt(Re p)). The floor also keeps
+    // accepted components normal in the relative check.
     let perturbation = [a, a, p.re.sqrt()]
         .into_iter()
         .fold(8.0 * offset, |error, divisor| (error / divisor).max(f64::MIN_POSITIVE));
