@@ -93,7 +93,7 @@ impl BesselArg for Complex<f64> {
     fn bessel_y(self, v: f64) -> Self {
         self.via(|z| {
             let y = cyl_bessel_y_c64(v, z);
-            // Unlike in xsf, recover signed overflow at positive integer and half-integer orders.
+            // Unlike in xsf, recover signed overflow at small complex arguments.
             if y.re.is_nan() && y.im.is_nan() {
                 return bessel_small_argument_overflow(v, z).map_or(y, |k| -k);
             }
@@ -1150,19 +1150,19 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
 #[cold]
 fn bessel_small_argument_overflow(v: f64, z: C64) -> Option<C64> {
     let m = z.re.abs().max(z.im.abs());
-    if v <= 0.0
-        || !matches!(v.fract(), 0.0 | 0.5)
-        || !z.is_finite()
-        || z.re == 0.0
-        || z.im == 0.0
-        || m > 0.125
-    {
+    let fraction = v.fract();
+    let supported =
+        matches!(fraction, 0.0 | 0.5) || v >= 1.0 && (0.125..=0.875).contains(&fraction);
+    if v <= 0.0 || !supported || !z.is_finite() || z.re == 0.0 || z.im == 0.0 || m > 0.125 {
         return None;
     }
     let (im, re) = (-v * z.im.atan2(z.re)).sin_cos();
     // For half-integers, the relative tails are at most exp(2|z|)-1 (K)
     // and exp(|z|²/2)-1 (Y). For integers, the Laurent and logarithmic
     // tails (DLMF 10.8.1 and 10.31.1) are also less than 8m.
+    // At fractional parts in [1/8, 7/8], every |k - v| is at least 1/8.
+    // This and |sin(pi*v)| >= sin(pi/8) bound the series and connection
+    // terms by the same relative 8m when v >= 1 and |z|/2 <= 1/8.
     let clearance = re.abs().min(im.abs()) - 8.0 * m - 16.0 * f64::EPSILON * v;
     if clearance <= 0.0 {
         return None;
