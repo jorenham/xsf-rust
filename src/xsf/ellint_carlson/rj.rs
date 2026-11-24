@@ -559,8 +559,8 @@ pub(super) fn rj_cplx(x: C64, y: C64, z: C64, p: C64) -> C64 {
     }
     let mut xyz = [x, y, z];
     sort_by(&mut xyz, rjimpl::rcmp);
-    // Unlike in xsf, recover the same-lip coalescence limit on the negative cut.
-    rj_cut_confluent(xyz, p)
+    // Unlike in xsf, recover the same-lip coalescence limit or an exact repeat.
+    rj_cut_confluent(xyz, p, old)
         .filter(|value| {
             let agrees = |old: f64, new: f64| (old - new).abs() <= AGREEMENT_TOL * new.abs();
             !(agrees(old.re, value.re) && agrees(old.im, value.im))
@@ -568,14 +568,13 @@ pub(super) fn rj_cplx(x: C64, y: C64, z: C64, p: C64) -> C64 {
         .unwrap_or(old)
 }
 
-fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
+fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64, old: C64) -> Option<C64> {
     fn rc_value<T: Num>(x: T, y: T) -> Option<T> {
         let (status, value) = rc(x, y, ELLINT_CARLSON_RERR);
         (status == ExitStatus::Success).then_some(value)
     }
 
     let a = -x.re;
-    let offset = x.im.abs() + y.im.abs();
     let denominator = p + a;
     let cut_distance = z.re + a;
     // The caller sorts the spatial arguments and has already found a negative real part.
@@ -588,31 +587,53 @@ fn rj_cut_confluent([x, y, z]: [C64; 3], p: C64) -> Option<C64> {
             .iter()
             .all(|value| value.is_finite())
         && cut_distance.is_finite();
-    // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) excludes larger offsets.
-    if !(same_lip && finite_geometry && 0.5 * offset <= f64::EPSILON * a) {
+    if !(same_lip && finite_geometry) {
         return None;
     }
 
-    // At the shared lip RJ(-a,-a,z,p) = 3 (RC(z,-a) - RC(z,p))/(p+a).
-    // The negative real RC returns a principal value, so restore the lip residue.
-    let left = rc_value(z.re, -a)?;
+    let offset = x.im.abs() + y.im.abs();
+    // The contour bound |RJ| <= 3*pi/(a*sqrt(Re p)) excludes larger offsets.
+    let near_cut = 0.5 * offset <= f64::EPSILON * a;
+    let repeat = old.re.is_nan() && old.im.is_nan() && x == y && x.im.is_normal();
+    if !(near_cut || repeat) {
+        return None;
+    }
+
     let right = rc_value(z, p)?;
-    let left = c64(left, -(FRAC_PI_2 / cut_distance.sqrt()).copysign(x.im));
-    let value = (left - right) / denominator * 3.0;
-    let smallest = value.re.abs().min(value.im.abs());
-    let scale = 3.0 * ((left.norm() + right.norm()) / denominator.max_norm());
-    // Rotating the integration ray by +/- pi/4 bounds the omitted imaginary
-    // offsets by 8 (|Im x| + |Im y|)/(a² sqrt(Re p)). The floor also keeps
-    // accepted components normal in the relative check.
-    let perturbation = [a, a, p.re.sqrt()]
-        .into_iter()
-        .fold(8.0 * offset, |error, divisor| (error / divisor).max(f64::MIN_POSITIVE));
-    // Allow at most four bits of cancellation in either component.
-    (value.is_finite()
-        && value.max_norm() <= 0.5 * f64::MAX
-        && scale / 16.0 <= smallest
-        && perturbation <= f64::EPSILON * smallest)
+    let project = |left: C64, denominator: C64| {
+        let value = (left - right) / denominator * 3.0;
+        let scale = 3.0 * ((left.norm() + right.norm()) / denominator.max_norm());
+        // Allow at most four bits of cancellation in either component.
+        (value.is_finite()
+            && value.max_norm() <= 0.5 * f64::MAX
+            && scale / 16.0 <= value.re.abs().min(value.im.abs()))
         .then_some(value)
+    };
+
+    let limit = || {
+        if !near_cut {
+            return None;
+        }
+        // At the shared lip RJ(-a,-a,z,p) = 3 (RC(z,-a) - RC(z,p))/(p+a).
+        // The negative real RC returns a principal value, so restore the lip residue.
+        let re = rc_value(z.re, -a)?;
+        let im = -(FRAC_PI_2 / cut_distance.sqrt()).copysign(x.im);
+        let value = project(c64(re, im), denominator)?;
+        // The rotated contour bounds the omitted offsets by 8*offset/(a² sqrt(Re p)).
+        // The floor keeps accepted components normal in the relative check.
+        let perturbation = [a, a, p.re.sqrt()]
+            .into_iter()
+            .fold(8.0 * offset, |error, divisor| (error / divisor).max(f64::MIN_POSITIVE));
+        (perturbation <= f64::EPSILON * value.re.abs().min(value.im.abs())).then_some(value)
+    };
+    limit().or_else(|| {
+        // Unlike in xsf, use RJ(x,x,z,p) = 3 (RC(z,x) - RC(z,p))/(p-x) on exact repeats.
+        let denominator = p - x;
+        if !(repeat && denominator.is_finite()) {
+            return None;
+        }
+        project(rc_value(z, x)?, denominator).filter(|v| v.re.is_normal() && v.im.is_normal())
+    })
 }
 
 /// [`rj`] with the number of evaluations that are `left` of [`MAX_NESTED`], `None` if it ran out
