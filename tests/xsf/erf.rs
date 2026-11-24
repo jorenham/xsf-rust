@@ -108,6 +108,16 @@ fn test_complex_erfc_overflow_signs() {
 }
 
 #[test]
+fn test_complex_erfc_phase_product_overflow() {
+    let z = c64(5.0, 8.988_465_674_311_05e307);
+    let expected = c64(f64::INFINITY, f64::NEG_INFINITY);
+    assert_eq!(xsf::erfc(z), expected);
+    assert_eq!(xsf::erfc(z.conj()), expected.conj());
+    assert_eq!(xsf::erfc(-z), -expected);
+    assert_eq!(xsf::erfc(-z.conj()), -expected.conj());
+}
+
+#[test]
 fn test_complex_erf_overflow_phase() {
     // The signs at the exact f64 inputs agree in mpmath and Arb.
     for (z, expected) in [
