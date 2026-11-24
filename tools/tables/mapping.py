@@ -614,6 +614,49 @@ def _ndtr_arb(x: flint.arb) -> flint.arb:
     return q if x <= 0 else 1 - q
 
 
+def _complex_erf(x: mp.mpf, y: mp.mpf) -> mp.mpc:
+    if y == 0:
+        return mp.mpc(mp.erf(x), 0)
+    extra = 2 * specs.xd(x, y)
+    if x == 0:
+        with specs.wdps(extra):
+            return mp.mpc(0, mp.erfi(y))
+    # Reflected erfc can lose digits in the smaller component near either axis.
+    extra += max(0, -math.floor(math.log10(min(abs(float(x)), abs(float(y))))))
+    with specs.wdps(extra):
+        sign = mp.sign(x)
+        tail = mp.erfc(mp.mpc(abs(x), sign * y))
+        return mp.mpc(sign * (1 - tail.real), -sign * tail.imag)
+
+
+def _complex_erfi(x: mp.mpf, y: mp.mpf) -> mp.mpc:
+    w = _complex_erf(-y, x)
+    return mp.mpc(w.imag, -w.real)
+
+
+def _complex_erf_arb(z: flint.acb) -> flint.acb:
+    x, y = z.real, z.imag
+    ex, ey = (math.frexp(float(t))[1] for t in (x, y))
+    with flint.ctx.extraprec(2 * max(ex, ey, 0) + max(-ex, -ey, 0)):
+        if y.is_zero():
+            return flint.acb(x.erf(), 0)
+        if x.is_zero():
+            return flint.acb(0, y.erfi())
+        if x > 0:
+            return 1 - z.erfc()
+        return (-z).erfc() - 1
+
+
+def _complex_erfi_arb(z: flint.acb) -> flint.acb:
+    w = _complex_erf_arb(flint.acb(-z.imag, z.real))
+    return flint.acb(w.imag, -w.real)
+
+
+def _complex_erf_overflow(a: tuple[float, ...]) -> bool:
+    x, y = a
+    return (y - x) * (x + y) > LOG_MAX or abs(x) == abs(y) and math.isinf((-2 * x) * y)
+
+
 def _erfcx_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return x.erfc() * (x * x).exp()
 
@@ -4236,6 +4279,17 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("digamma", "cd-cd"): _complex(
         "digamma", specs._c(mp.digamma), flint.acb.digamma, (COMPLEX_POLE,)
     ),
+    ("erf", "cd-cd"): _complex(
+        "erf",
+        _complex_erf,
+        _complex_erf_arb,
+        overrides=(
+            Override(
+                _complex_erf_overflow,
+                "xsf can overflow in the exponential or phase product",
+            ),
+        ),
+    ),
     ("erf", "d-d"): Entry(
         (Out("erf", (specs.r_erf,), (flint.arb.erf,), _limits(-1, 1)),)
     ),
@@ -4249,6 +4303,17 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (EXP_SQUARE_OVERRIDE,),
             ),
         )
+    ),
+    ("erfi", "cd-cd"): _complex(
+        "erfi",
+        _complex_erfi,
+        _complex_erfi_arb,
+        overrides=(
+            Override(
+                lambda a: _complex_erf_overflow((-a[1], a[0])),
+                "xsf can overflow in the exponential or phase product",
+            ),
+        ),
     ),
     ("erfi", "d-d"): Entry(
         (
