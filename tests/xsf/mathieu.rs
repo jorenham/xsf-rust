@@ -157,14 +157,30 @@ fn test_mathieu_a_nan() {
 }
 
 #[test]
-fn test_mathieu_mod_first_kind_at_origin() {
-    let (mc, dmc) = xsf::mathieu_modcem1(9, 1.0, 0.0);
-    let (ms, dms) = xsf::mathieu_modsem1(9, 1.0, 0.0);
-    xsref::np_assert_allclose!(
-        &[mc, dmc, ms, dms],
-        &[1.083_083_254_725_196_7e-8, 0.0, 0.0, 9.625_470_732_010_198e-8],
-        rtol = 4e-15
-    );
+fn test_mathieu_mod_first_kind_near_origin() {
+    for sign in [-1.0, 0.0, 1.0] {
+        let x = sign * 1.0e-9;
+        let (mc, dmc) = xsf::mathieu_modcem1(9, 1.0, x);
+        let (ms, dms) = xsf::mathieu_modsem1(9, 1.0, x);
+        xsref::np_assert_allclose!(
+            &[mc, dmc, ms, dms],
+            &[
+                1.083_083_254_725_196_7e-8,
+                sign * 8.557_034_674_740_288e-16,
+                sign * 9.625_470_732_010_198e-17,
+                9.625_470_732_010_198e-8,
+            ],
+            rtol = 4e-15
+        );
+    }
+}
+
+#[test]
+fn test_mathieu_modcem1_near_linearized_coefficients() {
+    let (_, dy) = xsf::mathieu_modcem1(1, 1.001_442_352_383_129_1e-7, f64::from_bits(1580));
+    assert_eq!(dy.to_bits(), 0);
+    let (_, dy) = xsf::mathieu_modcem1(1, f64::from_bits(1.0e-7_f64.to_bits() + 1), 0.01);
+    xsref::np_assert_allclose!(&[dy], &[3.162_329_930_191_721e-6], rtol = 2e-14);
 }
 
 #[test]
