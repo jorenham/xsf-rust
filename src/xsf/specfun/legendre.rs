@@ -136,6 +136,18 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     let linear_seed =
         m >= 0 && v0 == 0.0 && (vx == f64::from(mx) + 1.0 || x.abs() * (vx + 1.0) <= 1.0);
     let seed = |degree| lpmv0(degree, mx, x, linear_seed);
+    // Unlike in xsf, evaluate the quadratic and diagonal factors separately for n = m + 2.
+    // At m = 85 the old degree-(m + 1) normalization first overflows (171!).
+    if vx == f64::from(mx) + 2.0 && (0..=84).contains(&m) && x.abs() < 1.0 {
+        let coefficient = 2.0 * f64::from(mx) + 3.0;
+        let square = x * x;
+        let factor = coefficient.mul_add(x.mul_add(x, -square), coefficient.mul_add(square, -1.0));
+        // Use the diagonal recurrence from lpmns, with its sign in the initial value.
+        let xq = (-x).mul_add(x, 1.0).sqrt();
+        return (1..=m).fold(neg_one_pow(m) * (0.5 * (coefficient - 2.0)) * factor, |value, j| {
+            value * ((2.0 * f64::from(j) - 1.0) * xq)
+        });
+    }
     if (nv > 2) && (nv > mx) {
         // Up-recursion on degree, AMS 8.5.3 / DLMF 14.10.3
         let mut p0 = seed(v0 + f64::from(mx));
