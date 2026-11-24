@@ -160,6 +160,44 @@ pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
     })
 }
 
+// M(1, 2, z) = (exp(z) - 1) / z for nonzero z.
+fn cchg_exprel(z: C64) -> C64 {
+    // Allow at most four bits of cancellation in either Smith numerator.
+    const CANCELLATION_LIMIT: f64 = 16.0;
+
+    if !(z.re.abs() < 1.0 && z.im.is_finite()) {
+        return (z.exp() - 1.0) / z;
+    }
+    if z.im.abs() < 1.0 {
+        return cexpm1(z) / z;
+    }
+
+    let (s, c) = z.im.sin_cos();
+    let e = z.re.exp();
+    let rounded = c64(e * c - 1.0, e * s);
+    if c <= 0.5 || rounded.re.abs() > SQRT_EPSILON {
+        return rounded / z;
+    }
+
+    // Unlike in xsf, avoid subtracting 1 from a rounded cosine near multiples of 2π.
+    let exp_minus_one = z.re.exp_m1();
+    let one_minus_cos = s * s / (1.0 + c);
+    let re = exp_minus_one.mul_add(c, -one_minus_cos);
+    let im = rounded.im;
+    let r = z.re / z.im;
+    let re_bound = (exp_minus_one * c).abs() + one_minus_cos;
+    if re.mul_add(r, im).abs() >= (im.abs() + r.abs() * re_bound) / CANCELLATION_LIMIT
+        && im.mul_add(r, -re).abs() >= ((im * r).abs() + re_bound) / CANCELLATION_LIMIT
+    {
+        let result = c64(re, im) / z;
+        if result.re.abs() >= 2.0 * f64::MIN_POSITIVE && result.im.abs() >= 2.0 * f64::MIN_POSITIVE
+        {
+            return result;
+        }
+    }
+    rounded / z
+}
+
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
     // ===================================================
     // Purpose: Compute confluent hypergeometric function
@@ -199,10 +237,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
         return (1.0 + z / b) * z.exp();
     }
     if (a == 1.0) && (b == 2.0) {
-        // `expm1` only near 0: `exp(z) - 1` cancels there, but `expm1` overflows for large Re z
-        let near_zero = z.re.abs() < 1.0 && z.im.abs() < 1.0;
-        let em1 = if near_zero { cexpm1(z) } else { z.exp() - 1.0 };
-        return em1 / z;
+        return cchg_exprel(z);
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
         // NOTE: for a = -2^31, `(int)(-a)` is UB (see `int_x86`), so the loop doesn't run and the
