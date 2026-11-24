@@ -258,8 +258,8 @@ pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> 
     if phase.abs() > pow2(53) {
         return None;
     }
-    let (quadrant, r) = split_phase(phase, lo);
-    phase_rotation(Quadrant::from_index(quadrant as i64 as u64), r)
+    let (quadrant, r) = recentered_phase(phase, lo);
+    phase_rotation(quadrant, r)
 }
 
 fn phase_rotation(quadrant: Quadrant, r: f64) -> Option<(C64, f64)> {
@@ -273,14 +273,9 @@ fn phase_rotation(quadrant: Quadrant, r: f64) -> Option<(C64, f64)> {
     Some((c64(re, im), r2 * r2 / 20.0))
 }
 
-fn split_phase(phase: f64, lo: f64) -> (f64, f64) {
+fn recentered_phase(phase: f64, lo: f64) -> (Quadrant, f64) {
     let quadrant = (phase * FRAC_2_PI).round();
     let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase) + (-quadrant).mul_add(FRAC_PI_2_DD.lo, lo);
-    (quadrant, r)
-}
-
-fn recentered_phase(phase: f64, lo: f64) -> (Quadrant, f64) {
-    let (quadrant, r) = split_phase(phase, lo);
     // Unlike in xsf, recenter if the rounded product picked a neighboring quadrant.
     if r.abs() > 1.0 {
         let step = 1.0_f64.copysign(r);
