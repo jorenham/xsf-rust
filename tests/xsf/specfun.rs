@@ -1096,6 +1096,20 @@ fn test_pmv_near_quadratic_roots() {
 }
 
 #[test]
+fn test_pmv_near_cubic_roots() {
+    // Arb at adjacent binary64 inputs on either side of a nonzero root.
+    for (m, v, x, expected) in [
+        (0, 3.0, 0.774_596_669_241_483_3, -2.513_407_221_827_648_4e-16),
+        (0, 3.0, 0.774_596_669_241_483_4, 8.172_618_520_478_21e-17),
+        (2, 5.0, 0.577_350_269_189_625_7, -2.341_519_651_754_944e-15),
+        (2, 5.0, 0.577_350_269_189_625_8, 5.430_041_520_621_152e-15),
+    ] {
+        let values = [xsf::pmv(m, v, x), xsf::pmv(m, -v - 1.0, -x)];
+        xsref::np_assert_allclose!(values, [expected, -expected], rtol = 4e-15, atol = 0.0);
+    }
+}
+
+#[test]
 fn test_pmv_large_m() {
     // NaN in xsf, which overflows `-m`
     assert!(xsf::pmv(i32::MIN, 0.5, 0.5).is_nan());
