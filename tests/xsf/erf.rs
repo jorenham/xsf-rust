@@ -220,7 +220,11 @@ fn test_complex_erf_diagonal_phase() {
     let boundary = f64::from_bits(0x5fe6_a09e_667f_3bcd);
     let boundary_tail = 4.162_221_635_295_825e-155_f64;
     let ulp = f64::from_bits(boundary_tail.to_bits() + 1) - boundary_tail;
+    // Arb at the exact inputs, including a finite square just before overflow.
+    let finite_square = f64::from_bits(0x5fe6_a09e_667f_3bcb);
     for (x, tail, atol) in [
+        (2.0_f64.powi(86), 5.137_282_552_751_807e-27, 4.0e-42),
+        (finite_square, 3.462_935_624_014_001_4e-155, 4.0 * ulp),
         (8.988_465_674_311_05e307, -1.427_172_851_852_344e-309, 0.0),
         (boundary, boundary_tail, 4.0 * ulp),
     ] {
