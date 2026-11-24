@@ -1251,7 +1251,8 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
 
     let xc = z.norm();
     let mut ls = 0;
-    if z.is_real() || xc < 1.0 {
+    // Unlike in xsf, use the same branch as q0_c64 when the norm equals one.
+    if z.is_real() || xc <= 1.0 {
         ls = 1;
     }
     if xc > 1.0 {
