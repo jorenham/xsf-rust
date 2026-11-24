@@ -1080,6 +1080,10 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
 // Use the leading term in 1/x. Keep its exponent separate because raising
 // the order can bring an underflowed value back into range.
 fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "the binary64 mantissa width fits i32"
+    )]
     const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
 
     let (xm, xe) = frexp_f64(x);
@@ -1139,6 +1143,7 @@ fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64,
 
 fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     // Leave room for 2*k+3 and the scale in the backward recurrence.
+    #[expect(clippy::cast_possible_wrap, reason = "the i32 bit width fits i32")]
     const LARGE_X: f64 = utils::pow2(f64::MAX_EXP - (i32::BITS as i32 + 1) - SPECFUN_BIG_LOG2);
 
     let m = int(qm.extent(0)) - 1;
