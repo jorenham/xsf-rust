@@ -2081,9 +2081,189 @@ I_REFLECTION_FLOOR: Final = Floor(
 )
 
 
+_y_raw_ref, _y_raw_arb = _cbessel("y")
+
+
+def _y_integer_axis(v: float | mp.mpf, x: float | mp.mpf, y: float | mp.mpf) -> bool:
+    return v == int(v) and ((y == 0 and x < 0) or (x == 0 and y != 0))
+
+
+def _y_ref(v: mp.mpf, x: mp.mpf, y: mp.mpf) -> mp.mpc:
+    if x > 0 and y == 0:
+        # Y is real here. Evaluate on the real axis to avoid spurious mpmath imaginary parts.
+        with specs.wdps(specs.xd(v, x)):
+            return mp.mpc(mp.re(BESSEL_Y(v, x)), 0)
+    if not _y_integer_axis(v, x, y):
+        return _y_raw_ref(v, x, y)
+    n = abs(int(v))
+    order_sign = (-1) ** n if v < 0 else 1
+    if y == 0:
+        return order_sign * (-1) ** n * mp.mpc(mp.bessely(n, -x), 2 * mp.besselj(n, -x))
+    r = abs(y)
+    result = mp.mpc(-2 / mp.pi * mp.besselk(n, r), (-1) ** n * mp.besseli(n, r)) * (
+        -1j
+    ) ** (n % 4)
+    return order_sign * (result if y > 0 else mp.conj(result))
+
+
+def _y_arb(v: flint.arb, z: flint.acb) -> flint.acb | None:
+    n = float(v)
+    x, y = float(z.real), float(z.imag)
+    if x > 0 and y == 0:
+        value = z.real.bessel_y(v)
+        if value.rel_accuracy_bits() < ARB_BITS:
+            with flint.ctx.extraprec(max(0, 3072 - flint.ctx.prec)):
+                value = z.real.bessel_y(v)
+        return flint.acb(value, 0)
+    if not _y_integer_axis(n, x, y):
+        return _y_raw_arb(v, z)
+    # Evaluate the continuation on exact real inputs. This avoids cancellation
+    # of the minor component when it is hundreds of orders below the other.
+    n = abs(int(n))
+    order_sign = (-1) ** n if v < 0 else 1
+    if y == 0:
+        r = -z.real
+        return order_sign * (-1) ** n * flint.acb(r.bessel_y(n), 2 * r.bessel_j(n))
+    r = abs(z.imag)
+    result = flint.acb(
+        -2 * r.bessel_k(n) / flint.arb.pi(), (-1) ** n * r.bessel_i(n)
+    ) * (-1j) ** (n % 4)
+    return order_sign * (result if y > 0 else result.conjugate())
+
+
+def _y_local_scale(a: tuple[float, ...], f: complex) -> float:
+    v, x, y = a
+    magnitude = abs(f)
+    if v == 0 and 0 < math.hypot(x, y) <= 8 and magnitude < 2**-23:
+        with flint.ctx.workprec(256):
+            z = flint.acb(x, y)
+            scale = float(abs(z * z.bessel_y(1)))
+        if magnitude < 2**-26 * scale:
+            return scale
+
+    # |J| <= 1 for real x and nonnegative order (DLMF 10.14.1).
+    if y == 0 and magnitude < 0.125 and x > max(2, v) and 0 <= v <= AMOS_FNUL:
+        # Y = M sin(theta) has phase derivative J = M cos(theta) (DLMF 10.18.4).
+        with flint.ctx.workprec(256):
+            scale = float(abs(flint.arb(x).bessel_j(flint.arb(v))))
+        if magnitude < scale / 8:
+            return scale
+    return 0.0
+
+
+def _y_huge_axis(a: tuple[float, ...]) -> bool:
+    v, x, y = a
+    v = abs(v)
+    if y != 0 or not 0 < x < v or not math.isfinite(v) or v <= AMOS_ORDERS:
+        return False
+    s = x / v
+    w2 = (1 - s) * (1 + s)
+    return v * w2 * math.sqrt(w2) / 3 > 2 * LOG_MAX
+
+
+def _y_at_origin(a: tuple[float, ...]) -> bool:
+    _, x, y = a
+    return x == y == 0
+
+
+def _y_origin_sign(a: tuple[float, ...]) -> tuple[int, int]:
+    v = a[0]
+    if v >= 0:
+        return (-1, 1)
+    if v.is_integer():
+        return (1, -1) if v % 2 else (-1, 1)
+    with mp.workdps(80):
+        c, s = mp.cospi(v), mp.sinpi(v)
+    if c >= 0:
+        return (-1, 1)
+    j_im_negative = 2 < (-v) % 4 < 3
+    return (1, -1 if (s > 0) != j_im_negative else 1)
+
+
+def _y_tiny_order_10(a: tuple[float, ...]) -> bool:
+    v, x, y = a
+    return abs(v) == 10 and max(abs(x), abs(y)) == 1e-30
+
+
+def _y_rotated_mlri(a: tuple[float, ...]) -> bool:
+    v, x, y = a
+    return (
+        not v.is_integer()
+        and (y != 0 or x < 0 or v < 0)
+        and _amos_mlri(abs(v), math.hypot(x, y))
+    )
+
+
+# Relative error limits after moving the Miller normalization's complex norm by
+# one ULP in either direction for positive real 2 < x < v <= AMOS_FNUL.
+_Y_MILLER_NORM_LIMITS: Final = {
+    (18.0, 6.773_850_440_979_004): 1.4e-15,
+    (21.0, 6.773_850_440_979_004): 1.7e-15,
+    (24.0, 13.924_911_499_023_438): 1.18e-15,
+    (5.833_333_333_333_334, 2.5): 1e-15,
+    (18.0, 11.051_702_499_389_648): 1.55e-15,
+    (39.0, 15.408_351_898_193_36): 1.65e-15,
+}
+
+
+def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
+    rules = tuple(
+        Rule(
+            lambda a, b=(re, im): _y_at_origin(a) and _y_origin_sign(a) == b,
+            complex(math.copysign(math.inf, re), math.copysign(0.0, im)),
+            "limit on the positive real axis at the origin with the AMOS order reflection",
+        )
+        for re, im in ((-1, 1), (1, 1), (1, -1))
+    ) + (
+        Rule(
+            _y_huge_axis,
+            complex(-math.inf, 0.0),
+            "positive-axis overflow at huge order by the existing Y asymptotic bound",
+        ),
+        AMOS_RANGE,
+        Rule(
+            _overflows("y"),
+            complex(math.nan, math.nan),
+            "AMOS returns a NaN pair where a Y component overflows off the positive real axis",
+        ),
+    )
+    overrides = (
+        Override(
+            _y_huge_axis,
+            "xsf reports out-of-range NaNs where Rust can classify positive-axis overflow",
+        ),
+        Override(
+            _y_tiny_order_10,
+            "xsf's AMOS overflows before the very large Y component exceeds binary64",
+        ),
+    )
+    out = _complex_out(
+        "bessel_y",
+        _y_ref,
+        _y_arb,
+        rules,
+        overrides,
+        floors=(
+            Floor(
+                _y_rotated_mlri,
+                MLRI_FLOOR.tol,
+                "the rotated Hankel continuation uses AMOS's Miller algorithm with a different normalization",
+            ),
+            Floor(
+                lambda a: a[2] == 0 and (a[0], a[1]) in _Y_MILLER_NORM_LIMITS,
+                lambda a: _Y_MILLER_NORM_LIMITS[a[0], a[1]] / 4,
+                "the Hankel Miller normalization uses the platform complex norm twice",
+            ),
+            Y_FLOOR,
+        ),
+        reals=1,
+        scale_at=_y_local_scale,
+    )
+    return ("cyl_bessel_y", "d_cd-cd"), Entry((out,))
+
+
 def _bessel_c() -> dict[tuple[str, str], Entry]:
-    """The tables of K_v and of the exponentially scaled J_v, Y_v, I_v, K_v, H1_v, and H2_v, of
-    real order v and complex z."""
+    """Reference tables for Bessel and Hankel functions of real order and complex argument."""
 
     def entry(
         f: str,
@@ -2098,6 +2278,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
 
     return dict(
         [
+            _bessel_y_c_entry(),
             entry(
                 "k",
                 Rule(
