@@ -361,6 +361,16 @@ trait Term: Copy + Default + Mul<f64, Output = Self> {
     fn add_to(self, sum: &mut Self, comp: &mut Self);
 }
 
+impl Term for f64 {
+    const EPS: f64 = f64::EPSILON;
+    fn norm(self) -> f64 {
+        self.abs()
+    }
+    fn add_to(self, sum: &mut Self, comp: &mut Self) {
+        kahan_step(sum, comp, self);
+    }
+}
+
 impl Term for C64 {
     const EPS: f64 = f64::EPSILON;
     fn norm(self) -> f64 {
@@ -1108,6 +1118,35 @@ fn chgm_fallback(
     hg: f64,
     sum: &KummerSum,
 ) -> Option<f64> {
+    // Unlike in xsf, finish a positive terminating series when the first
+    // omitted term at the 500-term cap exceeds the rounding estimate.
+    if sum.terms == 500
+        && (-MAX_SERIES_ITERATIONS..-500.0).contains(&a)
+        && b < a
+        && b.is_finite()
+        && x0 > 0.0
+        && x0.is_finite()
+        && hg.is_finite()
+        && is_nonpos_int(a)
+        && is_nonpos_int(b)
+    {
+        let next_term = |t, n| t * ((a + n) / (n + 1.0) * (x / (b + n)));
+        if next_term(sum.rg / hg, 500.0) > 2.0 * SQRT_EPSILON {
+            // (a+k)/(b+k) decreases until termination; include rounding in the bound.
+            let radius = x * (a / b) * (1.0 + 4.0 * f64::EPSILON);
+            let tail_term = |t, n| next_term(t, n + 500.0);
+            let degree = -a as i32 - 500;
+            if let Some((tail, err)) =
+                hyp1f1_sum(a, b, radius, tail_term, sum.rg, 0.0, Some(degree))
+            {
+                // The tail sum includes term 500 as its starting value.
+                let p = hg + (tail - sum.rg);
+                if err <= SQRT_EPSILON * p && p < f64::MAX * (1.0 - SQRT_EPSILON) {
+                    return Some(p);
+                }
+            }
+        }
+    }
     // for -1 < a < 2 and b > 0, the series in full if it doesn't converge within 500 terms
     if !sum.converged && hg.is_finite() && a > -1.0 && a0 < 2.0 && b > 0.0 {
         if let Some((hg, _)) = chgm_series(a, b, x, x0) {
