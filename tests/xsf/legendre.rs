@@ -667,6 +667,20 @@ fn test_assoc_legendre_q_all_c64_tiny_im_lift_overflow() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_derivative_underflow_sign() {
+    let x = 1.560_874_275_157_996e144_f64;
+    let (_, positive) = xsf::assoc_legendre_q_all(11, 1, x);
+    let (_, negative) = xsf::assoc_legendre_q_all(11, 1, -x);
+    for n in [4, 5, 6, 10, 11] {
+        let expected = if n % 2 == 0 { -0.0_f64 } else { 0.0 };
+        assert_eq!(negative[n][0].to_bits(), expected.to_bits());
+        assert_eq!(negative[n][1].to_bits(), expected.to_bits());
+        assert_eq!(positive[n][0].to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(positive[n][1].to_bits(), 0.0_f64.to_bits());
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_int_zero() {
     // `static_cast<T>(ls * (j + i - 1) * (j - i + 2))` with `ls = -1, i = 2, j = 0` is `+0.0`
     let q = xsf::assoc_legendre_q_all(2, 2, c64(1.00005, 0.0)).0[0][2];
