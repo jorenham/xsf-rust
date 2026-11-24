@@ -120,9 +120,19 @@ pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
         // The leading real part exceeds cos(1) - |y|/x, well above the remainder.
         c64(1.0, -y)
     } else {
-        let lo = (-x).mul_add(y, -hi);
-        let Some((rotation, error)) = bounded_phase_rotation(phase, k * lo) else {
-            return result;
+        let (rotation, error) = if phase.abs() > pow2(53) {
+            // Unlike in xsf, reduce the original product even when it overflows.
+            // The reducer doubles its product; x/2 is exact in this wide-phase region.
+            let (quadrant, r) = phase::reduce_product_phase((-0.5 * k) * x, y);
+            let (sin, cos) = r.sin_cos();
+            let (re, im) = quadrant.rotate(sin, cos);
+            (c64(re, im), 0.0)
+        } else {
+            let lo = (-x).mul_add(y, -hi);
+            let Some(rotation) = bounded_phase_rotation(phase, k * lo) else {
+                return result;
+            };
+            rotation
         };
         let leading = c64(1.0, -y / x) * rotation;
         // Integration by parts bounds the normalized remainder by sqrt(2)/(k*x²).

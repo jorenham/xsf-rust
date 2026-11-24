@@ -108,6 +108,23 @@ fn test_complex_erfc_underflow_signs() {
 }
 
 #[test]
+fn test_complex_gaussian_underflow_wide_phase() {
+    // Signs from the leading terms at the exact binary64 coordinates.
+    for (z, tail, cdf) in [
+        (c64(1e8, 9.1e7), c64(0.0, -0.0), c64(-0.0, 0.0)),
+        (c64(1e200, 1e190), c64(-0.0, 0.0), c64(-0.0, -0.0)),
+    ] {
+        let bits = |w: num_complex::Complex64| (w.re.to_bits(), w.im.to_bits());
+        assert_eq!(bits(xsf::erfc(z)), bits(tail));
+        assert_eq!(bits(xsf::erfc(z.conj())), bits(tail.conj()));
+        assert_eq!(bits(xsf::erfc(-z)), bits(c64(2.0, -tail.im)));
+        assert_eq!(bits(xsf::ndtr(-z)), bits(cdf));
+        assert_eq!(bits(xsf::ndtr(-z.conj())), bits(cdf.conj()));
+        assert_eq!(bits(xsf::ndtr(z)), bits(c64(1.0, -cdf.im)));
+    }
+}
+
+#[test]
 fn test_complex_erfc_overflow_signs() {
     for (z, expected) in [
         (
