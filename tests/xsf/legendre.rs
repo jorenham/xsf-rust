@@ -411,6 +411,37 @@ fn test_legendre_q_all_extreme_complex() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_extreme_order_one() {
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            // Arb at the exact binary64 arguments.
+            let (q, dq) = xsf::assoc_legendre_q_all(0, 1, c64(sx * 1e160, sy * 1e159));
+            let value = c64(-9.900_990_099_009_902e-161, sx * sy * 9.900_990_099_009_9e-162);
+            let slope = c64(sx * f64::from_bits(0x7ac), -sy * f64::from_bits(0x18d));
+            assert_eq!((q[0][1], dq[0][1]), (value, slope));
+
+            let (q, dq) = xsf::assoc_legendre_q_all(0, 1, c64(sx * 0.0, sy * 1e160));
+            assert_eq!(q[0][1].re.to_bits(), 0);
+            assert_eq!(q[0][1].im, sx * sy * 1e-160);
+            assert_eq!(dq[0][1].re, -sx * f64::from_bits(0x7e8));
+            assert_eq!(dq[0][1].im.to_bits(), 0);
+        }
+    }
+
+    // Round tiny projections, including ties where the first tail correction matters.
+    for (x, y, bits) in [
+        (1.207_381_461_363_012_6e208, 2.0_f64.powi(308), 1),
+        (3.0 * 2.0_f64.powi(536), 1.125, 1),
+        (3.375, 3.0 * 2.0_f64.powi(536), (-f64::from_bits(1)).to_bits()),
+        (1.0 - f64::EPSILON / 2.0, 2.0_f64.powi(511), 0x800f_ffff_ffff_ffff),
+    ] {
+        let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(x, y));
+        let projection = if x < y { q[0][1].re } else { q[0][1].im };
+        assert_eq!(projection.to_bits(), bits);
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x_and_z() {
     // where the backward recurrences are rescaled; mpmath: legenq(n, m, x, type=3), and Arb for
     // complex z

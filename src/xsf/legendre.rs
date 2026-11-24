@@ -879,6 +879,13 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
 #[expect(clippy::cast_possible_wrap, reason = "the i32 bit width fits i32")]
 const LQ_LARGE_X: f64 = utils::pow2(f64::MAX_EXP - (i32::BITS as i32 + 1) - SPECFUN_BIG_LOG2);
 
+fn lq_scaled_abs(z: C64, max_part: f64) -> (DoubleDouble, DoubleDouble, i32) {
+    let (_, exponent) = frexp_f64(max_part);
+    let x = DoubleDouble::new(ldexp_f64(z.re.abs(), -exponent));
+    let y = DoubleDouble::new(ldexp_f64(z.im.abs(), -exponent));
+    (x, y, exponent)
+}
+
 // For very large |z|, use the leading terms of Q_0' and Q_1 in 1/z².
 #[cold]
 fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
@@ -886,9 +893,7 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     if m < LQ_LARGE_X || !z.is_finite() {
         return None;
     }
-    let (_, exponent) = frexp_f64(m);
-    let x = DoubleDouble::new(ldexp_f64(z.re.abs(), -exponent));
-    let y = DoubleDouble::new(ldexp_f64(z.im.abs(), -exponent));
+    let (x, y, exponent) = lq_scaled_abs(z, m);
     let norm = x * x + y * y;
     let norm = norm * norm;
     let re = (y - x) * (y + x) / norm;
@@ -904,6 +909,52 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     let q1 = c64(restore(re / 3.0, -re_sign), restore(im / 3.0, -im_sign));
     let derivative = c64(restore(re, re_sign), restore(im, im_sign));
     Some((q1, derivative))
+}
+
+// The minor coordinate divided by the major coordinate squared is dyadic
+// exactly when the odd part of the major significand squared divides the minor's.
+fn lq_axis_ratio_is_dyadic(major: f64, minor: f64) -> bool {
+    let (a, _, _) = num_traits::Float::integer_decode(major);
+    let (b, _, _) = num_traits::Float::integer_decode(minor);
+    let odd = u128::from(a >> a.trailing_zeros());
+    u128::from(b) % (odd * odd) == 0
+}
+
+// The exterior leading term for Q_0^1 is -sign(Re z)/z.
+fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
+    let (abs_re, abs_im) = (z.re.abs(), z.im.abs());
+    let (x, y, exponent) = lq_scaled_abs(z, abs_re.max(abs_im));
+    let norm = x * x + y * y;
+    let restore = |value: DoubleDouble, major, minor: f64, imaginary| {
+        let units = (value / norm).ldexp(53 - f64::MIN_EXP - exponent);
+        // At this skew, a dyadic quotient fits exactly in the high word.
+        if 0.0 < value.hi
+            && value.hi <= const { utils::pow2(-54) }
+            && units.hi.fract() == 0.5
+            && lq_axis_ratio_is_dyadic(major, minor)
+        {
+            // The first omitted term moves an imaginary midpoint up when minor² < 3/2.
+            let rounded = if imaginary && minor.mul_add(minor, -1.5) < 0.0 {
+                units.hi.ceil()
+            } else {
+                units.hi.floor()
+            };
+            return rounded * f64::from_bits(1);
+        }
+        units.round_subnormal_units()
+    };
+    let side = z.re.signum();
+    let im = restore(y, abs_re, abs_im, true).copysign(side * z.im.signum());
+    let mut derivative = dq0 * -side;
+    // On the imaginary axis, the sign of Re(z) determines the square-root lip.
+    // Keep positive zero in the orthogonal components as in lqmn_large.
+    let value = if z.re == 0.0 {
+        derivative.im = 0.0;
+        c64(0.0, im)
+    } else {
+        c64(-restore(x, abs_im, abs_re, false), im)
+    };
+    (value, derivative)
 }
 
 // ==================================================
@@ -1372,6 +1423,8 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
     if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
         (cqm[(0, 1)], cqd[(0, 0)]) = (q1, derivative);
+        // Unlike in xsf, use scaled leading terms for Q_0^1 and its derivative too.
+        (cqm[(1, 0)], cqd[(1, 0)]) = lq_extreme_complex_order_one(z, derivative);
     }
 }
 
