@@ -735,7 +735,18 @@ fn rmn1(
         }
         sw = sud;
     }
-    *r1d = b0 + a0 * c * sud;
+    let scale = a0 * c;
+    let mut slope = scale * sud;
+    // Unlike in xsf, combine the smaller factor with the sum if a0*c rounds to zero.
+    if prolate_first_kind_only && scale == 0.0 && sud.abs() > 1.0 {
+        let (small, large) = if a0.abs() < c.abs() { (a0, c) } else { (c, a0) };
+        let weighted = small * sud;
+        let recovered = weighted * large;
+        if weighted.is_normal() && recovered.is_normal() {
+            slope = recovered;
+        }
+    }
+    *r1d = b0 + slope;
     Status::Ok
 }
 
