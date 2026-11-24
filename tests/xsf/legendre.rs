@@ -329,6 +329,18 @@ fn test_assoc_legendre_q_all_large_x_and_z() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_exterior_forward_seed() {
+    // Arb at the exact binary64 inputs, with the principal sqrt(z² - 1).
+    for re in [-0.6_f64, 0.6] {
+        let z = c64(re, 0.800_000_001);
+        let (q, dq) = xsf::assoc_legendre_q_all(3, 1, z);
+        let expected = c64(0.025_564_854_500_179_927_f64.copysign(re), -0.132_252_482_592_822_88);
+        let expected_dq = c64(0.364_058_770_999_769_7, 0.185_370_137_953_699_2_f64.copysign(re));
+        xsref::np_assert_allclose!([q[3][1], dq[3][1]], [expected, expected_dq], rtol = 2e-14);
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
     // Arb: atanh(z), and acoth(z) for |z| > 1
     for (z, q0) in [

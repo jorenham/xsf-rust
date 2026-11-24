@@ -1265,7 +1265,9 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = -1.0 / zq;
         cqm[(0, 1)] = z * cq0 - 1.0;
-        cqm[(1, 1)] = -zq * (cq0 + z / (1.0 - z * z));
+        // Unlike in xsf, use the exterior square-root factor for Q_1^1.
+        let root = if ls < 0 { zq } else { -zq };
+        cqm[(1, 1)] = root * (cq0 + z / (1.0 - z * z));
 
         for i in 0..=1 {
             for j in 2..=n {
