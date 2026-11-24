@@ -1097,7 +1097,12 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
 
 // Use the leading term in 1/x. Keep its exponent separate because raising
 // the order can bring an underflowed value back into range.
-fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
+fn lqmn_extreme_real<T>(
+    x: f64,
+    mut qm: Mdspan<'_, T, 2>,
+    mut qd: Mdspan<'_, T, 2>,
+    output: impl Fn(f64, f64) -> (T, T),
+) {
     #[expect(
         clippy::cast_possible_wrap,
         reason = "the binary64 mantissa width fits i32"
@@ -1138,8 +1143,8 @@ fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64,
         let slope_e = i64::from(e) - xe;
         let (mut value, mut exp) = (seed, seed_e);
         for m in 0..int(qm.extent(0)) {
-            qm[(m, n)] = scaled(value, exp);
-            qd[(m, n)] = scaled(value * slope, exp + slope_e);
+            (qm[(m, n)], qd[(m, n)]) =
+                output(scaled(value, exp), scaled(value * slope, exp + slope_e));
             let (v, e) = (value * (order_sign * (next + f64::from(m)))).frexp();
             (value, exp) = (v, exp + i64::from(e));
         }
@@ -1178,7 +1183,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     }
     // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
     if x.abs() >= LARGE_X && x.is_finite() {
-        lqmn_extreme_real(x, qm, qd);
+        lqmn_extreme_real(x, qm, qd, |q, d| (q, d));
         return;
     }
 
@@ -1264,6 +1269,15 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             }
         }
 
+        return;
+    }
+
+    // Unlike in xsf, keep the real-axis leading terms when z^2 would overflow.
+    if z.is_real() && z.re.is_finite() && z.re.abs() >= const { utils::pow2(f64::MAX_EXP / 2) } {
+        // The lateral imaginary signs come from Q′ and Q″, respectively.
+        // In the leading term, Q″ has the same sign as Q.
+        let lateral = |value, slope| c64(value, z.im * 1.0_f64.copysign(slope));
+        lqmn_extreme_real(z.re, cqm, cqd, |q, d| (lateral(q, d), lateral(d, q)));
         return;
     }
 
