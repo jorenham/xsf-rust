@@ -70,15 +70,17 @@ fn test_bessel_y_and_k_signed_half_order_overflow() {
 }
 
 #[test]
-fn test_bessel_y_and_k_signed_integer_order_overflow() {
+fn test_bessel_y_and_k_signed_small_argument_overflow() {
     let inf = f64::INFINITY;
     for re_sign in [-1.0, 1.0] {
         for im_sign in [-1.0, 1.0] {
             let z = c64(re_sign * 1e-100, im_sign * 3e-101);
             let k = c64(inf, -re_sign * im_sign * inf);
-            assert_eq!(xsf::bessel_k(4.0, z), k);
-            assert_eq!(xsf::bessel_k(-4.0, z), k);
-            assert_eq!(xsf::bessel_y(4.0, z), -k);
+            for v in [4.0, 4.25] {
+                assert_eq!(xsf::bessel_k(v, z), k);
+                assert_eq!(xsf::bessel_k(-v, z), k);
+                assert_eq!(xsf::bessel_y(v, z), -k);
+            }
         }
     }
     // At this diagonal a leading projection is zero. Its first correction is finite.
