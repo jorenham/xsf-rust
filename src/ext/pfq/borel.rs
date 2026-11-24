@@ -8,7 +8,7 @@ use super::series::{pfq_terms, pfq_weniger, weniger_drift};
 use super::{
     Dd, Estimate, OrBetter, PFQ_INACCURATE, PFQ_TOL, SeriesReal, add_exp, ldexp_i64, pfq_settled,
 };
-use crate::utils::{is_nonpos_int, pow2};
+use crate::utils::{SQRT_EPSILON, is_nonpos_int, pow2};
 use crate::xsf::cephes::dd_real::{frexp_f64, two_prod, two_sum};
 use crate::xsf::xsf_hypu_digits;
 
@@ -168,8 +168,9 @@ impl RawBorel {
 /// Borel sum of `2F0(a1, a2;; z)` for `z < 0` (DLMF 13.6.21)
 ///
 /// Tries `x^a1 U(a1, a1 - a2 + 1, x)` with `CHGU_DIGITS_MARGIN`, the truncated asymptotic
-/// series, the swapped `U` orientation (DLMF 13.2.40), double-double Weniger, double-double
+/// series, the swapped `U` orientation (DLMF 13.2.40), double-double Weniger and double-double
 /// residues (`pfq_borel_dd`), and finally the cached `U` evaluations at `margin = 0.0`.
+/// For large arguments and nearly terminating series, prefer the residues.
 pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
     // the smaller |a_i| first, as x^a1 then overflows less often
     let (a1, a2) = if a1.abs() <= a2.abs() {
@@ -220,14 +221,28 @@ pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
     let scale = x.min(f64::EPSILON.recip());
     let series =
         || Some(Estimate::absolute(asymptotic_sum(series_terms(), settled, scale, |_| 0.0)));
+    let residues = || pfq_borel_dd(&a, &[], z);
     let weniger_dd =
         || Some(weniger_drift(pfq_weniger::<Dd>(&a, &[], z)?, terms(), settled, Dd::EPSILON));
     raw1.as_ref()
         .and_then(|r| r.estimate(CHGU_DIGITS_MARGIN))
         .or_better(series)
         .or_better(|| eval2()?.estimate(CHGU_DIGITS_MARGIN))
-        .or_better(weniger_dd)
-        .or_better(|| pfq_borel_dd(&a, &[], z))
+        .or_better(|| {
+            // When |z| >= 1, a nearly vanishing Pochhammer factor can stall the delta
+            // approximants even after the terms start alternating. Small steps alone do
+            // not establish accuracy there, so keep Weniger as a nonstrict estimate.
+            let near_integer = |v: f64| (v - v.round().min(0.0)).abs() <= SQRT_EPSILON;
+            if x <= 1.0 && !a.into_iter().any(is_nonpos_int) && a.into_iter().any(near_integer) {
+                residues().or_better(|| {
+                    let mut e = weniger_dd()?;
+                    e.err = e.err.max(PFQ_INACCURATE);
+                    Some(e)
+                })
+            } else {
+                weniger_dd().or_better(residues)
+            }
+        })
         .or_better(|| raw1.as_ref()?.estimate(0.0))
         .or_better(|| eval2()?.estimate(0.0))
 }
@@ -235,6 +250,32 @@ pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_hyp2f0_nearly_terminating_weniger_plateau() {
+        // Arb at the exact binary64 inputs. The small-|z| control still accepts Weniger
+        // when the residues cannot establish accuracy.
+        for (a, z, expected) in [
+            (
+                [-2.552_159_512_381_629e-13, -58.999_999_998_911_83],
+                -126.750_930_337_152_8,
+                -7.172_705_902_498_113_5e189,
+            ),
+            (
+                [-7.458_722_797_026_388e-12, -12.999_999_999_997_922],
+                -1_363.858_526_276_311_5,
+                -2.019_982_460_778_705_2e38,
+            ),
+            (
+                [-90.000_000_000_000_53, -18.599_116_159_816_333],
+                -0.002_618_368_943_112_718_4,
+                0.005_619_573_644_285_804_5,
+            ),
+        ] {
+            let y = crate::hyppfq(a, [], z).unwrap();
+            assert!((y / expected - 1.0).abs() <= PFQ_TOL, "{y:e} != {expected:e}");
+        }
+    }
 
     #[test]
     fn test_pfq_borel_dd() {
