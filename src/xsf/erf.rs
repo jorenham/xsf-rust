@@ -86,7 +86,59 @@ fn erfc_c64(z: C64) -> C64 {
     if result.is_nan() || (result.re.is_infinite() && result.im.is_infinite() && wide_phase()) {
         return erfc_overflow(z).unwrap_or(result);
     }
+    // Unlike in xsf, keep the sign of a component that rounds to zero in the Gaussian tail.
+    if result.im == 0.0 && z.im != 0.0 {
+        return gaussian_tail_zeros(z, 2.0, result);
+    }
     result
+}
+
+// Recover the zero signs of k/2 * erfc(z * sqrt(k/2)), with k = 1 or 2.
+#[cold]
+pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
+    let reflected = z.re < 0.0;
+    let limit = if reflected { k } else { 0.0 };
+    if result.re != limit {
+        return result;
+    }
+
+    let (x, y) = if reflected {
+        (-z.re, -z.im)
+    } else {
+        (z.re, z.im)
+    };
+    let ay = y.abs();
+    // The Laplace integral bounds the reflected tail's magnitude by
+    // exp(-k(x²-y²)/2)/(sqrt(pi)*x*sqrt(k/2)). The monotone lower bound
+    // x(x-|y|) on x²-y² leaves room for rounding below half the smallest subnormal.
+    if !z.is_finite() || x <= ay || k * ((x - ay) * x) < 1500.0 {
+        return result;
+    }
+
+    let hi = -x * y;
+    let phase = k * hi;
+    let signs = if phase.abs() <= 1.0 {
+        // The integral along the vertical segment has positive cosine throughout.
+        // The leading real part exceeds cos(1) - |y|/x, well above the remainder.
+        c64(1.0, -y)
+    } else {
+        let lo = (-x).mul_add(y, -hi);
+        let Some((rotation, error)) = bounded_phase_rotation(phase, k * lo) else {
+            return result;
+        };
+        let leading = c64(1.0, -y / x) * rotation;
+        // Integration by parts bounds the normalized remainder by sqrt(2)/(k*x²).
+        let error = error + (2.0 / k / x) / x + pow2(-44);
+        if leading.re.abs().min(leading.im.abs()) <= error {
+            return result;
+        }
+        leading
+    };
+    if reflected {
+        c64(k, 0.0_f64.copysign(-signs.im))
+    } else {
+        c64(0.0_f64.copysign(signs.re), 0.0_f64.copysign(signs.im))
+    }
 }
 
 #[cold]

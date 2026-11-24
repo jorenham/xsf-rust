@@ -87,6 +87,27 @@ fn test_complex_erf_axis_near_overflow() {
 }
 
 #[test]
+fn test_complex_erfc_underflow_signs() {
+    for (y, negative_re) in [(0.03125, true), (f64::from_bits(1), false)] {
+        let z = c64(40.0, y);
+        let value = xsf::erfc(z);
+        assert_eq!(value, c64(0.0, 0.0));
+        assert_eq!(value.re.is_sign_negative(), negative_re);
+        assert!(value.im.is_sign_negative());
+
+        let conjugate = xsf::erfc(z.conj());
+        assert_eq!(conjugate, c64(0.0, 0.0));
+        assert_eq!(conjugate.re.to_bits(), value.re.to_bits());
+        assert_eq!(conjugate.im.to_bits(), 0);
+
+        let reflected = xsf::erfc(-z);
+        assert_eq!(reflected.re.to_bits(), 2.0_f64.to_bits());
+        assert_eq!(reflected.im.to_bits(), 0);
+        assert_eq!(xsf::erfc(-z.conj()).im.to_bits(), value.im.to_bits());
+    }
+}
+
+#[test]
 fn test_complex_erfc_overflow_signs() {
     for (z, expected) in [
         (
