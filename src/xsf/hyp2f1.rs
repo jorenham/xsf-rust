@@ -512,8 +512,9 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     const MAX_DEGREE: f64 = 32.0;
     let terminating = |a: f64, b: f64| {
         let (p, low) = two_sum(c, -b);
-        (p < 0.0 && p.fract() == 0.0 && low == 0.0 && -p <= MAX_DEGREE && 0.0 < a && a < c)
-            .then_some((-p, a))
+        let n = -p;
+        ((1.0..=MAX_DEGREE).contains(&n) && n.fract() == 0.0 && low == 0.0 && 0.0 < a && a < c)
+            .then_some((n, a))
     };
     let (n, a) = terminating(a, b).or_else(|| terminating(b, a))?;
     let d = Dd::new(-n) - a;
@@ -525,15 +526,14 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     let phase = c64(cospi(delta), -z.im.signum() * sinpi(delta));
     let polynomial = hyp2f1_poly_dd(-n, Dd::new(c) - a, c, z.re)?;
     let r = Dd::new(z.re) - 1.0;
-    if z.im != 0.0 {
+    let certified_lip = z.im == 0.0 || {
         // The beta integral bounds |P'| by n*x^(n-1); the power contributes |d P|/(x-1).
         let (p, _) = polynomial.to_f64();
         let shift = z.im.abs() * (n * z.re.powf(n - 1.0) + d.hi.abs() * p.abs() / r.hi);
         let limit = f64::EPSILON / 4.0 * p.abs() * phase.re.abs().min(phase.im.abs());
-        if !(p.is_normal() && limit.is_normal() && shift <= limit) {
-            return None;
-        }
-    }
+        p.is_normal() && limit.is_normal() && shift <= limit
+    };
+    let polynomial = certified_lip.then_some(polynomial)?;
     let (v, err) = polynomial.with_l(d * ln_dd(r)).to_f64();
     let value = phase * (neg_one_pow(nearest) * v);
     ([value.re.abs(), value.im.abs()]
