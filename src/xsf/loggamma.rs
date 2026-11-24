@@ -155,6 +155,10 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
         return C64::NAN;
     }
     if uses_stirling(z) {
+        // Unlike in xsf, use the positive real-axis limit instead of applying Stirling at infinity.
+        if z.re == f64::INFINITY && z.is_real() {
+            return z;
+        }
         return loggamma_stirling(z);
     }
     // Unlike in xsf, compare squared distances to avoid hypot rounding at the Taylor cutoff.
