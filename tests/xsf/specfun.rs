@@ -372,6 +372,21 @@ fn test_hypu_poly_rounded() {
         [1.064_395_514_461_791_3e70, 1.879_562_635_411_726_4e51, -1.064_395_514_461_795_6e70];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 
+    // Arb recurrence at the exact inputs. Scaling by x^73 can underflow, or
+    // the inverse powers can overflow before the scale is applied.
+    for (x, expected) in [
+        (f64::from_bits(1), [7.884_041_973_434_29e69, 0.0, -7.884_041_973_434_323e69]),
+        (1e-10, [7.884_041_975_647_887e69, 4.105_215_404_714_555e-193, -7.884_041_975_647_919e69]),
+        (
+            2.0_f64.powi(-13),
+            [7.886_744_592_520_984e69, 8.947_884_638_069_326e-29, -7.886_744_592_521_015e69],
+        ),
+    ] {
+        let actual = [-26.000_000_000_000_004, -26.0, -25.999_999_999_999_996]
+            .map(|b| xsf::hypu(-73.0, b, x));
+        xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+    }
+
     // Arb; d is negligible here, and the result with it less accurate than the polynomial of n
     let actual = xsf::hypu(-172.200_760_242_633_46, -22.200_760_242_633_46, 9.877_946_432_208_7);
     xsref::np_assert_allclose!([actual], [1.121_373_992_140_344_8e298], rtol = 1e-13);
