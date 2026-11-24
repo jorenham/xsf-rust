@@ -1633,10 +1633,10 @@ pub(crate) fn chgu(
         hu = chgul(x, a, b, d, &mut id);
         // Unlike in xsf, retry with the exact degree when the alternate
         // terminating parameter is integral only after rounding.
-        if il1 && il2 && aa > f64::from(i32::MIN) && d == 0.0 && b.fract() != 0.0 && hu.is_normal()
+        if il1 && il2 && aa > f64::from(i32::MIN) && d == 0.0 && b.fract() != 0.0 && hu.is_finite()
         {
             // Keep the existing result when it already agrees to 12 digits.
-            if let Some(value) = chgul_exact_polynomial(x, a, b)
+            if let Some(value) = chgul_exact_polynomial(x, a, b, hu.is_normal())
                 .filter(|&value| (value - hu).abs() > 1e-12 * value.abs())
             {
                 (hu, id) = (value, ID_MIN);
@@ -2252,7 +2252,7 @@ pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
     (rounded, d)
 }
 
-fn chgul_exact_polynomial(x: f64, a: f64, b: f64) -> Option<f64> {
+fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option<f64> {
     // Each term uses at most five roundings per iteration. Bound the
     // error with room for the sum and final scaling (1000 eps < 1e-12).
     const ROUNDING_LIMIT: f64 = 1000.0;
@@ -2260,13 +2260,35 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64) -> Option<f64> {
     if !(0.0 < error_factor && error_factor <= ROUNDING_LIMIT) {
         return None;
     }
+    let certify = |value: f64, condition| {
+        // Keep the retry away from the normal-range endpoints.
+        (error_factor * condition <= ROUNDING_LIMIT
+            && (2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX).contains(&value.abs()))
+        .then_some(value)
+    };
     let degree = -a as i32;
+    let numerator = |k: f64| -(a + (k - 1.0)) * ((a + k) - b);
+    // Unlike in xsf, evaluate the polynomial by Horner's method for small x.
+    // At x = 1/64, the inverse-power terms are bounded by (128n)^n.
+    // Below it, for 16 <= -round(b) < n, the absolute nonconstant
+    // terms sum to less than 1/5 of the constant term.
+    if x < 1.0 / 64.0 && degree <= 75 && (a + 1.0..=-16.0).contains(&b.round()) {
+        let (_, value) = (1..=degree).fold((1.0, 1.0_f64), |(coef, value), k| {
+            let k = f64::from(k);
+            let coef = coef * (numerator(k) / k);
+            (coef, value.mul_add(x, coef))
+        });
+        return certify(value, 1.5);
+    }
+    if !old_is_normal {
+        return None;
+    }
     let scale = x.powi(degree);
     let scale = scale.is_normal().then_some(scale)?;
     let (_, sum, absolute_sum) =
         (1..=degree).try_fold((1.0, 1.0, 1.0), |(term, sum, absolute_sum), k| {
             let k = f64::from(k);
-            let numerator = -(a + (k - 1.0)) * ((a + k) - b);
+            let numerator = numerator(k);
             let denominator = k * x;
             let ratio = numerator / denominator;
             let term = term * ratio;
@@ -2276,11 +2298,7 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64) -> Option<f64> {
                 && term.is_normal())
             .then(|| (term, sum + term, absolute_sum + term.abs()))
         })?;
-    let value = sum * scale;
-    // Keep the retry away from the normal-range endpoints.
-    (error_factor * (absolute_sum / sum.abs()) <= ROUNDING_LIMIT
-        && (2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX).contains(&value.abs()))
-    .then_some(value)
+    certify(sum * scale, absolute_sum / sum.abs())
 }
 
 fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
