@@ -16,7 +16,9 @@ use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
-use crate::xsf::cephes::dd_real::{DoubleDouble, FRAC_PI_2_DD, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{
+    DoubleDouble, FRAC_PI_2_DD, LOG2, frexp_f64, ldexp_f64, two_sum,
+};
 use crate::xsf::cephes::rgamma;
 use crate::xsf::cexpm1;
 use crate::xsf::tools::{int_x86, kahan_step};
@@ -1341,6 +1343,19 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let regular = b > 0.0 || neg_b;
     if b.is_finite() && regular && (a == 0.0 || a == b) {
         return if a == 0.0 { 1.0 } else { x.exp() };
+    }
+
+    // Unlike in xsf, combine the exact linear Kummer transform with the
+    // exponential before rounding to the subnormal range.
+    if x <= GRADUAL_EXP_X0 && x.is_finite() && regular && two_sum(b, -a) == (-1.0, 0.0) {
+        // For x <= -800, exp(x) * (1 + |x| 2^53) is below half a minsubnormal,
+        // since the exact unit difference of a and b implies |b| >= 2^-53.
+        if x <= -800.0 {
+            return 0.0_f64.copysign((b + x) / b);
+        }
+        // Shift the exponential so the product is measured in units of 2^-1074.
+        let units = ((DoubleDouble::new(b) + x) / b) * (DoubleDouble::new(x) + LOG2 * 1074.0).exp();
+        return units.round_subnormal_units();
     }
 
     // Unlike in xsf, negative x has its own methods (see `chgm_neg_x`)

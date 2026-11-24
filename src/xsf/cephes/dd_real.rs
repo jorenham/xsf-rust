@@ -119,6 +119,17 @@ pub(crate) struct DoubleDouble {
 }
 
 impl DoubleDouble {
+    /// Scale by the smallest subnormal, using the low part at halfway points.
+    pub(crate) fn round_subnormal_units(self) -> f64 {
+        let high = self.hi;
+        let rounded = if high.fract().abs() == 0.5 && self.lo != 0.0 {
+            (high + 0.5_f64.copysign(self.lo)).copysign(high)
+        } else {
+            high
+        };
+        rounded * f64::from_bits(1)
+    }
+
     pub(crate) const ONE: Self = Self::new(1.0);
     pub(crate) const ZERO: Self = Self::new(0.0);
 
