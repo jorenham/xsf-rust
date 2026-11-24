@@ -399,6 +399,39 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
     s.atan() / s
 }
 
+// The Carlson integrals give RJ = 3 RF/p with relative remainder
+// at most pi/(2 cos(arg(p)/2)) * sqrt(max(x,y,z)/|p|).
+#[cold]
+fn rj_far_p<T: Num>(xyz: [T; 3], p: T) -> Option<T> {
+    let max_p = p.max_norm();
+    let real_p = p.real() > 0.0 && p.imag() == 0.0;
+    let balanced_p = p.real().abs().min(p.imag().abs()) >= 0.5 * max_p;
+    // For balanced p, cos(arg(p)/2) > 1/5 and each projection of 1/p
+    // is at least 1/sqrt(5) of its magnitude.
+    let spatial_range = 0.0..=pow2(-120) * max_p;
+    if !p.is_finite()
+        || !(real_p || balanced_p)
+        || xyz
+            .iter()
+            .any(|a| a.imag() != 0.0 || !spatial_range.contains(&a.real()))
+    {
+        return None;
+    }
+    let args = [xyz[0], xyz[1], xyz[2], p];
+    if !common::needs_duplication(&args, realness(args).1) {
+        return None;
+    }
+    let [x, y, z] = xyz.map(T::real);
+    let (status, f) = rf(x, y, z, ELLINT_CARLSON_RERR * 0.5);
+    let (man, exp) = common::frexp(p);
+    let value = (T::from(3.0 * f) / man).ldexp(-exp);
+    let clear_normal = |x: f64| x.is_finite() && x.abs() >= 2.0 * f64::MIN_POSITIVE;
+    (status == ExitStatus::Success
+        && clear_normal(value.real())
+        && (real_p || clear_normal(value.imag())))
+    .then_some(value)
+}
+
 /// `R_J(x, y, z, p) = R_J(x', y', z', p') / 4 + 3 R_C(alpha^2, beta^2)` of the duplicated
 /// arguments ([DLMF 19.26.22](https://dlmf.nist.gov/19.26.E22)), with
 /// `R_C(alpha^2, beta^2) = 2 R_C(1, 2 beta / d) / d` by duplication
@@ -494,6 +527,13 @@ fn underflows_in_loop<T: Num>(a: T) -> bool {
 const MAX_NESTED: u32 = 512;
 
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T) -> T {
+    // Unlike in xsf, use the large-p expansion before repeated duplication.
+    // Apply the component range check at the original argument scale.
+    if p.max_norm() > const { pow2(256) } {
+        if let Some(value) = rj_far_p([x, y, z], p) {
+            return value;
+        }
+    }
     rj_nested(x, y, z, p, ELLINT_CARLSON_RERR, false, &Cell::new(Some(MAX_NESTED))).1
 }
 
@@ -1142,7 +1182,7 @@ fn rj_unscaled<T: Num>(
 #[cfg(test)]
 mod tests {
     use super::rjimpl::rc_term;
-    use super::{C64, Cell, ExitStatus, Num, pow2, rj_nested};
+    use super::{C64, Cell, ExitStatus, Num, pow2, rj_far_p, rj_nested};
     use crate::xsf::c64::c64;
 
     /// Whether `rj` nests `n` evaluations: it is finite with that many, and NaN with fewer
@@ -1162,6 +1202,14 @@ mod tests {
         // the duplication step and the upscaling alternate
         let [x, y, z] = [0.0, f64::from_bits(1), pow2(253)].map(C64::from);
         assert!(nests(x, y, z, c64(pow2(-1020), pow2(-1020)), 5));
+    }
+
+    #[test]
+    fn test_rj_far_p_declines_subnormal() {
+        // Arb rounds both components to -minsub at the original scale.
+        let a = c64(1.273_270_726_927_572_3e106, 0.0);
+        let p = c64(-pow2(900), pow2(900));
+        assert!(rj_far_p([C64::ZERO, a, a], p).is_none());
     }
 
     #[test]
