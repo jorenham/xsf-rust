@@ -664,6 +664,9 @@ fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
     )
 }
 
+// Limit the relative error from cancellation in either projection.
+const MAX_PROJECTION_RATIO: f64 = 8.0;
+
 // Unlike in xsf, recover the damped Hankel and Y when their continued K term
 // dominates I and the ordinary intermediate K values overflow.
 #[cold]
@@ -687,8 +690,7 @@ fn scaled_bessel_from_k(v: f64, z: C64, hankel: bool) -> Option<C64> {
     };
     let value = if z.im < 0.0 { value } else { value.conj() };
     let (re, im) = (value.re.abs(), value.im.abs());
-    // Screen projections that amplify phase error through cancellation.
-    (re.min(im) >= re.max(im) / 8.0).then_some(value)
+    (re.min(im) >= re.max(im) / MAX_PROJECTION_RATIO).then_some(value)
 }
 
 // Unlike in xsf, classify both components before evaluating the overflowing exponential.
@@ -703,17 +705,16 @@ fn scaled_hankel_overflow(v: f64, z: C64) -> Option<C64> {
         return None;
     }
 
-    // Use H_2e in the lower half-plane and conjugate for H_1e in the upper.
+    // H_2e in the lower half-plane has a factor 2i/pi. Conjugate for H_1e in the upper.
     let phase = factor * C64::cis(scaled_exponent.im);
-    let value = rotate(c64(-phase.im, phase.re), 0.5 * v);
+    let value = rotate(C64::I * phase, 0.5 * v);
+    let value = if z.im < 0.0 { value } else { value.conj() };
     let (re, im) = (value.re.abs(), value.im.abs());
     let minor = re.min(im);
-    (minor >= re.max(im) / 8.0 && scaled_exponent.re + (FRAC_2_PI * minor).ln() > limit).then(
-        || {
-            let im_sign = if z.im < 0.0 { value.im } else { -value.im };
-            c64(f64::INFINITY.copysign(value.re), f64::INFINITY.copysign(im_sign))
-        },
-    )
+    (value.is_finite()
+        && minor >= re.max(im) / MAX_PROJECTION_RATIO
+        && scaled_exponent.re + (FRAC_2_PI * minor).ln() > limit)
+        .then(|| value * f64::INFINITY)
 }
 
 /// Unlike in xsf, the four Hankel functions share this implementation, with `kode = 2` for the
