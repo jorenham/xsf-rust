@@ -1525,16 +1525,18 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         if n >= 2 && !z.is_real() {
             let (q, dq) = lq_extreme_complex_degree_two(z);
             (cqm[(0, 2)], cqd[(0, 2)]) = (q, dq);
-            // Unlike in xsf, use the same underflow signs for the order-one and order-two slots.
-            // Their leading terms differ from order zero by -3*sign(Re z) and 12, respectively.
+            // Unlike in xsf, restore the signs of the underflowed associated values.
+            // The leading coefficient is (m+2)!/15, and through order 73 even
+            // 75!/(15*|z|³) is below half a minsubnormal at this cutoff.
+            // The positive (m²+12)/14 correction coefficient preserves the diagonal tie sign.
             let scale = -z.re.signum();
-            (cqm[(1, 2)], cqd[(1, 2)]) = if z.re == 0.0 {
+            let odd = if z.re == 0.0 {
                 (c64(0.0, q.im * scale), c64(dq.re * scale, 0.0))
             } else {
                 (q * scale, dq * scale)
             };
-            if m >= 2 {
-                (cqm[(2, 2)], cqd[(2, 2)]) = (q, dq);
+            for order in 1..=m.min(73) {
+                (cqm[(order, 2)], cqd[(order, 2)]) = if order % 2 == 0 { (q, dq) } else { odd };
             }
         }
         // Unlike in xsf, use scaled leading terms for Q_0^1 and its derivative too.
