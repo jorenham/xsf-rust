@@ -157,6 +157,17 @@ fn test_mathieu_a_nan() {
 }
 
 #[test]
+fn test_mathieu_mod_first_kind_at_origin() {
+    let (mc, dmc) = xsf::mathieu_modcem1(9, 1.0, 0.0);
+    let (ms, dms) = xsf::mathieu_modsem1(9, 1.0, 0.0);
+    xsref::np_assert_allclose!(
+        &[mc, dmc, ms, dms],
+        &[1.083_083_254_725_196_7e-8, 0.0, 0.0, 9.625_470_732_010_198e-8],
+        rtol = 4e-15
+    );
+}
+
+#[test]
 fn test_mathieu_modcem1_large_x() {
     // `(f^2 + (f'/u)^2) * u -> 2/pi` with `u = sqrt(q) * exp(x)`, i.e. `|Mc1| ~ sqrt(2 / (pi u))`
     let x = 22.0;
