@@ -93,9 +93,9 @@ impl BesselArg for Complex<f64> {
     fn bessel_y(self, v: f64) -> Self {
         self.via(|z| {
             let y = cyl_bessel_y_c64(v, z);
-            // Unlike in xsf, recover signed overflow at positive half-integer orders.
+            // Unlike in xsf, recover signed overflow at positive integer and half-integer orders.
             if y.re.is_nan() && y.im.is_nan() {
-                return bessel_half_order_overflow(v, z).map_or(y, |k| -k);
+                return bessel_small_argument_overflow(v, z).map_or(y, |k| -k);
             }
             y
         })
@@ -122,7 +122,7 @@ impl BesselArg for Complex<f64> {
             let k = cyl_bessel_k_c64(v, z);
             // Unlike in xsf, return signed overflow when both components can be resolved.
             if k.re.is_nan() && k.im.is_nan() {
-                return bessel_half_order_overflow(v.abs(), z).unwrap_or(k);
+                return bessel_small_argument_overflow(v.abs(), z).unwrap_or(k);
             }
             k
         })
@@ -1148,14 +1148,21 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
 
 // Both functions have a leading multiple of z^(-v) with opposite signs.
 #[cold]
-fn bessel_half_order_overflow(v: f64, z: C64) -> Option<C64> {
+fn bessel_small_argument_overflow(v: f64, z: C64) -> Option<C64> {
     let m = z.re.abs().max(z.im.abs());
-    if v.fract() != 0.5 || !z.is_finite() || z.re == 0.0 || z.im == 0.0 || m > 0.125 {
+    if v <= 0.0
+        || !matches!(v.fract(), 0.0 | 0.5)
+        || !z.is_finite()
+        || z.re == 0.0
+        || z.im == 0.0
+        || m > 0.125
+    {
         return None;
     }
     let (im, re) = (-v * z.im.atan2(z.re)).sin_cos();
-    // With r = |z| <= 2m <= 1/4, the relative tails are at most exp(2r)-1
-    // for K and exp(r²/2)-1 for Y. Both are less than 8m.
+    // For half-integers, the relative tails are at most exp(2|z|)-1 (K)
+    // and exp(|z|²/2)-1 (Y). For integers, the Laurent and logarithmic
+    // tails (DLMF 10.8.1 and 10.31.1) are also less than 8m.
     let clearance = re.abs().min(im.abs()) - 8.0 * m - 16.0 * f64::EPSILON * v;
     if clearance <= 0.0 {
         return None;
