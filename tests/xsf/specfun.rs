@@ -1447,6 +1447,19 @@ fn test_hyp1f1_long_terminating_series_at_pole() {
 }
 
 #[test]
+fn test_hyp1f1_overflowing_terminating_denominator() {
+    assert_eq!(xsf::hyp1f1(-2.0, -1e308, 1e308), 4.0);
+    assert!((xsf::hyp1f1(-3.0, -1e308, 1e308) - 8.0).abs() <= 2.0 * f64::EPSILON * 8.0);
+    // Arb at the exact binary64 inputs, summing the terminating polynomial.
+    let actual = [xsf::hyp1f1(-1000.0, -1e308, 1e307), xsf::hyp1f1(-1000.0, -1e308, 1e308)];
+    xsref::np_assert_allclose!(
+        actual,
+        [2.469_932_918_005_820_6e41, 1.071_508_607_186_267_3e301],
+        rtol = 1e-13
+    );
+}
+
+#[test]
 fn test_hyp1f1_long_terminating_pole_near_overflow() {
     // Arb at the exact inputs, summing the positive terminating polynomial.
     let actual = [xsf::hyp1f1(-600.0, -700.0, 1022.0), xsf::hyp1f1(-600.0, -700.0, 1024.2)];
