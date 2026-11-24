@@ -482,7 +482,7 @@ fn rmn1_equator(
     sj: &mut [f64],
     dj: &mut [f64],
 ) -> Option<(f64, f64)> {
-    let nm = 25 + c as i32;
+    let nm = i32::try_from(df.len()).ok()?;
     let order = 2 * nm + m;
     let sj = sj.get_mut(..=order as usize)?;
     let dj = dj.get_mut(..=order as usize)?;
@@ -494,73 +494,58 @@ fn rmn1_equator(
     }
     let mut last = order;
     sphj(z, order, &mut last, sj, dj);
-    if last <= m + p {
-        return None;
-    }
 
-    // At eta = 0 (even parity), or after differentiating there (odd parity), the
-    // associated Legendre weights alternate and cancel the signs of the Bessel terms.
-    let mut w = 1.0;
+    let (mut w, mut norm, mut sum, mut deriv) = (1.0, 0.0, 0.0, 0.0);
+    let (mut abs_sum, mut abs_deriv) = (0.0, 0.0);
+    let mut omitted = 0.0;
     let sign = df[0].signum();
-    let mut norm = 0.0;
-    let (mut sum, mut abs_sum) = (0.0, 0.0);
-    let (mut deriv, mut abs_deriv) = (0.0, 0.0);
-    let mut missing_weight = 0.0;
-    for (k, &d) in (0..nm).zip(df.get(..nm as usize)?) {
+    for (k, &d) in (0..nm).zip(df) {
         let l = m + p + 2 * k;
         let t = w * d;
         w *= f64::from(l + m + 1 + p) / f64::from(l - m + 2 - p);
-        // The lowest angular mode of each parity has alternating coefficients.
-        let angular_term = t * neg_one_pow(k);
-        if angular_term * sign < 0.0 {
+
+        // The lowest angular mode in each parity has alternating coefficients,
+        // and its equatorial angular terms have one sign.
+        let angular = t * neg_one_pow(k);
+        if angular * sign < 0.0 {
             return None;
         }
-        norm += angular_term;
+        norm += angular;
         if l >= last {
-            missing_weight += t.abs();
+            omitted += t.abs();
             continue;
         }
         let j = sj[l as usize];
         let j1 = sj[l as usize + 1];
-        sum += t * j;
-        abs_sum += (t * j).abs();
-        // Differentiate the spherical Bessel function together with rho^(-p).
+        // Differentiate j_l together with rho^(-p).
         let slope = f64::from(l - p) / z * j;
+        sum += t * j;
         deriv += t * (slope - j1);
+        abs_sum += (t * j).abs();
         abs_deriv += (t * slope).abs() + (t * j1).abs();
     }
-    let slope_scale = c * x / rho;
-    let parity_term = f64::from(p) * sum / x;
-    let derivative = slope_scale * deriv + parity_term;
-    // Use a joint amplitude so either component can be near a zero without rejecting an
-    // accurate pair. The derivative has one extra factor of the frequency c.
-    let amplitude = sum.abs().max(derivative.abs() / c);
-    let derivative_amplitude = derivative.abs().max(c * sum.abs());
 
-    if missing_weight != 0.0 {
-        // The integral for j_l gives |j_l(z)| <= z^l/(2l+1)!! <= (e*z/(2l))^l.
-        // If the latter bound decreases beyond the first omitted order, it bounds both
-        // the omitted j_l and j_(l+1) terms in the derivative.
+    let slope_scale = c * x / rho;
+    let parity = f64::from(p) * sum / x;
+    let derivative = slope_scale * deriv + parity;
+    // Use one joint amplitude even near a zero, dividing out c from the derivative.
+    let amplitude = sum.abs().max(derivative.abs() / c);
+    let abs_amplitude = abs_sum.max((slope_scale * abs_deriv + parity.abs()) / c);
+    if omitted != 0.0 {
+        // |j_l(z)| <= (e*z/(2l))^l. When decreasing, this bounds both
+        // j_l and j_(l+1) beyond the first omitted order.
         let first = last + i32::from((last - m - p) % 2 != 0);
         let ratio = core::f64::consts::E * z / (2.0 * f64::from(first));
-        if ratio >= 1.0 {
-            return None;
-        }
-        let tail = missing_weight * ratio.powi(first).max(f64::MIN_POSITIVE);
-        if !(tail <= f64::EPSILON * amplitude
-            && tail * (slope_scale * (f64::from(order) / z + 1.0) + 1.0 / x)
-                <= f64::EPSILON * derivative_amplitude)
-        {
+        let scale = ((slope_scale * (f64::from(order) / z + 1.0) + 1.0 / x) / c).max(1.0);
+        let tail = omitted * ratio.powi(first).max(f64::MIN_POSITIVE);
+        if !(ratio < 1.0 && tail * scale <= f64::EPSILON * amplitude) {
             return None;
         }
     }
+
     let pref = if p == 0 { 1.0 } else { x / rho } / norm;
-    let r = pref * sum;
-    let d = pref * derivative;
-    (r.is_normal()
-        && d.is_normal()
-        && half_precision * abs_sum <= amplitude
-        && half_precision * (slope_scale * abs_deriv + parity_term.abs()) <= derivative_amplitude)
+    let (r, d) = (pref * sum, pref * derivative);
+    (r.is_normal() && d.is_normal() && half_precision * abs_amplitude <= amplitude)
         .then_some((r, d))
 }
 
@@ -638,7 +623,7 @@ fn rmn1(
     // Unlike in xsf, use the equatorial expansion for the lowest mode of each
     // prolate parity when cancellation in the original normalization is severe.
     if use_equator && suc.abs() < f64::EPSILON.sqrt() * abs_sum {
-        if let Some((f, d)) = rmn1_equator(m, ip, c, x, df, &mut sj, &mut dj) {
+        if let Some((f, d)) = rmn1_equator(m, ip, c, x, &df[..nm as usize], &mut sj, &mut dj) {
             *r1f = f;
             *r1d = d;
             return Status::Ok;
