@@ -131,10 +131,15 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     // of up-recursion with ~2^31 steps).
     let nv = int_x86(vx);
     let v0 = vx - f64::from(nv);
+    // Near the origin, successive Taylor terms of the polynomial factor
+    // shrink by at least half when |x|(v+1) <= 1, excluding other roots.
+    let linear_seed =
+        m >= 0 && v0 == 0.0 && (vx == f64::from(mx) + 1.0 || x.abs() * (vx + 1.0) <= 1.0);
+    let seed = |degree| lpmv0(degree, mx, x, linear_seed);
     if (nv > 2) && (nv > mx) {
         // Up-recursion on degree, AMS 8.5.3 / DLMF 14.10.3
-        let mut p0 = lpmv0(v0 + f64::from(mx), mx, x);
-        let mut p1 = lpmv0(v0 + f64::from(mx) + 1.0, mx, x);
+        let mut p0 = seed(v0 + f64::from(mx));
+        let mut p1 = seed(v0 + f64::from(mx) + 1.0);
         pmv = p1;
         // NOTE: `mx + 2` overflows for mx = INT_MAX - 1 (with nv = INT_MAX), where the loop is
         // empty here. In C++, `j <= nv` with nv = INT_MAX can never be false (UB on `j++`), but
@@ -147,7 +152,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
             p1 = pmv;
         }
     } else {
-        pmv = lpmv0(vx, mx, x);
+        pmv = seed(vx);
     }
     if (neg_m != 0) && (pmv.abs() < SPECFUN_INF) {
         // DLMF 14.9.3
@@ -158,7 +163,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     pmv
 }
 
-fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
+fn lpmv0(v: f64, m: i32, x: f64, linear_seed: bool) -> f64 {
     // =======================================================
     // Purpose: Compute the associated Legendre function
     //          Pmv(x) with an integer order and an arbitrary
@@ -205,6 +210,11 @@ fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
 
     if v0 == 0.0 {
         // DLMF 14.3.4, 14.7.17, 15.2.4
+        // Unlike in xsf, use the exact linear factor directly or as a near-origin
+        // seed when the requested order needs no final gamma ratio.
+        if linear_seed && nv - m == 1 && c0.is_normal() {
+            return -neg_one_pow(nv) * c0 * x;
+        }
         let mut pmv = 1.0;
         let mut r = 1.0;
         for k in 1..=(nv - m) {
