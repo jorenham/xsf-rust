@@ -22,6 +22,31 @@ xsref::tests! {
 }
 
 #[test]
+fn test_bessel_y_c64_positive_axis_overflow_recovery() {
+    for (v, x, expected, imaginary_zero) in [
+        (10.0, 1e-30, -1.182_804_904_943_348_4e308, 0.0_f64),
+        (-10.0, 1e-30, -1.182_804_904_943_348_4e308, 0.0_f64),
+        (-9.0, 3.4e-34, 1.082_256_887_469_868_4e308, -0.0_f64),
+    ] {
+        for im in [0.0_f64, -0.0] {
+            let y = xsf::bessel_y(v, c64(x, im));
+            assert!((y.re / expected - 1.0).abs() < 8.0 * f64::EPSILON);
+            assert_eq!(y.im.to_bits(), imaginary_zero.to_bits());
+        }
+    }
+    let overflow = xsf::bessel_y(10.0, c64(9e-31, 0.0));
+    assert_eq!(overflow, c64(f64::NEG_INFINITY, 0.0));
+
+    let x = 8.415_836_302_186_89e-155_f64;
+    for im in [0.0, -0.0] {
+        for x in [x, x.next_up()] {
+            let y = xsf::bessel_y(2.0_f64.next_up(), c64(x, im));
+            assert_eq!(y, c64(f64::NEG_INFINITY, 0.0));
+        }
+    }
+}
+
+#[test]
 fn test_bessel_y_negative_half_integer_tiny_x() {
     // mpmath: bessely(-2.5, 1e-200) = 5.3e-502 and bessely(-50.5, 1e-10) = 2.9e-586
     for (v, x) in [(-2.5, 1e-200), (-50.5, 1e-10)] {
