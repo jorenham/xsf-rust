@@ -53,6 +53,12 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         let [ai, aip, bi, bip] = airy_f64(z.re);
         return [c64(ai, 0.0), c64(-aip.abs(), -0.0), c64(bi, 0.0), c64(bip, 0.0)];
     }
+    // Unlike in xsf, share the wide phase reduction on the negative real axis.
+    if kode == 1 && z.re < cephes::MINAIRY && z.im == 0.0 {
+        if let Some(value) = cephes::airy_wide_negative(-z.re) {
+            return value.map(|w| c64(w, 0.0));
+        }
+    }
     let zeta = zeta_err(z);
     // whether Ai decays: AMOS evaluates it as sqrt(z) K(zta) for |ph z| <= pi/3, and continues K
     // from -zta beyond that
@@ -277,6 +283,9 @@ fn airy_f64(x: f64) -> [f64; 4] {
             mul_exp(bi, zeta.hi),
             mul_exp(bip, zeta.hi),
         ]
+    } else if x < cephes::MINAIRY {
+        // Unlike in xsf, reduce the extreme negative phase before evaluating the unscaled tail.
+        cephes::airy_wide_negative(-x).unwrap_or([f64::NAN; 4])
     } else {
         let (_, ai, aip, bi, bip) = cephes::airy(x);
         [ai, aip, bi, bip]

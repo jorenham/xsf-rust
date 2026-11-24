@@ -87,7 +87,26 @@ fn test_airy_f64_large_negative() {
         17.134_848_759_576_796,
     ];
     xsref::np_assert_allclose!(&xsf::airy(-1e7), &expected, rtol = 1e-14);
-    assert!(xsf::airy(-1e17).iter().all(|y| y.is_nan()));
+}
+
+#[test]
+fn test_airy_extreme_negative_axis() {
+    // Arb at 4352 bits on exact binary64 inputs.
+    #[rustfmt::skip]
+    let cases = [
+        (-1.000_000_000_000_000_2e16, [-2.750_229_563_389_572_3e-5, -4_926.177_622_359_66, 4.926_177_622_359_659e-5, -2_750.229_563_389_573]),
+        (-2.998_076_996_061_15e154, [1.179_647_052_026_267e-39, -1.157_366_037_740_353_6e38, 6.684_198_567_844_994e-40, 2.042_553_674_427_869_4e38]),
+        (-8.988_465_674_311_05e307, [-6.163_732_107_790_329e-79, -5.462_296_629_991_122_6e76, 5.761_459_305_057_033e-78, -5.843_681_494_200_523e75]),
+    ];
+    for (x, expected) in cases {
+        let real = xsf::airy(x);
+        xsref::np_assert_allclose!(real, expected, rtol = 1e-15);
+        for y in [0.0, -0.0] {
+            let complex = xsf::airy(c64(x, y));
+            assert_eq!(complex.map(|z| z.re), real);
+            assert_eq!(complex.map(|z| z.im.to_bits()), [0; 4]);
+        }
+    }
 }
 
 #[test]

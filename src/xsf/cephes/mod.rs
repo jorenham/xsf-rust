@@ -53,6 +53,7 @@ mod yv;
 mod zeta;
 mod zetac;
 
+pub(super) use airy::{MINAIRY, airy_wide_negative};
 pub(crate) use airy::{TWO_THIRDS, airy, airye, zeta_dd};
 pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
 pub(crate) use besselpoly::besselpoly;
