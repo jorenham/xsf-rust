@@ -586,7 +586,12 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
 }
 
 fn cyl_bessel_ye_c64(v: f64, z: C64) -> C64 {
-    scaled_bessel(z, c64(-z.im.abs(), 0.0), |kode| cyl_bessel_y_kode(v, z, kode))
+    scaled_bessel(
+        z,
+        c64(-z.im.abs(), 0.0),
+        |kode| cyl_bessel_y_kode(v, z, kode),
+        || scaled_bessel_from_k(v, z, false),
+    )
 }
 
 fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
@@ -604,11 +609,18 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
     cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye)
 }
 
-fn scaled_bessel(z: C64, exponent: C64, evaluate: impl Fn(i32) -> C64) -> C64 {
+fn scaled_bessel(
+    z: C64,
+    exponent: C64,
+    evaluate: impl Fn(i32) -> C64,
+    recover: impl FnOnce() -> Option<C64>,
+) -> C64 {
     let value = evaluate(2);
     // Unlike in xsf, recover a failed scaled result from the unscaled kernel.
     if value.re.is_nan() && value.im.is_nan() && z.is_finite() && !z.is_real() {
-        rescale_bessel(evaluate(1), exponent).unwrap_or(value)
+        rescale_bessel(evaluate(1), exponent)
+            .or_else(recover)
+            .unwrap_or(value)
     } else {
         value
     }
@@ -638,7 +650,35 @@ fn rescale_bessel(raw: C64, exponent: C64) -> Option<C64> {
 
 fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
     let sign = if m == 1 { 1.0 } else { -1.0 };
-    scaled_bessel(z, c64(sign * z.im, -sign * z.re), |kode| cyl_hankel_c64(v, z, kode, m))
+    scaled_bessel(
+        z,
+        c64(sign * z.im, -sign * z.re),
+        |kode| cyl_hankel_c64(v, z, kode, m),
+        || {
+            if sign * z.im < 0.0 {
+                scaled_bessel_from_k(v, z, true)
+            } else {
+                None
+            }
+        },
+    )
+}
+
+// Unlike in xsf, recover the damped Hankel and Y when their continued K term
+// dominates I and the ordinary intermediate K values overflow.
+#[cold]
+fn scaled_bessel_from_k(v: f64, z: C64, hankel: bool) -> Option<C64> {
+    let w = c64(z.im.abs(), z.re);
+    let k = rotate(amos::k_with_decay(v, w)?, 0.5 * v) * FRAC_2_PI;
+    let value = if hankel {
+        c64(0.0, -1.0) * k * C64::cis(-z.re)
+    } else {
+        -k
+    };
+    let value = if z.im < 0.0 { value } else { value.conj() };
+    let (re, im) = (value.re.abs(), value.im.abs());
+    // Screen projections that amplify phase error through cancellation.
+    (re.min(im) >= re.max(im) / 8.0).then_some(value)
 }
 
 /// Unlike in xsf, the four Hankel functions share this implementation, with `kode = 2` for the

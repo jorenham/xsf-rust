@@ -410,6 +410,23 @@ fn test_scaled_bessel_retry_from_unscaled() {
 }
 
 #[test]
+fn test_scaled_bessel_with_overflowing_unscaled_value() {
+    let v = 750.25;
+    let z = c64(24.827_927_967_836_224, -184.775_114_068_472_28);
+    // Arb, scaled before rounding.
+    let y = c64(-7.847_517_493_957_175e266, -8.731_035_145_116_869e266);
+    let h1 = c64(1.068_371_882_711_163_2e267, -4.865_455_533_292_881e266);
+    for (actual, expected) in [
+        (xsf::bessel_ye(v, z), y),
+        (xsf::hankel_1e(v, z), h1),
+        (xsf::bessel_ye(v, z.conj()), y.conj()),
+        (xsf::hankel_2e(v, z.conj()), h1.conj()),
+    ] {
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-12);
+    }
+}
+
+#[test]
 fn test_bessel_ye_large_order_large_imag() {
     // Arb: |z| < v, where e^-2|Im z| underflows (was half the value)
     let z = [

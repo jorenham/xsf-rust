@@ -5833,6 +5833,34 @@ fn unik(
     }
 }
 
+// Unlike in xsf, combine exp(-Re(w)) with the K exponent before testing for overflow.
+pub(super) fn k_with_decay(v: f64, w: C64) -> Option<C64> {
+    let (tol, elim, _, _, fnul) = MACH;
+    // Use the same sector as unk1 and limit rounding in the exponent and phase.
+    if !(fnul..=4096.0).contains(&v) || w.re <= 0.0 || w.im.abs() > w.re * 1.7321 {
+        return None;
+    }
+    let (mut phi, mut zeta1, mut zeta2, mut sum) = (C64::ZERO, C64::ZERO, C64::ZERO, C64::ZERO);
+    unik(
+        w,
+        v,
+        2,
+        0,
+        tol,
+        &mut 0,
+        &mut phi,
+        &mut zeta1,
+        &mut zeta2,
+        &mut sum,
+        &mut [C64::ZERO; 16],
+    );
+    let exponent = zeta1 - zeta2;
+    let projected = exponent.re - w.re;
+    // Here the continued I term is negligible compared with the continued K term.
+    (exponent.re > MAXLOG && (0.0..=elim).contains(&projected))
+        .then(|| (phi * sum) * C64::cis(exponent.im) * projected.exp())
+}
+
 fn unk1(
     z: C64,
     fnu: f64,
