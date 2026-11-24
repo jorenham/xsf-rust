@@ -1278,6 +1278,18 @@ fn test_hyppfq_borel() {
 }
 
 #[test]
+fn test_hyppfq_near_coincident_3f0() {
+    let delta = 2f64.powi(-38);
+    let (a, b, c) = (1.0 - delta, 1.0, 1.0 + delta);
+    // Meijer G at 100 and 150 digits.
+    let expected = 0.305_687_697_410_890_3;
+    for upper in [[a, b, c], [b, c, a], [c, a, b], [c, b, a], [b, a, c], [a, c, b]] {
+        let actual = hyppfq(upper, [], -10.0).unwrap();
+        xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+    }
+}
+
+#[test]
 fn test_hyppfq_borel_residues() {
     // the residues in double-double, where they cancel, e.g. for nearly equal a_i (mpmath
     // meijerg at 60 and 90 digits)

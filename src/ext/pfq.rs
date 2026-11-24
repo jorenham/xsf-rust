@@ -1018,7 +1018,9 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
             pfq_entire(&a, &b, z, z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST)
         },
-        _ if z < 0.0 => borel::pfq_borel(&a, &b, z),
+        _ if z < 0.0 => {
+            borel::pfq_borel(&a, &b, z).or_better(|| borel::hyp3f0_near_coincident(&a, &b, z))
+        },
         _ => None,
     };
     polynomial.or_better(|| y)
