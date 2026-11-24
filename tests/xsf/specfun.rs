@@ -1076,6 +1076,14 @@ fn test_pmv_integer_degree_near_parity_zero() {
     assert_eq!(xsf::pmv(1, 2.0, 0.0).to_bits(), (-0.0_f64).to_bits());
     assert_eq!(xsf::pmv(1, 2.0, -0.0).to_bits(), 0.0_f64.to_bits());
 
+    // At these exact midpoints, the higher powers of x decrease the magnitude.
+    for (m, v, input, expected) in [(0, 3.0, 1, 1), (0, 3.0, 3, 4), (2, 5.0, 1, 52)] {
+        let x = f64::from_bits(input);
+        let value = f64::from_bits(expected);
+        assert_eq!(xsf::pmv(m, v, x).to_bits(), (-value).to_bits());
+        assert_eq!(xsf::pmv(m, v, -x).to_bits(), value.to_bits());
+    }
+
     // Control a negative-order subnormal and a point beside a nonzero root.
     assert_eq!(xsf::pmv(-1, 4.0, f64::from_bits(4)).to_bits(), (-f64::from_bits(1)).to_bits());
     assert!(xsf::pmv(0, 8.0, 0.183_434_642_495_649_8) < 0.0);

@@ -135,6 +135,12 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     // shrink by at least half when |x|(v+1) <= 1, excluding other roots.
     let linear_seed =
         m >= 0 && v0 == 0.0 && (vx == f64::from(mx) + 1.0 || x.abs() * (vx + 1.0) <= 1.0);
+    // Unlike in xsf, round subnormal odd values once using the integer origin slope.
+    if linear_seed && x.is_subnormal() && nv > mx && (nv - mx) % 2 == 1 {
+        if let Some(value) = lpmv_origin_subnormal(x, mx, nv) {
+            return value;
+        }
+    }
     let seed = |degree| lpmv0(degree, mx, x, linear_seed);
     // Unlike in xsf, factor the first quadratic and cubic above the diagonal.
     // At m = 85 the old degree-(m + 1) normalization first overflows (171!).
@@ -183,6 +189,27 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         pmv = pmv * g1 / g2 * neg_one_pow(mx);
     }
     pmv
+}
+
+#[cold]
+fn lpmv_origin_subnormal(x: f64, m: i32, n: i32) -> Option<f64> {
+    // The slope grows with degree and starts at (2m + 1)!! > 2^52 for m >= 14.
+    if m >= 14 {
+        return None;
+    }
+    let phase = neg_one_pow(m + (n - m - 1) / 2) * x.signum();
+    let m = u128::try_from(m).ok()?;
+    let n = u128::try_from(n).ok()?;
+    // DLMF 14.5.2 gives the slope at zero, with magnitude (n + m)!! / (n - m - 1)!!.
+    let numerator = (1..=n + m)
+        .step_by(2)
+        .try_fold(u128::from(x.abs().to_bits()), u128::checked_mul)?;
+    let denominator = (2..n - m).step_by(2).try_fold(1, u128::checked_mul)?;
+    // The odd Ferrers expansion (DLMF 14.3.11 and 14.3.14) gives a nonlinear correction
+    // that decreases the magnitude if nonzero. Here it can only change rounding at a tie.
+    let units = numerator / denominator + u128::from(numerator % denominator > denominator / 2);
+    let units = u64::try_from(units).ok()?;
+    (units <= f64::MIN_POSITIVE.to_bits()).then(|| f64::from_bits(units).copysign(phase))
 }
 
 fn lpmv0(v: f64, m: i32, x: f64, linear_seed: bool) -> f64 {
