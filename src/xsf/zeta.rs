@@ -349,36 +349,37 @@ fn logsinpi(z: C64) -> C64 {
     C64::I * PI * z + ((1.0 - exppi(-2.0 * z * C64::I)) / (2.0 * C64::I)).ln()
 }
 
-/// Leading factor in reflection formula for zeta function.
+/// Logarithm of the leading factor in the reflection formula for zeta:
 /// zeta(z) = 2^z * pi^(z-1) * sin(pi*z/2) * gamma(1 - z) * zeta(1 - z)
-/// This computes 2^z * pi^(z - 1) * sin(pi*z/2) * gamma(1 - z)
-///
-/// Computation is logarithimized to prevent overflow.
 /// TODO: Complexify the cephes zeta_reflection implementation, which uses
 /// the lanczos approximation for the gamma function.
-fn zeta_reflection_factor_with_logs(z: C64) -> C64 {
+fn zeta_reflection_log_factor(z: C64) -> C64 {
     let t1 = z * LN_2;
     let t2 = (z - 1.0) * LN_PI;
     let t3 = logsinpi(z / 2.0);
     let t4 = cloggamma(1.0 - z);
-    (t1 + t2 + t3 + t4).exp()
+    // Unlike in xsf, return the logarithm so the reflected zeta value can be
+    // included before exponentiation.
+    t1 + t2 + t3 + t4
 }
 
 fn zeta_reflection(z: C64) -> C64 {
     let mut factor = 2.0 * rpow(TAU, z - 1.0) * (z / 2.0).sinpi() * cgamma(1.0 - z);
-    if !factor.re.is_finite() || !factor.im.is_finite() {
-        // Try again with logs if standard calculation had overflow.
-        factor = zeta_reflection_factor_with_logs(z);
-    }
     let result = zeta_right_halfplane(1.0 - z);
-    /* zeta tends to 1.0 as real part tends to +inf. In cases where
-     * the real part of zeta tends to -inf, then zeta(1 - z) in the
-     * reflection formula will tend to 1.0. Factor overflows then,
-     * factor * result below will become NaN. In this case, we just
-     * return factor to preserve complex infinity. Only zeta(1 - z) == 1.0
-     * is handled because this is the only practical case where we should
-     *  expect zeta(1 - z) == x for a real number x when z is not on the
-     * real line. */
+    if !factor.is_finite() {
+        let log_factor = zeta_reflection_log_factor(z);
+        factor = log_factor.exp();
+        if !factor.is_finite() && result != C64::ONE {
+            let product = factor * result;
+            if product.is_nan() {
+                // Unlike in xsf, combine both factors before exponentiating if the
+                // overflowing product produces a NaN.
+                return (log_factor + result.ln()).exp();
+            }
+            return product;
+        }
+    }
+    // An exact unit result leaves the factor as is, preserving infinities in its components.
     if result == C64::ONE {
         factor
     } else {
