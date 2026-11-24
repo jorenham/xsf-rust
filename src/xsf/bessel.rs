@@ -370,11 +370,34 @@ fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C
     let weight = (FRAC_2_PI * cephes_sinpi(v)) * scale;
     let weight = weight.is_normal().then_some(weight)?;
 
-    let mut ierr = 0;
-    let mut seeds = [C64::NAN; 2];
-    let nz = amos::besk(z, v - 2.0, 1, 2, &mut seeds, &mut ierr);
-    let seeds = (ierr == 0 && nz == 0).then_some(seeds)?;
-    let [lower, upper] = seeds.map(|seed| seed * weight);
+    let evaluate = |offset: i32| {
+        let mut ierr = 0;
+        let mut seeds = [C64::NAN; 2];
+        let nz = amos::besk(z, v - f64::from(offset), 1, 2, &mut seeds, &mut ierr);
+        (ierr == 0 && nz == 0).then_some(seeds).ok_or(ierr)
+    };
+    // Unlike in xsf, try another pair of lower orders if the first pair overflows.
+    let (offset, seeds) = match evaluate(2) {
+        Ok(seeds) => (2, seeds),
+        Err(2) if v >= 4.0 => {
+            // The K integral bounds its relative displacement from K_v(Re z)
+            // by |Im z| * (v/Re z + 1).
+            // If I is also nearly real, their sum cannot pass the final imaginary-part check.
+            let margin = I_ROTATED_PART_MIN / 2.0;
+            if z.im.abs() * (v + z.re) <= margin * z.re && i.im.abs() <= margin * i.norm() {
+                return None;
+            }
+            (4, evaluate(4).ok()?)
+        },
+        Err(_) => return None,
+    };
+    let weighted = seeds.map(|seed| seed * weight);
+    let [lower, upper] = (2..offset).rev().try_fold(weighted, |[lower, upper], k| {
+        let step = (upper / z) * (2.0 * (v - f64::from(k)));
+        let next = lower + step;
+        // Bound amplification from cancellation in each additional step.
+        (next.norm() >= 0.5 * (lower.norm() + step.norm())).then_some([upper, next])
+    })?;
     let step = (upper / z) * (2.0 * (v - 1.0));
     let value = i + lower + step;
     let amplitude = i.norm() + lower.norm() + step.norm();
