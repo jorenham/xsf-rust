@@ -875,6 +875,37 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
     }
 }
 
+// Leave room for 2*k+3 and the scale in the backward recurrence.
+#[expect(clippy::cast_possible_wrap, reason = "the i32 bit width fits i32")]
+const LQ_LARGE_X: f64 = utils::pow2(f64::MAX_EXP - (i32::BITS as i32 + 1) - SPECFUN_BIG_LOG2);
+
+// For very large |z|, use the leading terms of Q_0' and Q_1 in 1/z².
+#[cold]
+fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
+    let m = z.re.abs().max(z.im.abs());
+    if m < LQ_LARGE_X || !z.is_finite() {
+        return None;
+    }
+    let (_, exponent) = frexp_f64(m);
+    let x = DoubleDouble::new(ldexp_f64(z.re.abs(), -exponent));
+    let y = DoubleDouble::new(ldexp_f64(z.im.abs(), -exponent));
+    let norm = x * x + y * y;
+    let norm = norm * norm;
+    let re = (y - x) * (y + x) / norm;
+    let im = (x * y) * 2.0 / norm;
+    let min_subnormal_exp = f64::MIN_EXP - 53;
+    let scale = -min_subnormal_exp - 2 * exponent;
+    let restore =
+        |value: DoubleDouble, sign: f64| value.ldexp(scale).round_subnormal_units().copysign(sign);
+    let im_sign = z.re.signum() * z.im.signum();
+    // At equality the real leading parts vanish. The first corrections give Q_0' > 0
+    // and Q_1 < 0 in their real components, both rounding to zero.
+    let re_sign = if z.im.abs() >= z.re.abs() { 1.0 } else { -1.0 };
+    let q1 = c64(restore(re / 3.0, -re_sign), restore(im / 3.0, -im_sign));
+    let derivative = c64(restore(re, re_sign), restore(im, im_sign));
+    Some((q1, derivative))
+}
+
 // ==================================================
 // Purpose: Compute the Legendre functions Qn(z) and
 //          their derivatives Qn'(z) for a complex
@@ -988,6 +1019,10 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
                 *small_dq = dq_linear;
             }
         }
+    }
+    // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
+    if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
+        (cqn[1], cqd[0]) = (q1, derivative);
     }
 }
 
@@ -1165,10 +1200,6 @@ fn lqmn_extreme_real<T>(
 // ==========================================================
 
 fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
-    // Leave room for 2*k+3 and the scale in the backward recurrence.
-    #[expect(clippy::cast_possible_wrap, reason = "the i32 bit width fits i32")]
-    const LARGE_X: f64 = utils::pow2(f64::MAX_EXP - (i32::BITS as i32 + 1) - SPECFUN_BIG_LOG2);
-
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
 
@@ -1182,7 +1213,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
         return;
     }
     // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
-    if x.abs() >= LARGE_X && x.is_finite() {
+    if x.abs() >= LQ_LARGE_X && x.is_finite() {
         lqmn_extreme_real(x, qm, qd, |q, d| (q, d));
         return;
     }
@@ -1338,6 +1369,10 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     // of the seeds of the order recurrence can be subnormal, while those of the orders it raises
     // back into range are not
     lq_lift_im(lqmn_c64, z, m + n, &mut cqm, &mut cqd);
+    // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
+    if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
+        (cqm[(0, 1)], cqd[(0, 0)]) = (q1, derivative);
+    }
 }
 
 // Rust API
