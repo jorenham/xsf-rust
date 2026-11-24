@@ -428,18 +428,17 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
         }
     }
 
-    // The small projection rounds up to one minsubnormal.
-    let z = c64(1.207_381_461_363_012_6e208, 2.0_f64.powi(308));
-    let (q, _) = xsf::assoc_legendre_q_all(0, 1, z);
-    assert_eq!(q[0][1].im.to_bits(), 1);
-
-    // At exact halfway projections, the first tail corrections decide the rounding.
-    let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(3.0 * 2.0_f64.powi(536), 1.125));
-    assert_eq!(q[0][1].im.to_bits(), 1);
-    let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(3.375, 3.0 * 2.0_f64.powi(536)));
-    assert_eq!(q[0][1].re.to_bits(), (-f64::from_bits(1)).to_bits());
-    let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(1.0 - f64::EPSILON / 2.0, 2.0_f64.powi(511)));
-    assert_eq!(q[0][1].re.to_bits(), 0x800f_ffff_ffff_ffff);
+    // Round tiny projections, including ties where the first tail correction matters.
+    for (x, y, bits) in [
+        (1.207_381_461_363_012_6e208, 2.0_f64.powi(308), 1),
+        (3.0 * 2.0_f64.powi(536), 1.125, 1),
+        (3.375, 3.0 * 2.0_f64.powi(536), (-f64::from_bits(1)).to_bits()),
+        (1.0 - f64::EPSILON / 2.0, 2.0_f64.powi(511), 0x800f_ffff_ffff_ffff),
+    ] {
+        let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(x, y));
+        let projection = if x < y { q[0][1].re } else { q[0][1].im };
+        assert_eq!(projection.to_bits(), bits);
+    }
 }
 
 #[test]

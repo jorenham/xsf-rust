@@ -911,57 +911,40 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     Some((q1, derivative))
 }
 
-// If b/a² is exactly a subnormal midpoint, return its minsubnormal units.
-fn lq_axis_midpoint(a: f64, b: f64) -> Option<f64> {
-    let dyadic = |value| {
-        let (bits, e, _) = num_traits::Float::integer_decode(value);
-        #[expect(
-            clippy::cast_possible_wrap,
-            reason = "a 64-bit significand has at most 64 zero bits"
-        )]
-        let zeros = bits.trailing_zeros() as i32;
-        (u128::from(bits >> zeros), i32::from(e) + zeros)
-    };
-    let (a, ae) = dyadic(a);
-    let (b, be) = dyadic(b);
-    let square = a * a;
-    if b % square != 0 {
-        return None;
-    }
-    let units = ldexp_f64((b / square) as f64, 53 - f64::MIN_EXP + be - 2 * ae);
-    (units.fract() == 0.5).then_some(units)
+// The minor coordinate divided by the major coordinate squared is dyadic
+// exactly when the odd part of the major significand squared divides the minor's.
+fn lq_axis_ratio_is_dyadic(major: f64, minor: f64) -> bool {
+    let (a, _, _) = num_traits::Float::integer_decode(major);
+    let (b, _, _) = num_traits::Float::integer_decode(minor);
+    let odd = u128::from(a >> a.trailing_zeros());
+    u128::from(b) % (odd * odd) == 0
 }
 
 // The exterior leading term for Q_0^1 is -sign(Re z)/z.
 fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
-    let (x, y, exponent) = lq_scaled_abs(z, z.re.abs().max(z.im.abs()));
+    let (abs_re, abs_im) = (z.re.abs(), z.im.abs());
+    let (x, y, exponent) = lq_scaled_abs(z, abs_re.max(abs_im));
     let norm = x * x + y * y;
-    let restore = |value: DoubleDouble, real_projection: bool| {
+    let restore = |value: DoubleDouble, major, minor: f64, imaginary| {
         let units = (value / norm).ldexp(53 - f64::MIN_EXP - exponent);
-        // At this skew, the correction can select a side of a halfway value
-        // without moving the projection as far as another rounding boundary.
-        if 0.0 < value.hi && value.hi <= const { utils::pow2(-54) } && units.hi.fract() == 0.5 {
-            let (major, minor) = if real_projection {
-                (z.im.abs(), z.re.abs())
+        // At this skew, a dyadic quotient fits exactly in the high word.
+        if 0.0 < value.hi
+            && value.hi <= const { utils::pow2(-54) }
+            && units.hi.fract() == 0.5
+            && lq_axis_ratio_is_dyadic(major, minor)
+        {
+            // The first omitted term moves an imaginary midpoint up when minor² < 3/2.
+            let rounded = if imaginary && minor.mul_add(minor, -1.5) < 0.0 {
+                units.hi.ceil()
             } else {
-                (z.re.abs(), z.im.abs())
+                units.hi.floor()
             };
-            if let Some(midpoint) = lq_axis_midpoint(major, minor) {
-                // For a tiny minor coordinate b, the omitted terms move the midpoint
-                // down, except in the imaginary projection when b² < 3/2.
-                let up = !real_projection && minor.mul_add(minor, -1.5) < 0.0;
-                let units = if up {
-                    midpoint.ceil()
-                } else {
-                    midpoint.floor()
-                };
-                return units * f64::from_bits(1);
-            }
+            return rounded * f64::from_bits(1);
         }
         units.round_subnormal_units()
     };
     let side = z.re.signum();
-    let im = restore(y, false).copysign(side * z.im.signum());
+    let im = restore(y, abs_re, abs_im, true).copysign(side * z.im.signum());
     let mut derivative = dq0 * -side;
     // On the imaginary axis, the sign of Re(z) determines the square-root lip.
     // Keep positive zero in the orthogonal components as in lqmn_large.
@@ -969,7 +952,7 @@ fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
         derivative.im = 0.0;
         c64(0.0, im)
     } else {
-        c64(-restore(x, true), im)
+        c64(-restore(x, abs_im, abs_re, false), im)
     };
     (value, derivative)
 }
