@@ -412,19 +412,23 @@ fn test_legendre_q_all_extreme_complex() {
 
 #[test]
 fn test_legendre_q_all_extreme_degree_two() {
-    let check = |z: num_complex::Complex64, expected: [f64; 4]| {
-        let expected = expected.map(f64::to_bits);
+    let check = |z: num_complex::Complex64, expected: [f64; 4], order_one: [f64; 4]| {
         let (q, d) = xsf::legendre_q_all(2, z);
-        assert_eq!([q[2].re, q[2].im, d[2].re, d[2].im].map(f64::to_bits), expected);
-        let (q, d) = xsf::assoc_legendre_q_all(2, 0, z);
-        let (q, d) = (q[2][0], d[2][0]);
-        assert_eq!([q.re, q.im, d.re, d.im].map(f64::to_bits), expected);
+        assert_eq!(
+            [q[2].re, q[2].im, d[2].re, d[2].im].map(f64::to_bits),
+            expected.map(f64::to_bits)
+        );
+        let (q, d) = xsf::assoc_legendre_q_all(2, 2, z);
+        for (order, expected) in [expected, order_one, expected].into_iter().enumerate() {
+            let (q, d) = (q[2][order], d[2][order]);
+            assert_eq!([q.re, q.im, d.re, d.im].map(f64::to_bits), expected.map(f64::to_bits));
+        }
     };
     let scale = 2.0_f64.powi(479);
     for sx in [-1.0, 1.0] {
         for sy in [-1.0, 1.0] {
             // Arb at the exact binary64 arguments. The last pair has x² - 2xy - y² = -1
-            // before scaling, so the derivative's real projection is positive.
+            // before scaling, so the order-zero derivative's real projection is positive.
             for (x, y, q_re, q_im, d_re, d_im) in [
                 (1.0, 0.1, 0.0, -0.0, -0.0, 0.0),
                 (1.0, 1.0, -0.0, -0.0, 0.0, -0.0),
@@ -433,9 +437,14 @@ fn test_legendre_q_all_extreme_degree_two() {
                 check(
                     c64(sx * x * scale, sy * y * scale),
                     [sx * q_re, sy * q_im, d_re, sx * sy * d_im],
+                    [-q_re, -sx * sy * q_im, -sx * d_re, -sy * d_im],
                 );
             }
-            check(c64(sx * 0.0, sy * scale), [0.0, sy * 0.0, -0.0, 0.0]);
+            check(
+                c64(sx * 0.0, sy * scale),
+                [0.0, sy * 0.0, -0.0, 0.0],
+                [0.0, -sx * sy * 0.0, sx * 0.0, 0.0],
+            );
         }
     }
 }
