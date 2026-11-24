@@ -43,6 +43,8 @@ const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
     (12.0, 4.0, 144.0, &[3.08902e-7, -1.577869e-4, 0.0247911, -1.05454, 161.471]),
 ];
 
+const LOW_MODE_SMALL_Q: f64 = 2.0e-3;
+
 fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     // =====================================================
     // Purpose: Compute the initial characteristic value of
@@ -68,6 +70,14 @@ fn cv0(kd: f64, m: f64, q: f64) -> f64 {
             (0, _) if q <= 1.0 => (((0.0036392 * q2 - 0.0125868) * q2 + 0.0546875) * q2 - 0.5) * q2,
             (1, 2) if q <= 1.0 => (((-6.51e-4 * q - 0.015625) * q - 0.125) * q + 1.0) * q + 1.0,
             (1, 3) if q <= 1.0 => (((-6.51e-4 * q + 0.015625) * q - 0.125) * q - 1.0) * q + 1.0,
+            // Unlike in xsf, use exact coefficients in the unrefined small-q regime.
+            (2, 1) if q <= LOW_MODE_SMALL_Q => {
+                ((1_002_401.0 / 79_626_240.0 * q2 - 763.0 / 13_824.0) * q2 + 5.0 / 12.0)
+                    .mul_add(q2, 4.0)
+            },
+            (2, 4) if q <= LOW_MODE_SMALL_Q => {
+                ((-289.0 / 79_626_240.0 * q2 + 5.0 / 13_824.0) * q2 - 1.0 / 12.0).mul_add(q2, 4.0)
+            },
             (2, 1) if q <= 1.0 => {
                 (((-0.0036391 * q2 + 0.0125888) * q2 - 0.0551939) * q2 + 0.416667) * q2 + 4.0
             },
@@ -131,7 +141,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
         if (q != 0.0) && (m != 2) {
             a = refine(kd, m, q, a);
         }
-        if (q > 2.0e-3) && (m == 2) {
+        if (q > LOW_MODE_SMALL_Q) && (m == 2) {
             a = refine(kd, m, q, a);
         }
     } else {
@@ -431,6 +441,38 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     if km as usize >= fc.len() {
         // Overflow, generate NaNs
         fc.fill(f64::NAN);
+        return;
+    }
+
+    // Unlike in xsf, anchor the low modes at their dominant harmonic at small q.
+    // This avoids dividing a rounded difference of characteristic values by q.
+    if (1..=2).contains(&m) && q > 0.0 && q <= LOW_MODE_SMALL_Q {
+        let f = &mut fc[..km as usize];
+        let even_cos = kd == 1;
+        let anchor = usize::from(even_cos);
+        let denominator = |j| {
+            let h = f64::from(m) + 2.0 * (j - anchor) as f64;
+            a - h * h
+        };
+        let mut ratio = q / denominator(f.len());
+        for j in (anchor + 1..f.len()).rev() {
+            ratio = q / (denominator(j) - q * ratio);
+            f[j] = ratio;
+        }
+        f[anchor] = 1.0;
+        let mut norm = 1.0;
+        if even_cos {
+            f[0] = q / a;
+            norm += 2.0 * f[0] * f[0];
+        }
+        for j in anchor + 1..f.len() {
+            f[j] *= f[j - 1];
+            norm += f[j] * f[j];
+        }
+        let scale = norm.sqrt().recip();
+        for v in f {
+            *v *= scale;
+        }
         return;
     }
 
