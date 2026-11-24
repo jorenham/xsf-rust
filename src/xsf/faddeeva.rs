@@ -532,6 +532,25 @@ const EXPA2N2: [f64; 52] = [
 ];
 /////////////////////////////////////////////////////////////////////////
 
+// Unlike in xsf, also return the continued-fraction degree for error estimates.
+#[inline]
+pub(super) fn w_continued_fraction(x: f64, y: f64) -> (C64, f64) {
+    let (c0, c1, c2, c3, c4) = (3.9, 11.398, 0.08254, 0.1421, 0.2023); // fit
+    let degree = (c0 + c1 / (c2 * x.abs() + c3 * y + c4)).floor();
+    let (mut wr, mut wi) = (x, y);
+    let mut nu = 0.5 * (degree - 1.0);
+    while nu > 0.4 {
+        // w <- z - nu/w:
+        let denom = nu / (wr * wr + wi * wi);
+        wr = x - wr * denom;
+        wi = y + wi * denom;
+        nu -= 0.5;
+    }
+    // w(z) = i/sqrt(pi) / w:
+    let denom = FRAC_1_SQRT_PI / (wr * wr + wi * wi);
+    (c64(denom * wi, denom * wr), degree)
+}
+
 // compute w(z) = exp(-z^2) erfc(-iz) [ Faddeeva / scaled complex error func ]
 //
 // Unlike in xsf, this and the complex wrappers above have no `relerr` argument: xsf defaults it
@@ -601,23 +620,7 @@ pub(crate) fn w(z: C64) -> C64 {
                 ret = c64(denom * (xs * di - ya * dr), denom * (xs * dr + ya * di));
             }
         } else {
-            // compute nu(z) estimate and do general continued fraction
-            let (c0, c1, c2, c3, c4) = (3.9, 11.398, 0.08254, 0.1421, 0.2023); // fit
-            let mut nu = (c0 + c1 / (c2 * x + c3 * ya + c4)).floor();
-            let (mut wr, mut wi) = (xs, ya);
-            nu = 0.5 * (nu - 1.0);
-            while nu > 0.4 {
-                // w <- z - nu/w:
-                let denom = nu / (wr * wr + wi * wi);
-                wr = xs - wr * denom;
-                wi = ya + wi * denom;
-                nu -= 0.5;
-            }
-            {
-                // w(z) = i/sqrt(pi) / w:
-                let denom = FRAC_1_SQRT_PI / (wr * wr + wi * wi);
-                ret = c64(denom * wi, denom * wr);
-            }
+            ret = w_continued_fraction(xs, ya).0;
         }
         if y < 0.0 {
             // use w(z) = 2.0*exp(-z*z) - w(-z),

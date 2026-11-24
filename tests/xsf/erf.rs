@@ -229,6 +229,7 @@ fn test_complex_erfc_rescales_nan_companion() {
     // Arb at the exact binary64 inputs.
     for (y, re, im) in [
         (29.896_363_007_581_32, 7.349_056_666_811_188e307, f64::INFINITY),
+        (29.896_363_007_581_318, 7.349_056_666_807_914e307, 1.797_693_134_862_006_4e308),
         (29.896_363_007_581_11, 7.349_056_666_618_002e307, 1.797_693_134_843_931_6e308),
     ] {
         let actual = xsf::erfc(c64(x, y));
@@ -240,10 +241,12 @@ fn test_complex_erfc_rescales_nan_companion() {
         }
     }
 
-    // At the adjacent ordinate, the finite imaginary part is too close to the overflow
-    // boundary for the current certificate. The real part still must be recovered.
-    let adjacent = xsf::erfc(c64(x, 29.896_363_007_581_318));
-    xsref::np_assert_allclose!([adjacent.re], [7.349_056_666_807_914e307], rtol = 2e-15);
+    let swapped = xsf::erfc(c64(-36.088_703_318_231_68, 44.909_029_817_434_586));
+    xsref::np_assert_allclose!(
+        [swapped.re, swapped.im],
+        [-1.797_693_134_862_158e308, -3.409_022_451_000_588e307],
+        rtol = 2e-15
+    );
 
     let z = c64(50.149_973_482_398_91, 56.836_113_599_097_594);
     let actual = xsf::erfc(z);
