@@ -53,6 +53,12 @@ impl StatsArg for Complex64 {
 }
 
 fn ndtr_c64(z: C64) -> C64 {
+    let (x, y) = (z.re, z.im);
+    if y.abs() >= 64.0 && x != 0.0 && (x * y).abs() < 0.5 {
+        // Unlike in xsf, infer both signs from the CDF integrals. The small phase
+        // keeps the cosine positive, and at |y| >= 64 both components overflow.
+        return c64(f64::INFINITY.copysign(x), f64::INFINITY.copysign(y));
+    }
     crate::xsf::faddeeva::erfc_c64(-z * FRAC_1_SQRT_2) * 0.5
 }
 

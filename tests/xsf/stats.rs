@@ -280,6 +280,28 @@ xsref::tests! {
 }
 
 #[test]
+fn test_ndtr_complex_small_phase_overflow() {
+    let min_subnormal = f64::from_bits(1);
+    let phase_limit = 0.5 / 64.0;
+    for (x, y) in [
+        (1e-30, 316.227_766_016_837_96),
+        (min_subnormal, f64::MAX),
+        (min_subnormal, 64.0),
+        (f64::from_bits(f64::to_bits(phase_limit) - 1), 64.0),
+    ] {
+        for x in [-x, x] {
+            for y in [-y, y] {
+                let expected = c64(f64::INFINITY.copysign(x), f64::INFINITY.copysign(y));
+                assert_eq!(xsf::ndtr(c64(x, y)), expected);
+            }
+        }
+    }
+    for x in [-0.0, 0.0] {
+        assert_eq!(xsf::ndtr(c64(x, 64.0)), c64(0.5, f64::INFINITY));
+    }
+}
+
+#[test]
 fn test_ndtr_tails() {
     // Reference values from mpmath (`ncdf`, `owens_t` in tools/accuracy/specs.py, 50 digits),
     // confirmed with Wolfram (`CDF[NormalDistribution[], x]`, NIntegrate of Owen's T)
