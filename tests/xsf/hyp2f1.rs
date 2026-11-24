@@ -99,6 +99,23 @@ fn test_hyp2f1_c64_transform2_euler() {
 }
 
 #[test]
+fn test_hyp2f1_c64_euler_tiny_cut_lips() {
+    let a = 32.000_000_000_000_01;
+    for (a, b) in [(a, 106.0), (106.0, a)] {
+        for y in [0.0, f64::from_bits(1)] {
+            for sign in [-1.0, 1.0] {
+                let actual = xsf::hyp2f1(a, b, 97.0, c64(2.0, sign * y));
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [0.000_370_569_924_328_136, sign * 8.271_994_658_390_709e-18],
+                    rtol = 5e-15
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_transform1_maclaurin() {
     // unlike in xsf: the Maclaurin series if the 1 - z transformation cancels (mpmath references)
     for (a, b, c, z, expected) in [

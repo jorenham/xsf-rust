@@ -44,13 +44,15 @@
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
-use crate::digamma;
+use crate::ext::{hyp2f1_poly_dd, ln_dd};
 use crate::utils::{is_nonpos_int, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
 use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::tools::{self, series_eval_fixed_length};
+use crate::{cospi, digamma, sinpi};
 
 const HYP2F1_EPS: f64 = 1e-15;
 /* The original implementation in SciPy from Zhang and Jin used 1500 for the
@@ -504,6 +506,43 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C6
     result
 }
 
+#[cold]
+fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
+    // Bound the cost of the extra compensated polynomial evaluation.
+    const MAX_DEGREE: f64 = 32.0;
+    let terminating = |a: f64, b: f64| {
+        let (p, low) = two_sum(c, -b);
+        let n = -p;
+        ((1.0..=MAX_DEGREE).contains(&n) && n.fract() == 0.0 && low == 0.0 && 0.0 < a && a < c)
+            .then_some((n, a))
+    };
+    let (n, a) = terminating(a, b).or_else(|| terminating(b, a))?;
+    let d = Dd::new(-n) - a;
+    let nearest = d.hi.round();
+    let delta = (d - nearest).hi;
+    if !(delta != 0.0 && delta.abs() < 0.5 && delta.abs() <= f64::EPSILON * d.hi.abs()) {
+        return None;
+    }
+    let phase = c64(cospi(delta), -z.im.signum() * sinpi(delta));
+    let polynomial = hyp2f1_poly_dd(-n, Dd::new(c) - a, c, z.re)?;
+    let r = Dd::new(z.re) - 1.0;
+    let certified_lip = z.im == 0.0 || {
+        // The beta integral bounds |P'| by n*x^(n-1); the power contributes |d P|/(x-1).
+        let (p, _) = polynomial.to_f64();
+        let shift = z.im.abs() * (n * z.re.powf(n - 1.0) + d.hi.abs() * p.abs() / r.hi);
+        let limit = f64::EPSILON / 4.0 * p.abs() * phase.re.abs().min(phase.im.abs());
+        p.is_normal() && limit.is_normal() && shift <= limit
+    };
+    let polynomial = certified_lip.then_some(polynomial)?;
+    let (v, err) = polynomial.with_l(d * ln_dd(r)).to_f64();
+    let value = phase * (neg_one_pow(nearest) * v);
+    ([value.re.abs(), value.im.abs()]
+        .into_iter()
+        .all(|a| (2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX).contains(&a))
+        && err <= 8.0 * f64::EPSILON)
+        .then_some(value)
+}
+
 fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
@@ -581,6 +620,12 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
             (c - a).abs()
         };
         if max_degree <= u64::MAX as f64 {
+            // Unlike in xsf, retain the exact cut phase for certified tiny ordinates.
+            if z.im.abs() < f64::MIN_POSITIVE && z.re > 1.0 && z.re.is_finite() {
+                if let Some(value) = hyp2f1_euler_cut_lip(a, b, c, z) {
+                    return value;
+                }
+            }
             result = (1.0 - z).powf(c - a - b);
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             result *= series_eval_finite(series_generator, (max_degree + 2.0) as u64);
