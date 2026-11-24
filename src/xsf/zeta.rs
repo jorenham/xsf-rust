@@ -287,9 +287,9 @@ fn zeta_right_halfplane(z: C64) -> C64 {
     if z == C64::ONE {
         return C64::NAN;
     }
-    // Unlike in xsf, Euler-Maclaurin is used for |Im z| > 20 instead of 50: the error of the
+    // Unlike in xsf, Euler-Maclaurin is used for |Im z| > 30 instead of 50: the error of the
     // 50-term Borwein sum grows like exp(pi |Im z| / 2) / (3 + sqrt(8))^50 (2e-7 at 1/2 + 48i).
-    if z.re < 50.0 && z.im.abs() > 20.0 {
+    if z.re < 50.0 && z.im.abs() > 30.0 {
         if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > 1e9 {
             /* Euler-MacLaurin summation starts to take an unreasonable amount of time in this
              * region, so just give up and return NaN instead. */
