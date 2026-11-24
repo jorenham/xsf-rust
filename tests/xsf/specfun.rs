@@ -1110,6 +1110,22 @@ fn test_pmv_near_cubic_roots() {
 }
 
 #[test]
+fn test_pmv_recovers_large_integer_order() {
+    // Arb at the exact binary64 inputs.
+    for (m, n, x, expected) in [
+        (85, 87.0, 0.076_028_592_126_970_55, 6.335_141_162_122_756e137),
+        (85, 87.0, 0.076_028_592_126_970_57, -1.561_331_007_134_133_2e139),
+        (85, 88.0, -0.011_235_955_056_179_775, -1.092_725_758_066_391_4e155),
+        (300, 302.0, 0.999, 4.852_603_868_143_226e303),
+    ] {
+        let values = [xsf::pmv(m, n, x), xsf::pmv(m, -n - 1.0, x)];
+        xsref::np_assert_allclose!(values, [expected; 2], rtol = 2e-15);
+    }
+    assert_eq!(xsf::pmv(149, 151.0, 0.470_356_464_439_710_46), -1e300);
+    assert_eq!(xsf::pmv(85, 88.0, -0.0).to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_pmv_large_m() {
     // NaN in xsf, which overflows `-m`
     assert!(xsf::pmv(i32::MIN, 0.5, 0.5).is_nan());
