@@ -208,7 +208,7 @@ pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// - `m`: Mode parameter ($m \ge 0$)
 /// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument ($x > 1$)
+/// - `x`: Real argument ($x \ge 0$)
 ///
 /// # Returns
 /// - $s$: Value of the function
@@ -268,7 +268,7 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// - `m`: Mode parameter ($m \ge 0$)
 /// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument ($x > 1$)
+/// - `x`: Real argument ($x \ge 0$)
 ///
 /// # Returns
 /// - $s$: Value of the function
@@ -389,7 +389,7 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument ($x > 1$)
+/// - `x`: Real argument ($x \ge 0$)
 ///
 /// # Returns
 /// - $s$: Value of the function
@@ -451,7 +451,7 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument ($x > 1$)
+/// - `x`: Real argument ($x \ge 0$)
 ///
 /// # Returns
 /// - $s$: Value of the function
