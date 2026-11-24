@@ -136,17 +136,27 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     let linear_seed =
         m >= 0 && v0 == 0.0 && (vx == f64::from(mx) + 1.0 || x.abs() * (vx + 1.0) <= 1.0);
     let seed = |degree| lpmv0(degree, mx, x, linear_seed);
-    // Unlike in xsf, evaluate the quadratic and diagonal factors separately for n = m + 2.
+    // Unlike in xsf, factor the first quadratic and cubic above the diagonal.
     // At m = 85 the old degree-(m + 1) normalization first overflows (171!).
-    if vx == f64::from(mx) + 2.0 && (0..=84).contains(&m) && x.abs() < 1.0 {
-        let coefficient = 2.0 * f64::from(mx) + 3.0;
+    let order = f64::from(mx);
+    let excess = vx - order;
+    let cubic = excess == 3.0 && !linear_seed;
+    if (excess == 2.0 || cubic) && (0..=84).contains(&m) && x.abs() < 1.0 {
+        let linear = 2.0 * order + 1.0;
+        let (coefficient, constant, weight) = if cubic {
+            (linear + 4.0, 3.0, linear * (linear + 2.0) / 6.0)
+        } else {
+            (linear + 2.0, 1.0, 0.5 * linear)
+        };
         let square = x * x;
-        let factor = coefficient.mul_add(x.mul_add(x, -square), coefficient.mul_add(square, -1.0));
+        let factor =
+            coefficient.mul_add(x.mul_add(x, -square), coefficient.mul_add(square, -constant));
         // Use the diagonal recurrence from lpmns, with its sign in the initial value.
         let xq = (-x).mul_add(x, 1.0).sqrt();
-        return (1..=m).fold(neg_one_pow(m) * (0.5 * (coefficient - 2.0)) * factor, |value, j| {
+        let value = (1..=m).fold(neg_one_pow(m) * weight * factor, |value, j| {
             value * ((2.0 * f64::from(j) - 1.0) * xq)
         });
+        return if cubic { value * x } else { value };
     }
     if (nv > 2) && (nv > mx) {
         // Up-recursion on degree, AMS 8.5.3 / DLMF 14.10.3
