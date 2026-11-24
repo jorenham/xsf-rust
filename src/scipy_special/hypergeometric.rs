@@ -3,7 +3,7 @@
 use core::f64::consts::{LN_2, PI};
 
 use crate::ext::ln_dd;
-use crate::utils::{EPSILON_SQ, SQRT_EPSILON, is_nonpos_int};
+use crate::utils::{EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, pow2};
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
@@ -280,19 +280,24 @@ fn bessel_below<T: Num>(v: f64, x: T, s: f64, b_v: impl FnOnce() -> T, b: impl F
     b(v - 1.0)
 }
 
-/// Maclaurin series `sum_n z^n / ((v)_n n!)` (DLMF 16.2.1)
+fn hyp0f1_series<T: Num>(v: f64, z: T) -> T {
+    let (sum, shift) = hyp0f1_series_before_restoring_scale(v, z);
+    if shift == 0 { sum } else { sum.ldexp(shift) }
+}
+
+/// Maclaurin series `sum_n z^n / ((v)_n n!)` (DLMF 16.2.1) and its restoration exponent.
 ///
 /// Only used for `|z| <= max(|v|, 1)`, where the terms decrease rapidly, except near the poles
 /// at `n ~ -v` if `v < 0`.
-fn hyp0f1_series<T: Num>(v: f64, z: T) -> T {
+fn hyp0f1_series_before_restoring_scale<T: Num>(v: f64, z: T) -> (T, i32) {
     // a tiny `v + n` can overflow the terms of a finite result: then the sum is retried times
     // `2^-SHIFT`, but only then, as that underflows tiny results, e.g. for `v = -z << 1`
     const SHIFT: i32 = 600;
     let sum = hyp0f1_series_scaled(v, z, 0);
     if sum.is_finite() {
-        sum
+        (sum, 0)
     } else {
-        hyp0f1_series_scaled(v, z, -SHIFT).ldexp(SHIFT)
+        (hyp0f1_series_scaled(v, z, -SHIFT), SHIFT)
     }
 }
 
@@ -330,7 +335,12 @@ fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
 }
 
 #[cold]
-fn hyp0f1_subnormal_parameter(v: f64, z: C64) -> Option<C64> {
+fn hyp0f1_subnormal_parameter(
+    v: f64,
+    z: C64,
+    scale: f64,
+    radius: f64,
+) -> (Option<f64>, Option<f64>) {
     // The pole-free series v*0F1(v;z) is v + z*0F1(2;z) to absolute
     // error below MIN_POSITIVE in the unit disk for subnormal v.
     let (x, y) = (z.re, z.im);
@@ -341,22 +351,58 @@ fn hyp0f1_subnormal_parameter(v: f64, z: C64) -> Option<C64> {
         ((re * x - im * y) / denom + 1.0, (re * y + im * x) / denom)
     });
     let (re, im) = ((re * x - im * y) + v, re * y + im * x);
-    let scale = v.ldexp(1023);
     // The binary64 overflow midpoint divided by 2^1023.
     let midpoint = (Dd::new(2.0) - f64::EPSILON / 2.0) * scale.abs();
     // Cover Horner roundoff and the omitted terms before restoring the pole.
-    let error = (128.0 * EPSILON_SQ * z.norm()).max(f64::MIN_POSITIVE);
-    let im = (im.abs() - error >= midpoint).then_some(f64::INFINITY.copysign(im.hi * scale))?;
-    let abs_re = re.abs();
-    let re = if abs_re - error >= midpoint {
-        Some(f64::INFINITY.copysign(re.hi * scale))
-    } else if abs_re + error < midpoint && error <= SQRT_EPSILON * abs_re.hi {
-        let value = (re / scale).hi.ldexp(1023);
-        value.is_normal().then_some(value)
-    } else {
-        None
-    }?;
-    Some(c64(re, im))
+    let error = (128.0 * EPSILON_SQ * radius).max(f64::MIN_POSITIVE);
+    let restore = |component: Dd| {
+        let magnitude = component.abs();
+        if magnitude - error >= midpoint {
+            Some(f64::INFINITY.copysign(component.hi * scale))
+        } else if magnitude + error < midpoint && error <= SQRT_EPSILON * magnitude.hi {
+            let value = (component / scale).hi.ldexp(1023);
+            value.is_normal().then_some(value)
+        } else {
+            None
+        }
+    };
+    (restore(re), restore(im))
+}
+
+fn hyp0f1_subnormal_retry(v: f64, z: C64, radius: f64, scaled: C64, shift: i32, sum: C64) -> C64 {
+    // Unlike in xsf, retry the cancelling real projection before dividing by v.
+    // Reconsider projections that may lose ten or more significand bits.
+    let cancelling = sum.re.is_finite()
+        && sum.im.is_infinite()
+        && (v * sum.re).abs() <= (z.re.abs() + z.im * z.im) / 1024.0;
+
+    // Unlike in xsf, also check the overflow class before restoring the scale.
+    // For subnormal v, compute |v| * 2^1023 exactly using its significand bits.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "subnormal significand has 52 bits"
+    )]
+    let scale = v.abs().to_bits() as f64 * const { pow2(-51) };
+    let edge = f64::MAX.ldexp(-shift);
+    // Allow absolute series roundoff on both projections in the unit disk.
+    let slack = ((128.0 * f64::EPSILON * radius) / scale).ldexp(1023 - shift);
+    let near_edge = |component: f64| (component.abs() - edge).abs() <= slack;
+    let near_overflow = near_edge(scaled.re) || near_edge(scaled.im);
+    if !cancelling && !near_overflow {
+        return sum;
+    }
+
+    match hyp0f1_subnormal_parameter(v, z, scale.copysign(v), radius) {
+        (Some(re), Some(im)) if cancelling && im.is_infinite() => c64(re, im),
+        (re, im) if near_overflow => {
+            let replace = |old: f64, new: Option<f64>| {
+                new.filter(|value| value.is_infinite() != old.is_infinite())
+                    .unwrap_or(old)
+            };
+            c64(replace(sum.re, re), replace(sum.im, im))
+        },
+        _ => sum,
+    }
 }
 
 /// `xsf::hyp0f1` for complex `z`
@@ -375,19 +421,20 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         // the Bessel functions, which lose digits for large `|v|`, e.g. ~eps ln(Gamma(v)) through
         // the logarithmic prefactor. An overflow of the series is kept, e.g. for `v = 5e-324`, as
         // within its rounding of `f64::MAX` the Bessel result is too rough to tell if it overflows.
-        if z.norm() <= v.abs().max(1.0) {
-            let sum = hyp0f1_series(v, z);
+        let radius = z.norm();
+        if radius <= v.abs().max(1.0) {
+            let (scaled, shift) = hyp0f1_series_before_restoring_scale(v, z);
+            let sum = if shift == 0 {
+                scaled
+            } else {
+                scaled.ldexp(shift)
+            };
             if !sum.is_nan() {
-                // Unlike in xsf, retry the cancelling real projection before dividing by v.
-                // Reconsider projections that may lose ten or more significand bits.
-                if v.is_subnormal()
-                    && sum.re.is_finite()
-                    && sum.im.is_infinite()
-                    && (v * sum.re).abs() <= (z.re.abs() + z.im * z.im) / 1024.0
-                {
-                    return hyp0f1_subnormal_parameter(v, z).unwrap_or(sum);
-                }
-                return sum;
+                return if v.is_subnormal() {
+                    hyp0f1_subnormal_retry(v, z, radius, scaled, shift, sum)
+                } else {
+                    sum
+                };
             }
         }
         // `arg = sqrt(w)`, with `w = z` for `I` and `w = -z` for `J`
