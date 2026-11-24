@@ -22,7 +22,7 @@
 
 use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble, FRAC_PI_2_DD, LOG2};
+use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2};
 use crate::xsf::complex::Num;
 
 use core::f64::consts::TAU;
@@ -179,22 +179,14 @@ fn cloggamma_public(z: C64) -> C64 {
     // Unlike in xsf, the public loggamma recomputes overflowing Stirling
     // components as z * (log(z) - 1), with scaling and double-double intermediates.
     if !w.is_finite() && z.is_finite() && uses_stirling(z) {
-        const SCALE: f64 = pow2(1020);
+        // Scale by the largest finite power of two so both coordinates have magnitude below 2.
+        const SCALE_EXPONENT: i32 = f64::MAX_EXP - 1;
+        const SCALE: f64 = pow2(SCALE_EXPONENT);
         let x = DoubleDouble::new(z.re / SCALE);
         let y = DoubleDouble::new(z.im / SCALE);
-        let (a, b) = (x.abs(), y.abs());
-        let log_r_minus_one = (a * a + b * b).sqrt().log() + (LOG2 * 1020.0 - 1.0);
-        let arg = if b > a {
-            FRAC_PI_2_DD - (a / b).atan()
-        } else {
-            (b / a).atan()
-        };
-        let arg = if z.re.is_sign_negative() {
-            2.0 * FRAC_PI_2_DD - arg
-        } else {
-            arg
-        };
-        let arg = if z.im.is_sign_negative() { -arg } else { arg };
+        let log_r_minus_one =
+            (x * x + y * y).sqrt().log() + (LOG2 * f64::from(SCALE_EXPONENT) - 1.0);
+        let arg = y.atan2(x);
         if !w.re.is_finite() {
             w.re = (x * log_r_minus_one - y * arg).hi * SCALE;
         }
