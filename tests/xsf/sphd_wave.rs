@@ -47,6 +47,36 @@ xsref::tests! {
 }
 
 #[test]
+fn test_prolate_radial1_near_endpoint() {
+    // High-precision spherical Bessel expansions with characteristic values
+    // computed from the eigenvalues of the angular recurrence.
+    for (m, n, c, x, expected) in [
+        (1, 1, 30.0, 1.1, (0.009_657_872_296_166_724, 3.253_369_651_472_87)),
+        (
+            0,
+            1,
+            35.0,
+            f64::from_bits(1.0_f64.to_bits() + 1),
+            (0.211_848_755_132_692_67, -118.823_660_936_291_19),
+        ),
+        (3, 3, 50.0, 1.0001, (0.001_228_111_989_862_462_7, 18.043_563_584_148_306)),
+    ] {
+        let actual = xsf::prolate_radial1_nocv(m, n, c, x);
+        let cv = xsf::prolate_segv(m, n, c);
+        assert_eq!(actual, xsf::prolate_radial1(m, n, c, cv, x));
+        assert!((actual.0 - expected.0).abs() <= 1e-12 * expected.0.abs(), "{actual:?}");
+        assert!((actual.1 - expected.1).abs() <= 1e-12 * expected.1.abs(), "{actual:?}");
+    }
+}
+
+#[test]
+fn test_prolate_radial1_near_stationary_point() {
+    let (r, dr) = xsf::prolate_radial1_nocv(3, 3, 50.0, 10.038_989_929_290_016);
+    assert!((r - -0.001_997_316_996_806_716_4).abs() <= 2e-15, "{r}");
+    assert!((dr - 1.162_831_941_014_855e-15).abs() <= 2e-13, "{dr}");
+}
+
+#[test]
 fn test_prolate_radial1_nocv_out_of_bounds() {
     // the 252-element buffers of `rmn1` would overflow
     let (r1f, r1d) = xsf::prolate_radial1_nocv(15, 174, 30.2, 1.077);
