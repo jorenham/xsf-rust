@@ -731,6 +731,16 @@ fn test_hyp1f2_asymptotic() {
 }
 
 #[test]
+fn test_hyp1f2_exact_square() {
+    // Square reduction at exact parameters (Arb).
+    for (b1, b2) in [(51.0, 101.0), (101.0, 51.0)] {
+        let actual = hyppfq([50.5], [b1, b2], -2500.0).unwrap();
+        assert!((actual / 2.191_042_483_314_600_2e-13 - 1.0).abs() < 1e-13);
+        assert_eq!(actual, hyp1f2(50.5, b1, b2, -2500.0));
+    }
+}
+
+#[test]
 fn test_hyp1f2_inaccurate() {
     // the series cancels, and |z| is too small for the asymptotic expansion
     assert!(hyp1f2(25.5, -80.25, 80.05, -4000.0).is_nan());
