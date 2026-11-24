@@ -167,12 +167,17 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
                 certify(val, scale * (remainder + roundoff))
             })
         };
+        // Unlike in xsf, recover a finite part even when the NaN part overflows.
+        let repair = |missing, overflowed| {
+            let value = certify(missing, error)?;
+            let other = companion(overflowed);
+            (value.is_finite() || other.is_some_and(f64::is_finite)).then_some((value, other))
+        };
         return if result.re.is_nan() {
-            finite(scaled.re, error)
-                .map(|re| c64(reflect_real(re), companion(scaled.im).unwrap_or(result.im)))
+            repair(scaled.re, scaled.im)
+                .map(|(re, im)| c64(reflect_real(re), im.unwrap_or(result.im)))
         } else {
-            finite(scaled.im, error)
-                .map(|im| c64(companion(scaled.re).map_or(result.re, reflect_real), im))
+            repair(scaled.im, scaled.re).map(|(im, re)| c64(re.map_or(result.re, reflect_real), im))
         };
     }
     let (re, im) = (certify(scaled.re, error)?, certify(scaled.im, error)?);

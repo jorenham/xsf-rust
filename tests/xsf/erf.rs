@@ -255,6 +255,20 @@ fn test_complex_erfc_rescales_nan_companion() {
 }
 
 #[test]
+fn test_complex_erfc_rescales_infinite_companion() {
+    // Arb at the exact binary64 inputs.
+    for sign_re in [-1.0, 1.0] {
+        for sign_im in [-1.0, 1.0] {
+            let z = c64(sign_re * 63.495_043_197_677_92, sign_im * 68.897_469_852_466_05);
+            let actual = xsf::erfc(z);
+            let expected_re = -sign_re * 1.794_691_780_639_764_7e308;
+            xsref::np_assert_allclose!([actual.re], [expected_re], rtol = 2e-15);
+            assert_eq!(actual.im, sign_im * f64::INFINITY);
+        }
+    }
+}
+
+#[test]
 fn test_complex_erfc_phase_product_overflow() {
     let z = c64(5.0, 8.988_465_674_311_05e307);
     let expected = c64(f64::INFINITY, f64::NEG_INFINITY);
