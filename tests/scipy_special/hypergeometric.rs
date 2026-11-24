@@ -600,23 +600,19 @@ fn test_hyp0f1_near_imaginary_axis_overflow() {
     for x in [-f64::from_bits(1), 0.0, f64::from_bits(1)] {
         for sign_v in [-1.0, 1.0] {
             for sign_y in [-1.0, 1.0] {
-                let value = xsf::hyp0f1(
-                    sign_v * 4.323_145_233_125_194e-309,
-                    c64(x, sign_y * 0.823_590_971_967_126_9),
+                let at = |v, y| xsf::hyp0f1(sign_v * v, c64(x, sign_y * y));
+                assert_eq!(
+                    at(4.323_145_233_125_194e-309, 0.823_590_971_967_126_9).im,
+                    sign_v * sign_y * f64::INFINITY,
                 );
-                assert_eq!(value.im, sign_v * sign_y * f64::INFINITY);
-
-                let value = xsf::hyp0f1(
-                    sign_v * 2.545_804_768_984_307e-309,
-                    c64(x, sign_y * 0.962_931_959_008_188_4),
+                assert_eq!(
+                    at(2.545_804_768_984_307e-309, 0.962_931_959_008_188_4).re,
+                    -sign_v * f64::INFINITY,
                 );
-                assert_eq!(value.re, -sign_v * f64::INFINITY);
-
-                let value = xsf::hyp0f1(
-                    sign_v * 2.334_621_786_009_635e-309,
-                    c64(x, sign_y * 0.921_625_154_151_644_8),
+                assert_eq!(
+                    at(2.334_621_786_009_635e-309, 0.921_625_154_151_644_8).re,
+                    -sign_v * f64::from_bits(f64::MAX.to_bits() - 1),
                 );
-                assert_eq!(value.re, -sign_v * f64::from_bits(f64::MAX.to_bits() - 1));
             }
         }
     }
