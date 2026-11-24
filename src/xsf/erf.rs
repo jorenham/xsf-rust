@@ -1,12 +1,13 @@
 //! The `voigt_profile` is translated into pure Rust from `xsf/erf.h` (scipy/xsf@09c93c7), and the
 //! other functions use `xsf/faddeeva.rs`.
 
-use core::f64::consts::{FRAC_1_SQRT_2, PI};
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_PI, PI};
 
 use num_complex::Complex64;
 
-use crate::utils::SQRT_TAU_DOWN;
+use crate::utils::{SQRT_TAU_DOWN, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::{FRAC_PI_2_DD, two_prod};
 
 pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
@@ -46,7 +47,7 @@ impl ErfArg for Complex64 {
     }
     #[inline]
     fn erfc(self) -> Self {
-        self.via(crate::xsf::faddeeva::erfc_c64)
+        self.via(erfc_c64)
     }
     #[inline]
     fn erfcx(self) -> Self {
@@ -59,6 +60,47 @@ impl ErfArg for Complex64 {
     #[inline]
     fn dawsn(self) -> Self {
         self.via(crate::xsf::faddeeva::dawson_c64)
+    }
+}
+
+fn erfc_c64(z: C64) -> C64 {
+    let result = crate::xsf::faddeeva::erfc_c64(z);
+    let (x, y) = (z.re, z.im);
+    if !result.is_nan() || !z.is_finite() || x == 0.0 || y.abs() < 64.0 || x.abs() > y.abs() * 0.5 {
+        return result;
+    }
+
+    // Unlike in xsf, recover signed infinities when the leading term of erfcx
+    // certifies both signs. Use the original argument for the phase.
+    let (hi, lo) = two_prod(-x, y);
+    let phase = 2.0 * hi;
+    // Keep the rounded quadrant within the exact-integer range of f64.
+    if phase.abs() > pow2(53) {
+        return result;
+    }
+    let quadrant = (phase * FRAC_2_PI).round();
+    let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase)
+        + (-quadrant).mul_add(FRAC_PI_2_DD.lo, 2.0 * lo);
+    if r.abs() > 1.0 {
+        return result;
+    }
+
+    // Cubic sine and quadratic cosine suffice to resolve signs with clearance.
+    let r2 = r * r;
+    let sin = r * (1.0 - r2 / 6.0);
+    let cos = 1.0 - 0.5 * r2;
+    let rotation = match (quadrant as i64).rem_euclid(4) {
+        0 => c64(cos, sin),
+        1 => c64(-sin, cos),
+        2 => c64(-cos, -sin),
+        _ => c64(sin, -cos),
+    };
+    // After reflection the normalized error is below 1/16. The wedge gives y² - x² >= 3072.
+    let leading = c64(x / y.abs(), -y.signum()) * rotation;
+    if leading.re.abs().min(leading.im.abs()) > 0.125 {
+        c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
+    } else {
+        result
     }
 }
 
