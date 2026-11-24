@@ -95,9 +95,10 @@ fn erfc_c64(z: C64) -> C64 {
         2 => c64(-cos, -sin),
         _ => c64(sin, -cos),
     };
-    // After reflection the normalized error is below 1/16. The wedge gives y² - x² >= 3072.
+    // The Taylor errors sum to at most r^4/20. A margin of 2^-10 covers
+    // the normalized erfcx remainder (at most 3/4096), reflection and rounding.
     let leading = c64(x / y.abs(), -y.signum()) * rotation;
-    if leading.re.abs().min(leading.im.abs()) > 0.125 {
+    if leading.re.abs().min(leading.im.abs()) > r2 * r2 / 20.0 + pow2(-10) {
         c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
     } else {
         result

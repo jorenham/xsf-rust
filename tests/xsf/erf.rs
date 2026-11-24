@@ -98,6 +98,7 @@ fn test_complex_erfc_overflow_signs() {
             c64(f64::NEG_INFINITY, f64::INFINITY),
         ),
         (c64(-78_937.031_298_532_31, 56_581_067_547.780_93), c64(f64::INFINITY, f64::INFINITY)),
+        (c64(15.953_961_398_340_361, -2_903_588.443_042_992_6), c64(f64::INFINITY, f64::INFINITY)),
     ] {
         assert_eq!(xsf::erfc(z), expected);
         assert_eq!(xsf::erfc(z.conj()), expected.conj());
