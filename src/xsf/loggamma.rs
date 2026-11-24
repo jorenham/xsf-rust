@@ -179,6 +179,15 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
 
 fn cloggamma_public(z: C64) -> C64 {
     let mut w = cloggamma(z);
+    // Unlike in xsf, avoid forming a subnormal angle before multiplying it by x.
+    // At this ratio the linear term y * psi(x) resolves the imaginary component.
+    if z.re > LOGGAMMA_SMALLX
+        && z.im != 0.0
+        && z.im.abs() <= z.re * f64::MIN_POSITIVE
+        && z.re.is_finite()
+    {
+        w.im = z.im * crate::xsf::cephes::psi(z.re);
+    }
     // Unlike in xsf, the public loggamma recomputes overflowing Stirling
     // components as z * (log(z) - 1), with scaling and double-double intermediates.
     if !w.is_finite() && z.is_finite() && uses_stirling(z) {

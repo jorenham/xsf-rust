@@ -43,6 +43,22 @@ fn test_loggamma_c64_stirling_overflow() {
 }
 
 #[test]
+fn test_loggamma_c64_subnormal_angle() {
+    let x = 8.988_465_674_311_05e307;
+    let z = c64(x, 1e-30);
+    let w = xsf::loggamma(z);
+    assert_eq!(w.re, f64::INFINITY);
+    xsref::np_assert_allclose!([w.im], [7.090_895_657_128_241e-28], rtol = 4.0 * f64::EPSILON);
+    assert_eq!(xsf::loggamma(z.conj()), w.conj());
+
+    for y in [f64::from_bits(1), -f64::from_bits(1)] {
+        let w = xsf::loggamma(c64(x, y));
+        assert_eq!(w.re, f64::INFINITY);
+        assert_eq!(w.im.to_bits(), f64::from_bits(709).copysign(y).to_bits());
+    }
+}
+
+#[test]
 fn test_loggamma_c64_negative_axis() {
     // the sign of the zero imaginary part selects the side of the branch cut
     let w = xsf::loggamma(c64(-2.5, 0.0));
