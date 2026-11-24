@@ -20,7 +20,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, pow2};
+use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, neg_if_odd, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2};
 use crate::xsf::complex::Num;
@@ -233,6 +233,21 @@ fn crgamma(z: C64) -> C64 {
         // Leave room for the O(Im(z)/Re(z)) phase correction and rounding.
         if sin.abs().min(cos.abs()) > 16.0 * f64::EPSILON * phase.abs() {
             return c64(f64::INFINITY.copysign(-sign * sin), f64::INFINITY.copysign(sign * cos));
+        }
+    }
+    // Unlike in xsf, reflect at a nonpositive integer before forming the complex phase.
+    if (f64::MIN_POSITIVE..=pow2(-27)).contains(&z.im.abs())
+        && z.re >= -170.0
+        && is_nonpos_int(z.re)
+    {
+        let w = 1.0 - z.re;
+        // Through 170!, the real gamma factor is finite. For this |y| the omitted
+        // terms change the leading components by less than 2^-50 relative.
+        let im = crate::xsf::cephes::gamma(w) * neg_if_odd(z.re, z.im);
+        let re = (im * crate::xsf::cephes::psi(w)) * z.im;
+        // Preserve the existing result near the subnormal and zero boundaries.
+        if re.abs() >= 2.0 * f64::MIN_POSITIVE {
+            return c64(re, im);
         }
     }
     (-cloggamma(z)).exp()

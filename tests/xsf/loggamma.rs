@@ -122,3 +122,17 @@ fn test_rgamma_c64_overflow_at_large_even_real_part() {
         assert_eq!(xsf::rgamma(c64(x, 0.0)), c64(0.0, 0.0));
     }
 }
+
+#[test]
+fn test_rgamma_c64_near_nonpositive_integer() {
+    for (x, re, im) in [
+        (0.0, -5.772_156_649_015_329_4e-61, 1.0e-30),
+        (-5.0, -2.047_341_202_118_160_8e-58, -1.2e-28),
+        (-10.0, 8.534_039_795_205_319e-54, 3.6288e-24),
+    ] {
+        let result = xsf::rgamma(c64(x, 1e-30));
+        assert!((result.re / re - 1.0).abs() <= 4.0 * f64::EPSILON);
+        assert!((result.im / im - 1.0).abs() <= 4.0 * f64::EPSILON);
+        assert_eq!(xsf::rgamma(c64(x, -1e-30)), result.conj());
+    }
+}
