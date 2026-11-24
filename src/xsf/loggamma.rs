@@ -178,6 +178,8 @@ fn crgamma(z: C64) -> C64 {
     }
     // Unlike in xsf, recover the signs from the reflected phase (DLMF 5.5.3).
     // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
+    // For z = -N + iy, the conservative bound |y| <= 10 keeps the error from
+    // replacing Im(log Gamma(N + 1 - iy)) with -y*ln(N) below 2*|y|/N.
     if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= 10.0 {
         let phase = -z.im * (-z.re).ln();
         let sign = z.im.signum();
