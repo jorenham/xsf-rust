@@ -434,6 +434,31 @@ impl DoubleDouble {
         ATAN_EIGHTHS[j as usize] + sum * r / ATAN_LCM
     }
 
+    /// `atan2(self, x)` for finite, scaled coordinates with magnitude at most 2.
+    /// The larger magnitude must be normal unless both coordinates are zero.
+    pub(crate) fn atan2(self, x: Self) -> Self {
+        let (a, b) = (x.abs(), self.abs());
+        let angle = if b.hi == 0.0 {
+            Self::ZERO
+        } else if a.hi == 0.0 {
+            FRAC_PI_2_DD
+        } else if b > a {
+            FRAC_PI_2_DD - (a / b).atan()
+        } else {
+            (b / a).atan()
+        };
+        let angle = if x.hi.is_sign_negative() {
+            2.0 * FRAC_PI_2_DD - angle
+        } else {
+            angle
+        };
+        if self.hi.is_sign_negative() {
+            -angle
+        } else {
+            angle
+        }
+    }
+
     /// `(sin(self), cos(self))`
     pub(crate) fn sin_cos(self) -> (f64, f64) {
         let (s, c) = self.hi.sin_cos();
@@ -703,6 +728,24 @@ mod tests {
             let err = atan(p, q) - DoubleDouble { hi, lo };
             assert!(err.hi.abs() <= pow2(-104) * hi);
         }
+    }
+
+    #[test]
+    fn test_atan2() {
+        let atan2 = |y, x| DoubleDouble::new(y).atan2(DoubleDouble::new(x));
+        for (y, x, quadrant) in
+            [(1.0, 1.0, 0.5), (1.0, -1.0, 1.5), (-1.0, -1.0, -1.5), (-1.0, 1.0, -0.5)]
+        {
+            let err = atan2(y, x) - quadrant * FRAC_PI_2_DD;
+            assert!(err.hi.abs() <= pow2(-103));
+        }
+        for y in [0.0_f64, -0.0] {
+            for x in [1.0, 0.0, -0.0, -1.0] {
+                assert_eq!(atan2(y, x).hi.to_bits(), y.atan2(x).to_bits());
+            }
+        }
+        assert_eq!(atan2(1.0, -0.0), FRAC_PI_2_DD);
+        assert_eq!(atan2(-1.0, 0.0), -FRAC_PI_2_DD);
     }
 
     #[test]

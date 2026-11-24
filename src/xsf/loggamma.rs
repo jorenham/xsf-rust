@@ -22,6 +22,7 @@
 
 use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2};
 use crate::xsf::complex::Num;
 
 use core::f64::consts::TAU;
@@ -137,6 +138,10 @@ pub(crate) fn zlog1_c64(mut z: C64) -> C64 {
     res
 }
 
+fn uses_stirling(z: C64) -> bool {
+    z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY
+}
+
 /// `xsf::loggamma` for complex `z`
 pub(crate) fn cloggamma(z: C64) -> C64 {
     // Compute the principal branch of log-Gamma
@@ -147,7 +152,7 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
     if z.is_real() && is_nonpos_int(z.re) {
         return C64::NAN;
     }
-    if z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY {
+    if uses_stirling(z) {
         return loggamma_stirling(z);
     }
     if (z - 1.0).norm() < LOGGAMMA_TAYLOR_RADIUS {
@@ -167,6 +172,29 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
         return loggamma_recurrence(z);
     }
     loggamma_recurrence(z.conj()).conj()
+}
+
+fn cloggamma_public(z: C64) -> C64 {
+    let mut w = cloggamma(z);
+    // Unlike in xsf, the public loggamma recomputes overflowing Stirling
+    // components as z * (log(z) - 1), with scaling and double-double intermediates.
+    if !w.is_finite() && z.is_finite() && uses_stirling(z) {
+        // Scale by the largest finite power of two so both coordinates have magnitude below 2.
+        const SCALE_EXPONENT: i32 = f64::MAX_EXP - 1;
+        const SCALE: f64 = pow2(SCALE_EXPONENT);
+        let x = DoubleDouble::new(z.re / SCALE);
+        let y = DoubleDouble::new(z.im / SCALE);
+        let log_r_minus_one =
+            (x * x + y * y).sqrt().log() + (LOG2 * f64::from(SCALE_EXPONENT) - 1.0);
+        let arg = y.atan2(x);
+        if !w.re.is_finite() {
+            w.re = (x * log_r_minus_one - y * arg).hi * SCALE;
+        }
+        if !w.im.is_finite() {
+            w.im = (y * log_r_minus_one + x * arg).hi * SCALE;
+        }
+    }
+    w
 }
 
 /// `xsf::rgamma` for complex `z`
@@ -221,7 +249,7 @@ impl LogGammaArg for f64 {
 impl LogGammaArg for Complex<f64> {
     #[inline]
     fn xsf_loggamma(self) -> Self {
-        self.via(cloggamma)
+        self.via(cloggamma_public)
     }
 
     #[inline]
