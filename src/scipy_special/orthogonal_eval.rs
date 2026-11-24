@@ -285,7 +285,8 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         // the Legendre case of `hyp2f1_sh` is the recurrence that failed above, and the real
         // one needs an exact `lam = 2a + 1`
         let exact_lam = self.as_f64().is_none() || two_sum(a + b, 1.0).1 == 0.0;
-        let sym = a == b && !(tried && a == 0.0) && exact_lam;
+        // Unlike in xsf, use the symmetric recurrence only for finite parameters.
+        let sym = a == b && a.is_finite() && !(tried && a == 0.0) && exact_lam;
         self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, sym) * d
     }
 

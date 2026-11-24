@@ -256,6 +256,17 @@ fn test_eval_real_degree_origin() {
 }
 
 #[test]
+fn test_eval_jacobi_complex_infinite_parameters() {
+    for y in [0.0, -0.0, 1e-4, -1e-4] {
+        let p = xsf::eval_jacobi(1.0, f64::INFINITY, f64::INFINITY, c64(1e-8, y));
+        assert!(p.re.is_nan() && p.im.is_nan());
+    }
+
+    let a = 0.75 * f64::MAX;
+    assert_eq!(xsf::eval_jacobi(1.0, a, a, c64(-1.0, 0.0)), c64(-a, 0.0));
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [
