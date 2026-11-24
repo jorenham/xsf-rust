@@ -549,6 +549,29 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         sign = -1;
     }
     let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
+    // Unlike in xsf, recover an overflowing unscaled H on the positive real axis
+    // from the real-valued components J and ±Y (DLMF 10.4.3).
+    // Negative noninteger orders mix components during reflection and can overflow early.
+    if ierr == 2
+        && kode == 1
+        && z.is_real()
+        && (f64::MIN_POSITIVE..=1.0).contains(&z.re)
+        && v >= 1.0
+        && (sign > 0 || v == v.trunc())
+    {
+        let order = if sign < 0 { -v } else { v };
+        let y = cyl_bessel_y_f64(order, z.re);
+        let log_leading = bessel_y_axis_log_leading(v, z.re);
+        // DLMF 10.9.7 also gives -Y_v(x) >= Gamma(v) (2/x)^v / pi - 1 - 2/(pi v).
+        if (y.is_finite() && log_leading + 0.5 * z.re < MAXLOG - BESSEL_Y_OVERFLOW_LOG_MARGIN)
+            || (y.is_infinite() && log_leading > MAXLOG + BESSEL_Y_OVERFLOW_LOG_MARGIN)
+        {
+            let j = cyl_bessel_j_f64(order, z.re);
+            if j.is_finite() && bessel_j_axis_rounding_is_clear(v, z.re, log_leading, j) {
+                return c64(j, if m == 1 { y } else { -y });
+            }
+        }
+    }
     set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
     if sign == -1 {
         cy = rotate(cy, if m == 1 { v } else { -v });
@@ -809,19 +832,53 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
         && z.re <= 1.0
         && order >= 1.0
         && (v > 0.0 || order == order.trunc())
-        && bessel_y_axis_finite(order, z.re)
+        && bessel_y_axis_log_leading(order, z.re) + 0.5 * z.re
+            < MAXLOG - BESSEL_Y_OVERFLOW_LOG_MARGIN
     {
         y.re = cyl_bessel_y_overflow(v, z.re, y.re);
     }
     y
 }
 
-/// Whether the upper bound for |Y_v(x)| is safely below overflow, for v >= 1 and 0 < x <= 1.
-fn bessel_y_axis_finite(v: f64, x: f64) -> bool {
-    // DLMF 10.9.7 with u = exp(t) bounds |Y_v(x)| by
-    // exp(x/2) Gamma(v) (2/x)^v / pi + 1 + 1/(pi v).
-    // The logarithmic margin covers arithmetic rounding and the additive terms.
-    crate::gammaln(v) + v * (LN_2 - x.ln()) - LN_PI + 0.5 * x < MAXLOG - 1e-8
+// This margin covers arithmetic rounding and the additive terms in the bounds.
+const BESSEL_Y_OVERFLOW_LOG_MARGIN: f64 = 1e-8;
+
+/// The log of the leading factor Gamma(v) (2/x)^v / pi, for v >= 1 and 0 < x <= 1.
+/// DLMF 10.9.7 with u = exp(t) bounds |Y_v(x)| by exp(x/2) times the factor plus 1 + 1/(pi v).
+fn bessel_y_axis_log_leading(v: f64, x: f64) -> f64 {
+    crate::gammaln(v) + v * (LN_2 - x.ln()) - LN_PI
+}
+
+fn bessel_j_axis_rounding_is_clear(v: f64, x: f64, log_y_leading: f64, j: f64) -> bool {
+    const LOG_HALF_MIN_SUBNORMAL: f64 = -1075.0 * LN_2;
+    if j.is_normal() {
+        return true;
+    }
+    // The leading terms of J and |Y| multiply to 1/(pi v).
+    if j == 0.0 {
+        return -log_y_leading - LN_PI - v.ln()
+            < LOG_HALF_MIN_SUBNORMAL - BESSEL_Y_OVERFLOW_LOG_MARGIN;
+    }
+    if v != v.trunc() || v >= 200.0 {
+        // Only use the product at integer orders. For v >= 200 and x <= 1
+        // the leading term is already below half the smallest subnormal.
+        return false;
+    }
+    // Bound the first term in units of MIN_POSITIVE, then include the first
+    // correction as a lower bound for the alternating series (DLMF 10.2.2).
+    let down = |s: f64| f64::from_bits(s.to_bits().saturating_sub(1));
+    let up = |s: f64| f64::from_bits(s.to_bits() + 1);
+    let (x_lo, x_hi) = (down(0.5 * x), up(0.5 * x));
+    let (mut lo, mut hi) = (1.0 / f64::MIN_POSITIVE, 1.0 / f64::MIN_POSITIVE);
+    for k in 1..=v as u32 {
+        let k = f64::from(k);
+        lo = down(down(lo * x_lo) / k);
+        hi = up(up(hi * x_hi) / k);
+    }
+    let correction = up(up(x * x) / (4.0 * (v + 1.0)));
+    lo = down(lo * down(1.0 - correction));
+    let magnitude = j.abs() / f64::MIN_POSITIVE;
+    lo > magnitude - 0.5 * f64::EPSILON && hi < magnitude + 0.5 * f64::EPSILON
 }
 
 fn cyl_bessel_y_overflow(v: f64, x: f64, y: f64) -> f64 {
