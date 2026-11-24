@@ -136,7 +136,7 @@ use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::dd_real::two_prod;
 use crate::xsf::cephes::polevl::polevl;
 
-pub(super) mod phase;
+use crate::xsf::phase;
 
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
 

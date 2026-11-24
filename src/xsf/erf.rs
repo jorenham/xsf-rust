@@ -8,6 +8,7 @@ use num_complex::Complex64;
 use crate::utils::{SQRT_FRAC_2_PI, SQRT_TAU_DOWN, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{FRAC_PI_2_DD, two_prod};
+use crate::xsf::phase::{self, Quadrant};
 
 pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
@@ -92,14 +93,14 @@ fn erfc_c64(z: C64) -> C64 {
 #[cold]
 fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
     let x = z.re.abs();
-    let (quadrant, r) = crate::xsf::faddeeva::phase::reduce_diagonal_phase(x);
+    let (quadrant, r) = phase::reduce_diagonal_phase(x);
     let (sin, cos) = r.sin_cos();
-    let rotation = rotate_quadrant(quadrant, sin.abs().copysign(r), cos.abs());
+    let (re, im) = quadrant.rotate(sin.abs().copysign(r), cos.abs());
     // On |r| <= pi/4, Taylor bounds give 7|r|/8 <= |sin r| <= |r|
     // and 11/16 <= cos r <= 1. Odd quadrants exchange the magnitudes.
     let sin_bounds = (0.875 * r.abs(), r.abs());
     let cos_bounds = (0.6875, 1.0);
-    let (re_bounds, im_bounds) = if quadrant & 1 == 0 {
+    let (re_bounds, im_bounds) = if matches!(quadrant, Quadrant::Zero | Quadrant::HalfTurn) {
         (cos_bounds, sin_bounds)
     } else {
         (sin_bounds, cos_bounds)
@@ -124,9 +125,9 @@ fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
     let re = if z.re < 0.0 && result.re.is_nan() {
         2.0
     } else {
-        component(rotation.re, re_bounds, result.re)
+        component(re, re_bounds, result.re)
     };
-    c64(re, component(-z.im.signum() * rotation.im, im_bounds, result.im))
+    c64(re, component(-z.im.signum() * im, im_bounds, result.im))
 }
 
 #[cold]
@@ -157,7 +158,7 @@ fn erfc_overflow(z: C64) -> Option<C64> {
     let (hi, lo) = two_prod(-x, y);
     let phase = 2.0 * hi;
     let (quadrant, r) = if phase.abs() > pow2(53) {
-        crate::xsf::faddeeva::phase::reduce_product_phase(-x, y)
+        phase::reduce_product_phase(-x, y)
     } else {
         // Keep the rounded quadrant within the exact-integer range of f64.
         let (quadrant, r) = split_phase(phase, 2.0 * lo);
@@ -167,7 +168,7 @@ fn erfc_overflow(z: C64) -> Option<C64> {
         } else {
             0.0
         };
-        ((quadrant + step) as i64 as u64 & 3, r - step * FRAC_PI_2_DD.hi)
+        (Quadrant::from_index((quadrant + step) as i64 as u64), r - step * FRAC_PI_2_DD.hi)
     };
     if r.abs() > 1.0 {
         return None;
@@ -178,9 +179,9 @@ fn erfc_overflow(z: C64) -> Option<C64> {
     let r2 = r * r;
     let sin = r * (1.0 - r2 * (1.0 / 6.0 - r2 / 120.0));
     let cos = 1.0 - r2 * (0.5 - r2 / 24.0);
-    let rotation = rotate_quadrant(quadrant, sin, cos);
+    let (re, im) = quadrant.rotate(sin, cos);
 
-    let leading = c64(x / y_abs, -y.signum()) * rotation;
+    let leading = c64(x / y_abs, -y.signum()) * c64(re, im);
     // The normalized erfcx remainder is bounded by 3/|y|².
     // Allow for phase reduction and floating-point evaluation.
     let error = r2 * r2 * r2 / 600.0 + (4.0 / y_abs) / y_abs + pow2(-44);
@@ -210,23 +211,14 @@ pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> 
     let r2 = r * r;
     let sin = r * (1.0 - r2 / 6.0);
     let cos = 1.0 - 0.5 * r2;
-    let rotation = rotate_quadrant((quadrant as i64).rem_euclid(4) as u64, sin, cos);
-    Some((rotation, r2 * r2 / 20.0))
+    let (re, im) = Quadrant::from_index(quadrant as i64 as u64).rotate(sin, cos);
+    Some((c64(re, im), r2 * r2 / 20.0))
 }
 
 fn split_phase(phase: f64, lo: f64) -> (f64, f64) {
     let quadrant = (phase * FRAC_2_PI).round();
     let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase) + (-quadrant).mul_add(FRAC_PI_2_DD.lo, lo);
     (quadrant, r)
-}
-
-fn rotate_quadrant(quadrant: u64, sin: f64, cos: f64) -> C64 {
-    match quadrant {
-        0 => c64(cos, sin),
-        1 => c64(-sin, cos),
-        2 => c64(-cos, -sin),
-        _ => c64(sin, -cos),
-    }
 }
 
 /// Error function $\erf(z)$ for real or complex input

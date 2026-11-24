@@ -2,6 +2,35 @@ use core::f64::consts::FRAC_PI_2;
 
 use crate::utils::pow2;
 
+#[derive(Clone, Copy)]
+pub(super) enum Quadrant {
+    Zero,
+    QuarterTurn,
+    HalfTurn,
+    ThreeQuarterTurns,
+}
+
+impl Quadrant {
+    pub(super) fn from_index(index: u64) -> Self {
+        match index & 3 {
+            0 => Self::Zero,
+            1 => Self::QuarterTurn,
+            2 => Self::HalfTurn,
+            _ => Self::ThreeQuarterTurns,
+        }
+    }
+
+    // Rotate a reduced sine and cosine, returning (cos, sin).
+    pub(super) fn rotate(self, sin: f64, cos: f64) -> (f64, f64) {
+        match self {
+            Self::Zero => (cos, sin),
+            Self::QuarterTurn => (-sin, cos),
+            Self::HalfTurn => (-cos, -sin),
+            Self::ThreeQuarterTurns => (sin, -cos),
+        }
+    }
+}
+
 // Little-endian limbs of floor(2^2305/pi), with two high zero words for the window.
 const RECIPROCAL_BITS: i32 = 2304;
 const INV_PIO2: [u64; 38] = [
@@ -45,9 +74,9 @@ const INV_PIO2: [u64; 38] = [
     0,
 ];
 
-fn decompose(x: f64) -> (u128, i32) {
+fn decompose(x: f64) -> (u64, i32) {
     let bits = x.to_bits();
-    let mantissa = u128::from((bits & ((1 << 52) - 1)) | (1 << 52));
+    let mantissa = (bits & ((1 << 52) - 1)) | (1 << 52);
     let exponent = ((bits >> 52) & 0x7ff) as i32 - 1075;
     (mantissa, exponent)
 }
@@ -57,10 +86,10 @@ fn decompose(x: f64) -> (u128, i32) {
 pub(super) fn sin_diagonal_phase(x: f64) -> f64 {
     let (quadrant, angle) = reduce_diagonal_phase(x);
     match quadrant {
-        0 => angle.sin(),
-        1 => angle.cos(),
-        2 => -angle.sin(),
-        _ => -angle.cos(),
+        Quadrant::Zero => angle.sin(),
+        Quadrant::QuarterTurn => angle.cos(),
+        Quadrant::HalfTurn => -angle.sin(),
+        Quadrant::ThreeQuarterTurns => -angle.cos(),
     }
 }
 
@@ -77,40 +106,48 @@ fn quadrant_window(mantissa: u128, exponent: i32) -> [u64; 4] {
         carry = (mantissa >> 64) * digit + (carry >> 64) + (low >> 64);
         low as u64
     });
-    let join = |lo, hi| (((u128::from(hi) << 64) | u128::from(lo)) >> offset) as u64;
-    [join(top, next) & 3, join(lo, mid), join(mid, hi), join(hi, top)]
+    read_quadrant_window(&[lo, mid, hi, top, next], offset)
 }
 
-pub(in crate::xsf) fn reduce_diagonal_phase(x: f64) -> (u64, f64) {
+// The first three words are below the quadrant, with a high word for alignment.
+fn read_quadrant_window(words: &[u64; 5], offset: usize) -> [u64; 4] {
+    let join =
+        |i: usize| (((u128::from(words[i + 1]) << 64) | u128::from(words[i])) >> offset) as u64;
+    [join(3) & 3, join(0), join(1), join(2)]
+}
+
+pub(super) fn reduce_diagonal_phase(x: f64) -> (Quadrant, f64) {
     debug_assert!(x.is_normal() && (2.0 * x * x).is_infinite());
     let (mantissa, exponent) = decompose(x);
-    let [quadrant, lo, mid, hi] = quadrant_window(mantissa * mantissa, 2 * exponent + 1);
-    // Adding pi/4 gives remainder f - 1/2 and advances the quadrant by one.
     // The exact distance from an axis is > 2^-117 quadrants (continued-fraction bound).
+    center_pi_4(quadrant_window(u128::from(mantissa).pow(2), 2 * exponent + 1))
+}
+
+fn center_pi_4([quadrant, lo, mid, hi]: [u64; 4]) -> (Quadrant, f64) {
+    // Adding pi/4 gives remainder f - 1/2 and advances the quadrant by one.
     let sign = if hi >> 63 == 0 { u64::MAX } else { 0 };
     // One's complement differs from the negative magnitude by only 2^-192 quadrants.
     let lo = (lo ^ sign) as f64;
     let mid = (mid ^ sign) as f64;
     let hi = (hi ^ (1 << 63) ^ sign) as f64;
     let frac = ((lo * pow2(-64) + mid) * pow2(-64) + hi) * pow2(-64);
-    debug_assert!(frac > pow2(-118));
     let angle = frac * FRAC_PI_2;
-    ((quadrant + 1) & 3, if sign == 0 { angle } else { -angle })
+    (Quadrant::from_index(quadrant + 1), if sign == 0 { angle } else { -angle })
 }
 
 // The erfc sign margin needs only 64 fractional bits. The wide product implies
 // normal inputs and a shift in 361..=2356, within the reciprocal window above.
 #[cold]
-pub(in crate::xsf) fn reduce_product_phase(x: f64, y: f64) -> (u64, f64) {
+pub(super) fn reduce_product_phase(x: f64, y: f64) -> (Quadrant, f64) {
     debug_assert!(x.is_normal() && y.is_normal() && (2.0 * (x * y)).abs() > pow2(53));
     let (mx, ex) = decompose(x);
     let (my, ey) = decompose(y);
-    let [q, _, _, frac] = quadrant_window(mx * my, ex + ey + 1);
-    let q = (q + (frac >> 63)) & 3;
+    let [q, _, _, frac] = quadrant_window(u128::from(mx) * u128::from(my), ex + ey + 1);
+    let q = q + (frac >> 63);
     let r = (i64::from_ne_bytes(frac.to_ne_bytes()) as f64) * (FRAC_PI_2 * pow2(-64));
     if x.is_sign_negative() ^ y.is_sign_negative() {
-        (q.wrapping_neg() & 3, -r)
+        (Quadrant::from_index(q.wrapping_neg()), -r)
     } else {
-        (q, r)
+        (Quadrant::from_index(q), r)
     }
 }
