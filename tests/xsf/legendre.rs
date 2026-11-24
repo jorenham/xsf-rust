@@ -713,17 +713,17 @@ fn test_assoc_legendre_q_all_extreme_real_x() {
     for x in [1.0e160_f64, -1.0e160] {
         let (q, dq) = xsf::assoc_legendre_q_all(1, 1, x);
         assert_eq!(q[0][0], x.recip());
-        assert_eq!(q[0][1], -x.abs().recip());
-        assert_eq!(q[1][0].to_bits(), 0x2a3);
-        assert_eq!(dq[0][0].to_bits(), 0x8000_0000_0000_07e8);
-        assert_eq!(dq[0][1].abs().to_bits(), 0x7e8);
-        assert_eq!(dq[0][1].is_sign_negative(), x.is_sign_negative());
+        let inv = x.abs().recip();
+        assert_eq!(q[0][1], -inv);
+        assert_eq!(q[1][0], inv / (3.0 * x.abs()));
+        assert_eq!(dq[0][0], -inv / x.abs());
+        assert_eq!(dq[0][1], inv / x);
     }
-    let x = f64::from_bits((538_u64 + 1023) << 52);
+    // At x = 2^538 the leading derivative magnitude 2/x² is 2^-1075,
+    // halfway to the least subnormal. The exact derivative has greater magnitude.
+    let x = 2.0_f64.powi(538);
     let (_, dq) = xsf::assoc_legendre_q_all(0, 2, x);
-    // The leading term is exactly halfway to the least subnormal. The
-    // derivative of 2x/(x²−1) has strictly greater magnitude.
-    assert_eq!(dq[0][2].to_bits(), 0x8000_0000_0000_0001);
+    assert_eq!(dq[0][2], -f64::from_bits(1));
 }
 
 #[test]

@@ -1077,55 +1077,52 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
     }
 }
 
-// At this scale Q_n^m(x) is given by its leading term in 1/x, with relative error below
-// 2^-880. Keep the exponent separate as increasing the order may recover an underflowed value.
+// Use the leading term in 1/x. Keep its exponent separate because raising
+// the order can bring an underflowed value back into range.
 fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
-    let (xm, xe) = frexp_f64(x.abs());
+    const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
+
+    let (xm, xe) = frexp_f64(x);
     let xe = i64::from(xe);
     let inv = DoubleDouble::ONE / xm;
-    let mut seed = inv;
-    let mut seed_e = -xe;
-    let x_sign = x.signum();
-    let mut degree_sign = x_sign;
+    let (mut seed, e) = inv.frexp();
+    let mut seed_e = i64::from(e) - xe;
+    let order_sign = -x.signum();
+    // A value mantissa is normalized; a derivative multiplies two such mantissas.
+    // Their magnitudes lie between 1/4 and 1.
     let scaled = |a: DoubleDouble, e: i64| {
-        // The largest factor multiplying the normalized mantissa is
-        // (n+1)/xm < 2^32.
-        if e >= -1021 {
-            return ldexp_f64(a.hi, e.min(4096) as i32);
+        if e > i64::from(f64::MIN_EXP) {
+            return ldexp_f64(a.hi, e.min(i64::from(i32::MAX)) as i32);
         }
-        if e < -1074 - 33 {
-            return 0.0;
+        if e < i64::from(MIN_SUB_EXP - 1) {
+            return 0.0_f64.copysign(a.hi);
         }
-        let (a, shift) = a.frexp();
-        let e = e as i32 + shift;
-        if e >= -1021 {
-            ldexp_f64(a.hi, e)
-        } else if e < -1074 {
-            0.0
+        // Round in units of the least subnormal. At an exact midpoint
+        // the first omitted term increases the magnitude.
+        let units = ldexp_f64(a.hi, (e - i64::from(MIN_SUB_EXP)) as i32);
+        let rounded = if units.fract().abs() == 0.5
+            && a.lo != 0.0
+            && a.lo.is_sign_negative() != a.hi.is_sign_negative()
+        {
+            units.trunc()
         } else {
-            // Round in units of the least subnormal. The first omitted term
-            // increases the magnitude at an exact midpoint.
-            let units = a.ldexp(e + 1074);
-            let rounded = if units.hi.fract() == 0.5 {
-                units.hi.floor() + f64::from(units.lo >= 0.0)
-            } else {
-                units.hi.round_ties_even()
-            };
-            ldexp_f64(rounded, -1074)
-        }
+            units.round()
+        };
+        ldexp_f64(rounded, MIN_SUB_EXP)
     };
     for n in 0..int(qm.extent(1)) {
-        let nf = f64::from(n);
-        let (mut value, mut exp, mut sign) = (seed, seed_e, degree_sign);
-        let d = inv * (nf + 1.0);
+        let next = f64::from(n) + 1.0;
+        let (slope, e) = (inv * -next).frexp();
+        let slope_e = i64::from(e) - xe;
+        let (mut value, mut exp) = (seed, seed_e);
         for m in 0..int(qm.extent(0)) {
-            qm[(m, n)] = scaled(value, exp).copysign(sign);
-            qd[(m, n)] = scaled(value * d, exp - xe).copysign(-x_sign * sign);
-            let (v, e) = (value * (nf + f64::from(m) + 1.0)).frexp();
-            (value, exp, sign) = (v, exp + i64::from(e), -x_sign * sign);
+            qm[(m, n)] = scaled(value, exp);
+            qd[(m, n)] = scaled(value * slope, exp + slope_e);
+            let (v, e) = (value * (order_sign * (next + f64::from(m)))).frexp();
+            (value, exp) = (v, exp + i64::from(e));
         }
-        let (v, e) = (seed * (nf + 1.0) * inv / nf.mul_add(2.0, 3.0)).frexp();
-        (seed, seed_e, degree_sign) = (v, seed_e + i64::from(e) - xe, x_sign * degree_sign);
+        let (v, e) = (seed * -slope / (2.0 * next + 1.0)).frexp();
+        (seed, seed_e) = (v, seed_e + slope_e + i64::from(e));
     }
 }
 
@@ -1141,6 +1138,9 @@ fn lqmn_extreme_real(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64,
 // ==========================================================
 
 fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
+    // Leave room for 2*k+3 and the scale in the backward recurrence.
+    const LARGE_X: f64 = utils::pow2(f64::MAX_EXP - (i32::BITS as i32 + 1) - SPECFUN_BIG_LOG2);
+
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
 
@@ -1153,9 +1153,8 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
         }
         return;
     }
-    // Unlike in xsf, use the leading large-argument terms before the recurrence can overflow.
-    // Its largest intermediate includes the factors x, 2*k+3, and SPECFUN_BIG (2^512).
-    if x.abs() >= utils::pow2(479) && x.is_finite() {
+    // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
+    if x.abs() >= LARGE_X && x.is_finite() {
         lqmn_extreme_real(x, qm, qd);
         return;
     }
