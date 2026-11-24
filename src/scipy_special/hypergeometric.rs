@@ -3,7 +3,7 @@
 use core::f64::consts::{LN_2, PI};
 
 use crate::ext::ln_dd;
-use crate::utils::is_nonpos_int;
+use crate::utils::{EPSILON_SQ, SQRT_EPSILON, is_nonpos_int};
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
@@ -329,6 +329,36 @@ fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
     sum
 }
 
+#[cold]
+fn hyp0f1_subnormal_parameter(v: f64, z: C64) -> Option<C64> {
+    // The pole-free series v*0F1(v;z) is v + z*0F1(2;z) to absolute
+    // error below MIN_POSITIVE in the unit disk for subnormal v.
+    let (x, y) = (z.re, z.im);
+    // The terms after degree 20 sum to less than 2^-125 |z|.
+    let (re, im) = (1..20).rev().fold((Dd::ONE, Dd::ZERO), |(re, im), k| {
+        let k = f64::from(k);
+        let denom = k * (k + 1.0);
+        ((re * x - im * y) / denom + 1.0, (re * y + im * x) / denom)
+    });
+    let (re, im) = ((re * x - im * y) + v, re * y + im * x);
+    let scale = v.ldexp(1023);
+    // The binary64 overflow midpoint divided by 2^1023.
+    let midpoint = (Dd::new(2.0) - f64::EPSILON / 2.0) * scale.abs();
+    // Cover Horner roundoff and the omitted terms before restoring the pole.
+    let error = (128.0 * EPSILON_SQ * z.norm()).max(f64::MIN_POSITIVE);
+    let im = (im.abs() - error >= midpoint).then_some(f64::INFINITY.copysign(im.hi * scale))?;
+    let abs_re = re.abs();
+    let re = if abs_re - error >= midpoint {
+        Some(f64::INFINITY.copysign(re.hi * scale))
+    } else if abs_re + error < midpoint && error <= SQRT_EPSILON * abs_re.hi {
+        let value = (re / scale).hi.ldexp(1023);
+        value.is_normal().then_some(value)
+    } else {
+        None
+    }?;
+    Some(c64(re, im))
+}
+
 /// `xsf::hyp0f1` for complex `z`
 #[inline]
 fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
@@ -348,6 +378,15 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         if z.norm() <= v.abs().max(1.0) {
             let sum = hyp0f1_series(v, z);
             if !sum.is_nan() {
+                // Unlike in xsf, retry the cancelling real projection before dividing by v.
+                // Reconsider projections that may lose ten or more significand bits.
+                if v.is_subnormal()
+                    && sum.re.is_finite()
+                    && sum.im.is_infinite()
+                    && (v * sum.re).abs() <= (z.re.abs() + z.im * z.im) / 1024.0
+                {
+                    return hyp0f1_subnormal_parameter(v, z).unwrap_or(sum);
+                }
                 return sum;
             }
         }

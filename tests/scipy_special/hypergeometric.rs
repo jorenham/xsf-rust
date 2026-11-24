@@ -577,6 +577,24 @@ fn test_hyp0f1_tiny_v_overflow() {
 }
 
 #[test]
+fn test_hyp0f1_tiny_v_cancelling_real_part() {
+    // Arb at the exact binary64 inputs.
+    let v = f64::from_bits(1);
+    let z = c64(0.004_999_306_433_889_944, 0.1);
+    let expected = 1.259_823_081_651_658e304;
+    for sign in [-1.0, 1.0] {
+        for w in [z, z.conj()] {
+            let result = hyp0f1(sign * v, w);
+            np_assert_allclose!([result.re], [sign * expected], rtol = 1e-14);
+            assert_eq!(result.im, f64::INFINITY.copysign(sign * w.im));
+        }
+    }
+
+    let both = hyp0f1(v, c64(0.400_861_737_122_235_2, 0.9));
+    assert_eq!(both, c64(f64::INFINITY, f64::INFINITY));
+}
+
+#[test]
 fn test_hyp0f1_tiny_v_unscaled() {
     // `z / v` is exact, unlike `1 / v * z`
     let v = 49.0 * 2f64.powi(-600);
