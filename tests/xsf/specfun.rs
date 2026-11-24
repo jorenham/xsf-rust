@@ -1691,6 +1691,17 @@ fn test_hyp1f1_positive_linear_kummer_root() {
 }
 
 #[test]
+fn test_hyp1f1_positive_linear_kummer_overflow() {
+    let b = -1_125_899_906_842_623.5_f64;
+    let a = b + 1.0;
+    let root = -b;
+    let left = f64::from_bits(root.to_bits() - 1);
+    let right = f64::from_bits(root.to_bits() + 1);
+    assert_eq!(xsf::hyp1f1(a, b, left), f64::INFINITY);
+    assert_eq!(xsf::hyp1f1(a, b, right), f64::NEG_INFINITY);
+}
+
+#[test]
 fn test_hyp1f1_neg_b_cancellation() {
     // mpmath; in xsf these are 4.6e169, -0.0, and NaN
     let abx = [(500.5, -200.25, 5.5), (99.7, -0.3, -800.0), (340.5, -90.25, 140.5)];
