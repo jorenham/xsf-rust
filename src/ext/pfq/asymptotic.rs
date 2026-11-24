@@ -4,7 +4,7 @@ use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::ControlFlow;
 
-use super::gamma::{gamma_alg_term, gamma_series};
+use super::gamma::{LogGammaCache, gamma_alg_term, gamma_series};
 use super::residue::{self, Residues};
 use super::series::{BoundScratch, pfq_terms_of};
 use super::{
@@ -527,6 +527,7 @@ fn pfq_class_term(
     z: f64,
     sizes: bool,
     terms: &mut Vec<Scaled>,
+    cache: LogGammaCache<'_>,
 ) -> Option<()> {
     let am = a[m];
     let others = skip(a, m).map(Dd::new);
@@ -565,7 +566,8 @@ fn pfq_class_term(
             .chain(poles.map(|g| -g + 1.0));
         let den = others.chain(args.filter(|g| !is_pole(g)));
         let l = -ln_dd(z.abs()) * am;
-        gamma_alg_term(num, den, (Dd::new(sign * sum), err), l, false, sizes, terms)?;
+        let mode = if sizes { Alg::Sizes } else { Alg::Value };
+        gamma_alg_term(num, den, (Dd::new(sign * sum), err), l, mode, terms, cache)?;
     }
     Some(())
 }
@@ -598,6 +600,16 @@ pub(super) enum Alg {
 /// With `Alg::Dd`, the series and the factor of each term are in double-double, except for the
 /// `a_i` that differ by integers.
 pub(super) fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg) -> Option<Vec<Scaled>> {
+    pfq_alg_with_cache(a, b, z, mode, &mut [])
+}
+
+fn pfq_alg_with_cache(
+    a: &[f64],
+    b: &[f64],
+    z: f64,
+    mode: Alg,
+    cache: LogGammaCache<'_>,
+) -> Option<Vec<Scaled>> {
     let sizes = mode == Alg::Sizes;
     let ln_z = ln_dd(z.abs());
     let bs = b.iter().copied().map(Dd::new);
@@ -606,7 +618,7 @@ pub(super) fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg) -> Option<Vec<Sca
         let others = skip(a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
-            pfq_class_term(a, b, m, z, sizes, &mut terms)?;
+            pfq_class_term(a, b, m, z, sizes, &mut terms, cache)?;
         } else {
             let num = bs.clone().chain(diffs);
             let den = others.chain(bs.clone().map(|bj| bj - am));
@@ -618,7 +630,7 @@ pub(super) fn pfq_alg(a: &[f64], b: &[f64], z: f64, mode: Alg) -> Option<Vec<Sca
                     let (sum, err) = pfq_alg_series(a, b, m, z, sizes);
                     (Dd::new(sum), err)
                 };
-                gamma_alg_term(num, den, (sum, err), l, mode == Alg::Dd, sizes, &mut terms)?;
+                gamma_alg_term(num, den, (sum, err), l, mode, &mut terms, cache)?;
             }
         }
     }
@@ -876,7 +888,7 @@ fn pfq_exp_cos(
 /// with `kappa = q - p + 1` and `x = kappa z^(1 / kappa)`, which is real for `z > 0` or
 /// `p = q`. Otherwise, it is the sum of the two parts with
 /// `x = kappa |z|^(1 / kappa) e^(+-pi i / kappa)`.
-fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
+fn pfq_exp(a: &[f64], b: &[f64], z: f64, cache: LogGammaCache<'_>) -> Option<Scaled> {
     let kappa = b.len() + 1 - a.len();
     let x_rel = pfq_exp_x_rel(kappa);
     if !x_rel.is_finite() {
@@ -909,7 +921,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let l = ln_power - LN_SQRT_2PI_DD * (kf - 1.0) + root * kf * growth;
     let num = b.iter().copied().map(Dd::new);
     let den = a.iter().copied().map(Dd::new);
-    gamma_series(num, den, series, l)
+    gamma_series(num, den, series, l, cache)
 }
 
 /// pFq for `p <= q` by its asymptotic expansion (DLMF 16.11.7 to 16.11.9)
@@ -920,8 +932,17 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
 /// parts.
 pub(super) fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let kappa = b.len() + 1 - a.len();
-    let alg = pfq_alg(a, b, z, if z > 0.0 { Alg::Sizes } else { Alg::Value })?;
-    let exp = pfq_exp(a, b, z)?;
+    // A 2F2 evaluation reuses the same Gamma arguments across the algebraic and exponential terms.
+    let mut log_gamma;
+    let cache: LogGammaCache<'_> = if a.len() == 2 && b.len() == 2 {
+        log_gamma = [None; 8];
+        &mut log_gamma
+    } else {
+        &mut []
+    };
+    let mode = if z > 0.0 { Alg::Sizes } else { Alg::Value };
+    let alg = pfq_alg_with_cache(a, b, z, mode, cache)?;
+    let exp = pfq_exp(a, b, z, cache)?;
     if z > 0.0 {
         // distinguish an empty algebraic part (zero error) from a failed `add_exp`
         let other = if alg.is_empty() {
@@ -951,7 +972,7 @@ pub(super) fn pfq_asymptotic_dd(a: &[f64], b: &[f64], z: f64) -> Option<Estimate
         return None;
     }
     let alg = pfq_alg_dd(a, b, z)?;
-    Some(Estimate::scaled(alg, Some(pfq_exp(a, b, z)?)))
+    Some(Estimate::scaled(alg, Some(pfq_exp(a, b, z, &mut [])?)))
 }
 
 #[cfg(test)]
