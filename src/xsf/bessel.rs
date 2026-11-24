@@ -95,7 +95,7 @@ impl BesselArg for Complex<f64> {
             let y = cyl_bessel_y_c64(v, z);
             // Unlike in xsf, recover signed overflow at small complex arguments.
             if y.re.is_nan() && y.im.is_nan() {
-                return bessel_small_argument_overflow(v, z).map_or(y, |k| -k);
+                return bessel_small_argument_overflow(v, z, 1.0).map_or(y, |k| -k);
             }
             y
         })
@@ -122,7 +122,7 @@ impl BesselArg for Complex<f64> {
             let k = cyl_bessel_k_c64(v, z);
             // Unlike in xsf, return signed overflow when both components can be resolved.
             if k.re.is_nan() && k.im.is_nan() {
-                return bessel_small_argument_overflow(v.abs(), z).unwrap_or(k);
+                return bessel_small_argument_overflow(v.abs(), z, 1.0).unwrap_or(k);
             }
             k
         })
@@ -473,6 +473,14 @@ fn cyl_bessel_i_amos(mut v: f64, z: C64, by_part: bool) -> C64 {
         if ierr_k == 2 {
             if let Some(value) = i_reflection_from_lower_orders(cy, v, z, kode) {
                 return value;
+            }
+            if by_part {
+                // Unlike in xsf, recover both reflection signs when the weighted K overflows.
+                // At these small arguments the positive-order I is bounded by 2.
+                let weight = FRAC_2_PI * cephes_sinpi(v);
+                if let Some(value) = bessel_small_argument_overflow(v, z, weight) {
+                    return value;
+                }
             }
         }
         cy = rotate_i(cy, cy_k, v);
@@ -1148,7 +1156,7 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
 
 // Both functions have a leading multiple of z^(-v) with opposite signs.
 #[cold]
-fn bessel_small_argument_overflow(v: f64, z: C64) -> Option<C64> {
+fn bessel_small_argument_overflow(v: f64, z: C64, weight: f64) -> Option<C64> {
     let m = z.re.abs().max(z.im.abs());
     let fraction = v.fract();
     let supported =
@@ -1168,9 +1176,14 @@ fn bessel_small_argument_overflow(v: f64, z: C64) -> Option<C64> {
         return None;
     }
     // Gamma(v) m^(-v) / pi is below either leading magnitude since r <= 2m.
-    let log_component = crate::gammaln(v) - v * m.ln() - LN_PI + clearance.ln();
-    (log_component > MAXLOG + 1.0)
-        .then(|| c64(f64::INFINITY.copysign(re), f64::INFINITY.copysign(im)))
+    let mut log_component = crate::gammaln(v) - v * m.ln() - LN_PI + clearance.ln();
+    if weight != 1.0 {
+        log_component += weight.abs().ln();
+    }
+    (log_component > MAXLOG + 1.0).then(|| {
+        let value = c64(f64::INFINITY.copysign(re), f64::INFINITY.copysign(im));
+        if weight < 0.0 { -value } else { value }
+    })
 }
 
 fn bessel_y_axis_continuation(v: f64, z: C64) -> Option<C64> {

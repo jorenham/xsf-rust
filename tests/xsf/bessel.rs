@@ -207,6 +207,23 @@ fn test_bessel_i_complex_reflection_near_integer() {
 }
 
 #[test]
+fn test_bessel_i_complex_reflection_overflow_signs() {
+    let inf = f64::INFINITY;
+    // Arb at exact inputs with both signs of the reflection weight.
+    for (v, z, expected) in [
+        (-3.5, c64(1e-100, 1e-100), c64(inf, inf)),
+        (-4.5, c64(1e-100, 3e-101), c64(inf, -inf)),
+        (-4.25, c64(1e-100, 3e-101), c64(inf, -inf)),
+    ] {
+        assert_eq!(xsf::bessel_i(v, z), expected);
+        assert_eq!(xsf::bessel_i(v, z.conj()), expected.conj());
+    }
+    // The near-axis imaginary component is finite.
+    let z = c64(1e-100, f64::from_bits(1));
+    assert!(!xsf::bessel_i(-3.5, z).im.is_infinite());
+}
+
+#[test]
 fn test_bessel_miller_normalization() {
     // 2 < |z| < 21.8, where AMOS uses the Miller algorithm; Arb references
     let actual = [xsf::bessel_j(-0.3, c64(14.0, 3.0)), xsf::bessel_i(0.3, c64(18.2, 0.5))];
