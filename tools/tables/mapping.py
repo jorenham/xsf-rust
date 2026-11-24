@@ -4086,6 +4086,21 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             ),
         )
     ),
+    ("loggamma", "cd-cd"): _complex(
+        "loggamma",
+        specs._c(mp.loggamma),
+        flint.acb.lgamma,
+        (COMPLEX_POLE,),
+        (
+            Override(
+                lambda a: (
+                    a[0] == -8.988_465_674_311_05e307
+                    and abs(a[1]) == 8.988_465_674_311_05e307
+                ),
+                "the imaginary Stirling terms overflow with opposite signs in xsf",
+            ),
+        ),
+    ),
     ("rgamma", "d-d"): Entry(
         (Out("rgamma", (specs.r_rgamma,), (specs.ARB["rgamma"],), (NAN,)),)
     ),
