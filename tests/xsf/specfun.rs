@@ -1134,6 +1134,16 @@ fn test_pmv_recovers_large_integer_order() {
 }
 
 #[test]
+fn test_pmv_recovers_large_integer_diagonal() {
+    // Arb at the exact binary64 inputs.
+    let expected = 1.133_856_296_761_002_7e155;
+    assert_eq!(xsf::pmv(86, 86.0, 0.01), expected);
+    assert_eq!(xsf::pmv(86, -87.0, -0.01), expected);
+    let x = f64::from_bits(1.0_f64.to_bits() - 1);
+    assert_eq!(xsf::pmv(87, 87.0, x).to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_pmv_large_m() {
     // NaN in xsf, which overflows `-m`
     assert!(xsf::pmv(i32::MIN, 0.5, 0.5).is_nan());
