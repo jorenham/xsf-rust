@@ -7,6 +7,25 @@ use xsf::{
 use xsref::np_assert_allclose;
 
 #[test]
+fn test_jacobi_degree_two_large_parameters() {
+    let a = 2f64.powi(400);
+    let b = f64::from_bits(a.to_bits() + 1);
+    let expected = 4.109_481_173_084_667e208;
+    assert_eq!(eval_jacobi(2, a, b, 0.0), expected);
+    assert_eq!(eval_jacobi(2.0, a, b, 0.0), expected);
+
+    let a = 2f64.powi(399);
+    let x = 2f64.powi(-200);
+    assert_eq!(eval_jacobi(2, a, a, x), 0.375);
+    assert_eq!(eval_jacobi(2.0, a, a, x), 0.375);
+
+    // Adjacent inputs straddle the overflow midpoint (exact rational evaluation).
+    let a = 1.643_117_961_816_774e103;
+    assert_eq!(eval_jacobi(2.0, a, a, 1.153_995_285_600_363_4e51), f64::MAX);
+    assert_eq!(eval_jacobi(2.0, a, a, 1.153_995_285_600_363_6e51), f64::INFINITY);
+}
+
+#[test]
 fn test_eval_real_degree_large() {
     // the hypergeometric series cancels catastrophically for large non-integer degrees (mpmath)
     let actual = [

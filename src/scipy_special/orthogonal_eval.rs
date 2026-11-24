@@ -8,9 +8,9 @@ use core::f64::consts::{LN_2, SQRT_2};
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow};
+use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
-use crate::xsf::cephes::dd_real::two_sum;
+use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod, two_sum};
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
@@ -20,6 +20,9 @@ const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON
 /// the Gegenbauer case: the odd ones for real x, and all of them for complex x
 const ORIGIN_RADIUS: f64 = 1e-5;
 
+// The cubic recurrence coefficient overflows if comparable parameters reach this size.
+const JACOBI_QUADRATIC_MIN_PARAM: f64 = pow2(342);
+
 mod sealed {
     pub trait OrthoPolyArg:
         crate::xsf::Hyp2F1Arg
@@ -27,6 +30,7 @@ mod sealed {
         + num_traits::NumOps<f64>
         + num_traits::NumOps
         + core::ops::Neg<Output = Self>
+        + Into<num_complex::Complex64>
         + Clone
     {
         const ZERO: Self;
@@ -257,9 +261,9 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         // Unlike in xsf, integer degrees with `alpha, beta > -1` use the recurrence of the integer
         // degrees, since the series cancels catastrophically for large degrees, unless the
         // recurrence is nonfinite.
-        let p = int_degree(n, a, b).map(|n| eval_jacobi_l_reflected(n, a, b, self.clone()));
-        let tried = p.is_some();
-        if let Some(p) = p.filter(sealed::OrthoPolyArg::is_finite) {
+        let degree = int_degree(n, a, b);
+        let tried = degree.is_some();
+        if let Some(p) = degree.and_then(|n| eval_jacobi_l_reflected(n, a, b, self.clone())) {
             return p;
         }
         if a == -1.0 && b.abs() == 1.0 {
@@ -322,13 +326,25 @@ fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
 ///
 /// The recurrence starts at x = 1, and loses the small values near x = -1 (e.g. for beta near
 /// -1, or alpha far above beta). The reflected one can be nonfinite where the other one isn't.
-fn eval_jacobi_l_reflected<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -> Z {
-    if is_classical(alpha, beta) && x.re() < 0.0 {
+fn eval_jacobi_l_reflected<Z: sealed::OrthoPolyArg>(
+    n: i32,
+    alpha: f64,
+    beta: f64,
+    x: Z,
+) -> Option<Z> {
+    // Unlike in xsf, evaluate the real-axis quadratic before its cubic recurrence overflows.
+    if n == 2 && (alpha >= JACOBI_QUADRATIC_MIN_PARAM || beta >= JACOBI_QUADRATIC_MIN_PARAM) {
+        if let Some(v) = jacobi_large_quadratic(alpha, beta, x.clone().into()) {
+            return Some(Z::ZERO + v);
+        }
+    }
+    let y = if is_classical(alpha, beta) && x.re() < 0.0 {
         let sign = neg_one_pow(n);
         eval_jacobi_l(n, beta, alpha, x * -1.0) * sign
     } else {
         eval_jacobi_l(n, alpha, beta, x)
-    }
+    };
+    y.is_finite().then_some(y)
 }
 
 /// Corresponds to `xsf::detail::eval_jacobi_l`, for `n >= 0`
@@ -369,6 +385,43 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
     }
 }
 
+// Unlike in xsf, use the quadratic only for comparable finite parameters, so the difference is exact.
+#[cold]
+fn jacobi_large_quadratic(a: f64, b: f64, z: num_complex::Complex64) -> Option<f64> {
+    let x = z.re;
+    if z.im != 0.0
+        || !a.is_finite()
+        || !b.is_finite()
+        || !x.is_finite()
+        || a.min(b) < 0.5 * a.max(b)
+    {
+        return None;
+    }
+
+    // Complete the square using q = (a - b + (a + b + 3)x)/2.
+    let (sh, sl) = two_sum(0.5 * a, 0.5 * b);
+    let q = (DoubleDouble::new(sh) * x + 0.5 * (a - b)) + DoubleDouble::new(sl) * x + 1.5 * x;
+    // A lost intermediate here is possible only for large |x|, when
+    // |a - b| / (a + b) <= 1/3 ensures that the square forces overflow.
+    if !(q.hi.abs() < pow2(513)) {
+        return Some(f64::INFINITY);
+    }
+    // Keep headroom for the square and round before restoring the exponent.
+    let eighth = if a == b {
+        // Center a*x² - 1/2 before adding the product residuals near a root.
+        let (ax, ax_lo) = two_prod(a, x);
+        let (axx, axx_lo) = two_prod(ax, x);
+        let t = (DoubleDouble::new(axx) - 0.5 + axx_lo) + DoubleDouble::new(ax_lo) * x;
+        t * (DoubleDouble::new(a / 16.0) + 7.0 / 32.0) + 3.0 / 64.0 + (3.0 / 16.0) * x * x
+    } else {
+        let delta = x.mul_add(x, -1.0);
+        let correction =
+            (DoubleDouble::new(sh / 32.0) + sl / 32.0 + 3.0 / 64.0) * delta - 1.0 / 64.0;
+        q.mul_pwr2(1.0 / 16.0) * q + correction
+    };
+    Some(8.0 * eighth.hi)
+}
+
 impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
@@ -376,12 +429,8 @@ impl JacobiArg<i32> for f64 {
             self.eval_jacobi(f64::from(n), alpha, beta)
         } else {
             // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
-            let p = eval_jacobi_l_reflected(n, alpha, beta, self);
-            if p.is_finite() {
-                p
-            } else {
-                eval_jacobi_l(n, alpha, beta, self)
-            }
+            eval_jacobi_l_reflected(n, alpha, beta, self)
+                .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self))
         }
     }
 
@@ -567,7 +616,7 @@ pub trait GegenbauerArg<N>: sealed::OrthoPolyArg {
     fn eval_gegenbauer(self, n: N, alpha: f64) -> Self;
 }
 
-impl<Z: sealed::OrthoPolyArg + From<f64> + Into<num_complex::Complex64>> GegenbauerArg<f64> for Z {
+impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_gegenbauer`
     #[inline]
     fn eval_gegenbauer(self, n: f64, alpha: f64) -> Self {
