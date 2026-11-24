@@ -1042,6 +1042,31 @@ xsref::tests! {
 }
 
 #[test]
+fn test_pmv_integer_degree_near_parity_zero() {
+    // Arb at the exact binary64 arguments.
+    for (m, v, x, expected) in [
+        (0, 1.0, 1e-30, 1e-30),
+        (0, 3.0, 1e-30, -1.5e-30),
+        (5, 10.0, 1e-30, -2.533_781_25e-25),
+        (1, 2.0, 1e-20, -3e-20),
+        (5, -11.0, 1e-6, -0.253_378_124_996_494_9),
+    ] {
+        let values = [xsf::pmv(m, v, x), xsf::pmv(m, v, -x)];
+        xsref::np_assert_allclose!(values, [expected, -expected], rtol = 1e-14);
+    }
+
+    for x in [0.0_f64, -0.0, f64::from_bits(1), -f64::from_bits(1)] {
+        assert_eq!(xsf::pmv(0, 1.0, x).to_bits(), x.to_bits());
+    }
+    assert_eq!(xsf::pmv(1, 2.0, 0.0).to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(xsf::pmv(1, 2.0, -0.0).to_bits(), 0.0_f64.to_bits());
+
+    // Control a negative-order subnormal and a point beside a nonzero root.
+    assert_eq!(xsf::pmv(-1, 4.0, f64::from_bits(4)).to_bits(), (-f64::from_bits(1)).to_bits());
+    assert!(xsf::pmv(0, 8.0, 0.183_434_642_495_649_8) < 0.0);
+}
+
+#[test]
 fn test_pmv_large_m() {
     // NaN in xsf, which overflows `-m`
     assert!(xsf::pmv(i32::MIN, 0.5, 0.5).is_nan());
