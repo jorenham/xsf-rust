@@ -3969,7 +3969,7 @@ fn bunk(
     nz
 }
 
-fn gamln(z: f64) -> f64 {
+pub(super) fn gamln(z: f64) -> f64 {
     //***BEGIN PROLOGUE  DGAMLN
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  830501   (YYMMDD)
