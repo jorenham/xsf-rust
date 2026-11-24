@@ -119,7 +119,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@9e3b3f1)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@0f44f5d)
 
 fn rotate(z: C64, v: f64) -> C64 {
     let c = cephes_cospi(v);
@@ -433,8 +433,11 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         /* overflow */
         cy = C64::INFINITY;
     }
-    // Unlike in xsf, rescale e^z K_v(z) if AMOS underflowed, which it does from about 4e-305, or
-    // for real z use the uniform expansion if e^z K_v(z) overflows (for v above about 1400).
+    // AMOS flushes K to zero near Re(z) = 700, also where K is normal. Scale K exp(z) by
+    // exp(-z) in two steps.
+    // Unlike in xsf, check for a zero AMOS result and a finite scaled value in place of the flags.
+    // Rotate first, use componentwise mul_exp with its log fallback, and use the uniform expansion
+    // for real z if the scaled result overflows.
     if kode == 1 && cy == C64::ZERO {
         let w = cyl_bessel_k_kode(v, z, 2) * C64::cis(z.im).conj();
         if w.is_finite() {
