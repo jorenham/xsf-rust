@@ -306,6 +306,26 @@ fn test_bessel_ie_negative_order_large_imag() {
 }
 
 #[test]
+fn test_scaled_bessel_retry_from_unscaled() {
+    let v = 612.644_056_708_250_6;
+    let z = c64(24.827_927_967_836_224, -184.775_114_068_472_28);
+    // Arb, with the Hankel phase and magnitude scaled before rounding.
+    let y = c64(1.748_036_759_138_502_4e147, 6.090_825_784_957_291e146);
+    let h1 = c64(-1.105_617_844_823_717_1e147, 1.484_662_682_205_558_9e147);
+    let h2 = c64(1.757_334_517_403_096e306, -5.765_750_391_151_182e307);
+    for (actual, expected) in [
+        (xsf::bessel_ye(v, z), y),
+        (xsf::hankel_1e(v, z), h1),
+        (xsf::hankel_2e(v, z), h2),
+        (xsf::bessel_ye(v, z.conj()), y.conj()),
+        (xsf::hankel_1e(v, z.conj()), h2.conj()),
+        (xsf::hankel_2e(v, z.conj()), h1.conj()),
+    ] {
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-12);
+    }
+}
+
+#[test]
 fn test_bessel_ye_large_order_large_imag() {
     // Arb: |z| < v, where e^-2|Im z| underflows (was half the value)
     let z = [
