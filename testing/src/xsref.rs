@@ -457,7 +457,7 @@ where
     let mut worst_actual = String::new();
     let mut worst_expect = String::new();
 
-    for case in cases {
+    for (row, case) in cases.iter().enumerate() {
         let actual = test_fn(&case.r#in);
         let values = actual.values();
         assert_eq!(values.len(), case.checks.len(), "{name}: a tolerance per output");
@@ -473,7 +473,27 @@ where
             if check.status == Status::Legacy {
                 rtol = rtol.max(rtol_min(name, &case.r#in, i));
             }
-            check.failure(actual, expected, rtol)
+            let failure = check.failure(actual, expected, rtol);
+            if name == "cyl_bessel_y" {
+                if let Some(error) = failure {
+                    let exact = |parts: &[f64]| {
+                        parts
+                            .iter()
+                            .map(|p| format!("{p:.17e} (0x{:016x})", p.to_bits()))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    };
+                    let budget = (4.0 * check.tol.max(f64::EPSILON)).max(rtol);
+                    eprintln!(
+                        "xsref diagnostic {name} row={row} output={i} input=[{}] actual=[{}] \
+                         expected=[{}] check={check:?} error={error:.17e} budget={budget:.17e}",
+                        exact(&case.r#in),
+                        exact(&actual.parts()),
+                        exact(&expected.parts()),
+                    );
+                }
+            }
+            failure
         })
         .reduce(f64::max);
 
