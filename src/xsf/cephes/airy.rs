@@ -11,6 +11,7 @@ use crate::utils::{FRAC_1_SQRT_PI, SQRT_3, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
+use crate::xsf::phase;
 use core::f64::consts::FRAC_PI_4;
 
 const C1: f64 = 0.35502805388781723926;
@@ -24,7 +25,7 @@ const AI_TAYLOR_MIN: f64 = 0.75;
 /// `Ai(AIRY_ASYMP_MIN)` and `Ai'(AIRY_ASYMP_MIN)`
 const AI_ASYMP_MIN: (f64, f64) = (0.03042031836319838, -0.04708838543657824);
 /// Below this, the phase error of `sin_cos_theta`, ~ `theta` 2^-106, is ~ sqrt(eps)
-const MINAIRY: f64 = -1e16;
+pub(in crate::xsf) const MINAIRY: f64 = -1e16;
 /// 2/3 in double-double, as 2/3 - fl(2/3) = 2^-53 / 3
 pub(crate) const TWO_THIRDS: DoubleDouble = DoubleDouble {
     hi: 2.0 / 3.0,
@@ -310,6 +311,46 @@ pub(crate) fn airye(x: f64) -> [f64; 4] {
     [ai, aip, bi, bip]
 }
 
+// Outlining this pair slows ordinary negative real inputs.
+#[allow(clippy::inline_always)]
+#[inline(always)]
+fn airy_negative_pair(
+    z: f64,
+    (f, g): (f64, f64),
+    (f_num, f_den): (&[f64; 9], &[f64; 9]),
+    (g_num, g_den): (&[f64; 11], &[f64; 10]),
+) -> (f64, f64) {
+    let zz = z * z;
+    let uf = 1.0 + zz * polevl(zz, f_num) / p1evl(zz, f_den);
+    let ug = z * polevl(zz, g_num) / p1evl(zz, g_den);
+    (f * uf - g * ug, g * uf + f * ug)
+}
+
+#[inline]
+fn airy_negative_asymptotic(t: f64, f: f64, g: f64, z: f64) -> [f64; 4] {
+    let t = t.sqrt();
+    let (ai, bi) = airy_negative_pair(z, (f, g), (&AFN, &AFD), (&AGN, &AGD));
+    let (bip, aip) = airy_negative_pair(z, (f, g), (&APFN, &APFD), (&APGN, &APGD));
+    let k = FRAC_1_SQRT_PI / t;
+    let kp = FRAC_1_SQRT_PI * t;
+    [k * ai, -kp * aip, k * bi, kp * bip]
+}
+
+#[cold]
+pub(in crate::xsf) fn airy_wide_negative(a: f64) -> Option<[f64; 4]> {
+    let (quadrant, angle) = phase::reduce_airy_phase(a)?;
+    let t = a.sqrt();
+    // Unlike in xsf, compute the reciprocal without forming an overflowing zeta.
+    let z = (1.5 / a) / t;
+    // The odd asymptotic corrections are small compared with both trigonometric factors.
+    if angle.abs() < 8.0 * z {
+        return None;
+    }
+    let (sin, cos) = angle.sin_cos();
+    let (g, f) = quadrant.rotate(sin.abs().copysign(angle), cos.abs());
+    Some(airy_negative_asymptotic(t, f, g, z))
+}
+
 /// Unlike in xsf, `scaled` leaves out the exponentials of `airy(x)`, for `airye`.
 fn airy_impl(x: f64, scaled: bool) -> (i32, f64, f64, f64, f64) {
     // Written on every path before returning, so these initial NaNs are never observed
@@ -332,19 +373,7 @@ fn airy_impl(x: f64, scaled: bool) -> (i32, f64, f64, f64, f64) {
         let t = (-x).sqrt();
         let zeta = -2.0 * x * t / 3.0;
         let (f, g) = sin_cos_theta(-x, t);
-        let t = t.sqrt();
-        let k = FRAC_1_SQRT_PI / t;
-        let z = 1.0 / zeta;
-        let zz = z * z;
-        let uf = 1.0 + zz * polevl(zz, &AFN) / p1evl(zz, &AFD);
-        let ug = z * polevl(zz, &AGN) / p1evl(zz, &AGD);
-        ai = k * (f * uf - g * ug);
-        bi = k * (g * uf + f * ug);
-        let uf = 1.0 + zz * polevl(zz, &APFN) / p1evl(zz, &APFD);
-        let ug = z * polevl(zz, &APGN) / p1evl(zz, &APGD);
-        let k = FRAC_1_SQRT_PI * t;
-        aip = -k * (g * uf + f * ug);
-        bip = k * (f * uf - g * ug);
+        let [ai, aip, bi, bip] = airy_negative_asymptotic(t, f, g, 1.0 / zeta);
         return (0, ai, aip, bi, bip);
     }
 

@@ -2,6 +2,10 @@ use core::f64::consts::FRAC_PI_2;
 
 use crate::utils::pow2;
 
+mod airy;
+
+pub(super) use airy::reduce_airy_phase;
+
 #[derive(Clone, Copy)]
 pub(super) enum Quadrant {
     Zero,
