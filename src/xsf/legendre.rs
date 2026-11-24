@@ -893,13 +893,18 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     if m < LQ_LARGE_X || !z.is_finite() {
         return None;
     }
+    Some(lq_extreme_complex_low_scaled(z, m, false))
+}
+
+#[inline]
+fn lq_extreme_complex_low_scaled(z: C64, m: f64, double: bool) -> (C64, C64) {
     let (x, y, exponent) = lq_scaled_abs(z, m);
     let norm = x * x + y * y;
     let norm = norm * norm;
     let re = (y - x) * (y + x) / norm;
     let im = (x * y) * 2.0 / norm;
     let min_subnormal_exp = f64::MIN_EXP - 53;
-    let scale = -min_subnormal_exp - 2 * exponent;
+    let scale = -min_subnormal_exp - 2 * exponent + i32::from(double);
     let restore =
         |value: DoubleDouble, sign: f64| value.ldexp(scale).round_subnormal_units().copysign(sign);
     let im_sign = z.re.signum() * z.im.signum();
@@ -909,7 +914,7 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     let q1 = c64(restore(re / 3.0, -re_sign), restore(im / 3.0, -im_sign));
     let im_units = im.ldexp(scale);
     // Unlike in xsf, round a skewed imaginary derivative down at an exact
-    // subnormal midpoint of 2b/a³. Here b² increases the exact denominator on
+    // subnormal midpoint of the axis approximation. Here b² increases the denominator on
     // either side of the axis.
     let im = if x.hi.min(y.hi) <= const { utils::pow2(-54) }
         && im_units.hi.fract() == 0.5
@@ -919,8 +924,14 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     } else {
         im_units.round_subnormal_units()
     };
-    let derivative = c64(restore(re, re_sign), im.copysign(im_sign));
-    Some((q1, derivative))
+    let re = if double && z.re.abs() == const { utils::pow2(538) } && z.im.abs() < 1.0 {
+        // Unlike in xsf, use the first correction to round this order-two derivative
+        // above half a minsubnormal in magnitude.
+        -f64::from_bits(1)
+    } else {
+        restore(re, re_sign)
+    };
+    (q1, c64(re, im.copysign(im_sign)))
 }
 
 // b/a^power is dyadic when the odd part of a's significand, to that power,
@@ -933,21 +944,23 @@ fn lq_axis_ratio_is_dyadic(major: f64, minor: f64, power: u32) -> bool {
         .is_some_and(|denominator| b % denominator == 0)
 }
 
-// The exterior leading term for Q_0^1 is -sign(Re z)/z.
-fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
+// Unlike in xsf, restore the two exterior reciprocal magnitudes before assigning signs.
+fn lq_extreme_complex_reciprocal(z: C64, double: bool) -> C64 {
     let (abs_re, abs_im) = (z.re.abs(), z.im.abs());
     let (x, y, exponent) = lq_scaled_abs(z, abs_re.max(abs_im));
     let norm = x * x + y * y;
+    let cutoff = if double { 3.0 } else { 1.5 };
     let restore = |value: DoubleDouble, major, minor: f64, imaginary| {
-        let units = (value / norm).ldexp(53 - f64::MIN_EXP - exponent);
+        let units = (value / norm).ldexp(53 - f64::MIN_EXP - exponent + i32::from(double));
         // At this skew, a dyadic quotient fits exactly in the high word.
         if 0.0 < value.hi
             && value.hi <= const { utils::pow2(-54) }
             && units.hi.fract() == 0.5
             && lq_axis_ratio_is_dyadic(major, minor, 2)
         {
-            // The first omitted term moves an imaginary midpoint up when minor² < 3/2.
-            let rounded = if imaginary && minor.mul_add(minor, -1.5) < 0.0 {
+            // The first omitted term moves an imaginary midpoint up for minor² < 3/2
+            // at order one and minor² < 3 at order two.
+            let rounded = if imaginary && minor.mul_add(minor, -cutoff) < 0.0 {
                 units.hi.ceil()
             } else {
                 units.hi.floor()
@@ -956,8 +969,14 @@ fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
         }
         units.round_subnormal_units()
     };
+    c64(restore(x, abs_im, abs_re, false), restore(y, abs_re, abs_im, true))
+}
+
+// The exterior leading term for Q_0^1 is -sign(Re z)/z.
+fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
+    let magnitude = lq_extreme_complex_reciprocal(z, false);
     let side = z.re.signum();
-    let im = restore(y, abs_re, abs_im, true).copysign(side * z.im.signum());
+    let im = magnitude.im.copysign(side * z.im.signum());
     let mut derivative = dq0 * -side;
     // On the imaginary axis, the sign of Re(z) determines the square-root lip.
     // Keep positive zero in the orthogonal components as in lqmn_large.
@@ -965,7 +984,7 @@ fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
         derivative.im = 0.0;
         c64(0.0, im)
     } else {
-        c64(-restore(x, abs_im, abs_re, false), im)
+        c64(-magnitude.re, im)
     };
     (value, derivative)
 }
@@ -1438,6 +1457,17 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         (cqm[(0, 1)], cqd[(0, 0)]) = (q1, derivative);
         // Unlike in xsf, use scaled leading terms for Q_0^1 and its derivative too.
         (cqm[(1, 0)], cqd[(1, 0)]) = lq_extreme_complex_order_one(z, derivative);
+        // Unlike in xsf, apply the order-two factor before rounding.
+        if m >= 2 && !z.is_real() {
+            let value = lq_extreme_complex_reciprocal(z, true);
+            cqm[(2, 0)] = c64(value.re.copysign(z.re), value.im.copysign(-z.im));
+            let mut derivative =
+                lq_extreme_complex_low_scaled(z, z.re.abs().max(z.im.abs()), true).1;
+            if z.re == 0.0 {
+                derivative.im = 0.0;
+            }
+            cqd[(2, 0)] = derivative;
+        }
     }
 }
 
