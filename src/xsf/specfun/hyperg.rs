@@ -1145,6 +1145,8 @@ fn chgm_positive_term(t: f64, a: f64, b: f64, x: f64, n: f64) -> f64 {
 
 #[cold]
 fn chgm_positive_tail(a: f64, b: f64, x: f64, start: i32, head: f64, seed: f64) -> Option<f64> {
+    // With degree at most 10^6, both products in the retry stay in range at this scale.
+    const RATIO_SCALE: f64 = pow2(-20);
     // (a+k)/(b+k) decreases until termination; include rounding in the bound.
     let radius = x * (a / b) * (1.0 + 4.0 * f64::EPSILON);
     let tail_term = |t, n| chgm_positive_term(t, a, b, x, n + f64::from(start));
@@ -1153,13 +1155,40 @@ fn chgm_positive_tail(a: f64, b: f64, x: f64, start: i32, head: f64, seed: f64) 
     let (tail, err) = hyp1f1_sum(a, b, radius, tail_term, half_seed, 0.0, Some(degree))?;
     // The tail includes its starting term, already present in the head.
     let half = head * 0.5 + (tail - half_seed);
+    // Every term is positive. Even the half-scaled sum can overflow.
+    if half.is_infinite() {
+        return Some(f64::INFINITY);
+    }
     // Cover the term products and additions of the at most 500-term prefix.
     let err = err + (4096.0 * f64::EPSILON) * half;
     if err <= SQRT_EPSILON * half {
-        if half < (0.5 * f64::MAX) * (1.0 - SQRT_EPSILON) {
+        // Unlike in xsf, compare the half-scaled sum and its error with the
+        // midpoint between MAX and the next power of two.
+        let midpoint = DoubleDouble::new(pow2(1023)) - pow2(969);
+        let distance = (DoubleDouble::new(half) - midpoint).hi;
+        if distance < -err {
             return Some(2.0 * half);
         }
-        if half > (0.5 * f64::MAX) * (1.0 + 2.0 * SQRT_EPSILON) {
+        if distance > err {
+            return Some(f64::INFINITY);
+        }
+        // Unlike in xsf, restart in double-double when prefix roundoff
+        // prevents classifying the result at the overflow boundary.
+        let scaled_x = DoubleDouble::new(x * RATIO_SCALE);
+        let scaled_b = DoubleDouble::new(b * RATIO_SCALE);
+        let next_term = |t, n| {
+            let ratio = (scaled_x * (a + n)) / ((scaled_b + n * RATIO_SCALE) * (n + 1.0));
+            t * ratio
+        };
+        let (sum, err) =
+            hyp1f1_sum(a, b, radius, next_term, DoubleDouble::new(0.5), 0.0, Some(-a as i32))?;
+        let distance = (sum - midpoint).hi;
+        // Allow for the additional products in the double-double term ratio.
+        let err = 8.0 * err;
+        if distance < -err {
+            return Some(2.0 * sum.hi);
+        }
+        if distance > err {
             return Some(f64::INFINITY);
         }
     }
