@@ -108,6 +108,18 @@ fn test_complex_erf_overflow_phase() {
     }
 }
 
+#[test]
+fn test_complex_erf_phase_product_overflow() {
+    for (z, expected) in [
+        (c64(-2.5, -8.988_465_674_311_05e307), c64(f64::INFINITY, f64::NEG_INFINITY)),
+        (c64(10.0, -8.988_465_674_311_05e307), c64(f64::NEG_INFINITY, f64::NEG_INFINITY)),
+    ] {
+        assert_eq!(xsf::erf(z), expected);
+        assert_eq!(xsf::erf(z.conj()), expected.conj());
+        assert_eq!(xsf::erfi(c64(z.im, -z.re)), c64(expected.im, -expected.re));
+    }
+}
+
 // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
 
 #[test]
