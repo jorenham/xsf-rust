@@ -48,6 +48,28 @@ fn test_bessel_y_c64_positive_axis_overflow_recovery() {
 }
 
 #[test]
+fn test_bessel_y_c64_axis_continuation() {
+    let large = 1.182_804_904_943_348_4e308;
+    let small = 2.691_144_455_467_36e-310;
+    for v in [10.0, -10.0] {
+        for zero in [0.0, -0.0] {
+            for (z, re, im) in [
+                (c64(-1e-30, zero), -large, 2.0 * small),
+                (c64(zero, 1e-30), large, -small),
+                (c64(zero, -1e-30), large, small),
+            ] {
+                let y = xsf::bessel_y(v, z);
+                assert!((y.re / re - 1.0).abs() < 2e-14);
+                assert!((y.im / im - 1.0).abs() < 2e-14);
+            }
+        }
+    }
+    let y = xsf::bessel_y(-9.0, c64(0.0, -3.4e-34));
+    assert!((y.re / 3.267_963_968_722_4e-310 - 1.0).abs() < 2e-14);
+    assert!((y.im / 1.082_256_887_469_868_4e308 - 1.0).abs() < 2e-14);
+}
+
+#[test]
 fn test_bessel_y_negative_half_integer_tiny_x() {
     // mpmath: bessely(-2.5, 1e-200) = 5.3e-502 and bessely(-50.5, 1e-10) = 2.9e-586
     for (v, x) in [(-2.5, 1e-200), (-50.5, 1e-10)] {
