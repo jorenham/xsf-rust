@@ -252,3 +252,9 @@ fn test_oblate_radial2_odd_n_minus_m() {
         assert!(err <= 1e-11 && err_d <= 1e-11, "{m} {n}: {err} {err_d}");
     }
 }
+
+#[test]
+fn test_prolate_radial1_tiny_c_derivative() {
+    let (_, derivative) = xsf::prolate_radial1_nocv(16, 21, 1e-300, 1.302_378_006_364_801_5e303);
+    xsref::np_assert_allclose!([derivative], [7.169_240_660_491_026e-304], rtol = 1e-12);
+}
