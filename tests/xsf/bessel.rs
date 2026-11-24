@@ -102,6 +102,34 @@ fn test_bessel_i_near_negative_integer() {
 }
 
 #[test]
+fn test_bessel_i_complex_reflection_near_integer() {
+    // Arb at the exact binary64 orders and arguments.
+    for (v, i, ie) in [
+        (
+            -151.000_000_000_000_03,
+            c64(1.727_830_506_845_413e294, 1.334_520_436_229_721_4e294),
+            c64(6.356_333_212_972_604e293, 4.909_426_323_120_593e293),
+        ),
+        (
+            -151.000_000_000_1,
+            c64(6.078_507_726_593_574e297, 4.694_842_897_271_577e297),
+            c64(2.236_158_025_615_538_3e297, 1.727_136_181_435_983e297),
+        ),
+    ] {
+        for sign in [-1.0, 1.0] {
+            let z = c64(1.0, sign * 0.1);
+            let a = xsf::bessel_i(v, z);
+            let b = xsf::bessel_ie(v, z);
+            np_assert_allclose!(
+                [a.re, a.im, b.re, b.im],
+                [i.re, sign * i.im, ie.re, sign * ie.im],
+                rtol = 1e-12
+            );
+        }
+    }
+}
+
+#[test]
 fn test_bessel_miller_normalization() {
     // 2 < |z| < 21.8, where AMOS uses the Miller algorithm; Arb references
     let actual = [xsf::bessel_j(-0.3, c64(14.0, 3.0)), xsf::bessel_i(0.3, c64(18.2, 0.5))];

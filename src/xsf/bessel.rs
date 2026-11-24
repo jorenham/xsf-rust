@@ -241,6 +241,12 @@ fn cyl_bessel_ie_c64(mut v: f64, z: C64) -> C64 {
 
     if sign == -1 && !reflect_i(&mut cy, v) {
         let (mut cy_k, ierr) = amos1(amos::besk, z, v, kode);
+        // Unlike in xsf, scale the reflection term before the K recurrence if K overflowed.
+        if ierr == 2 {
+            if let Some(value) = i_reflection_from_lower_orders(cy, v, z, kode) {
+                return value;
+            }
+        }
         /* adjust scaling to match zbesi */
         cy_k *= C64::cis(z.im).conj();
         if z.re > 0.0 {
@@ -335,9 +341,44 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
     res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
-/// The smallest part of `e^-|Re z| I_v(z)`, relative to `|I_v(z)|`, kept for `Re z < 0`, where AMOS
-/// rotates it from `-z` (DLMF 10.34.1) with an error relative to `|I_v(z)|`.
+/// The smallest component to recover when a rotation of `I_v` or its reflection term
+/// has an error relative to the magnitude of the complex result.
 const I_ROTATED_PART_MIN: f64 = 1.0 / 16.0;
+
+#[cold]
+fn i_reflection_from_lower_orders(i: C64, v: f64, z: C64, kode: i32) -> Option<C64> {
+    // Keep the first small-argument correction |z|²/(4(v−1)) at most 1/2.
+    if !(i.is_finite() && v >= 2.0 && z.re > 0.0 && !z.is_real() && z.norm_sqr() <= v) {
+        return None;
+    }
+    let mut weight = FRAC_2_PI * cephes_sinpi(v);
+    if kode == 2 {
+        // The seeds are unscaled K, so Ie only needs exp(-|Re z|).
+        weight *= (-z.re).exp();
+    }
+    if !weight.is_normal() {
+        return None;
+    }
+
+    let mut ierr = 0;
+    let mut seeds = [C64::NAN; 2];
+    let nz = amos::besk(z, v - 2.0, 1, 2, &mut seeds, &mut ierr);
+    let [k0, k1] = seeds;
+    if ierr != 0 || nz != 0 || !k0.is_finite() || !k1.is_finite() {
+        return None;
+    }
+    let k0 = k0 * weight;
+    let k1 = (k1 * weight / z) * (2.0 * (v - 1.0));
+    let value = i + k0 + k1;
+    let (re, im) = (value.re.abs(), value.im.abs());
+    let min_part = re.min(im);
+    let scale = i.norm() + k0.norm() + k1.norm();
+    (value.is_finite()
+        && re.max(im) <= 0.5 * f64::MAX
+        && min_part >= 2.0 * f64::MIN_POSITIVE
+        && min_part >= I_ROTATED_PART_MIN * scale)
+        .then_some(value)
+}
 
 /// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
 ///
@@ -401,7 +442,13 @@ fn cyl_bessel_i_amos(mut v: f64, z: C64, by_part: bool) -> C64 {
     }
 
     if sign == -1.0 && !reflect_i(&mut cy, v) {
-        let (cy_k, _) = amos1(amos::besk, z, v, kode);
+        let (cy_k, ierr_k) = amos1(amos::besk, z, v, kode);
+        // Unlike in xsf, scale the reflection term before the K recurrence if K overflowed.
+        if ierr_k == 2 {
+            if let Some(value) = i_reflection_from_lower_orders(cy, v, z, kode) {
+                return value;
+            }
+        }
         cy = rotate_i(cy, cy_k, v);
     }
 
