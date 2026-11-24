@@ -23,7 +23,7 @@ fn test_riemann_zeta_c64_extreme() {
 
 #[test]
 fn test_riemann_zeta_c64_moderate_imag() {
-    // too few Borwein terms for 20 < |Im z| <= 50 (reference values from Arb)
+    // An eta denominator zero and heights where the Borwein sum is too short (Arb references).
     for (z, expected) in [
         (c64(1.0, 27.194_160_850_963_16), c64(1.901_727_442_929_379_8, 0.482_487_690_810_793_9)),
         (c64(0.5, -40.0), c64(0.793_044_952_561_928_6, 1.041_274_614_651_065)),
@@ -37,6 +37,17 @@ fn test_riemann_zeta_c64_moderate_imag() {
     let expected = c64(-0.006_058_168_095_158_761, -0.005_369_758_200_077_69);
     let rel = (xsf::riemann_zeta(c64(0.5, 48.0)) - expected).norm() / expected.norm();
     assert!(rel < 1e-11, "rel = {rel:e}");
+}
+
+#[test]
+fn test_riemann_zeta_c64_borwein_height() {
+    let s = c64(0.427_718_477_200_037_64, 21.783_747_851_715_468);
+    // Reference from Arb at the exact binary64 input.
+    let expected = c64(0.476_703_263_844_432_9, 0.689_814_874_460_312_3);
+    for (z, f) in [(s, expected), (s.conj(), expected.conj())] {
+        let rel = (xsf::riemann_zeta(z) - f).norm() / f.norm();
+        assert!(rel < 5e-15, "{z}: relative error {rel:e}");
+    }
 }
 
 #[test]
