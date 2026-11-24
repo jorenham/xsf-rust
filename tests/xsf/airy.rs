@@ -164,6 +164,59 @@ fn test_airy_c64_near_overflow() {
 }
 
 #[test]
+fn test_airy_c64_small_imaginary_axis() {
+    for (y, expected) in [
+        (
+            1e-30,
+            [
+                -2.588_194_037_928_068e-31,
+                8.627_313_459_760_229e-92,
+                4.482_883_573_538_264e-31,
+                -1.494_294_524_512_755e-91,
+            ],
+        ),
+        (
+            6.055_454_452_393_339e-6,
+            [
+                -1.567_269_111_076_08e-6,
+                1.915_648_408_746_499_6e-17,
+                2.714_589_729_471_567e-6,
+                -3.318_000_373_354_031e-17,
+            ],
+        ),
+        (
+            6.055_454_452_393_35e-6,
+            [
+                -1.567_269_111_076_082_7e-6,
+                1.915_648_408_746_51e-17,
+                2.714_589_729_471_571_8e-6,
+                -3.318_000_373_354_049e-17,
+            ],
+        ),
+    ] {
+        let values = xsf::airy(c64(0.0, y));
+        for (actual, expected) in values.into_iter().zip(expected) {
+            assert!((actual.im / expected - 1.0).abs() < 2e-15);
+        }
+        assert_eq!(xsf::airy(c64(0.0, -y)), values.map(|w| w.conj()));
+    }
+    let y = 1e-323;
+    for s in [1.0, -1.0] {
+        let expected = [-5e-324 * s, 0.0 * s, 5e-324 * s, -0.0 * s];
+        let values = xsf::airy(c64(0.0, s * y));
+        assert_eq!(values.map(|w| w.im.to_bits()), expected.map(f64::to_bits));
+    }
+    for (y, expected) in
+        [(3.059_330_251_601_702_6e-108, 0.0_f64), (3.059_330_251_601_703e-108, 5e-324)]
+    {
+        for s in [1.0, -1.0] {
+            let aip = xsf::airy(c64(0.0, s * y))[1];
+            assert_eq!(aip.im.to_bits(), (s * expected).to_bits());
+        }
+    }
+}
+
+#[test]
 fn test_airy_c64_large_re() {
     // Arb: acb(z).airy()
     let cases = [

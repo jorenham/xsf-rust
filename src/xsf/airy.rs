@@ -82,6 +82,25 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     let bi = amos_airy_or_biry(true, z, 0, kode);
     let bip = amos_airy_or_biry(true, z, 1, kode);
     let Some((zta, d)) = zeta else {
+        // Unlike in xsf, retain the imaginary Taylor terms on the imaginary axis
+        // when AMOS skips its series.
+        let y = z.im;
+        let y_sq = y * y;
+        if kode == 1 && z.re == 0.0 && y != 0.0 && y_sq < f64::EPSILON / y.abs() {
+            let fill = |mut w: C64, mut wp: C64| {
+                if w.im == 0.0 || y_sq > 8.0 * f64::EPSILON {
+                    w.im = (wp.re + w.re * (y_sq / 3.0)) * y;
+                }
+                if wp.im == 0.0 {
+                    let coeff = -(wp.re + (2.0 / 5.0) * w.re * y_sq);
+                    wp.im = (coeff * y * y_sq) / 3.0;
+                }
+                (w, wp)
+            };
+            let (ai, aip) = fill(ai, aip);
+            let (bi, bip) = fill(bi, bip);
+            return [ai, aip, bi, bip];
+        }
         return [ai, aip, bi, bip];
     };
     // Unlike in xsf, the rounding error d of zeta = zta + d is undone. AMOS evaluates
