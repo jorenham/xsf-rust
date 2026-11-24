@@ -7,6 +7,39 @@ use xsf::{
 use xsref::np_assert_allclose;
 
 #[test]
+fn test_jacobi_symmetric_degree_one() {
+    let a = f64::MAX;
+    let x = 2f64.powi(-20);
+    assert_eq!(eval_jacobi(1, a, a, x), 1.714_413_771_498_027_5e302);
+    assert_eq!(eval_jacobi(1.0, a, a, x), 1.714_413_771_498_027_5e302);
+
+    let a = f64::MAX / 2.0;
+    let z = c64(2f64.powi(-100), -2f64.powi(-21));
+    assert_eq!(
+        eval_jacobi(1.0, a, a, z),
+        c64(7.090_649_168_385_424e277, -4.286_034_428_745_069e301)
+    );
+
+    // The coefficient 1 + a would round to 1 if formed separately.
+    let a = f64::EPSILON / 2.0;
+    let expected = 1.5 + f64::EPSILON;
+    assert_eq!(eval_jacobi(1, a, a, 1.5), expected);
+    assert_eq!(eval_jacobi(1.0, a, a, c64(1.5, -1.5)), c64(expected, -expected));
+
+    let a = -1.0 + f64::EPSILON / 2.0;
+    let w = eval_jacobi(1.0, a, a, c64(-0.0, 0.0));
+    assert_eq!(w.re.to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(w.im.to_bits(), 0.0_f64.to_bits());
+    let w = eval_jacobi(1.0, a, a, c64(0.0, -0.0));
+    assert_eq!(w.re.to_bits(), 0.0_f64.to_bits());
+    assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(
+        eval_jacobi(1.0, f64::MAX, f64::MAX, c64(1.0, -2.0)),
+        c64(f64::MAX, f64::NEG_INFINITY)
+    );
+}
+
+#[test]
 fn test_jacobi_degree_two_large_parameters() {
     let a = 2f64.powi(400);
     let b = f64::from_bits(a.to_bits() + 1);

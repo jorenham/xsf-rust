@@ -44,6 +44,9 @@ mod sealed {
         /// The real part
         fn re(&self) -> f64;
 
+        /// Multiply by the positive coefficient `1 + a` without rounding the coefficient.
+        fn scale_by_one_plus(self, a: f64) -> Self;
+
         /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded), and `sym` says if
         /// `lam + 1 = 2c` (the Gegenbauer case), with an exact `lam` for real x
         #[inline]
@@ -91,6 +94,11 @@ mod sealed {
         #[inline]
         fn re(&self) -> f64 {
             *self
+        }
+
+        #[inline]
+        fn scale_by_one_plus(self, a: f64) -> Self {
+            a.mul_add(self, self).copysign(self)
         }
 
         #[inline]
@@ -148,6 +156,11 @@ mod sealed {
         #[inline]
         fn re(&self) -> f64 {
             self.re
+        }
+
+        #[inline]
+        fn scale_by_one_plus(self, a: f64) -> Self {
+            Self::new(self.re.scale_by_one_plus(a), self.im.scale_by_one_plus(a))
         }
 
         #[inline]
@@ -332,6 +345,11 @@ fn eval_jacobi_l_reflected<Z: sealed::OrthoPolyArg>(
     beta: f64,
     x: Z,
 ) -> Option<Z> {
+    // Unlike in xsf, evaluate the symmetric degree-one polynomial as (1 + alpha) * x
+    // without forming 2 * (1 + alpha) or subtracting a constant term.
+    if n == 1 && alpha == beta && alpha > -1.0 && alpha.is_finite() && x.is_finite() {
+        return Some(x.scale_by_one_plus(alpha));
+    }
     // Unlike in xsf, evaluate the real-axis quadratic before its cubic recurrence overflows.
     if n == 2 && (alpha >= JACOBI_QUADRATIC_MIN_PARAM || beta >= JACOBI_QUADRATIC_MIN_PARAM) {
         if let Some(v) = jacobi_large_quadratic(alpha, beta, x.clone().into()) {
