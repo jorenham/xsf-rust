@@ -102,16 +102,13 @@ pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
         return result;
     }
 
-    let (x, y) = if reflected {
-        (-z.re, -z.im)
-    } else {
-        (z.re, z.im)
-    };
+    // Reflection and conjugation leave the imaginary part unchanged.
+    let (x, y) = (z.re.abs(), z.im);
     let ay = y.abs();
     // The Laplace integral bounds the reflected tail's magnitude by
     // exp(-k(x²-y²)/2)/(sqrt(pi)*x*sqrt(k/2)). The monotone lower bound
     // x(x-|y|) on x²-y² leaves room for rounding below half the smallest subnormal.
-    if !z.is_finite() || x <= ay || k * ((x - ay) * x) < 1500.0 {
+    if !z.is_finite() || k * ((x - ay) * x) < 1500.0 {
         return result;
     }
 
@@ -134,10 +131,11 @@ pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
         }
         leading
     };
+    let im = 0.0_f64.copysign(signs.im);
     if reflected {
-        c64(k, 0.0_f64.copysign(-signs.im))
+        c64(k, im)
     } else {
-        c64(0.0_f64.copysign(signs.re), 0.0_f64.copysign(signs.im))
+        c64(0.0_f64.copysign(signs.re), im)
     }
 }
 
