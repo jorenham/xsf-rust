@@ -129,7 +129,8 @@ pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
             (c64(re, im), 0.0)
         } else {
             let lo = (-x).mul_add(y, -hi);
-            let Some(rotation) = bounded_phase_rotation(phase, k * lo) else {
+            let (quadrant, r) = recentered_phase(phase, k * lo);
+            let Some(rotation) = phase_rotation(quadrant, r) else {
                 return result;
             };
             rotation
@@ -221,14 +222,7 @@ fn erfc_overflow(z: C64) -> Option<C64> {
         phase::reduce_product_phase(-x, y)
     } else {
         // Keep the rounded quadrant within the exact-integer range of f64.
-        let (quadrant, r) = split_phase(phase, 2.0 * lo);
-        // The rounded product can select a neighboring quadrant.
-        let step = if r.abs() > 1.0 {
-            1.0_f64.copysign(r)
-        } else {
-            0.0
-        };
-        (Quadrant::from_index((quadrant + step) as i64 as u64), r - step * FRAC_PI_2_DD.hi)
+        recentered_phase(phase, 2.0 * lo)
     };
     if r.abs() > 1.0 {
         return None;
@@ -265,13 +259,17 @@ pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> 
         return None;
     }
     let (quadrant, r) = split_phase(phase, lo);
+    phase_rotation(Quadrant::from_index(quadrant as i64 as u64), r)
+}
+
+fn phase_rotation(quadrant: Quadrant, r: f64) -> Option<(C64, f64)> {
     if r.abs() > 1.0 {
         return None;
     }
     let r2 = r * r;
     let sin = r * (1.0 - r2 / 6.0);
     let cos = 1.0 - 0.5 * r2;
-    let (re, im) = Quadrant::from_index(quadrant as i64 as u64).rotate(sin, cos);
+    let (re, im) = quadrant.rotate(sin, cos);
     Some((c64(re, im), r2 * r2 / 20.0))
 }
 
@@ -279,6 +277,17 @@ fn split_phase(phase: f64, lo: f64) -> (f64, f64) {
     let quadrant = (phase * FRAC_2_PI).round();
     let r = (-quadrant).mul_add(FRAC_PI_2_DD.hi, phase) + (-quadrant).mul_add(FRAC_PI_2_DD.lo, lo);
     (quadrant, r)
+}
+
+fn recentered_phase(phase: f64, lo: f64) -> (Quadrant, f64) {
+    let (quadrant, r) = split_phase(phase, lo);
+    // Unlike in xsf, recenter if the rounded product picked a neighboring quadrant.
+    if r.abs() > 1.0 {
+        let step = 1.0_f64.copysign(r);
+        (Quadrant::from_index((quadrant + step) as i64 as u64), r - step * FRAC_PI_2_DD.hi)
+    } else {
+        (Quadrant::from_index(quadrant as i64 as u64), r)
+    }
 }
 
 /// Error function $\erf(z)$ for real or complex input

@@ -125,6 +125,19 @@ fn test_complex_gaussian_underflow_wide_phase() {
 }
 
 #[test]
+fn test_complex_erfc_underflow_recentered_phase() {
+    // Signs from the leading terms at the exact binary64 coordinates.
+    for (z, expected) in [
+        (c64(-11_347_509_302.992_588, 172_748.156_114_021_35), c64(2.0, -0.0)),
+        (c64(174_188_969_231_383.62, -6.154_904_348_482_96), c64(-0.0, -0.0)),
+    ] {
+        let bits = |w: num_complex::Complex64| (w.re.to_bits(), w.im.to_bits());
+        assert_eq!(bits(xsf::erfc(z)), bits(expected));
+        assert_eq!(bits(xsf::erfc(z.conj())), bits(expected.conj()));
+    }
+}
+
+#[test]
 fn test_complex_erfc_overflow_signs() {
     for (z, expected) in [
         (
