@@ -55,9 +55,7 @@ fn decompose(x: f64) -> (u128, i32) {
 // Payne–Hanek reduction of pi/4 + 2*x^2 when the doubled square overflows.
 #[cold]
 pub(super) fn sin_diagonal_phase(x: f64) -> f64 {
-    debug_assert!(x.is_normal() && (2.0 * x * x).is_infinite());
-    let (mantissa, exponent) = decompose(x);
-    let (quadrant, angle) = reduce_diagonal_phase(mantissa * mantissa, 2 * exponent + 1);
+    let (quadrant, angle) = reduce_diagonal_phase(x);
     match quadrant {
         0 => angle.sin(),
         1 => angle.cos(),
@@ -83,8 +81,10 @@ fn quadrant_window(mantissa: u128, exponent: i32) -> [u64; 4] {
     [join(top, next) & 3, join(lo, mid), join(mid, hi), join(hi, top)]
 }
 
-fn reduce_diagonal_phase(mantissa: u128, exponent: i32) -> (u64, f64) {
-    let [quadrant, lo, mid, hi] = quadrant_window(mantissa, exponent);
+pub(in crate::xsf) fn reduce_diagonal_phase(x: f64) -> (u64, f64) {
+    debug_assert!(x.is_normal() && (2.0 * x * x).is_infinite());
+    let (mantissa, exponent) = decompose(x);
+    let [quadrant, lo, mid, hi] = quadrant_window(mantissa * mantissa, 2 * exponent + 1);
     // Adding pi/4 gives remainder f - 1/2 and advances the quadrant by one.
     // The exact distance from an axis is > 2^-117 quadrants (continued-fraction bound).
     let sign = if hi >> 63 == 0 { u64::MAX } else { 0 };
