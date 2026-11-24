@@ -19,7 +19,9 @@ mod sphd;
 pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_fallback, hyp1f1_small_b};
+pub(crate) use hyperg::{
+    cchg, chgm, chgm_neg_x_asymptotic, chgu, hyp1f1_neg_b_fallback, hyp1f1_small_b,
+};
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};

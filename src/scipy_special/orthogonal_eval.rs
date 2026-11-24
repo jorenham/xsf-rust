@@ -10,7 +10,7 @@ use num_traits::Zero;
 
 use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
-use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2, ldexp_f64, two_prod, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2, frexp_f64, ldexp_f64, two_prod, two_sum};
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
@@ -1266,6 +1266,39 @@ fn hermite_negative_integer(x: f64, degree: u32, scale: f64) -> f64 {
     ldexp_f64(current * residual.exp(), power as i32 + shift)
 }
 
+// Unlike in xsf, evaluate the negative fractional degree using its odd Kummer term.
+#[cold]
+fn hermite_negative_fractional(x: f64, p: f64, scale: f64) -> Option<f64> {
+    // The Kummer estimate allows 128 eps of relative error. Reserve additional
+    // room for rounding the parameters, gamma prefactor and final arithmetic.
+    const OVERFLOW_MARGIN: f64 = 256.0 * f64::EPSILON;
+
+    let exponent = DoubleDouble::new(scale * x) * x;
+    if exponent.hi >= 1500.0 {
+        // The beta integral on [0, 1/z] bounds the correction below by
+        // p exp(z)/(e pi sqrt(z)), which overflows even for p = 2^-1074.
+        return Some(f64::INFINITY);
+    }
+    let z = exponent.hi;
+    let power = (z / LN_2).round() as i32;
+    let residual = f64::from(exponent - LOG2 * f64::from(power));
+    let factor = crate::xsf::chgm_neg_x_asymptotic(-z, 1.0 - 0.5 * p, 1.5)?;
+    let (mantissa, exponent_p) = frexp_f64(p);
+    let w = 2.0 * scale.sqrt() * x;
+    let coefficient = SQRT_PI * (-scale * p).exp2() * w * crate::rgamma(1.0 + 0.5 * p) * factor;
+    let mantissa = mantissa * coefficient * residual.exp();
+    let exp2 = exponent_p + power;
+    let [lo, hi] =
+        [1.0 - OVERFLOW_MARGIN, 1.0 + OVERFLOW_MARGIN].map(|f| ldexp_f64(mantissa * f, exp2));
+    if lo.is_finite() != hi.is_finite() {
+        return None;
+    }
+    let odd = ldexp_f64(mantissa, exp2);
+    // The same lower bound forces p < 2^-670 if odd < 2^54, so the positive
+    // side rounds to 1. For larger odd, adding any value in [0, 1] rounds away.
+    Some(1.0 + odd)
+}
+
 #[inline]
 fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
     if x.is_nan() || n.is_nan() {
@@ -1331,7 +1364,12 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         }
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
-        SQRT_PI * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
+        let h = SQRT_PI * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1);
+        // Unlike in xsf, retry when the Kummer terms overflow before their coefficients.
+        if n < 0.0 && !h.is_finite() && z >= 512.0 {
+            return hermite_negative_fractional(-x, -n, scale).unwrap_or(h);
+        }
+        h
     } else {
         // For non-integer n > 0 and x > 0 (which xsf and SciPy don't support), use `hermite_rec`,
         // since `hypu` below has relative errors of up to 1e-6 there.
