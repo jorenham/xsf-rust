@@ -2113,26 +2113,20 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64) -> Option<f64> {
     }
     let degree = -a as i32;
     let scale = x.powi(degree);
-    if !scale.is_normal() {
-        return None;
-    }
-    let (mut term, mut sum, mut absolute_sum) = (1.0, 1.0, 1.0);
-    for k in 1..=degree {
-        let k = f64::from(k);
-        let numerator = -(a + (k - 1.0)) * ((a + k) - b);
-        let denominator = k * x;
-        let ratio = numerator / denominator;
-        term *= ratio;
-        if !(numerator.is_normal()
-            && denominator.is_normal()
-            && ratio.is_normal()
-            && term.is_normal())
-        {
-            return None;
-        }
-        sum += term;
-        absolute_sum += term.abs();
-    }
+    let scale = scale.is_normal().then_some(scale)?;
+    let (_, sum, absolute_sum) =
+        (1..=degree).try_fold((1.0, 1.0, 1.0), |(term, sum, absolute_sum), k| {
+            let k = f64::from(k);
+            let numerator = -(a + (k - 1.0)) * ((a + k) - b);
+            let denominator = k * x;
+            let ratio = numerator / denominator;
+            let term = term * ratio;
+            (numerator.is_normal()
+                && denominator.is_normal()
+                && ratio.is_normal()
+                && term.is_normal())
+            .then(|| (term, sum + term, absolute_sum + term.abs()))
+        })?;
     let value = sum * scale;
     // Keep the retry away from the normal-range endpoints.
     (error_factor * (absolute_sum / sum.abs()) <= ROUNDING_LIMIT
