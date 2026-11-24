@@ -200,13 +200,13 @@ fn lpmv_origin_subnormal(x: f64, m: i32, n: i32) -> Option<f64> {
     let phase = neg_one_pow(m + (n - m - 1) / 2) * x.signum();
     let m = u128::try_from(m).ok()?;
     let n = u128::try_from(n).ok()?;
-    // The magnitude of the slope at zero is (n + m)!! / (n - m - 1)!!.
+    // DLMF 14.5.2 gives the slope at zero, with magnitude (n + m)!! / (n - m - 1)!!.
     let numerator = (1..=n + m)
         .step_by(2)
         .try_fold(u128::from(x.abs().to_bits()), u128::checked_mul)?;
     let denominator = (2..n - m).step_by(2).try_fold(1, u128::checked_mul)?;
-    // The nonlinear correction is too small to cross a non-tie and decreases the
-    // magnitude at an exact midpoint.
+    // The odd Ferrers expansion (DLMF 14.3.11 and 14.3.14) gives a nonlinear correction
+    // that decreases the magnitude if nonzero. Here it can only change rounding at a tie.
     let units = numerator / denominator + u128::from(numerator % denominator > denominator / 2);
     let units = u64::try_from(units).ok()?;
     (units <= f64::MIN_POSITIVE.to_bits()).then(|| f64::from_bits(units).copysign(phase))
