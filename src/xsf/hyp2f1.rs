@@ -685,7 +685,17 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
             core::mem::swap(&mut a, &mut b);
         }
         let series_generator = hypergeometric_series_generator(a, c - b, c, z / (z - 1.0));
-        return (1.0 - z).powf(-a) * series_eval(series_generator);
+        let positive_parameters = a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite();
+        if z.is_real() || !positive_parameters {
+            return (1.0 - z).powf(-a) * series_eval(series_generator);
+        }
+        // Unlike in xsf, evaluate the Pfaff prefactor without rounding |1-z| first.
+        let log_modulus = 0.5 * z.re.mul_add(z.re - 2.0, z.im * z.im).ln_1p();
+        let (sin, cos) = (a * z.im.atan2(1.0 - z.re)).sin_cos();
+        let power = c64(cos, sin) * (-a * log_modulus).exp();
+        // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon.
+        return power
+            * tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER);
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {

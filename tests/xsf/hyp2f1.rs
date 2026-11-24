@@ -34,6 +34,21 @@ fn test_hyp2f1_c64_unit_exponent_reciprocal() {
 }
 
 #[test]
+fn test_hyp2f1_c64_pfaff_accuracy() {
+    // Arb at the exact binary64 inputs.
+    for sign in [-1.0, 1.0] {
+        let actual = xsf::hyp2f1(
+            8.095_813_935_368_371,
+            4.001_376_844_959_068_5,
+            4.078_873_014_294_075,
+            c64(-0.947_368_421_052_631_6, sign * 0.526_315_789_473_684_1),
+        );
+        let expected = c64(-0.001_809_357_394_137_878_3, sign * 0.003_481_887_377_423_739);
+        assert!((actual - expected).norm() <= 4.0 * f64::EPSILON * expected.norm());
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_lopez_temme_symmetric_beta_weight() {
     for (a, b, c, z, expected) in [
         (
