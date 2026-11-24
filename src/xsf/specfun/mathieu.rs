@@ -817,14 +817,15 @@ fn first_kind_near_origin(
     {
         return None;
     }
-    // An O(q²) pivot can spoil the Fourier normalization.
+    // The small-q coefficients are anchored at the dominant harmonic.
+    // Otherwise an O(q²) pivot can spoil the Fourier normalization.
     let pivot = match (kd, m) {
         (1, 2) => a - 4.0 - 2.0 * q * q / a,
         (2 | 3, 1) => a - 1.0 - neg_one_pow(kd) * q,
         (4, 2) => a - 4.0,
         _ => a,
     };
-    if pivot.abs() < a / 64.0 {
+    if q > LOW_MODE_SMALL_Q && pivot.abs() < a / 64.0 {
         return None;
     }
 
