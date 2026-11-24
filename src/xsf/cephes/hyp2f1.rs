@@ -958,6 +958,39 @@ fn hyp2f1_gauss_dd(c: f64, d: Dd, denominators: [(Dd, Option<f64>); 2]) -> Optio
     ok.then(|| ldexp_f64(g.m, g.e))
 }
 
+// An integral c-a or c-b leaves the other numerator parameter to determine
+// whether the Euler exponent is integral. Check the polynomial separately,
+// since an exact zero is real even with a nonreal power.
+#[cold]
+fn rounded_euler_power_is_complex(a: f64, b: f64, c: f64, x: f64, d: f64) -> bool {
+    let is_rounded_power = |e: f64| e <= -1.0 && e.fract() == 0.0;
+    if !is_rounded_power(d) && !is_rounded_power(c - b - a) {
+        return false;
+    }
+    let nonzero = |terminating: f64, opposite: f64| {
+        if !(0.0 < opposite && opposite < c && opposite.fract() != 0.0) {
+            return false;
+        }
+        let (m, tail) = two_sum(terminating, -c);
+        if !(m > 0.0 && m.fract() == 0.0 && tail.fract() == 0.0) {
+            return false;
+        }
+        // The beta integral of (1-xt)^m is positive for even m.
+        if (m % 2.0 == 0.0) == (tail % 2.0 == 0.0) {
+            return true;
+        }
+        // For odd m it strictly decreases in x. Pairing t and 1-t gives
+        // the sign of 2*opposite-c at x=2.
+        let twice = 2.0 * opposite;
+        match x.partial_cmp(&2.0) {
+            Some(core::cmp::Ordering::Less) => twice >= c,
+            Some(core::cmp::Ordering::Greater) => twice <= c,
+            _ => twice != c,
+        }
+    };
+    nonzero(a, b) || nonzero(b, a)
+}
+
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
 /// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9), and `outer`
 /// whether this is the outermost call
@@ -1130,6 +1163,16 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         } else if (e - e.round()).abs() >= HYP2F1_EPS {
             return f64::INFINITY;
         }
+    }
+
+    // Unlike in xsf, do not use a rounded Euler exponent as an integer on the cut.
+    if outer
+        && x > 1.0
+        && x.is_finite()
+        && !(neg_int_a || neg_int_b)
+        && rounded_euler_power_is_complex(a, b, c, x, d)
+    {
+        return f64::NAN;
     }
 
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler

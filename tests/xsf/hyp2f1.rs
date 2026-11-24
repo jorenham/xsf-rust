@@ -1878,3 +1878,26 @@ fn test_hyp2f1_f64_x_gt_1() {
     assert_eq!(xsf::hyp2f1(24.0, c + 128.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
     assert_eq!(xsf::hyp2f1(c + 128.0, 24.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
 }
+
+#[test]
+fn test_hyp2f1_f64_rounded_euler_exponent_on_cut() {
+    let a = 32.000_000_000_000_01;
+    for (a, b) in [(a, 106.0), (106.0, a)] {
+        assert!(xsf::hyp2f1(a, b, 97.0, 2.0).is_nan());
+    }
+    for (a, b) in [(32.0, 106.0), (106.0, 32.0)] {
+        let y = xsf::hyp2f1(a, b, 97.0, 2.0);
+        np_assert_allclose!([y], [3.705_699_243_281_37e-4], rtol = 1e-13);
+    }
+
+    // The Euler polynomial is exactly 1 - x/2, so a nonintegral power still gives zero at x=2.
+    let a = f64::EPSILON / 2.0;
+    let b = 1.0 + f64::EPSILON;
+    let c = f64::EPSILON;
+    for (p, q) in [(a, b), (b, a)] {
+        assert_eq!(xsf::hyp2f1(p, q, c, 2.0).to_bits(), (-0.0_f64).to_bits());
+        for x in [2.0 - f64::EPSILON, 2.0 + 2.0 * f64::EPSILON] {
+            assert!(xsf::hyp2f1(p, q, c, x).is_nan());
+        }
+    }
+}
