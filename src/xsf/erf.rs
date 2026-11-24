@@ -71,9 +71,15 @@ fn erfc_c64(z: C64) -> C64 {
     }
 
     // Unlike in xsf, recover signed infinities when the leading term of erfcx
-    // certifies both signs. Use the original argument for the phase.
+    // certifies both signs. Reduce the original product even when it overflows.
     let (hi, lo) = two_prod(-x, y);
-    let Some((rotation, error)) = bounded_phase_rotation(2.0 * hi, 2.0 * lo) else {
+    let phase = 2.0 * hi;
+    let (rotation, error) = if phase.abs() > pow2(53) {
+        let (quadrant, r) = crate::xsf::faddeeva::phase::reduce_product_phase(-x, y);
+        reduced_phase_rotation(quadrant, r)
+    } else if let Some(rotation) = bounded_phase_rotation(phase, 2.0 * lo) {
+        rotation
+    } else {
         return result;
     };
     // A margin of 2^-10 covers the normalized erfcx remainder (at most 3/4096),
@@ -97,18 +103,21 @@ pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> 
     if r.abs() > 1.0 {
         return None;
     }
+    Some(reduced_phase_rotation((quadrant as i64).rem_euclid(4) as u64, r))
+}
 
+fn reduced_phase_rotation(quadrant: u64, r: f64) -> (C64, f64) {
     // Cubic sine and quadratic cosine suffice to resolve signs with clearance.
     let r2 = r * r;
     let sin = r * (1.0 - r2 / 6.0);
     let cos = 1.0 - 0.5 * r2;
-    let rotation = match (quadrant as i64).rem_euclid(4) {
+    let rotation = match quadrant {
         0 => c64(cos, sin),
         1 => c64(-sin, cos),
         2 => c64(-cos, -sin),
         _ => c64(sin, -cos),
     };
-    Some((rotation, r2 * r2 / 20.0))
+    (rotation, r2 * r2 / 20.0)
 }
 
 /// Error function $\erf(z)$ for real or complex input
