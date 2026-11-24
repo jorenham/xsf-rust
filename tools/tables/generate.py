@@ -522,8 +522,15 @@ def generate(
                 # no tolerance covers NaN or an infinity
                 ok = same_class(rust[r, i], f, zeros=False)
                 require(ok, f"xsf-rust has {rust[r, i]}, the reference {f}")
-                # a complex output has no scale
+                # Complex reference parts use the modulus for agreement, apart from
+                # any explicit error scale recorded for the whole output.
                 scale = checked[0][1] if widths[i] == 1 else 0.0
+                if out.scale_at is not None:
+                    scale = out.scale_at(inputs[r], f)
+                    require(
+                        scale == 0 or DBL_MIN <= scale <= DBL_MAX,
+                        f"invalid scale {scale}",
+                    )
                 e_rust, e_xsf = (table_error(y[r, i], f, scale) for y in (rust, xsf))
                 if not same_class(xsf[r, i], f, zeros=False):
                     e_xsf = math.inf

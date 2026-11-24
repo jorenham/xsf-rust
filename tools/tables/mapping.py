@@ -22,6 +22,7 @@ import accuracy
 
 type Pred = Callable[[tuple[float, ...]], bool]  # of the f64 inputs
 type Value = mp.mpf | tuple[mp.mpf, mp.mpf]  # a reference, or (reference, scale)
+type Scale = Callable[[tuple[float, ...], complex], float]
 type Ball = flint.arb | flint.acb
 type Arb = Callable[..., Ball | None]  # None where Arb can't check
 type RealArb = (
@@ -74,6 +75,7 @@ class Out:
     rules: tuple[Rule, ...] = ()
     overrides: tuple[Override, ...] = ()
     floors: tuple[Floor, ...] = ()
+    scale_at: Scale | None = None  # optional error scale of the whole output
 
 
 @dataclass(frozen=True)
@@ -875,6 +877,7 @@ def _complex_out(
     floors: tuple[Floor, ...] = (),
     reals: int = 0,
     tail: int = 0,
+    scale_at: Scale | None = None,
 ) -> Out:
     """A complex output of `reals` real inputs, then complex inputs, which are (real,
     imaginary) pairs of f64s, and then `tail` real inputs: `ref` takes the parts as `mpf`s,
@@ -905,7 +908,7 @@ def _complex_out(
         return ball
 
     refs, arbs = (ref_part(0), ref_part(1)), (arb_part(0), arb_part(1))
-    return Out(func, refs, arbs, rules, overrides, floors)
+    return Out(func, refs, arbs, rules, overrides, floors, scale_at)
 
 
 def _complex(
@@ -922,6 +925,29 @@ def _complex(
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
     """S (i = 0) or C (i = 1) with the normalization of scipy."""
     return _exp_square(lambda x: (x.fresnel_s, x.fresnel_c)[i](normalized=True))
+
+
+def _complex_fresnel_out(i: int) -> Out:
+    """S or C with its local oscillation scale near nonzero roots in the series region."""
+
+    def arb(z: flint.acb) -> flint.acb:
+        return (z.fresnel_s, z.fresnel_c)[i](normalized=True)
+
+    def scale_at(a: tuple[float, ...], f: complex) -> float:
+        with mp.workdps(60):
+            z = mp.mpc(*a)
+            r = abs(z)
+            # Exclude the zero at the origin and the asymptotic branch.
+            if not 1 < r < 4.5:
+                return 0.0
+            # Derivative modulus divided by the phase derivative π|z|. Use this amplitude
+            # only where cancellation loses about half the binary64 precision or more.
+            derivative = (mp.sin, mp.cos)[i](mp.pi * z * z / 2)
+            amplitude = abs(derivative) / (mp.pi * r)
+            return float(amplitude) if abs(f) < 2**-26 * amplitude else 0.0
+
+    ref = specs._c((mp.fresnels, mp.fresnelc)[i])
+    return _complex_out(f"fresnel.{i}", ref, arb, scale_at=scale_at)
 
 
 FRESNEL_RULES: Final = (
@@ -4296,6 +4322,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             Out("fresnel.1", (specs.r_fresnel_c,), (_fresnel_arb(1),), FRESNEL_RULES),
         )
     ),
+    ("fresnel", "cd-cd_cd"): Entry(tuple(_complex_fresnel_out(i) for i in range(2))),
     ("owens_t", "d_d-d"): _real(
         "owens_t", _owens_t, _owens_t_arb, (NAN, *OWENS_T_H_INF)
     ),
