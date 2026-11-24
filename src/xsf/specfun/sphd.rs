@@ -517,7 +517,7 @@ fn rmn1_equator(
         }
         let j = sj[l as usize];
         let j1 = sj[l as usize + 1];
-        // Differentiate j_l together with rho^(-p).
+        // Differentiate j_l (DLMF 10.51.2) together with rho^(-p).
         let slope = f64::from(l - p) / z * j;
         sum += t * j;
         deriv += t * (slope - j1);

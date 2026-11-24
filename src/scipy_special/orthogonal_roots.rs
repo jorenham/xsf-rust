@@ -375,7 +375,7 @@ pub fn roots_gegenbauer(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
             let value = gegenbauer_hyp2f1_l(i64::from(ni - 1), alpha + 1.0, x.abs());
             if x < 0.0 && n % 2 == 0 { -value } else { value }
         };
-        // Unlike in SciPy, use the shifted Gegenbauer derivative as alpha nears -1/2.
+        // Unlike in SciPy, use the shifted Gegenbauer derivative (DLMF 18.9.19) near alpha = -1/2.
         let df = |_, x| 2.0 * alpha * at_one * slope(x);
         let (mut x, dx) = refined_roots(ni, an, bn, f, df, one_minus_x2);
         // Gaussian weight prefactor with the normalized Gegenbauer slope.

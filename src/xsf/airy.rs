@@ -88,8 +88,8 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     let bi = amos_airy_or_biry(true, z, 0, kode);
     let bip = amos_airy_or_biry(true, z, 1, kode);
     let Some((zta, d)) = zeta else {
-        // Unlike in xsf, retain the imaginary Taylor terms on the imaginary axis
-        // when AMOS skips its series.
+        // Unlike in xsf, retain the imaginary Taylor terms (DLMF 9.4.1–4) on the
+        // imaginary axis when AMOS skips its series.
         let y = z.im;
         let y_sq = y * y;
         if kode == 1 && z.re == 0.0 && y != 0.0 && y_sq < f64::EPSILON / y.abs() {
@@ -166,7 +166,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     [unscale(ai), unscale(aip), bi, bip]
 }
 
-/// Ai and Ai' from the Taylor series at 2, where Ai''(z) = z Ai(z) gives
+/// Ai and Ai' from the Taylor series at 2, where Ai''(z) = z Ai(z) (DLMF 9.2.1) gives
 /// n(n - 1) c_n = 2 c_(n - 2) + c_(n - 3).
 fn ai_taylor(z: C64) -> (C64, C64) {
     // Re z >= 1 gives |z - 2| <= |z|. For |zeta| <= 2, |z| < 2.081, and

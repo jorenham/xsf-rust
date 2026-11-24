@@ -70,7 +70,7 @@ fn cv0(kd: f64, m: f64, q: f64) -> f64 {
             (0, _) if q <= 1.0 => (((0.0036392 * q2 - 0.0125868) * q2 + 0.0546875) * q2 - 0.5) * q2,
             (1, 2) if q <= 1.0 => (((-6.51e-4 * q - 0.015625) * q - 0.125) * q + 1.0) * q + 1.0,
             (1, 3) if q <= 1.0 => (((-6.51e-4 * q + 0.015625) * q - 0.125) * q - 1.0) * q + 1.0,
-            // Unlike in xsf, use exact coefficients in the unrefined small-q regime.
+            // Unlike in xsf, use the exact small-q coefficients of a₂ and b₂ (DLMF 28.6.4–5).
             (2, 1) if q <= LOW_MODE_SMALL_Q => {
                 ((1_002_401.0 / 79_626_240.0 * q2 - 763.0 / 13_824.0) * q2 + 5.0 / 12.0)
                     .mul_add(q2, 4.0)
@@ -445,7 +445,8 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     }
 
     // Unlike in xsf, anchor the low modes at their dominant harmonic at small q.
-    // This avoids dividing a rounded difference of characteristic values by q.
+    // This rewrites the Fourier recurrences and normalization (DLMF 28.4.5–12)
+    // to avoid dividing a rounded difference of characteristic values by q.
     if (1..=2).contains(&m) && q > 0.0 && q <= LOW_MODE_SMALL_Q {
         let f = &mut fc[..km as usize];
         let even_cos = kd == 1;
@@ -856,7 +857,7 @@ fn first_kind_near_origin(
         return None;
     }
 
-    // Power series of y'' = (a - 2q cosh(2x)) y, with exact parity.
+    // Power series of y'' = (a - 2q cosh(2x)) y (DLMF 28.20.1), with exact parity.
     let odd = u32::from(kd >= 3);
     let p1 = -4.0 * q;
     let p2 = p1 / 3.0;

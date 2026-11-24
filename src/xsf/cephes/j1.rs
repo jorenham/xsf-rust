@@ -118,7 +118,8 @@ pub(crate) fn j1(x: f64) -> f64 {
         return -j1(-x);
     }
     if x < SQRT_EPSILON {
-        // Unlike in xsf, round subnormal midpoints toward zero: the cubic term lowers |J₁(x)|.
+        // Unlike in xsf, round subnormal midpoints toward zero: the cubic term
+        // in DLMF 10.2.2 lowers |J₁(x)|.
         if x < 2.0 * f64::MIN_POSITIVE {
             return f64::from_bits(x.abs().to_bits() >> 1).copysign(x);
         }

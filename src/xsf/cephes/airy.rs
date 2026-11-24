@@ -326,6 +326,7 @@ fn airy_negative_pair(
     (f * uf - g * ug, g * uf + f * ug)
 }
 
+// Oscillatory value and derivative expansions (DLMF 9.7.9–12).
 #[inline]
 fn airy_negative_asymptotic(t: f64, f: f64, g: f64, z: f64) -> [f64; 4] {
     let t = t.sqrt();

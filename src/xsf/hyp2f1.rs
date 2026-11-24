@@ -743,7 +743,8 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
             && z.re.is_finite()
             && z.im.is_normal()
         {
-            // Unlike in xsf, recover the unit-exponent case using 2F1(a, 1; a; z) = 1/(1 - z).
+            // Unlike in xsf, recover the unit-exponent case 2F1(a, 1; a; z) = 1/(1 - z)
+            // (DLMF 15.4.6).
             if z.re == 1.0 {
                 return c64(0.0, 1.0 / z.im);
             }
