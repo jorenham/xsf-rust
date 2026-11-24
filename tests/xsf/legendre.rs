@@ -442,6 +442,25 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
 }
 
 #[test]
+fn test_legendre_q_extreme_derivative_subnormal_midpoint() {
+    // Arb at the exact binary64 inputs: the imaginary magnitude is just below
+    // the leading value of 3.5 times the smallest subnormal.
+    let a = 5991.0_f64;
+    let major = a * 2.0_f64.powi(467);
+    let minor = 7.0 * a.powi(3) * 2.0_f64.powi(325);
+    for (x, y) in [(major, minor), (minor, major)] {
+        for (sx, sy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+            let z = c64(sx * x, sy * y);
+            let (_, derivative) = xsf::legendre_q_all(0, z);
+            let (_, associated_derivative) = xsf::assoc_legendre_q_all(0, 1, z);
+            let magnitude = f64::from_bits(3);
+            assert_eq!(derivative[0].im.to_bits(), (sx * sy * magnitude).to_bits());
+            assert_eq!(associated_derivative[0][1].im.to_bits(), (-sy * magnitude).to_bits());
+        }
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_large_x_and_z() {
     // where the backward recurrences are rescaled; mpmath: legenq(n, m, x, type=3), and Arb for
     // complex z

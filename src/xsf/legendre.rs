@@ -907,17 +907,30 @@ fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
     // and Q_1 < 0 in their real components, both rounding to zero.
     let re_sign = if z.im.abs() >= z.re.abs() { 1.0 } else { -1.0 };
     let q1 = c64(restore(re / 3.0, -re_sign), restore(im / 3.0, -im_sign));
-    let derivative = c64(restore(re, re_sign), restore(im, im_sign));
+    let im_units = im.ldexp(scale);
+    // Unlike in xsf, round a skewed imaginary derivative down at an exact
+    // subnormal midpoint of 2b/a³. Here b² increases the exact denominator on
+    // either side of the axis.
+    let im = if x.hi.min(y.hi) <= const { utils::pow2(-54) }
+        && im_units.hi.fract() == 0.5
+        && lq_axis_ratio_is_dyadic(m, z.re.abs().min(z.im.abs()), 3)
+    {
+        im_units.hi.floor() * f64::from_bits(1)
+    } else {
+        im_units.round_subnormal_units()
+    };
+    let derivative = c64(restore(re, re_sign), im.copysign(im_sign));
     Some((q1, derivative))
 }
 
-// The minor coordinate divided by the major coordinate squared is dyadic
-// exactly when the odd part of the major significand squared divides the minor's.
-fn lq_axis_ratio_is_dyadic(major: f64, minor: f64) -> bool {
+// b/a^power is dyadic when the odd part of a's significand, to that power,
+// divides b's significand.
+fn lq_axis_ratio_is_dyadic(major: f64, minor: f64, power: u32) -> bool {
     let (a, _, _) = num_traits::Float::integer_decode(major);
     let (b, _, _) = num_traits::Float::integer_decode(minor);
-    let odd = u128::from(a >> a.trailing_zeros());
-    u128::from(b) % (odd * odd) == 0
+    let odd = a >> a.trailing_zeros();
+    odd.checked_pow(power)
+        .is_some_and(|denominator| b % denominator == 0)
 }
 
 // The exterior leading term for Q_0^1 is -sign(Re z)/z.
@@ -931,7 +944,7 @@ fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
         if 0.0 < value.hi
             && value.hi <= const { utils::pow2(-54) }
             && units.hi.fract() == 0.5
-            && lq_axis_ratio_is_dyadic(major, minor)
+            && lq_axis_ratio_is_dyadic(major, minor, 2)
         {
             // The first omitted term moves an imaginary midpoint up when minor² < 3/2.
             let rounded = if imaginary && minor.mul_add(minor, -1.5) < 0.0 {
