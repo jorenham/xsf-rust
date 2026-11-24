@@ -8,9 +8,9 @@ use core::f64::consts::{LN_2, SQRT_2};
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow};
+use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
-use crate::xsf::cephes::dd_real::two_sum;
+use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod, two_sum};
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
@@ -19,6 +19,9 @@ const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON
 /// The `|x|` below which `hyp2f1_sh` uses `gegenbauer_hyp2f1_origin` for the integer degrees of
 /// the Gegenbauer case: the odd ones for real x, and all of them for complex x
 const ORIGIN_RADIUS: f64 = 1e-5;
+
+// The cubic recurrence coefficient overflows if comparable parameters reach this size.
+const JACOBI_QUADRATIC_MIN_PARAM: f64 = pow2(342);
 
 mod sealed {
     pub trait OrthoPolyArg:
@@ -36,6 +39,12 @@ mod sealed {
 
         /// `Some(x)` if `Self` is `f64`
         fn as_f64(&self) -> Option<f64>;
+
+        /// Whether the argument lies on the real axis, including a complex signed-zero ordinate.
+        #[inline]
+        fn is_real(&self) -> bool {
+            true
+        }
 
         /// The real part
         fn re(&self) -> f64;
@@ -139,6 +148,11 @@ mod sealed {
         #[inline]
         fn as_f64(&self) -> Option<f64> {
             None
+        }
+
+        #[inline]
+        fn is_real(&self) -> bool {
+            self.im == 0.0
         }
 
         #[inline]
@@ -254,6 +268,15 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_jacobi`
     #[inline]
     fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
+        // Unlike in xsf, evaluate the real-axis quadratic before the hypergeometric series.
+        if n == 2.0
+            && (a >= JACOBI_QUADRATIC_MIN_PARAM || b >= JACOBI_QUADRATIC_MIN_PARAM)
+            && self.is_real()
+        {
+            if let Some(v) = jacobi_large_quadratic(a, b, self.re()) {
+                return Self::ZERO + v;
+            }
+        }
         // Unlike in xsf, integer degrees with `alpha, beta > -1` use the recurrence of the integer
         // degrees, since the series cancels catastrophically for large degrees, unless the
         // recurrence is nonfinite.
@@ -368,9 +391,57 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
     }
 }
 
+// Unlike in xsf, use the quadratic only for comparable finite parameters, so the difference is exact.
+#[cold]
+fn jacobi_large_quadratic(a: f64, b: f64, x: f64) -> Option<f64> {
+    if !a.is_finite() || !b.is_finite() || !x.is_finite() || a.min(b) < 0.5 * a.max(b) {
+        return None;
+    }
+
+    let (sh, sl) = two_sum(0.5 * a, 0.5 * b);
+    // |a - b| / (a + b) <= 1/3, so the square dominates for these large |x|.
+    if x.abs() >= 0.5 && sh * x.abs() > pow2(516) {
+        return Some(f64::INFINITY);
+    }
+    if a == b {
+        // Write the symmetric polynomial as (a/2+7/4)*(a*x²-1/2) + 3/8 + 3*x²/2.
+        // Center the exact products before adding their low parts near the roots.
+        let (ax, ax_lo) = two_prod(a, x);
+        let (axx, axx_lo) = two_prod(ax, x);
+        let t = (DoubleDouble::new(axx) - 0.5 + axx_lo) + DoubleDouble::new(ax_lo) * x;
+        return Some(jacobi_double_half(
+            t * (DoubleDouble::new(0.25 * a) + 0.875) + 0.1875 + 0.75 * x * x,
+        ));
+    }
+    // Complete the square using q = (a - b + (a + b + 3)x)/2.
+    let q = (DoubleDouble::new(sh) * x + 0.5 * (a - b)) + DoubleDouble::new(sl) * x + 1.5 * x;
+    if q.hi.abs() >= pow2(513) {
+        return Some(f64::INFINITY);
+    }
+    let delta = x.mul_add(x, -1.0);
+    let correction = (DoubleDouble::new(sh * 0.125) + sl * 0.125 + 0.1875) * delta - 0.0625;
+    let half = q.mul_pwr2(0.25) * q + correction;
+    Some(jacobi_double_half(half))
+}
+
+// Round at half scale before restoring the exponent, including at the overflow midpoint.
+fn jacobi_double_half(half: DoubleDouble) -> f64 {
+    if half.hi.is_finite() {
+        half.hi * 2.0
+    } else {
+        f64::INFINITY
+    }
+}
+
 impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
+        // Unlike in xsf, evaluate the quadratic directly if the recurrence would overflow.
+        if n == 2 && (alpha >= JACOBI_QUADRATIC_MIN_PARAM || beta >= JACOBI_QUADRATIC_MIN_PARAM) {
+            if let Some(v) = jacobi_large_quadratic(alpha, beta, self) {
+                return v;
+            }
+        }
         if n < 0 {
             self.eval_jacobi(f64::from(n), alpha, beta)
         } else {
