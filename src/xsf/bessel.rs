@@ -661,9 +661,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if sign == -1 {
         cy = rotate(cy, if m == 1 { v } else { -v });
     }
-    // The first kind also allows the upper lip on the negative real axis.
-    let lower = if m == 1 { -v } else { 0.0 };
-    if kode != 1 || !z.is_real() || !(lower..=v).contains(&z.re) {
+    if kode != 1 || !z.is_real() || z.re.abs() > v {
         return cy;
     }
 
@@ -677,14 +675,20 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
             cyl_bessel_j_f64(v, x)
         };
         if j.is_finite() {
-            // Both imaginary zeros take the upper lip, where H1(-x).re = -(-1)^v J_v(x).
+            // Both imaginary zeros take the upper lip, where the real coefficients
+            // of H1 and H2 are -1 and 3 times the integer-order parity.
             let cut = z.re < 0.0;
             let parity = if (sign < 0) == cut {
                 1.0
             } else {
                 cephes_cospi(v)
             };
-            cy.re = if cut { -parity * j } else { parity * j };
+            let factor = match (cut, m) {
+                (true, 1) => -parity,
+                (true, _) => 3.0 * parity,
+                _ => parity,
+            };
+            cy.re = factor * j;
         }
     }
     cy
