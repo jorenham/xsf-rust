@@ -808,7 +808,7 @@ fn chgm_neg_x_series(x: f64, a: f64, b: f64) -> Option<f64> {
 /// and `S_n = sum_(k<n) t_k`, `t_k = (a)_k (1 - q)_k / (k! z^k)`, and the second term is only
 /// bounded. Both bounds are those of DLMF 13.7.5, with `sigma = |b - 2a| / z = |b - 2q| / z`: in
 /// region R3 (at `ph z = -pi`) for the remainder, and in R1 with `n = 1` for the second term.
-fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
+pub(crate) fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
     const U: f64 = MACHEP;
     let z = -x;
     // (rounded up, as all bounds increase with it)

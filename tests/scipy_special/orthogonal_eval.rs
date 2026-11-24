@@ -755,6 +755,22 @@ fn test_eval_hermite_negative_integer_kummer_overflow() {
 }
 
 #[test]
+fn test_eval_hermite_negative_fractional_kummer_overflow() {
+    // Arb at the exact binary64 arguments.
+    let tiny_degree = -f64::from_bits(1);
+    np_assert_allclose!(
+        [
+            eval_hermite_h(-1e-20, -27.0),
+            eval_hermite_he(-1e-20, -38.183_766_184_073_56),
+            eval_hermite_h(tiny_degree, -27.0),
+        ],
+        [2.619_309_765_806_416_7e295, 2.619_309_765_805_989_6e295, 1.000_000_012_941_109_7],
+        rtol = 5e-14
+    );
+    assert_eq!(eval_hermite_h(tiny_degree, -40.0), f64::INFINITY);
+}
+
+#[test]
 fn test_eval_hermite_neg_x_overflow() {
     // mpmath; x^2 overflows, and H_n(x) -> inf / Gamma(-n) for x -> -inf
     let h = [
