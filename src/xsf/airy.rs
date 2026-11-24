@@ -150,6 +150,15 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         }
     }
     if !decays || taylor.is_some() {
+        // Unlike in xsf, correct the Miller normalization after the phase correction.
+        // The integrals in DLMF 10.32.2 and 10.32.8 bound |K/(π I)| below roundoff here.
+        let (_, _, _, rl, _) = amos::MACH;
+        let aip = if zta.re <= -20.0 && zta.norm() < rl {
+            let t = 1.0 + 2.0 / 3.0;
+            aip * (amos::gamln(t) - cephes::lgam(t)).exp()
+        } else {
+            aip
+        };
         return [ai, aip, bi, bip];
     }
     // Ai is unscaled from its `airye` by e^-zeta = e^-zta (1 - d).

@@ -157,6 +157,16 @@ fn test_airy_c64_ai_below_k_switch() {
 }
 
 #[test]
+fn test_airy_c64_ai_derivative_miller_normalization() {
+    // Arb at the exact binary64 inputs.
+    let z = c64(-5.0, -8.571_428_571_428_571);
+    let expected = c64(-440_299_386.959_401_5, 345_014_529.989_272_06);
+    for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+        xsref::np_assert_allclose!(&[xsf::airy(z)[1]], &[expected], rtol = 4.0 * f64::EPSILON);
+    }
+}
+
+#[test]
 fn test_airy_c64_near_overflow() {
     // Arb: airyai(z), airyai(z, 1), airybi(z), and airybi(z, 1) for z = -51.8 + 89.7j
     let expected = [
