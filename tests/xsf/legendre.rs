@@ -158,6 +158,23 @@ fn test_assoc_legendre_p_all_c64() {
 // assoc_legendre_p_norm
 
 #[test]
+fn test_assoc_legendre_p_norm_small_diagonal() {
+    // Arb references at the exact binary64 arguments.
+    for (n, m, x, expected) in [
+        (2100, 790, 0.925, 3.345_564_164_239_196),
+        (2000, 750, 0.925, 2.961_386_133_824_163_4),
+        (600, 475, 0.98, -3.169_217_138_093_830_4e-251),
+    ] {
+        let value = xsf::assoc_legendre_p_norm(n, m, x);
+        xsref::np_assert_allclose!([value], [expected], rtol = 4e-13);
+    }
+    let table = xsf::assoc_legendre_p_norm_all(600, 475, 0.98);
+    let value = xsf::assoc_legendre_p_norm(600, 475, 0.98);
+    assert_eq!(table[600][475], value);
+    assert_eq!(table[600][476], -value);
+}
+
+#[test]
 fn test_assoc_legendre_p_norm_f64() {
     xsref::np_assert_allclose!(
         &[
