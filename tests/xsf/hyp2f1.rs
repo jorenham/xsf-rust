@@ -183,6 +183,15 @@ fn test_hyp2f1_c64_coincident_binomial() {
             [-2.42688e-5, -sign * 3.190_784e-4],
             rtol = 1e-14
         );
+
+        for (y, expected) in [(1.0, -1.0), (10.0, -1e-10)] {
+            let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0, sign * y));
+            assert_eq!(value.re, expected);
+            assert_eq!(value.im.to_bits(), 0);
+        }
+        let x = 1.0 + f64::EPSILON;
+        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(x, sign));
+        assert_eq!(value.im, -sign * 10.0 * f64::EPSILON);
     }
 }
 
