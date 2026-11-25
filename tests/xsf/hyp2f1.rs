@@ -2347,6 +2347,35 @@ fn test_hyp2f1_c64_real_beta_binomial_projection() {
 }
 
 #[test]
+fn test_hyp2f1_c64_ferrers_half_integer_order() {
+    // Hypergeometric factors of the half-integer order Ferrers modes at degree -1/2.
+    // Arb references at the exact binary64 inputs.
+    for (n, x, y, re, im) in [
+        (64, 0.5, 0.0, 1.996_097_839_737_260_4, 0.0),
+        (63, 0.5, 1e-9, 3.219_506_205_712_21e-14, -2.535_044_256_466_293_4e-7),
+        (63, 0.5, 2.0_f64.powi(-515), 2.798_296_521_731_244e-306, -2.363_402_979_174_737_7e-153),
+        (256, 0.1, 0.001, 0.999_902_195_854_822_2, -9.776_095_906_174_828e-7),
+        (32, 1.25, 0.0, 0.0, 5.216_678_312_147_949e22),
+    ] {
+        for sign in [-1.0, 1.0] {
+            let actual = xsf::hyp2f1(0.5, 0.5, 0.5 - f64::from(n), c64(x, sign * y));
+            np_assert_allclose!([actual.re, actual.im], [re, sign * im], rtol = 2e-13, atol = 0.0);
+        }
+    }
+    assert_eq!(xsf::hyp2f1(0.5, 0.5, -62.5, c64(0.5, 0.0)), c64(0.0, 0.0));
+    // The large-order differences are individually smaller than an ulp of the sum.
+    assert_eq!(
+        xsf::hyp2f1(0.5, 0.5, -299_999.5, c64(-2.0_f64.powi(-20), 0.0)).re,
+        1.000_000_000_000_794_7
+    );
+    // The linear term rounds to exactly 64 subnormal units.
+    for sign in [-1.0, 1.0] {
+        let z = c64(0.0, sign * f64::from_bits(1 << 20));
+        assert_eq!(xsf::hyp2f1(0.5, 0.5, -4095.5, z).im, -sign * f64::from_bits(64));
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_negative_lower_parameter() {
     // Pearson et al., Table A.2, case 19, and nearby complex arguments (Arb).
     let expected_re = -3.852_027_081_523_918_5e32;
