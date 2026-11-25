@@ -277,6 +277,27 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
     (result, cancellation(abs_sum, result))
 }
 
+/// `series_eval_cancellation`, but converged only after three successive small terms
+//
+// One term of the limit series can vanish with its logarithmic coefficient.
+fn series_eval_settled(mut g: impl FnMut() -> C64) -> (C64, f64) {
+    let (mut sum, mut abs_sum, mut small) = (C64::ZERO, 0.0, 0);
+    for _ in 0..HYP2F1_MAXITER {
+        let term = g();
+        sum += term;
+        abs_sum += term.norm();
+        small = if term.norm() < sum.norm() * HYP2F1_EPS {
+            small + 1
+        } else {
+            0
+        };
+        if small == 3 {
+            return (sum, cancellation(abs_sum, sum));
+        }
+    }
+    (C64::NAN, f64::INFINITY)
+}
+
 const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
 
 /// `series_eval_fixed_length`, or NaN if that would sum more than `HYP2F1_MAX_FIXED_TERMS` terms
@@ -503,7 +524,9 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
-fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64) -> (C64, f64) {
+//
+// Unlike in xsf, `settled` sums the series with `series_eval_settled`.
+fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool) -> (C64, f64) {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
     let m = (c - a - b).round();
     // gamma(c) / (gamma(a) gamma(b)) for c near a + b + m and m >= 0.
@@ -541,7 +564,11 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64) -> (C64, f64)
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
         (c64(prefactor, 0.0), series_generator2)
     };
-    let (series, series_cancellation) = series_eval_cancellation(series_generator);
+    let (series, series_cancellation) = if settled {
+        series_eval_settled(series_generator)
+    } else {
+        series_eval_cancellation(series_generator)
+    };
     let abs_sum = result.norm() + prefactor.norm() * series.norm() * series_cancellation;
     result += prefactor * series;
     let lost = cancellation(abs_sum, result);
@@ -864,7 +891,7 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
 fn hyp2f1_transform1_near_limit(a: f64, b: f64, c: f64, z: C64, offset: f64, result: C64) -> C64 {
     // At the integer balance, which its gamma ratios assume.
     let (limit, cancellation) =
-        hyp2f1_transform1_limiting_case(a, b, a + b + (c - a - b).round(), z);
+        hyp2f1_transform1_limiting_case(a, b, a + b + (c - a - b).round(), z, true);
     // A heuristic for the relative derivative of the terms of the limit in the balance, from
     // their logarithm and digammas (DLMF 15.8.10). The sum amplifies it by its cancellation.
     let sensitivity =
@@ -885,16 +912,15 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
-    let large_c = c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs());
     let (mut result, cancellation) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
-        if large_c {
+        if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
             return series_eval(series_generator);
         }
-        hyp2f1_transform1_limiting_case(a, b, c, z)
+        hyp2f1_transform1_limiting_case(a, b, c, z, false)
     } else {
         series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z))
     };
@@ -913,8 +939,9 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Rounding in c - a - b moves the poles that cancel between the two 1 - z series by a
     // relative eps / offset, for an error near eps / offset^2, where the limit is off by its
     // sensitivity to the balance: the two meet at an offset near cbrt(eps).
-    // (not for a large c, whose limit has as many terms)
-    if offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON && !large_c {
+    // (not for a balance beyond the term limit, which the limit sums as many terms for)
+    let near = offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON;
+    if near && balance.abs() <= HYP2F1_MAXITER as f64 {
         return hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
     }
     result
