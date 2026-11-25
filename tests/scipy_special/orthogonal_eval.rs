@@ -7,6 +7,13 @@ use xsf::{
 use xsref::np_assert_allclose;
 
 #[test]
+fn test_jacobi_negative_hyp2f1_lower_parameter() {
+    // Arb, through 2F1(0.125, 250; -2.75; 0.8125).
+    let actual = eval_jacobi(-0.125, -3.75, 252.875, c64(-0.625, 0.0));
+    np_assert_allclose!([actual.re, actual.im], [-5.852_681_235_149_044e189, 0.0], rtol = 1e-14);
+}
+
+#[test]
 fn test_jacobi_symmetric_degree_one() {
     let a = f64::MAX;
     let x = 2f64.powi(-20);

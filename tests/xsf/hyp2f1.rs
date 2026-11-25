@@ -2769,13 +2769,13 @@ fn test_hyp2f1_c64_negative_lower_parameter() {
         ),
     ] {
         let actual = xsf::hyp2f1(10.0, 5.0, -300.5, z);
-        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 1e-13);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 4e-14);
     }
 }
 
 #[test]
 fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
-    // Arb at the exact binary64 inputs.
+    // Arb at the exact binary64 inputs. The c-down value is less accurate.
     let actual = xsf::hyp2f1(
         19.714_877_719_930_925,
         1.135_255_778_495_805_7,
@@ -2788,6 +2788,21 @@ fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
         rtol = 5e-13,
         atol = 0.0
     );
+}
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_c_down() {
+    // Arb at the exact binary64 inputs. The connection cancels completely, or its gamma ratios
+    // overflow.
+    let actual = xsf::hyp2f1(0.125, 250.0, -2.75, c64(0.8125, f64::from_bits(1)));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-4.010_669_060_041_866e189, -2.679_470_116_244_821e-131],
+        rtol = 5e-14,
+        atol = 0.0
+    );
+    let actual = xsf::hyp2f1(10.0, 400.0, -600.5, c64(0.351_562_5, 0.0));
+    np_assert_allclose!([actual.re], [-1.718_794_060_874_630_4e231], rtol = 1e-14);
 }
 
 #[test]
@@ -2808,7 +2823,7 @@ fn test_hyp2f1_c64_negative_lower_parameter_connection() {
             -499.003_703_751_683_4,
             c64(0.212_418_840_135_297_27, 0.737_066_445_331_071_8),
             c64(0.998_315_176_639_864_1, -0.005_506_388_833_780_157),
-            1e-13,
+            1e-15,
         ),
         (
             37.017_066_355_571_25,
@@ -2816,7 +2831,7 @@ fn test_hyp2f1_c64_negative_lower_parameter_connection() {
             -455.5,
             c64(0.066_319_771_490_485_67, 0.696_745_444_703_667_1),
             c64(0.426_933_370_197_611_1, -0.749_970_908_904_107_3),
-            1e-13,
+            1e-15,
         ),
         (
             35.814_904_418_297_68,
@@ -2824,7 +2839,26 @@ fn test_hyp2f1_c64_negative_lower_parameter_connection() {
             -13_409.206_097_240_702,
             c64(0.321_249_329_126_809, 0.030_792_978_506_227_82),
             c64(0.994_977_840_225_617, -0.000_479_923_719_001_871_2),
-            4e-12,
+            1e-15,
+        ),
+        // The gamma ratios overflow or underflow.
+        (1e-310, 1.0, -600.5, c64(0.82, 0.0), c64(-4.071_648_340_424_102_6e86, 0.0), 2e-13),
+        (10.0, 400.0, -3000.5, c64(0.351_562_5, 0.0), c64(0.632_731_795_534_758_4, 0.0), 1e-15),
+        (
+            10.0,
+            250.0,
+            -3200.25,
+            c64(0.25, 0.125),
+            c64(0.820_048_634_846_336_2, -0.078_710_402_110_502_63),
+            1e-15,
+        ),
+        (
+            1_625.795_720_232_304_8,
+            1_464.348_873_264_744_5,
+            -1_804.840_375_426_593_3,
+            c64(0.043_341_339_953_302_65, 0.000_380_527_842_563_327_6),
+            c64(2.103_216_361_252_056_2e-24, -1.030_477_013_920_713_7e-24),
+            2e-13,
         ),
     ] {
         let actual = xsf::hyp2f1(a, b, c, z);
