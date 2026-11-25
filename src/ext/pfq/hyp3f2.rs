@@ -109,11 +109,24 @@ pub(super) fn estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> O
 
 // Clausen's square followed by the Gauss quadratic transformation (DLMF 16.12.2, 15.8.18).
 fn clausen(mut a: [f64; 3], b: [f64; 2], z: f64) -> Option<Estimate> {
-    if !(0.99..=1.0).contains(&z) || a.iter().any(|&k| k <= 0.0) {
+    if !(0.99..=1.0).contains(&z) {
         return None;
     }
     sort_descending(&mut a);
     let [hi, mid, lo] = a;
+    if lo <= 0.0 {
+        if a != [0.5, -0.5, -0.5] || b != [1.0; 2] {
+            return None;
+        }
+        // Lower two upper parameters of the Clausen square (2 K(m) / pi)^2
+        // by one. With D = K - E this gives a sum of three squares.
+        let m = 0.5 * (1.0 - (1.0 - z).sqrt());
+        let k = core::f64::consts::FRAC_2_PI * crate::ellipk(m);
+        let e = core::f64::consts::FRAC_2_PI * crate::ellipe(m);
+        let d = k - e;
+        let y = (e - d).powi(2) + 2.0 * m * e * e + 2.0 * (1.0 - m) * d * d;
+        return Some(Estimate::new(y, 32.0 * f64::EPSILON));
+    }
     let twice = 2.0 * mid;
     let c = if b[0] == twice {
         b[1]

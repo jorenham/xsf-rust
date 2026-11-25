@@ -52,6 +52,15 @@ fn test_hyp3f2_clausen_near_one() {
         assert_hyp3f2(a, b, z, expected);
         assert!((hyppfq(a, b, z).unwrap() - expected).abs() < 1e-14);
     }
+    // Two lowered upper parameters in the rank-one Gaussian distance covariance
+    // (Dueck et al., Corollary 3.2). References from the positive defining series.
+    for (z, expected) in [(0.999_999, 1.132_953_662_005_263_2), (1.0, 1.132_953_807_455_845)] {
+        for a in [[0.5, -0.5, -0.5], [-0.5, 0.5, -0.5], [-0.5, -0.5, 0.5]] {
+            let y = hyp3f2(a[0], a[1], a[2], 1.0, 1.0, z);
+            assert!((y - expected).abs() <= 2e-15);
+            assert_eq!(hyppfq(a, [1.0; 2], z), Some(y));
+        }
+    }
     // Arb on the Clausen square at the original argument.
     let (a, b) = ([2.5, 3.25, 2.875], [5.75, 3.375]);
     let expected = 27.908_323_339_537_848;
