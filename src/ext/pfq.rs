@@ -545,7 +545,7 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
     // a common parameter cancels: 2F1, or 1F0 if that has one as well
     let mut pairs = (0..3).flat_map(|i| (0..2).map(move |j| (i, j)));
     let Some((i, j)) = pairs.find(|&(i, j)| a[i] == b[j]) else {
-        return pfq_real(&mut a, &mut b, z);
+        return hyp3f2_clausen(a, b, z).or_else(|| pfq_real(&mut a, &mut b, z));
     };
     let (mut a, mut b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j]]);
     match a.iter().position(|&v| v == b[0]) {
@@ -556,6 +556,37 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
         None if z > 1.0 && first_zero(&a).is_infinite() => pfq_estimate(&a, &b, z),
         None => pfq_real(&mut a, &mut b, z),
     }
+}
+
+// Clausen's square followed by the Gauss quadratic transformation (DLMF 16.12.2, 15.8.18).
+fn hyp3f2_clausen(mut a: [f64; 3], b: [f64; 2], z: f64) -> Option<Estimate> {
+    if !(0.99..=1.0).contains(&z) || a.iter().any(|&k| k <= 0.0) {
+        return None;
+    }
+    sort_descending(&mut a);
+    let [hi, mid, lo] = a;
+    let twice = 2.0 * mid;
+    let c = if b[0] == twice {
+        b[1]
+    } else if b[1] == twice {
+        b[0]
+    } else {
+        return None;
+    };
+    if Dd::new(hi) + lo != twice || Dd::new(mid) + 0.5 != c {
+        return None;
+    }
+
+    let x = 0.5 * (1.0 - (1.0 - z).sqrt());
+    let f = pfq_real(&mut [hi, lo], &mut [c], x)?;
+    if !(f.y.is_finite() && f.is_accurate()) {
+        return None;
+    }
+    // Euler's positive integral bounds d log(F)/dx by hi/(1−x).
+    // Account for the rounding of x and the square along with the 2F1 error.
+    let err = 3.0 * f.err + (4.0 * hi + 2.0) * f64::EPSILON;
+    let (m, e) = frexp_f64(f.y);
+    Estimate::scaled_certain(Scaled::new(m * m, 2 * e, err)?).filter(|v| v.is_accurate())
 }
 
 /// Gauss's sum `2F1(a, b; c; 1)` (DLMF 15.4.20), if it converges and is finite
