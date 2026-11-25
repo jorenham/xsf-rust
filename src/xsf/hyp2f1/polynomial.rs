@@ -1,8 +1,7 @@
 use super::hypergeometric_series_generator;
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
-use crate::xsf::cephes::hyp2f1::pow_1mx;
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
 use crate::xsf::tools::series_eval_fixed_length;
 
 struct Estimate {
@@ -13,18 +12,6 @@ struct Estimate {
 
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     let other = if a == -(n as f64) { b } else { a };
-    // Unlike in xsf, cancel a positive common parameter on the real axis.
-    if c > 0.0 && c.is_finite() && other == c && z.is_real() && z.re.is_finite() {
-        let (w, w_lo) = two_sum(1.0, -z.re);
-        let power = if z.re < 1.0 && w_lo != 0.0 && n > 1 {
-            pow_1mx(z.re, n as f64)
-        } else {
-            w.powf(n as f64)
-        };
-        if power.is_finite() {
-            return c64(power, 0.0);
-        }
-    }
     let count = n + 1;
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
     if other == 1.0 && c == 2.0 && z.is_finite() {

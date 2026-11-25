@@ -197,25 +197,128 @@ fn test_hyp2f1_c64_transform2_euler() {
     }
 }
 
-#[test]
-fn test_hyp2f1_c64_coincident_binomial() {
-    // Exact rational reference from (2 - i)^(-10).
-    for sign in [-1.0, 1.0] {
-        let actual = xsf::hyp2f1(10.0, 10.0, 10.0, c64(-1.0, sign));
-        np_assert_allclose!(
-            [actual.re, actual.im],
-            [-2.42688e-5, -sign * 3.190_784e-4],
-            rtol = 1e-14
-        );
+/// Compares each component, so that a small one is checked too.
+fn assert_components_close(actual: num_complex::Complex64, expected: num_complex::Complex64) {
+    np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 3e-15);
+}
 
+#[test]
+fn test_hyp2f1_c64_binomial() {
+    // F(a, b; a; z) = F(b, a; a; z) = (1 - z)^(-b) (DLMF 15.4.6), Arb references, also at conj(z).
+    for (a, b, z, expected) in [
+        // Pearson, Olver and Porter case 13 continued off the real axis.
+        (
+            500.0,
+            -500.0,
+            c64(0.75, 0.01),
+            c64(5.814_852_388_330_934e-302, -1.264_531_485_912_276_4e-301),
+        ),
+        // A large degree with a representable power.
+        (2.5, -5e5, c64(1e-3, 1e-3), c64(-3.927_742_331_616_963e-218, 5.946_959_811_064_571e-218)),
+        (2.5, 5e5, c64(1e-3, 1e-3), c64(-7.732_767_069_881_334e216, -1.170_811_400_298_151_8e217)),
+        // Outside the unit disk, for equal and nonintegral parameters.
+        (2.5, 2.5, c64(0.83, -1.11), c64(-0.687_674_549_201_301_9, 0.295_186_369_637_935_7)),
+        (0.5, 0.5, c64(0.39, 1.12), c64(0.761_295_329_201_635_7, 0.452_252_310_326_859_64)),
+        (
+            300.0,
+            299.0,
+            c64(-2.18, 2.83),
+            c64(-6.230_327_053_389_383e-189, -4.947_746_322_762_214e-189),
+        ),
+        (1.5, 2.25, c64(1e10, -1e10), c64(8.055_272_254_422_263e-24, 1.205_556_687_874_377_5e-23)),
+        // Exact rational reference from (2 - i)^(-10).
+        (10.0, 10.0, c64(-1.0, 1.0), c64(-2.426_88e-5, -3.190_784e-4)),
+        // Integer exponents beyond 2^52, for a tiny z and on the unit circle around z = 1.
+        (2.5, 1e17, c64(1e-18, 1e-18), c64(1.099_649_666_829_409_1, 0.110_332_988_730_203_72)),
+        (2.5, 1e300, c64(1e-300, 1e-300), c64(1.468_693_939_915_885_1, 2.287_355_287_178_842_7)),
+        (
+            2.5,
+            1e17,
+            c64(0.5, 0.866_025_403_784_438_6),
+            c64(-8.406_158_824_930_644, 76.657_099_442_722_17),
+        ),
+        (
+            1.5,
+            -9_007_199_254_740_992.0,
+            c64(1.000_000_000_000_1, 1.0),
+            c64(0.066_246_702_206_136_83, -0.997_803_274_466_835_7),
+        ),
+        (
+            1.5,
+            -9_007_199_254_740_992.0,
+            c64(2.000_000_000_000_01, 0.0),
+            c64(9.017_628_405_030_062e39, 0.0),
+        ),
+        // At a pole of c, where b terminates the series first.
+        (-5.0, -2.0, c64(0.3, 0.2), c64(0.45, -0.28)),
+        // On the cut, and next to it for a tiny ordinate.
+        (1.5, 0.25, c64(3.0, 0.0), c64(0.594_603_557_501_360_5, 0.594_603_557_501_360_5)),
+        (1.5, 0.25, c64(3.0, 1e-300), c64(0.594_603_557_501_360_5, 0.594_603_557_501_360_5)),
+        // Next to the cut, the real part of a half-integer power.
+        (
+            2.5,
+            -1000.5,
+            c64(3.0, 2.0_f64.powi(-1000)),
+            c64(707.460_334_577_140_8, -1.515_342_004_482_324_3e301),
+        ),
+        // The power amplifies the smallest subnormal ordinate to a normal component.
+        (
+            1.0,
+            -512.0,
+            c64(-0.5, f64::from_bits(1)),
+            c64(1.441_201_271_173_911e90, -2.430_457_299_045_594e-231),
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            assert_components_close(xsf::hyp2f1(a, b, a, z), expected);
+            assert_components_close(xsf::hyp2f1(b, a, a, z), expected);
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_binomial_exact() {
+    for sign in [-1.0, 1.0] {
+        // Exact powers on and next to the line Re z = 1.
         for (y, expected) in [(1.0, -1.0), (10.0, -1e-10)] {
             let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0, sign * y));
             assert_eq!(value.re, expected);
             assert_eq!(value.im.to_bits(), 0);
         }
-        let x = 1.0 + f64::EPSILON;
-        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(x, sign));
+        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0 + f64::EPSILON, sign));
         assert_eq!(value.im, -sign * 10.0 * f64::EPSILON);
+        // A half-integer power further from the cut.
+        let actual = xsf::hyp2f1(2.5, -0.5, 2.5, c64(2.0, sign * 2.0_f64.powi(-100)));
+        assert_eq!(actual, c64(2.0_f64.powi(-101), -sign));
+    }
+    // A component of 1 - z below the rounding of the other one reaches the power.
+    let z = c64(1.0 + f64::EPSILON, 2.0_f64.powi(1023));
+    assert_eq!(xsf::hyp2f1(2.5, -1.0, 2.5, z), c64(-f64::EPSILON, -z.im));
+    let square = c64(f64::NEG_INFINITY, 2.0 * f64::EPSILON * z.im);
+    assert_eq!(xsf::hyp2f1(2.5, -2.0, 2.5, z), square);
+}
+
+#[test]
+fn test_hyp2f1_c64_binomial_overflow() {
+    let (inf, nan) = (f64::INFINITY, f64::NAN);
+    for (b, z, expected) in [
+        (-3000.0, c64(3.0, 1.0), c64(-inf, inf)),
+        (3000.0, c64(3.0, 1.0), c64(0.0, 0.0)),
+        // A power that is linear in an ordinate below its own reciprocal.
+        (-(2.0_f64.powi(564)), c64(-(2.0_f64.powi(1000)), 2.0_f64.powi(-1000)), c64(inf, -inf)),
+        // Beyond the accepted error, only a real power or an underflow is certain.
+        (1e300, c64(0.5, 0.0), c64(inf, 0.0)),
+        (-1e300, c64(0.3, 0.2), c64(0.0, 0.0)),
+        (1e300, c64(0.3, 0.2), c64(nan, nan)),
+        (1e300, c64(0.0, 1e-290), c64(nan, nan)),
+        // An infinite parameter does not cancel.
+        (inf, c64(3.0, 0.0), c64(nan, nan)),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(2.5, b, 2.5, z);
+            let same = actual == expected || actual.is_nan() && expected.is_nan();
+            assert!(same, "b = {b}, z = {z}: {actual}");
+        }
     }
 }
 
