@@ -243,16 +243,18 @@ pub(super) fn asymptotic_sum<T: Term>(
 /// Stops once the geometric tail bound is at most `tol * |sum|` (or returns the bound at
 /// `PFQ_MAXITER` if `ratio_bound < 1`, else infinite error). From term `settled` on, the bound
 /// on each term is at most `ratio_bound(n)` times the one before it, and `ratio_bound` does not
-/// increase. `step_roundings` bounds the rounding errors accumulated per recurrence step when
-/// generating each term (beyond the summation rounding itself).
+/// increase, and is at least `rho_min`. `step_roundings` bounds the rounding errors accumulated
+/// per recurrence step when generating each term (beyond the summation rounding itself).
 fn convergent_sum<T: Term>(
     mut terms: impl Iterator<Item = T>,
     settled: f64,
     tol: f64,
     step_roundings: f64,
+    rho_min: f64,
     mut ratio_bound: impl FnMut(f64) -> f64,
 ) -> (T::Value, f64) {
     let eps = T::Value::EPSILON;
+    let last = f64::from(PFQ_MAXITER - 1);
     let init = (T::Value::from_f64(0.0), 0.0, 0.0, f64::INFINITY);
     let step = |(sum, abs_sum, gen_err, _): (T::Value, f64, f64, f64), n: f64| match terms.next() {
         Some(term) if term.value().to_f64().is_finite() => {
@@ -264,12 +266,11 @@ fn convergent_sum<T: Term>(
                 let term_gen = n * step_roundings * eps * bound;
                 let abs_sum = abs_sum + bound;
                 let gen_err = gen_err + term_gen;
-                let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
-                if rho < 1.0 {
-                    // geometric bound on the remaining terms, inflating the last term by its
-                    // generation uncertainty and rounding upward so `rho` near 1 or tiny `Dd`
-                    // terms cannot understate the tail
-                    let tail = if bound == 0.0 || rho <= 0.0 {
+                // geometric bound on the remaining terms for a bound `rho` on their ratios,
+                // inflating the last term by its generation uncertainty and rounding upward so
+                // `rho` near 1 or tiny `Dd` terms cannot understate the tail
+                let tail = |rho: f64| {
+                    if bound == 0.0 || rho <= 0.0 {
                         0.0
                     } else {
                         let tail_base = if term_gen > 0.0 {
@@ -278,9 +279,21 @@ fn convergent_sum<T: Term>(
                             bound
                         };
                         next_up_nonneg(next_up_nonneg(tail_base * rho) / (1.0 - rho))
-                    };
+                    }
+                };
+                let small = tol * next.to_f64().abs();
+                // (`ratio_bound` is costly, and while the smallest tail is not small, it is only
+                // needed for the error after the last term)
+                let rho = if n >= settled && (n == last || tail(rho_min) <= small) {
+                    ratio_bound(n)
+                } else {
+                    1.0
+                };
+                if rho < 1.0 {
+                    debug_assert!(rho >= rho_min);
+                    let tail = tail(rho);
                     let err = tail + n * eps * abs_sum + gen_err;
-                    if tail <= tol * next.to_f64().abs() {
+                    if tail <= small {
                         ControlFlow::Break((next, err))
                     } else {
                         ControlFlow::Continue((next, abs_sum, gen_err, err))
@@ -339,10 +352,11 @@ fn pfq_alg_sum<T: Term<Value = f64>>(
     kappa: usize,
     z: f64,
     step_roundings: f64,
+    rho_min: f64,
     ratio_bound: impl FnMut(f64) -> f64,
 ) -> (f64, f64) {
     if kappa == 0 {
-        convergent_sum(terms, settled, f64::EPSILON, step_roundings, ratio_bound)
+        convergent_sum(terms, settled, f64::EPSILON, step_roundings, rho_min, ratio_bound)
     } else {
         let az = z.abs();
         let scale = match kappa {
@@ -395,6 +409,16 @@ fn pfq_next_dd(up: &[Dd], low: &[Dd], n: f64, w: f64, term: f64, checked: bool) 
     fast.unwrap_or_else(|| pfq_rescaled_next_dd(up, low, n, w, term))
 }
 
+/// Lower bound on `BoundScratch::ratio_bound` and `regrowth_bound` for `up`, `low`, and
+/// `recip_up(z)`: if all of their factors pair, each paired ratio is at least 1
+fn paired_ratio_min(up: &[Dd], low: &[Dd], z: f64) -> f64 {
+    if up.len() == low.len() {
+        recip_up(z)
+    } else {
+        0.0
+    }
+}
+
 /// The series of the term of `a_m` of the algebraic part (DLMF 16.11.2), as its sum and
 /// absolute error
 ///
@@ -430,7 +454,7 @@ fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, 
         let kappa = (q + 1).saturating_sub(p);
         let mut scratch = BoundScratch::new(up.len(), low.len());
         let bound = |n| scratch.regrowth_bound(up, low, recip_up(z), n);
-        pfq_alg_sum(series, settled, kappa, z, step_roundings, bound)
+        pfq_alg_sum(series, settled, kappa, z, step_roundings, paired_ratio_min(up, low, z), bound)
     }
 }
 
@@ -468,7 +492,8 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         let mut scratch = BoundScratch::new(up.len(), low.len());
         let bound = |n: f64| scratch.ratio_bound(&up, &low, recip_up(z), n);
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
-        convergent_sum(terms, settled, Dd::EPSILON, step_roundings, bound)
+        let rho_min = paired_ratio_min(&up, &low, z);
+        convergent_sum(terms, settled, Dd::EPSILON, step_roundings, rho_min, bound)
     } else if up.len() == low.len() + 2 {
         // For 1F2 there are two unpaired factors. Use the same remainder and regrowth
         // estimates as the binary64 algebraic sum, and include each term's generation error.
@@ -566,7 +591,7 @@ fn pfq_class_term(
     let sizes = sizes || z > 0.0;
     let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
     let kappa = (b.len() + 1).saturating_sub(a.len());
-    let (sum, err) = pfq_alg_sum(series, settled, kappa, z, 0.0, bound);
+    let (sum, err) = pfq_alg_sum(series, settled, kappa, z, 0.0, 0.0, bound);
     if (sum, err) != (0.0, 0.0) {
         let bs = b.iter().copied().map(Dd::new);
         let args = bs.clone().map(|bj| bj - am);
@@ -1361,28 +1386,34 @@ mod tests {
         // reaches PFQ_MAXITER with rho < 1: returns finite tail bound rather than infinity
         let r = 0.999_5_f64;
         let geom = successors(Some(1.0_f64), |&t| Some(t * r));
-        let (sum, err) = convergent_sum(geom, 0.0, f64::EPSILON, 0.0, |_| r);
+        let (sum, err) = convergent_sum(geom, 0.0, f64::EPSILON, 0.0, r, |_| r);
         let exact = 1.0 / (1.0 - r);
         assert!(err.is_finite() && (sum - exact).abs() <= err, "{sum} vs {exact} ({err})");
         // early None (e.g. from overflow/NaN inside pfq_terms_of) returns infinite error
-        let (_, err) = convergent_sum([1.0, 0.5].into_iter(), 0.0, f64::EPSILON, 0.0, |_| 0.5);
+        let (_, err) = convergent_sum([1.0, 0.5].into_iter(), 0.0, f64::EPSILON, 0.0, 0.0, |_| 0.5);
         assert_eq!(err, f64::INFINITY);
         // underflow followed by regrowth: yields the first negligible bound, then stops -> inf err
         let make_regrow =
             || pfq_terms_of(f64::INFINITY, 2e155, |n, t| if n == 0.0 { 1e-320 } else { t * 2e155 });
         assert_eq!(make_regrow().count(), 1);
-        let (_, err) =
-            convergent_sum(once(1.0_f64).chain(make_regrow()), 10.0, f64::EPSILON, 0.0, |_| 0.5);
+        let (_, err) = convergent_sum(
+            once(1.0_f64).chain(make_regrow()),
+            10.0,
+            f64::EPSILON,
+            0.0,
+            0.0,
+            |_| 0.5,
+        );
         assert_eq!(err, f64::INFINITY);
         // sum overflow on finite terms returns infinite error
         let (_, err) =
-            convergent_sum([f64::MAX, f64::MAX].into_iter(), 0.0, f64::EPSILON, 0.0, |_| 0.5);
+            convergent_sum([f64::MAX, f64::MAX].into_iter(), 0.0, f64::EPSILON, 0.0, 0.0, |_| 0.5);
         assert_eq!(err, f64::INFINITY);
         // last-term generation error inflates the geometric tail when stopping at PFQ_MAXITER with
         // rho very close to 1
         let rho_near1 = 1.0 - 0.5 * f64::EPSILON;
         let (_, err_tail) =
-            convergent_sum(core::iter::repeat(1.0_f64), 0.0, f64::EPSILON, 1.0, |_| rho_near1);
+            convergent_sum(core::iter::repeat(1.0_f64), 0.0, f64::EPSILON, 1.0, 0.0, |_| rho_near1);
         let n_last = f64::from(PFQ_MAXITER - 1);
         let uninflated = rho_near1 / (1.0 - rho_near1)
             + n_last * f64::EPSILON * f64::from(PFQ_MAXITER)
@@ -1397,7 +1428,7 @@ mod tests {
             lo: pow2(-54),
         };
         let (_, err_tail_dd) =
-            convergent_sum(core::iter::repeat(dd_term), 0.0, Dd::EPSILON, 1.0, |_| rho_near1);
+            convergent_sum(core::iter::repeat(dd_term), 0.0, Dd::EPSILON, 1.0, 0.0, |_| rho_near1);
         assert!(
             err_tail_dd >= 9_007_199_254_740_992.0,
             "err_tail_dd={err_tail_dd:.1} understated exact tail ~9007199254740991.5"
