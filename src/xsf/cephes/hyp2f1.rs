@@ -251,7 +251,7 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
 /// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, the third
 /// return value is an error estimate as in `hys2f1`.
 fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
-    let (mut p, mut q, mut r, mut t, mut w, d);
+    let (mut p, mut q, mut r, mut t, mut w);
     let (d1, d2, e, mut y1);
     let mut sign;
 
@@ -271,20 +271,17 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         neg_int_b = true;
     }
 
-    let (mut err, err_full);
     let s = 1.0 - x;
-    let y = 'done: {
-        if x < -0.5 && !(neg_int_a || neg_int_b) {
-            let y;
-            if b > a {
-                (y, err, err_full) = hys2f1(a, c - b, c, -x / s);
-                break 'done s.powf(-a) * y;
-            }
-            (y, err, err_full) = hys2f1(c - a, b, c, -x / s);
-            break 'done s.powf(-b) * y;
+    if x < -0.5 && !(neg_int_a || neg_int_b) {
+        if b > a {
+            let (y, err, err_full) = hys2f1(a, c - b, c, -x / s);
+            (s.powf(-a) * y, err, err_full)
+        } else {
+            let (y, err, err_full) = hys2f1(c - a, b, c, -x / s);
+            (s.powf(-b) * y, err, err_full)
         }
-
-        d = c - a - b;
+    } else {
+        let d = c - a - b;
         let id = d.round(); /* nearest integer to d */
 
         if x > 0.9 && !(neg_int_a || neg_int_b) {
@@ -297,8 +294,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // to be less accurate.
             let (y0, loss0, full0) = hys2f1_checked(a, b, c, x);
             if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
-                (err, err_full) = (loss0, full0);
-                break 'done y0;
+                return (y0, loss0, full0);
             }
 
             // Unlike in xsf (scipy/xsf#461), use the psi function expansion if c-a-b is an
@@ -306,7 +302,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // only up to `HYP2F1_MAXITER`, beyond which its finite sum can hang
             if (d - id).abs() > HYP2F1_EPS || id.abs() > HYP2F1_MAXITER as f64 {
                 let (mut lg, mut sgngam);
-                let (err1, q_full, r_full);
+                let (mut err, err1, q_full, r_full);
 
                 /* test for integer c-a-b */
                 /* If power series fails, then apply AMS55 #15.3.6 */
@@ -368,11 +364,9 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 
                 y *= gamma_c;
                 if loss0 < HYP2F1_ETHRESH && !less_accurate(y0, y, full) {
-                    (err, err_full) = (loss0, full0);
-                    break 'done y0;
+                    return (y0, loss0, full0);
                 }
-                err_full = full;
-                break 'done y;
+                return (y, err, full);
             }
             /* Psi function expansion, AMS55 #15.3.10, #15.3.11, #15.3.12
              *
@@ -426,8 +420,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 t += 1.0;
                 if t > HYP2F1_MAXITER as f64 {
                     /* should never happen */
-                    (err, err_full) = (1.0, 1.0);
-                    break 'done f64::NAN;
+                    return (f64::NAN, 1.0, 1.0);
                 }
                 if !(y == 0.0 || (q / y).abs() > HYP2F1_EPS) {
                     break;
@@ -437,9 +430,8 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             if id == 0.0 {
                 let f = gamma(c) / (gamma(a) * gamma(b));
                 y *= f;
-                err = rel_err(y_err * f.abs(), y);
-                err_full = err;
-                break 'done y; // goto psidon
+                let err = rel_err(y_err * f.abs(), y);
+                return (y, err, err);
             }
 
             y1 = 1.0;
@@ -475,20 +467,14 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             }
 
             y += y1;
-            err = rel_err(y_err + y1_err, y);
-            err_full = err;
-            // psidon:
-            break 'done y;
+            let err = rel_err(y_err + y1_err, y);
+            return (y, err, err);
         }
 
         /* Use defining power series if no special cases */
         // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too
-        let y;
-        (y, err, err_full) = hys2f1_checked(a, b, c, x);
-        y
-    };
-    // done:
-    (y, err, err_full)
+        hys2f1_checked(a, b, c, x)
+    }
 }
 
 /// `y f q` and its error in `MACHEP`, from `y` and its error, the ratio
