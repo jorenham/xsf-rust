@@ -45,9 +45,9 @@
 use core::f64::consts::{FRAC_1_PI, FRAC_PI_4, PI};
 
 use crate::ext::{hyp2f1_poly_dd, ln_dd};
-use crate::utils::{is_nonpos_int, neg_one_pow};
+use crate::utils::{is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::hyp2f1::{hyp2f1_at_1, pow_1mx};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
@@ -627,6 +627,96 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
         .then_some(value)
 }
 
+/// Compare the origin and centered sums by their estimated absolute rounding errors.
+#[cold]
+fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
+    let mut terms = hypergeometric_series_generator(a, b, c, z);
+    let mut mass = 0.0;
+    let origin = series_eval_fixed_length(
+        || {
+            let term = terms();
+            mass += term.l1_norm();
+            term
+        },
+        C64::ZERO,
+        n + 1,
+    );
+    let error = (6.0 * n as f64 + 8.0) * f64::EPSILON * mass;
+    let origin_finite = origin.is_finite();
+    // Keep the origin sum when the estimate leaves at least half the significand.
+    if origin_finite && error <= pow2(-26) * origin.re.abs().max(origin.im.abs()) {
+        return origin;
+    }
+
+    let (centered, rounding) = centered_population_polynomial(n, -a.min(b), -c, z);
+    let magnitude = centered.re.abs().max(centered.im.abs());
+    // Replace a nonfinite origin result only when the centered estimate resolves a component.
+    let limit = if origin_finite { error } else { magnitude };
+    if centered.is_finite() && rounding + f64::EPSILON * magnitude < limit {
+        centered
+    } else {
+        origin
+    }
+}
+
+/// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
+fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C64, f64) {
+    // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
+    let falling = |p| {
+        (0..n).fold((Dd::ONE, 0), |(product, scale), j| {
+            // The factors p - j are exact because j is integral and 0 < p - j <= p <= 2^53.
+            let product = product * Dd::new(p - j as f64);
+            if product.hi > pow2(384) {
+                (product.ldexp(-512), scale + 512)
+            } else {
+                (product, scale)
+            }
+        })
+    };
+    let (num, num_scale) = falling(k);
+    let (den, den_scale) = falling(population);
+    let (leading, mut scale) = (num / den, num_scale - den_scale);
+    let t = Dd::ONE - z.re;
+    let square = Dd::new(z.im) * z.im;
+    let radius = t.hi.hypot(z.im);
+    let mut coefficient = Dd::ONE;
+    let (mut re, mut im) = (Dd::ONE, Dd::ZERO);
+    let mut mass = 1.0;
+    let excess = (Dd::new(population) - k) - n as f64;
+    for j in (1..=n).rev() {
+        let j = j as f64;
+        coefficient =
+            (coefficient * (excess + j) * j) / (Dd::new(k - j + 1.0) * (n as f64 - j + 1.0));
+        // Carry Im(P) divided by Im(t) so even a subnormal ordinate survives Horner.
+        (re, im) = (re * t - im * square + coefficient, re + im * t);
+        mass = mass * radius + coefficient.hi.abs();
+        let size = mass.max(im.hi.abs());
+        if size != 0.0 && !(pow2(-384)..=pow2(384)).contains(&size) {
+            let (_, shift) = frexp_f64(size);
+            [coefficient, re, im] = [coefficient, re, im].map(|v| v.ldexp(-shift));
+            mass = ldexp_f64(mass, -shift);
+            scale += shift;
+        }
+    }
+    let round = |v: Dd, scale: i32| {
+        let v = v * leading;
+        let x = ldexp_f64(v.hi, scale);
+        if x.abs() < f64::MIN_POSITIVE {
+            v.ldexp(scale + 1074).round_subnormal_units()
+        } else {
+            x
+        }
+    };
+    let imag = if z.is_real() {
+        0.0
+    } else {
+        let (u, e) = Dd::new(-z.im).frexp();
+        round(im * u, scale + e)
+    };
+    let rounding = ldexp_f64(mass * leading.hi * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
+    (c64(round(re, scale), imag), rounding)
+}
+
 fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
@@ -692,8 +782,22 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
                     return c64(power, 0.0);
                 }
             }
+            let count = (max_degree + 1.0) as u64;
+            let population = -c;
+            // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
+            if a_neg_int
+                && b_neg_int
+                && count <= HYP2F1_MAX_FIXED_TERMS
+                && max_degree - 1.0 < population
+                && (-a.min(b)).max(population) <= pow2(53)
+                && (z.re > 0.0 || z.im != 0.0)
+                // Headroom for the squared ordinate in the centered recurrence.
+                && z.re.abs().max(z.im.abs()) <= pow2(256)
+            {
+                return population_polynomial(a, b, c, max_degree as u64, z);
+            }
             let series_generator = hypergeometric_series_generator(a, b, c, z);
-            return series_eval_finite(series_generator, (max_degree + 1.0) as u64);
+            return series_eval_finite(series_generator, count);
         }
         return C64::NAN;
     }
