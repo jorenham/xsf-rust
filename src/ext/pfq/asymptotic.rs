@@ -702,9 +702,19 @@ fn pfq_exp_terms(
             }
         }
     };
+    // Keep x^-j split so it cannot underflow before multiplication by d*t.
+    let mut scales = Vec::with_capacity(q);
+    let (mut scale_m, mut scale_e) = (Dd::ONE, 0_i64);
+    for j in 1..=q {
+        let (sm, se) = (scale_m / xm).frexp();
+        scale_m = sm;
+        scale_e += i64::from(se) - i64::from(xe);
+        let scale_rel = 2.0 * j as f64 * (x_rel + Dd::EPSILON) + 3.0 * Dd::EPSILON;
+        scales.push((scale_m, scale_e, scale_rel));
+    }
     // t_k, its error bound, and the sums/error bounds so far of t_(k+1), ..., t_(k+q)
     let (mut k, mut t, mut t_err) = (0.0, Dd::ONE, 0.0);
-    let (mut sums, mut sums_err) = (vec![Dd::ZERO; q], vec![0.0; q]);
+    let mut sums = vec![(Dd::ZERO, 0.0); q];
     let (mut l, mut le) = (vec![Dd::ZERO; q + 2], vec![0.0; q + 2]);
     let (mut r, mut re) = (vec![Dd::ZERO; q + 2], vec![0.0; q + 2]);
     from_fn(move || {
@@ -713,15 +723,10 @@ fn pfq_exp_terms(
         let s_err = nu_err + Dd::EPSILON * (nu.hi.abs() + k);
         fill_coefs(&left, s, s_err, &mut l, &mut le);
         fill_coefs(&right, s, s_err, &mut r, &mut re);
-        let (mut scale_m, mut scale_e) = (Dd::ONE, 0_i64);
         let (tm, te) = t.frexp();
         let (tem, tee) = frexp_f64(t_err);
-        for (m, (sum, sum_err)) in zip(&mut sums, &mut sums_err).enumerate() {
-            // keep `x^-(m+1)` split into mantissa and exponent so large `|x|` does not underflow
-            // before multiplying by large `d * t`
-            let (sm, se) = (scale_m / xm).frexp();
-            scale_m = sm;
-            scale_e += i64::from(se) - i64::from(xe);
+        for (m, (sum, sum_err)) in sums.iter_mut().enumerate() {
+            let (scale_m, scale_e, scale_rel) = scales[m];
             let d = l[m + 2] - r[m + 2];
             let d_err =
                 le[m + 2] + re[m + 2] + Dd::EPSILON * (l[m + 2].hi.abs() + r[m + 2].hi.abs());
@@ -736,7 +741,6 @@ fn pfq_exp_terms(
             let err_ee = ldexp_i64(dem * tem * sm_abs, i64::from(dee) + i64::from(tee) + scale_e);
             let err_td =
                 ldexp_i64(dm.hi.abs() * tem * sm_abs, i64::from(de) + i64::from(tee) + scale_e);
-            let scale_rel = 2.0 * (m + 1) as f64 * (x_rel + Dd::EPSILON) + 3.0 * Dd::EPSILON;
             let subnormal_err = if prod_m.hi != 0.0 && contrib.hi.abs() < Dd::MIN_POSITIVE {
                 f64::EPSILON * contrib.hi.abs() + f64::MIN_POSITIVE
             } else {
@@ -750,12 +754,11 @@ fn pfq_exp_terms(
         }
         k += 1.0;
         let denom = kappa * k;
-        t = sums[0] / denom;
-        t_err = (sums_err[0] + Dd::EPSILON * sums[0].hi.abs()) / denom;
+        let (sum, err) = sums[0];
+        t = sum / denom;
+        t_err = (err + Dd::EPSILON * sum.hi.abs()) / denom;
         sums.rotate_left(1);
-        sums[q - 1] = Dd::ZERO;
-        sums_err.rotate_left(1);
-        sums_err[q - 1] = 0.0;
+        sums[q - 1] = (Dd::ZERO, 0.0);
         Some(term)
     })
 }
