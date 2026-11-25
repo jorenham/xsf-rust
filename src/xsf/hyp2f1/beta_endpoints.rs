@@ -1,7 +1,8 @@
+use super::power::{ldexp_sat, one_minus_z_pow};
 use crate::ext::{Scaled, fold_exp, mul_gamma_ratio};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
+use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 
 const U: f64 = f64::EPSILON / 2.0;
 const TOL: f64 = 1e-13;
@@ -60,7 +61,7 @@ fn contour(a: f64, p: f64, c: f64, z: C64) -> Option<C64> {
     let right_mean = endpoint_mean(right, p1)?;
     let numerator = mul_gamma_ratio([c, p1], [], || Scaled::new(1.0, 0, 0.0))?;
     let shared = (p1, numerator);
-    let left = scale_endpoint(left, left_mean, shared, (C64::ONE, 0))?;
+    let left = scale_endpoint(left, left_mean, shared, (C64::ONE, 0.0))?;
     let right = scale_endpoint(right, right_mean, shared, one_minus_z_pow(z, p))?;
     let value = left.value + right.value;
     let error =
@@ -118,7 +119,7 @@ fn scale_endpoint(
     (shape, other_shape, q): (Dd, Dd, C64),
     mean: Estimate,
     (p1, numerator): (Dd, Scaled),
-    (power, exponent): (C64, i64),
+    (power, exponent): (C64, f64),
 ) -> Option<Estimate> {
     let beta = fold_exp(mul_gamma_ratio([], [other_shape, p1 + shape], || Some(numerator))?);
     let scale = q.powf(shape.hi) * q.powf(shape.lo) * power * beta.m;
@@ -131,48 +132,9 @@ fn scale_endpoint(
     if !(value.is_finite() && error.is_finite()) {
         return None;
     }
-    let shift = (exponent + i64::from(beta.e)).clamp(-4096, 4096) as i32;
-    let value = c64(ldexp_f64(value.re, shift), ldexp_f64(value.im, shift));
+    let exponent = exponent + f64::from(beta.e);
     Some(Estimate {
-        value,
-        abs_error: ldexp_f64(error, shift).max(f64::MIN_POSITIVE),
+        value: c64(ldexp_sat(value.re, exponent), ldexp_sat(value.im, exponent)),
+        abs_error: ldexp_sat(error, exponent).max(f64::MIN_POSITIVE),
     })
-}
-
-// (1-z)^p as a complex mantissa and a binary exponent, for finite z != 1.
-pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, i64) {
-    // Exponentiation by squaring with double-double components and a separate scale.
-    // A nonintegral binary64 exponent needs at most 53 bits in its integral part.
-    let n = p.round();
-    let real = Dd::ONE - z.re;
-    let w = c64(real.hi, -z.im);
-    let normalize = |re: Dd, im: Dd, exponent: i64| {
-        let (_, shift) = frexp_f64(re.hi.abs().max(im.hi.abs()));
-        (re.ldexp(-shift), im.ldexp(-shift), exponent + i64::from(shift))
-    };
-    let multiply = |(a, b, i): (Dd, Dd, i64), (c, d, j): (Dd, Dd, i64)| {
-        normalize(a * c - b * d, a * d + b * c, i + j)
-    };
-    let mut base = normalize(real, Dd::new(w.im), 0);
-    let mut value = None;
-    let mut degree = n.abs() as u64;
-    while degree != 0 {
-        if degree & 1 == 1 {
-            value = Some(value.map_or(base, |value| multiply(value, base)));
-        }
-        degree >>= 1;
-        if degree != 0 {
-            base = multiply(base, base);
-        }
-    }
-    let power = value.unwrap_or((Dd::ONE, Dd::ZERO, 0));
-    let (real, imag, exponent) = if n < 0.0 {
-        let (re, im, exponent) = power;
-        let norm = re * re + im * im;
-        (re / norm, -im / norm, -exponent)
-    } else {
-        power
-    };
-    // The remaining exponent is small and barely amplifies rounding in 1-z.
-    (c64(real.hi, imag.hi) * w.powf(p - n), exponent)
 }

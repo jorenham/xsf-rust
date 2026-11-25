@@ -44,18 +44,18 @@
 
 mod beta_endpoints;
 mod polynomial;
+mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
 use crate::ext::{hyp2f1_poly_dd, ln_dd};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
 use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::complex::cpow_integral;
-use crate::xsf::log::clog1p;
 use crate::xsf::tools::{self, series_eval_fixed_length};
 use crate::{cospi, digamma, sinpi};
 
@@ -946,40 +946,6 @@ fn hyp2f1_ferrers(n: u64, z: C64) -> C64 {
     value
 }
 
-// (1-z)^p, on the lip of the cut that the sign of a zero Im z selects.
-fn pow_1mz(z: C64, p: f64) -> C64 {
-    let w = 1.0 - z;
-    if w == C64::ZERO {
-        return c64(0.0_f64.powf(p), 0.0);
-    }
-    // The scaled power needs a finite base, and a binary exponent that fits in i64.
-    if !(z.is_finite() && p.abs() < pow2(52)) {
-        return (clog1p(-z) * p).exp();
-    }
-    // Where (Im z / (1 - Re z))^2 underflows, the power is linear in Im z:
-    // (1-z)^p = (1-x)^p (1 - i p y / (1-x)), on the lip of the sign of y if x > 1.
-    let y = z.im;
-    let tiny_phase = y.abs() < f64::MIN_POSITIVE.sqrt() * w.re.abs();
-    let z = if tiny_phase {
-        c64(z.re, 0.0_f64.copysign(y))
-    } else {
-        z
-    };
-    let (power, exponent) = beta_endpoints::one_minus_z_pow(z, p);
-    // Any |e| > 4096 under- or overflows, also for the linear term.
-    let scale = |m: f64, e: i64| ldexp_f64(m, e.clamp(-4096, 4096) as i32);
-    // A nonzero imaginary part on the cut exceeds the linear term by 2^458.
-    let im = if tiny_phase && power.im == 0.0 {
-        let (y, ey) = frexp_f64(y);
-        let (x, ex) = frexp_f64(w.re);
-        // (a zero stays positive)
-        scale(-p * power.re * y / x, exponent + i64::from(ey - ex)) + 0.0
-    } else {
-        scale(power.im, exponent)
-    };
-    c64(scale(power.re, exponent), im)
-}
-
 fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
@@ -1016,8 +982,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // F(a,b;a;z) = (1-z)^(-b) (DLMF 15.4.6).
     // At a pole of c, the other upper parameter has to terminate the series first.
     for (common, other, terminates) in [(a, b, b_neg_int), (b, a, a_neg_int)] {
-        if common == c && c.is_finite() && (!c_non_pos_int || (terminates && c <= other)) {
-            return pow_1mz(z, -other);
+        let finite = c.is_finite() && other.is_finite();
+        if common == c && finite && (!c_non_pos_int || (terminates && c <= other)) {
+            return power::pow_1mz(z, -other);
         }
     }
     /* Reduces to a polynomial when a or b is a negative integer.

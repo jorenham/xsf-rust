@@ -198,28 +198,6 @@ fn test_hyp2f1_c64_transform2_euler() {
 }
 
 #[test]
-fn test_hyp2f1_c64_coincident_binomial() {
-    // Exact rational reference from (2 - i)^(-10).
-    for sign in [-1.0, 1.0] {
-        let actual = xsf::hyp2f1(10.0, 10.0, 10.0, c64(-1.0, sign));
-        np_assert_allclose!(
-            [actual.re, actual.im],
-            [-2.42688e-5, -sign * 3.190_784e-4],
-            rtol = 1e-14
-        );
-
-        for (y, expected) in [(1.0, -1.0), (10.0, -1e-10)] {
-            let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0, sign * y));
-            assert_eq!(value.re, expected);
-            assert_eq!(value.im.to_bits(), 0);
-        }
-        let x = 1.0 + f64::EPSILON;
-        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(x, sign));
-        assert_eq!(value.im, -sign * 10.0 * f64::EPSILON);
-    }
-}
-
-#[test]
 fn test_hyp2f1_c64_binomial() {
     // F(a, b; a; z) = (1 - z)^(-b) (DLMF 15.4.6), Arb references.
     for (a, b, z, expected) in [
@@ -243,8 +221,29 @@ fn test_hyp2f1_c64_binomial() {
             c64(-6.230_327_053_389_383e-189, -4.947_746_322_762_214e-189),
         ),
         (1.5, 2.25, c64(1e10, -1e10), c64(8.055_272_254_422_263e-24, 1.205_556_687_874_377_5e-23)),
-        // An exponent beyond the scaled power.
+        // Exact rational reference from (2 - i)^(-10).
+        (10.0, 10.0, c64(-1.0, 1.0), c64(-2.426_88e-5, -3.190_784e-4)),
+        // Integer exponents beyond 2^52, for a tiny z and on the unit circle around z = 1.
         (2.5, 1e17, c64(1e-18, 1e-18), c64(1.099_649_666_829_409_1, 0.110_332_988_730_203_72)),
+        (2.5, 1e300, c64(1e-300, 1e-300), c64(1.468_693_939_915_885_1, 2.287_355_287_178_842_7)),
+        (
+            2.5,
+            1e17,
+            c64(0.5, 0.866_025_403_784_438_6),
+            c64(-8.406_158_824_930_644, 76.657_099_442_722_17),
+        ),
+        (
+            1.5,
+            -9_007_199_254_740_992.0,
+            c64(1.000_000_000_000_1, 1.0),
+            c64(0.066_246_702_206_136_83, -0.997_803_274_466_835_7),
+        ),
+        (
+            1.5,
+            -9_007_199_254_740_992.0,
+            c64(2.000_000_000_000_01, 0.0),
+            c64(9.017_628_405_030_062e39, 0.0),
+        ),
         // At a pole of c, where b terminates the series first.
         (-5.0, -2.0, c64(0.3, 0.2), c64(0.45, -0.28)),
     ] {
@@ -274,12 +273,30 @@ fn test_hyp2f1_c64_binomial() {
         [1.441_201_271_173_911e90, -2.430_457_299_045_594e-231],
         rtol = 3e-15
     );
+    // Exact powers on and next to the line Re z = 1.
+    for sign in [-1.0, 1.0] {
+        for (y, expected) in [(1.0, -1.0), (10.0, -1e-10)] {
+            let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0, sign * y));
+            assert_eq!(value.re, expected);
+            assert_eq!(value.im.to_bits(), 0);
+        }
+        let x = 1.0 + f64::EPSILON;
+        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(x, sign));
+        assert_eq!(value.im, -sign * 10.0 * f64::EPSILON);
+    }
     // The power overflows and underflows.
     assert_eq!(
         xsf::hyp2f1(1.0, -3000.0, 1.0, c64(3.0, 1.0)),
         c64(f64::NEG_INFINITY, f64::INFINITY)
     );
     assert_eq!(xsf::hyp2f1(1.0, 3000.0, 1.0, c64(3.0, 1.0)), c64(0.0, 0.0));
+    // Also for an exponent that leaves only a real power or an underflow certain.
+    assert_eq!(xsf::hyp2f1(2.5, 1e300, 2.5, c64(0.5, 0.0)), c64(f64::INFINITY, 0.0));
+    assert_eq!(xsf::hyp2f1(2.5, -1e300, 2.5, c64(0.3, 0.2)), c64(0.0, 0.0));
+    assert!(xsf::hyp2f1(2.5, 1e300, 2.5, c64(0.3, 0.2)).is_nan());
+    assert!(xsf::hyp2f1(2.5, 1e300, 2.5, c64(0.0, 1e-290)).is_nan());
+    // An infinite parameter does not cancel.
+    assert!(xsf::hyp2f1(2.5, f64::INFINITY, 2.5, c64(3.0, 0.0)).is_nan());
 }
 
 #[test]
