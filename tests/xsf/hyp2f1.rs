@@ -2144,3 +2144,19 @@ fn test_hyp2f1_c64_unresolved_population_polynomial() {
     let expected = c64(-1.982_714_984_309_758e-98, 2.089_452_355_842_588e-98);
     assert!(y.is_nan() || (y - expected).norm() <= expected.norm());
 }
+
+#[test]
+fn test_hyp2f1_c64_nonnegative_population_polynomial() {
+    for imag in [0.0, -0.0] {
+        // Pearson, Olver and Porter, Table A.2 case 16.
+        let z = c64(core::f64::consts::FRAC_1_SQRT_2, imag);
+        let y = xsf::hyp2f1(-100.0, -200.0, -299.999_999_999, z);
+        np_assert_allclose!([y.re], [2.653_635_302_903_685_6e-31], rtol = 1e-13);
+        assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
+
+        // N = K + n - 1 gives a zero constant coefficient in 1 - z.
+        let y = xsf::hyp2f1(-100.0, -200.0, -299.0, c64(1.0, imag));
+        assert_eq!(y.re, 0.0);
+        assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
+    }
+}

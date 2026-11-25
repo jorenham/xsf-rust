@@ -683,10 +683,24 @@ fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C
     let (mut re, mut im) = (Dd::ONE, Dd::ZERO);
     let mut mass = 1.0;
     let excess = (Dd::new(population) - k) - n as f64;
+    // Use one quotient correction when the real centered sum cannot cancel.
+    let nonnegative = z.is_real() && z.re <= 1.0 && excess >= -1.0;
+    let divide = |numerator: Dd, denominator: Dd| {
+        if nonnegative && denominator.lo == 0.0 {
+            let d = denominator.hi;
+            let q = numerator.hi / d;
+            // Leave 106 exponent bits below q before the normal range ends.
+            if q >= pow2(-916) {
+                let residual = (-q).mul_add(d, numerator.hi) + numerator.lo;
+                return Dd::new(q) + residual / d;
+            }
+        }
+        numerator / denominator
+    };
     for j in (1..=n).rev() {
         let j = j as f64;
         coefficient =
-            (coefficient * (excess + j) * j) / (Dd::new(k - j + 1.0) * (n as f64 - j + 1.0));
+            divide(coefficient * (excess + j) * j, Dd::new(k - j + 1.0) * (n as f64 - j + 1.0));
         // Carry Im(P) divided by Im(t) so even a subnormal ordinate survives Horner.
         (re, im) = (re * t - im * square + coefficient, re + im * t);
         mass = mass * radius + coefficient.hi.abs();
