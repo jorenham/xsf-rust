@@ -14,7 +14,7 @@ use core::f64::consts::FRAC_PI_2;
 use num_traits::ToPrimitive;
 
 use crate::utils::neg_one_pow;
-use crate::xsf::specfun::{Status, coefficient_cv, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
+use crate::xsf::specfun::{Status, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
 
 /* Mathieu functions */
 /* Characteristic values */
@@ -495,7 +495,7 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Option<([f64; 252], usize)> {
     let km = km.to_usize().unwrap();
 
     let m = m.try_into().unwrap();
-    let cv = coefficient_cv(KD, m, q);
+    let cv = cva2(KD, m, q);
 
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
     // Unlike in SciPy (scipy/xsf#312), 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`

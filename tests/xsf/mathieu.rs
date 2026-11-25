@@ -156,6 +156,34 @@ fn test_mathieu_characteristic_index() {
 }
 
 #[test]
+fn test_mathieu_characteristic_index_large_q() {
+    // the expected values are from the tridiagonal eigenproblem (DLMF 28.4.5) in mpmath
+    let actual = [
+        xsf::mathieu_a(34, 225.0),
+        xsf::mathieu_a(4, 884.06),
+        xsf::mathieu_a(3, 1e4),
+        xsf::mathieu_b(3, 3e4),
+        xsf::mathieu_a(0, 1e8),
+    ];
+    let expected = [
+        1_178.186_203_209_546_6,
+        -1_243.382_537_160_609,
+        -18_606.278_776_913_54,
+        -58_271.205_539_853_18,
+        -199_980_000.250_003_13,
+    ];
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-14);
+
+    // the same characteristic value as in the Fourier coefficients (DLMF 28.4.5)
+    let coeffs = xsf::mathieu_even_coef(34, 225.0).unwrap();
+    xsref::np_assert_allclose!(
+        [coeffs[1] / coeffs[0]],
+        [xsf::mathieu_a(34, 225.0) / 225.0],
+        rtol = 1e-14
+    );
+}
+
+#[test]
 fn test_mathieu_a_b_huge_m() {
     // 0 resp. NaN in xsf, because `m * m` overflows `int`; the second expected value is from
     // the series DLMF 28.6.14

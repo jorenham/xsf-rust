@@ -12,8 +12,6 @@ use super::{Status, jynb, try_zeroed};
 use crate::utils::neg_one_pow;
 use crate::xsf::cephes::polevl::polevl;
 
-const INDEXED_CV_Q_MAX: f64 = 768.0;
-
 /// The `cv0` polynomials in `q` (highest degree first), as `(m, kd, q_max, coefficients)`
 #[rustfmt::skip]
 const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
@@ -140,6 +138,11 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     let m2 = f64::from(m) * f64::from(m);
     if (m <= 12) || (q <= 3.0 * f64::from(m)) || (q > m2) {
         a = cv0(f64::from(kd), f64::from(m), q);
+        // Unlike in xsf, return the large-q expansion of `cvql` once its last term is below the
+        // rounding error: `refine` can't improve it, and the cost of `indexed_cv` grows with q.
+        if cvql_last_term(kd, m, q) <= f64::EPSILON * a.abs() {
+            return a;
+        }
         if (q != 0.0) && (m != 2) {
             a = refine(kd, m, q, a);
         }
@@ -188,41 +191,24 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             }
         }
     }
-    // Unlike in xsf, verify the index across the moderate transition.
-    // Start the higher-order check below the observed wrong-index region.
-    if m <= 30 && (m <= 25 || q > 4.0 * f64::from(m)) && (1.0..=INDEXED_CV_Q_MAX).contains(&q) {
-        return indexed_cv(kd, m, q, a).unwrap_or(a);
-    }
-    a
+    // Unlike in xsf, make sure that the result has the requested index.
+    indexed_cv(kd, m, q, a)
 }
 
-// Unlike in xsf, verify the index before computing Fourier coefficients in the
-// bounded angular and modified Mathieu domains.
-pub(crate) fn coefficient_cv(kd: i32, m: i32, q: f64) -> f64 {
-    let high_transition = m > 30 && q > 3.0 * f64::from(m);
-    let a = if high_transition && q <= f64::from(m).powi(2) {
-        refine(kd, m, q, cvqm(m, q))
-    } else {
-        cva2(kd, m, q)
-    };
-    if high_transition || (m <= 30 && q > INDEXED_CV_Q_MAX) {
-        indexed_cv(kd, m, q, a).unwrap_or(a)
-    } else {
-        a
+/// `a` if it is the characteristic value of index `(m - start) / 2` of the symmetric Fourier matrix
+/// (DLMF 28.4.5-28.4.8), else that one by bisection
+fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
+    // `a` is exact for q = 0, and there are no finite pivots for an infinite or NaN q.
+    if !(q > 0.0 && q.is_finite()) {
+        return a;
     }
-}
-
-// Unlike in xsf, check the order of a moderate characteristic value against
-// the symmetric Fourier matrix (DLMF 28.4.5–28.4.8).
-fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> Option<f64> {
     let start = match kd {
         1 => 0,
         4 => 2,
         _ => 1,
     };
     let index = (m - start) / 2;
-    let n = index + 16 + q.sqrt() as i32;
-    let square = |j| f64::from(start + 2 * j).powi(2);
+    let square = |j: i32| (2.0 * f64::from(j) + f64::from(start)).powi(2);
     let first_diag = square(0)
         + match kd {
             2 => q,
@@ -231,44 +217,50 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> Option<f64> {
         };
     let q2 = q * q;
     let first_edge2 = if kd == 1 { 2.0 * q2 } else { q2 };
-    let count = |x: f64, tail_shift: f64| {
+    // The number of characteristic values below `x`: the negative pivots of the matrix minus `x`
+    let count = |x: f64| {
         let signed_pivot = |p: f64| if p == 0.0 { -1e-100 } else { p };
         let mut pivot = signed_pivot(first_diag - x);
         let mut neg = i32::from(pivot < 0.0);
         pivot = signed_pivot(square(1) - x - first_edge2 / pivot);
         neg += i32::from(pivot < 0.0);
-        for j in 2..(n - 1) {
-            pivot = signed_pivot(square(j) - x - q2 / pivot);
+        for j in 2.. {
+            let diag = square(j) - x;
+            // The rows from `j` on dominate the constant tail with this diagonal. For
+            // `diag > 2q`, it is positive definite and lowers the last pivot by at most
+            // `(diag - sqrt(diag^2 - 4q^2)) / 2 < q`, so the rest adds no negative pivots.
+            if diag > 2.0 * q && pivot > q {
+                break;
+            }
+            pivot = signed_pivot(diag - q2 / pivot);
             neg += i32::from(pivot < 0.0);
         }
-        neg + i32::from(square(n - 1) - x - tail_shift - q2 / pivot <= 0.0)
+        neg
     };
     let m2 = square(index);
     let tol = 64.0 * f64::EPSILON * (m2 + 2.0 * q);
-    let enclosed = |value: f64| {
-        let lo = value - tol;
-        let hi = value + tol;
-        // The excluded tail is bounded below by its first diagonal minus 2q.
-        // Eliminating it decreases the last retained diagonal by at most this shift.
-        let gap = square(n) - 2.0 * q - lo;
-        gap > 0.0 && count(lo, q2 / gap) <= index && count(hi, 0.0) > index
-    };
-    if enclosed(a) {
-        return None;
-    }
-    // The potential has operator norm at most 2q. Bisect this interval in
-    // the finite matrix, then check the excluded tail at the result.
+    // The potential has operator norm at most 2q.
     let (mut lo, mut hi) = (m2 - 2.0 * q, m2 + 2.0 * q);
-    while hi - lo > tol / 32.0 {
+    if a.is_finite() {
+        if count(a + tol) <= index {
+            lo = a + tol;
+        } else if count(a - tol) > index {
+            hi = a - tol;
+        } else {
+            return a;
+        }
+    }
+    loop {
         let mid = lo.midpoint(hi);
-        if count(mid, 0.0) > index {
+        if mid == lo || mid == hi {
+            return mid;
+        }
+        if count(mid) > index {
             hi = mid;
         } else {
             lo = mid;
         }
     }
-    let value = lo.midpoint(hi);
-    enclosed(value).then_some(value)
 }
 
 fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
@@ -379,6 +371,13 @@ fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     cv2 = cv2 + d3 / (64.0 * c1 * p1 * p2) + d4 / (16.0 * c1 * c1 * p2 * p2);
     let a0 = cv1 - cv2 / (c1 * p1);
     a0
+}
+
+/// The last term of `cvql`, as in DLMF 28.8.1 with `s = w`
+fn cvql_last_term(kd: i32, m: i32, q: f64) -> f64 {
+    let w = 2.0 * f64::from(m) + if kd <= 2 { 1.0 } else { -1.0 };
+    let w2 = w * w;
+    (((527.0 * w2 + 15617.0) * w2 + 69001.0) * w2 + 41607.0) * w / (25.0f64.exp2() * q.powf(2.5))
 }
 
 fn cvqm(m: i32, q: f64) -> f64 {
@@ -827,7 +826,7 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, xr: f64, csf: &mut f64, csd: &mut f6
     let eps = 1.0e-14;
 
     let kd = kd(kf, m);
-    let a = coefficient_cv(kd, m, q);
+    let a = cva2(kd, m, q);
 
     let qm = qm(q);
 
@@ -1064,7 +1063,7 @@ pub(crate) fn mtu12(
     };
 
     let kd = kd(kf, m);
-    let a = coefficient_cv(kd, m, q);
+    let a = cva2(kd, m, q);
     fcoef(kd, m, q, a, &mut fg);
     let mut ic = m / 2 + 1;
     if kd == 4 {
