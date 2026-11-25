@@ -622,9 +622,9 @@ fn root_dd(v: impl Into<Dd>, k: usize) -> Dd {
         u.sqrt()
     } else {
         let s = u.hi.powf(1.0 / k as f64);
-        let pow = |n: usize| (0..n).fold(Dd::ONE, |p, _| p * s);
+        let prev = (1..k).fold(Dd::ONE, |p, _| p * s);
         // (one Newton step)
-        Dd::new(s) + (u - pow(k)) / (k as f64 * pow(k - 1).hi)
+        Dd::new(s) + (u - prev * s) / (k as f64 * prev.hi)
     };
     r.ldexp(q)
 }
