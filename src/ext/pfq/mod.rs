@@ -415,6 +415,12 @@ fn pfq_accurate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let polynomial = first_zero(a).is_finite();
     let methods: &[Method] = if polynomial {
         &[series, hyp3f2::legendre_square]
+    } else if z > 0.0 && a.len() == 2 && b.len() == 1 {
+        // A canceled 3F2 can reduce to a slowly convergent Gauss series near one.
+        &[series, |a, b, z| {
+            Estimate::scaled_certain(crate::ext::hyp2f1_recur(a[0], a[1], b[0], z)?)
+                .filter(|v| v.is_accurate())
+        }]
     } else if z > PFQ_WENIGER_MAX_Z {
         &[series]
     } else if z > -1.0 {
