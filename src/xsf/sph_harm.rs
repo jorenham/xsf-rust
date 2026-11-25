@@ -4,46 +4,36 @@ use core::ffi::c_int;
 use num_complex::Complex64;
 
 use crate::xsf::c64::C64;
-use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n_m, sph_legendre_p_t};
+use crate::xsf::cephes::dd_real::ldexp_f64;
+use crate::xsf::complex::Num;
+use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n_m, sph_legendre_p_scaled};
 
-fn sph_harm_y_next(m: i32, phi: f64, p: f64, res: &mut C64) {
-    *res = (C64::I * f64::from(m) * phi).exp() * p;
-}
-
-fn sph_harm_y_for_each_n_m(
-    n: i32,
-    m: i32,
-    theta: f64,
-    phi: f64,
-    res: &mut C64,
-    mut f: impl FnMut(i32, i32, &C64),
-) {
-    let mut p = [0.0; 2];
-    sph_legendre_p_for_each_n_m(n, m, theta, &mut p, |n, m, p| {
-        sph_harm_y_next(m, phi, p[1], res);
-
-        f(n, m, res);
-    });
+fn sph_harm_y_next(m: i32, phi: f64, p: f64, scale: i32) -> C64 {
+    let phase = (C64::I * f64::from(m) * phi).exp();
+    match scale {
+        0 => phase * p,
+        1.. => phase * ldexp_f64(p, scale),
+        // Unlike in xsf, apply the phase before rounding a scaled subnormal polynomial.
+        _ => (phase * p).ldexp(scale),
+    }
 }
 
 fn sph_harm_y_t(n: i32, m: i32, theta: f64, phi: f64) -> C64 {
-    // Unlike in xsf, the phase is applied once, as only the last degree is kept
-    let mut res_n = C64::ZERO;
-    sph_harm_y_next(m, phi, sph_legendre_p_t(n, m, theta), &mut res_n);
-
-    res_n
+    // Unlike in xsf, the phase is applied once, as only the last degree is kept.
+    let (p, scale) = sph_legendre_p_scaled(n, m, theta);
+    sph_harm_y_next(m, phi, p, scale)
 }
 
 fn sph_harm_y_all_t(theta: f64, phi: f64, mut res: Mdspan<'_, C64, 2>) {
     let n_max = int(res.extent(0)) - 1;
     let m_max = (int(res.extent(1)) - 1) / 2;
 
-    let mut res_n_m = C64::ZERO;
-    sph_harm_y_for_each_n_m(n_max, m_max, theta, phi, &mut res_n_m, |n, m, res_n_m| {
+    sph_legendre_p_for_each_n_m(n_max, m_max, theta, |n, m, p, scale| {
+        let value = sph_harm_y_next(m, phi, p, scale);
         if m >= 0 {
-            res[(n, m)] = *res_n_m;
+            res[(n, m)] = value;
         } else {
-            res[(n, m + 2 * m_max + 1)] = *res_n_m;
+            res[(n, m + 2 * m_max + 1)] = value;
         }
     });
 }

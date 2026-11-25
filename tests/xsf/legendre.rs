@@ -50,6 +50,19 @@ fn test_sph_legendre_p_f64() {
 }
 
 #[test]
+fn test_sph_legendre_p_scaled_diagonal() {
+    // Arb applied to the spherical normalization of P_n^m(cos(theta)).
+    let expected = -5.828_985_299_854_025e-252;
+    let scalar = xsf::sph_legendre_p(600, 475, 0.2);
+    let all = xsf::sph_legendre_p_all(600, 475, 0.2);
+    xsref::np_assert_allclose!(
+        [scalar, all[600][475], -all[600][476]],
+        [expected; 3],
+        rtol = 1e-12
+    );
+}
+
+#[test]
 fn test_sph_legendre_p_c64() {
     xsref::np_assert_allclose!(
         &[xsf::sph_legendre_p(0, 0, I), xsf::sph_legendre_p(1, 0, I), xsf::sph_legendre_p(1, 1, I)],
