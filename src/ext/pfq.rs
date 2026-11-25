@@ -526,6 +526,9 @@ fn pfq_real(a: &mut [f64], b: &mut [f64], z: f64) -> Option<Estimate> {
                     return Some(value);
                 }
             }
+            if let Some(value) = hyp3f2_thomae_at_one(u.max(v), u.min(v), n.min(w), n.max(w)) {
+                return Some(value);
+            }
         }
         // +-inf where the series diverges, and no result where it converges without a method
         let diverges = diverges_at_one(a, b)?;
@@ -565,6 +568,70 @@ fn hyp3f2_shift_at_one(u: f64, v: f64, n: f64, w: f64) -> Option<Estimate> {
     sum.mul_add(err, sum)
         .is_finite()
         .then(|| Estimate::new(sum, err))
+}
+
+/// Thomae's transformation with a unit upper parameter (DLMF 15.8.1 and 16.5.2).
+fn hyp3f2_thomae_at_one(u: f64, v: f64, n: f64, w: f64) -> Option<Estimate> {
+    const MAX_TERMS: u32 = 512;
+    if n < 2.0 || v <= n || w <= u || !PFQ_MODERATE.contains(&w) {
+        return None;
+    }
+    let a = two_sum(n, -u);
+    let b = two_sum(n, -v);
+    let shift = |(hi, lo), k| (hi + k) + lo;
+    // Keep exact integer shifts on the finite-sum path, and bound work before the terms settle.
+    let unsuitable =
+        |v: (f64, f64)| (v.1 == 0.0 && v.0.fract() == 0.0) || shift(v, f64::from(MAX_TERMS)) < 0.0;
+    if unsuitable(a) || unsuitable(b) {
+        return None;
+    }
+
+    // c = 1 + excess. Accept only when the residual of its three additions fits in two words.
+    let (gap, gap_lo) = two_sum(w, -u);
+    let (c_hi, c_mid) = two_sum(gap, b.0);
+    let (lo, e1) = two_sum(gap_lo, b.1);
+    let (lo, e2) = two_sum(c_mid, lo);
+    if e1 != 0.0 || e2 != 0.0 {
+        return None;
+    }
+    let c = two_sum(c_hi, lo);
+    let excess = shift(c, -1.0);
+    if excess <= 0.0 {
+        return None;
+    }
+
+    let mut term = 1.0;
+    let mut sum = term;
+    let mut mass = 0.0;
+    for k in 0..MAX_TERMS {
+        let j = f64::from(k);
+        let (x, y) = (shift(a, j), shift(b, j));
+        // The nonzero shifted numerators are bounded by MAX_TERMS on a 2^-51 grid.
+        // Both denominator factors are in [1, 1e30 + MAX_TERMS], so the ratio is normal.
+        let next = term * ((x * y) / ((n + j) * shift(c, j)));
+        if !next.is_normal() {
+            return None;
+        }
+
+        // Once both factors are positive, the ratio is at most k/(k+2).
+        // Telescoping (k+1)|t_k| bounds the tail from the first omitted term t_(k+1).
+        let tail = (j + 2.0) * next.abs();
+        if x > 0.0 && y > 0.0 && tail <= PFQ_TOL * sum.abs() {
+            // Bound the inherited ratio errors and signed additions, and round the bound up.
+            let rounding = f64::EPSILON * (j + 1.0) * (1.0 + 17.0 * mass);
+            let outward = 1.0 + 32.0 * f64::EPSILON * (j + 2.0);
+            let err = outward * ((tail + rounding) / sum.abs()) + 8.0 * f64::EPSILON;
+            if err <= PFQ_TOL {
+                let value = ((w - 1.0) / excess) * sum;
+                return (value > 0.0 && value.mul_add(err, value).is_finite())
+                    .then(|| Estimate::new(value, err));
+            }
+        }
+        term = next;
+        sum += term;
+        mass += term.abs();
+    }
+    None
 }
 
 /// Generalized hypergeometric function $_3F_2$ for real arguments

@@ -269,6 +269,58 @@ fn test_hyp3f2_double_double() {
 }
 
 #[test]
+fn test_hyp3f2_thomae_at_one() {
+    // Independent beta-negative-binomial mass and survival evaluated in Arb.
+    for a in [[1.0, 2.25, 2.75], [2.75, 1.0, 2.25], [2.25, 2.75, 1.0]] {
+        for b in [[2.0, 6.5], [6.5, 2.0]] {
+            assert_hyp3f2(a, b, 1.0, 2.259_850_619_351_811);
+            assert_eq!(hyppfq(a, b, 1.0), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0)));
+        }
+    }
+    // Adjacent to the finite positive integer shift.
+    let v = f64::from_bits(14.0_f64.to_bits() + 1);
+    assert_hyp3f2([1.0, v, v], [12.0, 20.0], 1.0, 6.869_230_769_230_779);
+
+    let u = 2.0 + 2.0 * f64::EPSILON;
+    // Adjacent denominators give exact excesses -2^-50, 0, and +2^-50.
+    let v = f64::from_bits(3.25_f64.to_bits() + 1);
+    for w in [4.25, f64::from_bits(4.25_f64.to_bits() + 1)] {
+        assert_eq!(hyp3f2(1.0, u, v, 2.0, w, 1.0), f64::INFINITY);
+        assert_eq!(hyppfq([1.0, u, v], [2.0, w], 1.0), Some(f64::INFINITY));
+    }
+    let w = f64::from_bits(4.25_f64.to_bits() + 2);
+    assert_hyp3f2([1.0, u, v], [2.0, w], 1.0, 3_659_174_697_238_531.0);
+    assert_eq!(hyppfq([1.0, u, v], [2.0, w], 1.0), Some(hyp3f2(1.0, u, v, 2.0, w, 1.0)));
+
+    // One large lower parameter still allows an exact two-word expansion.
+    let large = 2.0_f64.powi(95);
+    assert_eq!(hyppfq([1.0, u, 3.25], [2.0, large], 1.0), Some(1.0));
+    let u_large = f64::from_bits(5.0_f64.to_bits() + 1);
+    let v_large = f64::from_bits(2.75_f64.to_bits() - 1);
+    let b = [2.0, 2.0_f64.powi(56)];
+    for a in [[1.0, u_large, v_large], [1.0, v_large, u_large]] {
+        // The large lower parameter makes an unsorted expansion order-dependent.
+        assert_hyp3f2(a, b, 1.0, 1.0 + f64::EPSILON);
+        assert_eq!(hyppfq(a, b, 1.0), Some(1.0 + f64::EPSILON));
+    }
+    for (a, b) in [
+        // This excess requires more than two words.
+        ([1.0, u, 6.25], [2.0, large]),
+        ([1.0, 401.25, 402.25], [2.0, 1000.25]),
+        ([1.0, 1001.5, 1002.5], [2.0, 2100.25]),
+    ] {
+        assert!(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0).is_nan());
+        assert_eq!(hyppfq(a, b, 1.0), None);
+    }
+    let (a, b) = ([1.0, 2.25, 2.75], [2.0, 6.5]);
+    let above = f64::from_bits(1.0_f64.to_bits() + 1);
+    let below = f64::from_bits(1.0_f64.to_bits() - 1);
+    assert!(hyp3f2(a[0], a[1], a[2], b[0], b[1], above).is_nan());
+    assert!(hyppfq(a, b, above).is_some_and(f64::is_nan));
+    assert_eq!(hyppfq(a, b, below), None);
+}
+
+#[test]
 fn test_hyp3f2_conformal() {
     // Wolfram references
     for (a, b, z, expected) in [
@@ -306,7 +358,7 @@ fn test_hyp3f2_positive_integer_shift_at_one() {
         }
     }
     for (a, b, z) in [
-        ([1.0, next_up(14.0), next_up(14.0)], [12.0, 20.0], 1.0),
+        ([1.0, 11.5, next_up(14.0)], [12.0, 20.0], 1.0),
         // A difference that rounds to 4 but is not integral.
         ([1.0, 0.75, 4.0], [2.0_f64.powi(-55), 10.0], 1.0),
         ([1.0, 3.25, 58.0], [2.0, 100.0], 1.0),
