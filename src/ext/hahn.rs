@@ -3,6 +3,8 @@
 //! With `a1 = alpha + 1` and `b1 = beta + 1`, which don't cancel for alpha and beta near -1.
 
 use crate::utils::{neg_one_pow, pow2};
+use crate::xsf::Real;
+use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 
 /// The `|q|` above which [`recurrence`] rescales, so that its products stay finite
 const BIG: f64 = pow2(512);
@@ -10,19 +12,33 @@ const BIG: f64 = pow2(512);
 /// `q_n` of `q_{k+1} = (u q_k - v q_{k-1}) / w`, where `(u, v, w) = coef(k)`
 ///
 /// The values are rescaled by powers of 2, so that the result only overflows if `q_n` does.
-fn recurrence(n: u32, mut q0: f64, mut q1: f64, coef: impl Fn(f64) -> (f64, f64, f64)) -> f64 {
+fn recurrence<T: Real>(
+    n: u32,
+    mut q0: T,
+    mut q1: T,
+    coef: impl Fn(f64) -> (T, T, T),
+    cancellation_tol: f64,
+) -> (T, bool) {
     if n == 0 {
-        return q0;
+        return (q0, false);
     }
+    let big = T::from_f64(BIG);
     let mut scale = 0;
+    let (mut p, mut q, mut difference) = (q0, q0, q0);
     for k in 1..n {
         let (u, v, w) = coef(f64::from(k));
-        (q0, q1) = (q1, (u * q1 - v * q0) / w);
-        if q1.abs() > BIG {
-            (q0, q1, scale) = (q0 / BIG, q1 / BIG, scale + 1);
+        (p, q) = (u * q1, v * q0);
+        difference = p - q;
+        (q0, q1) = (q1, difference / w);
+        if q1.abs() > big {
+            (q0, q1, scale) = (q0 / big, q1 / big, scale + 1);
         }
     }
-    (0..scale).fold(q1, |q, _| q * BIG)
+    let cancels = cancellation_tol > 0.0 && {
+        let mass = p.abs().to_f64() + q.abs().to_f64();
+        mass.is_normal() && difference.abs().to_f64() <= cancellation_tol * mass
+    };
+    ((0..scale).fold(q1, |q, _| q * big), cancels)
 }
 
 /// `(A_k, C_k)` of the recurrence in `n` (DLMF 18.22.3), for `k >= 1`
@@ -37,22 +53,76 @@ fn hahn_a_c(k: f64, a1: f64, b1: f64, big_n: f64) -> (f64, f64) {
 /// `Q_n(x)` by the recurrence in `n` (DLMF 18.22.2-3)
 fn hahn_q_n(n: u32, a1: f64, b1: f64, big_n: f64, x: f64) -> f64 {
     let q1 = 1.0 - (a1 + b1) * x / (a1 * big_n);
-    recurrence(n, 1.0, q1, |k| {
-        let (a, c) = hahn_a_c(k, a1, b1, big_n);
-        (a + c - x, c, a)
-    })
+    recurrence(
+        n,
+        1.0,
+        q1,
+        |k| {
+            let (a, c) = hahn_a_c(k, a1, b1, big_n);
+            (a + c - x, c, a)
+        },
+        0.0,
+    )
+    .0
 }
 
 /// `Q_n(x)` for integer `x` by the difference equation in `x` (DLMF 18.22.10-11), from
 /// `Q_n(0) = q0`
-fn hahn_q_x(n: u32, a1: f64, b1: f64, big_n: f64, x: u32, q0: f64) -> f64 {
-    let n = f64::from(n);
-    let lambda = n * (n - 1.0 + a1 + b1);
-    let q1 = q0 * (1.0 - lambda / (a1 * big_n));
-    recurrence(x, q0, q1, |k| {
-        let (a, c) = ((k + a1) * (k - big_n), k * (k - b1 - big_n));
-        (lambda + a + c, c, a)
-    })
+fn hahn_q_x<T: Real>(
+    n: u32,
+    a1: T,
+    b1: T,
+    big_n: f64,
+    x: u32,
+    q0: T,
+    cancellation_tol: f64,
+) -> (T, bool) {
+    let n = T::from_f64(f64::from(n));
+    let big_n = T::from_f64(big_n);
+    let one = T::from_f64(1.0);
+    let lambda = n * (n - one + a1 + b1);
+    let q1 = q0 * (one - lambda / (a1 * big_n));
+    recurrence(
+        x,
+        q0,
+        q1,
+        |k| {
+            let k = T::from_f64(k);
+            let (a, c) = ((k + a1) * (k - big_n), k * (k - b1 - big_n));
+            (lambda + a + c, c, a)
+        },
+        cancellation_tol,
+    )
+}
+
+/// Repeat the same difference equation with the original shape parameters.
+#[cold]
+fn hahn_q_x_retry(
+    n: u32,
+    big_n: f64,
+    x: u32,
+    alpha: f64,
+    beta: f64,
+    reflect: bool,
+    original: f64,
+) -> f64 {
+    let (a1, b1) = (Dd::new(alpha) + Dd::ONE, Dd::new(beta) + Dd::ONE);
+    let (a1, b1, q0) = if reflect {
+        (b1, a1, hahn_q_big_n(n, a1, b1))
+    } else {
+        (a1, b1, Dd::ONE)
+    };
+    if !q0.hi.is_normal() {
+        return original;
+    }
+    // Keep the original zero when the replay still cancels near double-double precision.
+    let tol = if original == 0.0 { pow2(-96) } else { 0.0 };
+    let (q, cancels) = hahn_q_x(n, a1, b1, big_n, x, q0, tol);
+    if q.is_finite() && !cancels && (q.hi != 0.0 || original != 0.0) {
+        q.hi
+    } else {
+        original
+    }
 }
 
 /// `t0 Q_n(x)` for `x < 1` by its 3F2 sum (DLMF 18.20.5), whose terms after the first all have the
@@ -80,9 +150,12 @@ fn hahn_q_sum(n: u32, a1: f64, b1: f64, big_n: f64, x: f64, mut t: f64) -> f64 {
 /// `Q_n(N) = (-1)^n (beta + 1)_n / (alpha + 1)_n`, the factor of the reflection
 /// `Q_n(x; alpha, beta, N) = Q_n(N) Q_n(N - x; beta, alpha, N)` (by the symmetry of the weight in
 /// DLMF Table 18.19.1)
-fn hahn_q_big_n(n: u32, a1: f64, b1: f64) -> f64 {
-    let sign = neg_one_pow(n);
-    (0..n).fold(sign, |q, j| q * ((b1 + f64::from(j)) / (a1 + f64::from(j))))
+fn hahn_q_big_n<T: Real>(n: u32, a1: T, b1: T) -> T {
+    let sign = T::from_f64(neg_one_pow(n));
+    (0..n).fold(sign, |q, j| {
+        let j = T::from_f64(f64::from(j));
+        q * ((b1 + j) / (a1 + j))
+    })
 }
 
 /// Evaluate the Hahn polynomial $Q_n(x; \alpha, \beta, N)$ at a point.
@@ -136,11 +209,20 @@ pub fn eval_hahn(n: u32, N: u32, alpha: f64, beta: f64, x: f64) -> f64 {
         // it starts on the same side of the center A + C of the oscillatory region in x (where
         // the characteristic roots of the recurrence in n at n - 1 are complex).
         let (a, c) = hahn_a_c(nf - 1.0, a1, b1, big_nf);
-        if x <= a + c {
-            hahn_q_x(n, a1, b1, big_nf, x as u32, 1.0)
+        let (x, a, b, q0, reflect) = if x <= a + c {
+            (x as u32, a1, b1, 1.0, false)
         } else {
-            let q_big_n = hahn_q_big_n(n, a1, b1);
-            hahn_q_x(n, b1, a1, big_nf, (big_nf - x) as u32, q_big_n)
+            ((big_nf - x) as u32, b1, a1, hahn_q_big_n(n, a1, b1), true)
+        };
+        // Bound the work of the higher-precision endpoint product and difference equation.
+        let work = x.saturating_add(if reflect { n } else { 0 });
+        // A relative error of order 1e-13 can arise from rounding the final products alone.
+        let tol = if x > 1 && work <= 128 { 1e-3 } else { 0.0 };
+        let (q, retry) = hahn_q_x(n, a, b, big_nf, x, q0, tol);
+        if retry {
+            hahn_q_x_retry(n, big_nf, x, alpha, beta, reflect, q)
+        } else {
+            q
         }
     } else {
         hahn_q_n(n, a1, b1, big_nf, x)

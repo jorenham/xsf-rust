@@ -142,3 +142,27 @@ fn test_eval_hahn_tl_moments() {
         np_assert_allclose!(&ratios, &vec![ratios[0]; ratios.len()], rtol = 1e-14);
     }
 }
+
+#[test]
+fn test_eval_hahn_integer_cancellation() {
+    let alpha = -0.5_f64;
+    let below = alpha.next_down();
+    let above = alpha.next_up();
+    assert!(eval_hahn(30, 32, alpha, alpha, 18.0).abs() < 1e-22);
+    assert_eq!(eval_hahn(31, 32, alpha, alpha, 16.0).to_bits(), (-0.0_f64).to_bits());
+
+    let actual = [
+        eval_hahn(30, 32, below, alpha, 18.0),
+        eval_hahn(30, 32, above, alpha, 18.0),
+        eval_hahn(30, 32, alpha, above, 14.0),
+        eval_hahn(30, 32, alpha + 1.0 / 4096.0, alpha, 18.0),
+    ];
+    // Exact rational terminating 3F2 sums evaluated at the binary64 inputs.
+    let desired = [
+        -9.951_973_626_777_816e-10,
+        4.975_986_813_388_904e-10,
+        4.975_986_813_388_905e-10,
+        2_185.915_897_956_367_6,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14, atol = 0.0);
+}
