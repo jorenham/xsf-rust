@@ -62,7 +62,7 @@ fn checked_series(
     None
 }
 
-fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
+fn checked_hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let original = hys2f1(a, b, c, x);
     checked_series(a, b, c, x, original).unwrap_or(original)
 }
@@ -81,7 +81,7 @@ fn near(t: f64, n: f64) -> bool {
 }
 
 /// `hys2f1` and its error estimate, or if that is large, `hys2f1_series` and its `loss` if
-/// smaller (not if `a` or `b` is near a non-positive integer, as in `hys2f1_checked`)
+/// smaller (not if `a` or `b` is near a non-positive integer, as in `checked_hys2f1`)
 fn hys2f1_min(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     let (y, _, err) = hys2f1(a, b, c, x);
     if err < HYP2F1_ETHRESH || near_neg_int(a) || near_neg_int(b) {
@@ -317,7 +317,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate incl.
             // the recurrence in `a` isn't, it is only replaced by AMS55 #15.3.6 if that shows it
             // to be less accurate.
-            let (y0, loss0, full0) = hys2f1_checked(a, b, c, x);
+            let (y0, loss0, full0) = checked_hys2f1(a, b, c, x);
             if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
                 (err, err_full) = (loss0, full0);
                 break 'done y0;
@@ -332,7 +332,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 
                 /* test for integer c-a-b */
                 /* If power series fails, then apply AMS55 #15.3.6 */
-                (q, err, q_full) = hys2f1_checked(a, b, 1.0 - d, s);
+                (q, err, q_full) = checked_hys2f1(a, b, 1.0 - d, s);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(d);
                 sign *= sgngam;
@@ -343,7 +343,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 w -= lg;
                 sign *= sgngam;
                 let (w_q, sign_q) = (w, f64::from(sign));
-                (r, err1, r_full) = hys2f1_checked(c - a, c - b, d + 1.0, s);
+                (r, err1, r_full) = checked_hys2f1(c - a, c - b, d + 1.0, s);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(-d);
                 sign *= sgngam;
@@ -506,7 +506,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         /* Use defining power series if no special cases */
         // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too
         let y;
-        (y, err, err_full) = hys2f1_checked(a, b, c, x);
+        (y, err, err_full) = checked_hys2f1(a, b, c, x);
         y
     };
     // done:
