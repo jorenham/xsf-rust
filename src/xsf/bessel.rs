@@ -879,11 +879,36 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         v = -v;
         sign = -1;
     }
+    let x = z.re.abs();
+    let cut = z.re < 0.0;
+    // Unlike in xsf, take integer orders on the real axis up to the turning point from J and Y,
+    // as AMOS loses the small real part there. Both imaginary zeros take the upper lip, where
+    // the real coefficients of H1 and H2 are -1 and 3 times the integer-order parity, so that
+    // H = a J + i b Y.
+    let axis = (kode == 1 && z.is_real() && x <= v && v == v.trunc()).then(|| {
+        let parity = if (sign < 0) == cut {
+            1.0
+        } else {
+            cephes_cospi(v)
+        };
+        let (a, b) = match (cut, m) {
+            (false, 1) => (1.0, 1.0),
+            (false, _) => (1.0, -1.0),
+            (true, 1) => (-1.0, 1.0),
+            (true, _) => (3.0, -1.0),
+        };
+        (parity * a, parity * b)
+    });
+    if let Some((a, b)) = axis {
+        // A subnormal J is left to the overflow recovery below, which rounds 3 J only once.
+        let jy = bessel_jy_large_order(v, x).filter(|(j, y)| j.is_normal() && y.is_finite());
+        if let Some((j, y)) = jy {
+            return c64(a * j, b * y);
+        }
+    }
     let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
     // Unlike in xsf, recover overflowing unscaled Hankel components on the real axis.
-    if ierr == 2 && kode == 1 && z.is_real() && z.re.abs() >= f64::MIN_POSITIVE && v >= 1.0 {
-        let x = z.re.abs();
-        let cut = z.re < 0.0;
+    if ierr == 2 && kode == 1 && z.is_real() && x >= f64::MIN_POSITIVE && v >= 1.0 {
         let log_leading = bessel_y_axis_log_leading(v, x);
         // Strong saturation makes J round to zero and each nonzero Y component overflow.
         if log_leading > 2.0 * MAXLOG && x * x < 4.0 * (v + 1.0) {
@@ -916,37 +941,57 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if sign == -1 {
         cy = rotate(cy, if m == 1 { v } else { -v });
     }
-    if kode != 1 || !z.is_real() || z.re.abs() > v {
+    let Some((a, _)) = axis else {
         return cy;
-    }
+    };
 
-    // Unlike in xsf, recover a small real component from scalar J at integer
-    // orders. When |Re| >= |Im|/2, the norm is at most sqrt(5) times |Re|.
-    if cy.is_finite() && cy.re.abs() < 0.5 * cy.im.abs() && v == v.trunc() {
-        let x = z.re.abs();
+    // Unlike in xsf, recover a small real component from J where the expansions for large
+    // orders do not apply. When |Re| >= |Im|/2, the norm is at most sqrt(5) times |Re|.
+    if cy.is_finite() && cy.re.abs() < 0.5 * cy.im.abs() {
         let j = if v == 1.0 {
             bessel_j1(x)
+        } else if v < LARGE_ORDER_MIN_V {
+            bessel_j_axis_wronskian(v, x, cy.im.abs())
         } else {
             cyl_bessel_j_f64(v, x)
         };
         if j.is_finite() {
-            // Both imaginary zeros take the upper lip, where the real coefficients
-            // of H1 and H2 are -1 and 3 times the integer-order parity.
-            let cut = z.re < 0.0;
-            let parity = if (sign < 0) == cut {
-                1.0
-            } else {
-                cephes_cospi(v)
-            };
-            let factor = match (cut, m) {
-                (true, 1) => -parity,
-                (true, _) => 3.0 * parity,
-                _ => parity,
-            };
-            cy.re = factor * j;
+            cy.re = a * j;
         }
     }
     cy
+}
+
+/// `J_n(x)` for an integer `n >= 1` and `0 < x <= n`, from `|Y_n(x)|`
+///
+/// By the Wronskian `J_(n+1) Y_n - J_n Y_(n+1) = 2 / (pi x)` (DLMF 10.5.4), with `Y_(n+1) / Y_n`
+/// recurred up from `Y_1 / Y_0` (DLMF 10.6.1) and `J_(n+1) / J_n` from its continued fraction
+/// (DLMF 10.10.1). Up to the turning point, `Y_n < 0` and `J_(n+1) / J_n < 1 < Y_(n+1) / Y_n`, so
+/// their difference does not cancel much.
+fn bessel_j_axis_wronskian(n: f64, x: f64, y_abs: f64) -> f64 {
+    let t = 2.0 / x;
+    let mut s = bessel_y1(x) / bessel_y0(x);
+    let mut k = 1.0;
+    while k <= n {
+        s = k * t - 1.0 / s;
+        k += 1.0;
+    }
+    // 1 / (b_1 - 1 / (b_2 - ...)) with b_k = (n + k) t, by the modified Lentz method
+    let mut f = (n + 1.0) * t;
+    let (mut c, mut d) = (f, 0.0);
+    let mut k = n + 2.0;
+    loop {
+        let b = k * t;
+        d = 1.0 / (b - d);
+        c = b - 1.0 / c;
+        f *= c * d;
+        // also on NaN, where `t` overflows
+        if !((c * d - 1.0).abs() > f64::EPSILON) {
+            break;
+        }
+        k += 1.0;
+    }
+    FRAC_2_PI / (x * (s - 1.0 / f)) / y_abs
 }
 
 // If J rounds to zero and every nonzero multiple of Y overflows, only

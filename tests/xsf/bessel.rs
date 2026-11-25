@@ -1584,6 +1584,35 @@ fn test_hankel_finite_real_axis_small_components() {
 }
 
 #[test]
+fn test_hankel_integer_real_axis_below_turning_point() {
+    // Arb Re H1, Im H1 = -Im H2, and Re H2
+    for (v, x, re1, im1, re2) in [
+        (5.0, 1.0, 2.497_577_302_112_344_4e-4, -260.405_866_625_812_2, 2.497_577_302_112_344_4e-4),
+        (7.0, -3.5, 6.743_000_315_638_399e-3, 7.848_865_619_868_793, -2.022_900_094_691_519_6e-2),
+        (
+            60.0,
+            30.0,
+            9.807_557_643_128_625e-14,
+            -6.246_625_104_472_867_6e10,
+            9.807_557_643_128_625e-14,
+        ),
+        (
+            100.0,
+            80.0,
+            4.606_553_064_823_477e-6,
+            -1_152.590_518_569_850_5,
+            4.606_553_064_823_477e-6,
+        ),
+    ] {
+        let z = c64(x, 0.0);
+        for (h, re, im) in [(xsf::hankel_1(v, z), re1, im1), (xsf::hankel_2(v, z), re2, -im1)] {
+            assert!((h.re / re - 1.0).abs() < 6.0 * f64::EPSILON, "{v} {x} {h}");
+            assert!((h.im / im - 1.0).abs() < 6.0 * f64::EPSILON, "{v} {x} {h}");
+        }
+    }
+}
+
+#[test]
 fn test_unscaled_hankel_upper_cut_overflow() {
     let large = 1.182_804_904_943_348_4e308;
     let small_h1: f64 = -2.691_144_455_467_36e-310;
