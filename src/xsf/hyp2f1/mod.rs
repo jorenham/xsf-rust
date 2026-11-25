@@ -982,8 +982,8 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // F(a,b;a;z) = (1-z)^(-b) (DLMF 15.4.6).
     // At a pole of c, the other upper parameter has to terminate the series first.
     for (common, other, terminates) in [(a, b, b_neg_int), (b, a, a_neg_int)] {
-        let finite = c.is_finite() && other.is_finite();
-        if common == c && finite && (!c_non_pos_int || (terminates && c <= other)) {
+        let cancels = common == c && c.is_finite() && other.is_finite();
+        if cancels && (!c_non_pos_int || (terminates && c <= other)) {
             return power::pow_1mz(z, -other);
         }
     }
