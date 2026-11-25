@@ -197,9 +197,14 @@ fn test_hyp2f1_c64_transform2_euler() {
     }
 }
 
+/// Compares each component, so that a small one is checked too.
+fn assert_components_close(actual: num_complex::Complex64, expected: num_complex::Complex64) {
+    np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 3e-15);
+}
+
 #[test]
 fn test_hyp2f1_c64_binomial() {
-    // F(a, b; a; z) = (1 - z)^(-b) (DLMF 15.4.6), Arb references.
+    // F(a, b; a; z) = F(b, a; a; z) = (1 - z)^(-b) (DLMF 15.4.6), Arb references, also at conj(z).
     for (a, b, z, expected) in [
         // Pearson, Olver and Porter case 13 continued off the real axis.
         (
@@ -246,75 +251,75 @@ fn test_hyp2f1_c64_binomial() {
         ),
         // At a pole of c, where b terminates the series first.
         (-5.0, -2.0, c64(0.3, 0.2), c64(0.45, -0.28)),
+        // On the cut, and next to it for a tiny ordinate.
+        (1.5, 0.25, c64(3.0, 0.0), c64(0.594_603_557_501_360_5, 0.594_603_557_501_360_5)),
+        (1.5, 0.25, c64(3.0, 1e-300), c64(0.594_603_557_501_360_5, 0.594_603_557_501_360_5)),
+        // Next to the cut, the real part of a half-integer power.
+        (
+            2.5,
+            -1000.5,
+            c64(3.0, 2.0_f64.powi(-1000)),
+            c64(707.460_334_577_140_8, -1.515_342_004_482_324_3e301),
+        ),
+        // The power amplifies the smallest subnormal ordinate to a normal component.
+        (
+            1.0,
+            -512.0,
+            c64(-0.5, f64::from_bits(1)),
+            c64(1.441_201_271_173_911e90, -2.430_457_299_045_594e-231),
+        ),
     ] {
-        for (a, b, c) in [(a, b, a), (b, a, a)] {
-            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
-                let actual = xsf::hyp2f1(a, b, c, z);
-                np_assert_allclose!(
-                    [actual.re, actual.im],
-                    [expected.re, expected.im],
-                    rtol = 3e-15
-                );
-            }
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            assert_components_close(xsf::hyp2f1(a, b, a, z), expected);
+            assert_components_close(xsf::hyp2f1(b, a, a, z), expected);
         }
     }
-    // Both lips of the cut, also for a tiny ordinate.
-    for y in [0.0, 1e-300] {
-        for sign in [-1.0, 1.0] {
-            let actual = xsf::hyp2f1(1.5, 0.25, 1.5, c64(3.0, sign * y));
-            let expected = 0.594_603_557_501_360_5;
-            np_assert_allclose!([actual.re, actual.im], [expected, sign * expected], rtol = 3e-15);
-        }
-    }
-    // The power amplifies the smallest subnormal ordinate to a normal component.
-    let actual = xsf::hyp2f1(1.0, -512.0, 1.0, c64(-0.5, f64::from_bits(1)));
-    np_assert_allclose!(
-        [actual.re, actual.im],
-        [1.441_201_271_173_911e90, -2.430_457_299_045_594e-231],
-        rtol = 3e-15
-    );
-    // Exact powers on and next to the line Re z = 1.
+}
+
+#[test]
+fn test_hyp2f1_c64_binomial_exact() {
     for sign in [-1.0, 1.0] {
+        // Exact powers on and next to the line Re z = 1.
         for (y, expected) in [(1.0, -1.0), (10.0, -1e-10)] {
             let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0, sign * y));
             assert_eq!(value.re, expected);
             assert_eq!(value.im.to_bits(), 0);
         }
-        let x = 1.0 + f64::EPSILON;
-        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(x, sign));
+        let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(1.0 + f64::EPSILON, sign));
         assert_eq!(value.im, -sign * 10.0 * f64::EPSILON);
+        // A half-integer power further from the cut.
+        let actual = xsf::hyp2f1(2.5, -0.5, 2.5, c64(2.0, sign * 2.0_f64.powi(-100)));
+        assert_eq!(actual, c64(2.0_f64.powi(-101), -sign));
     }
     // A component of 1 - z below the rounding of the other one reaches the power.
     let z = c64(1.0 + f64::EPSILON, 2.0_f64.powi(1023));
     assert_eq!(xsf::hyp2f1(2.5, -1.0, 2.5, z), c64(-f64::EPSILON, -z.im));
     let square = c64(f64::NEG_INFINITY, 2.0 * f64::EPSILON * z.im);
     assert_eq!(xsf::hyp2f1(2.5, -2.0, 2.5, z), square);
-    // Next to the cut, it is the real part of a half-integer power.
-    for sign in [-1.0, 1.0] {
-        let actual = xsf::hyp2f1(2.5, -1000.5, 2.5, c64(3.0, sign * 2.0_f64.powi(-1000)));
-        let desired = [707.460_334_577_140_8, -sign * 1.515_342_004_482_324_3e301];
-        np_assert_allclose!([actual.re, actual.im], desired, rtol = 3e-15);
-        // Also further from the cut.
-        let actual = xsf::hyp2f1(2.5, -0.5, 2.5, c64(2.0, sign * 2.0_f64.powi(-100)));
-        assert_eq!(actual, c64(2.0_f64.powi(-101), -sign));
+}
+
+#[test]
+fn test_hyp2f1_c64_binomial_overflow() {
+    let (inf, nan) = (f64::INFINITY, f64::NAN);
+    for (b, z, expected) in [
+        (-3000.0, c64(3.0, 1.0), c64(-inf, inf)),
+        (3000.0, c64(3.0, 1.0), c64(0.0, 0.0)),
         // A power that is linear in an ordinate below its own reciprocal.
-        let z = c64(-(2.0_f64.powi(1000)), sign * 2.0_f64.powi(-1000));
-        let actual = xsf::hyp2f1(2.5, -(2.0_f64.powi(564)), 2.5, z);
-        assert_eq!(actual, c64(f64::INFINITY, -sign * f64::INFINITY));
+        (-(2.0_f64.powi(564)), c64(-(2.0_f64.powi(1000)), 2.0_f64.powi(-1000)), c64(inf, -inf)),
+        // Beyond the accepted error, only a real power or an underflow is certain.
+        (1e300, c64(0.5, 0.0), c64(inf, 0.0)),
+        (-1e300, c64(0.3, 0.2), c64(0.0, 0.0)),
+        (1e300, c64(0.3, 0.2), c64(nan, nan)),
+        (1e300, c64(0.0, 1e-290), c64(nan, nan)),
+        // An infinite parameter does not cancel.
+        (inf, c64(3.0, 0.0), c64(nan, nan)),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(2.5, b, 2.5, z);
+            let same = actual == expected || actual.is_nan() && expected.is_nan();
+            assert!(same, "b = {b}, z = {z}: {actual}");
+        }
     }
-    // The power overflows and underflows.
-    assert_eq!(
-        xsf::hyp2f1(1.0, -3000.0, 1.0, c64(3.0, 1.0)),
-        c64(f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(xsf::hyp2f1(1.0, 3000.0, 1.0, c64(3.0, 1.0)), c64(0.0, 0.0));
-    // Also for an exponent that leaves only a real power or an underflow certain.
-    assert_eq!(xsf::hyp2f1(2.5, 1e300, 2.5, c64(0.5, 0.0)), c64(f64::INFINITY, 0.0));
-    assert_eq!(xsf::hyp2f1(2.5, -1e300, 2.5, c64(0.3, 0.2)), c64(0.0, 0.0));
-    assert!(xsf::hyp2f1(2.5, 1e300, 2.5, c64(0.3, 0.2)).is_nan());
-    assert!(xsf::hyp2f1(2.5, 1e300, 2.5, c64(0.0, 1e-290)).is_nan());
-    // An infinite parameter does not cancel.
-    assert!(xsf::hyp2f1(2.5, f64::INFINITY, 2.5, c64(3.0, 0.0)).is_nan());
 }
 
 #[test]
