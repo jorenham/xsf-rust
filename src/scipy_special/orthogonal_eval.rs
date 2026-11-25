@@ -175,12 +175,13 @@ mod sealed {
         #[inline]
         fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
             // Unlike in xsf, use `2F1(-n, n; 1/2; (1 - x) / 2) = cos(n acos(x))` (DLMF 15.4.12)
-            // beyond the degrees of the recurrence, where the series cancels catastrophically.
-            // At `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20).
+            // beyond the degrees of the recurrence, where the series cancels by more than the
+            // `n eps` error of `n acos(x)`. At `x = -1`, `hyp2f1` uses Gauss's sum (DLMF 15.4.20).
             if b == n
                 && c == 0.5
                 && n >= super::MAX_RECURRENCE_DEGREE
                 && self != Self::new(-1.0, 0.0)
+                && super::series_loss(self, n) > n.ln()
             {
                 // `acos(x) = -2i ln(sqrt((1 + x) / 2) + i sqrt((1 - x) / 2))`, without `1 - x^2`
                 let i = Self::i();
@@ -244,6 +245,15 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
     jacobi_hyp2f1_recurrence(x, nu, lam, c, y).unwrap_or(y)
 }
 
+/// A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)` in the series of
+/// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)`: the terms add up to about `xi(1 + |1 - x|)^n`, and
+/// `G_n` is about `|xi(x)|^n`, with `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh`
+/// of `(|x + 1| + |x - 1|) / 2`.
+fn series_loss<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64) -> f64 {
+    let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
+    n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh())
+}
+
 /// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
 const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 
@@ -282,13 +292,9 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     let tried = if segment {
         c > 0.0 && beta > -1.0
     } else {
-        // A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)`: the terms of the
-        // series add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about `|xi(x)|^n`, with
-        // `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of `(|x + 1| + |x - 1|) / 2`.
-        let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
-        let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
         let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
-        let cancels = !series.is_finite() || loss > ln_tol;
+        let cancels = !series.is_finite() || series_loss(x, n) > ln_tol;
+        let xp1 = (x + 1.0).norm();
         let slack = 4.0 * f64::EPSILON;
         let positive = c > -slack && lam + 1.0 - c > -slack;
         // at `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20)

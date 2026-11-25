@@ -1054,6 +1054,9 @@ fn test_eval_real_degree_edge_cases() {
         eval_chebyshev_t(2.0_f64.powi(50) + 0.5, c64(-1.0, 0.0)),
     ];
     assert_eq!(actual, [c64(0.0, 0.0); 2]);
+    // The series converges near `x = 1`, where `n acos(x)` loses digits.
+    let actual = eval_chebyshev_t(1_000_000.5, c64(1.000_000_000_000_000_2, 0.0));
+    assert_eq!(actual, c64(1.000_222_053_044_408_8, 0.0));
 }
 
 #[test]
