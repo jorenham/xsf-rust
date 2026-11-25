@@ -453,6 +453,39 @@ fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
     (!uncertain).then_some(excess <= 0.0)
 }
 
+// Unlike in xsf, use the Pfaff–Saalschütz product for a terminating balanced
+// 3F2 at one (DLMF 16.4.3) if the defining series loses accuracy.
+fn pfq_saalschutz(a: &[f64], b: &[f64], n: f64) -> Option<Estimate> {
+    let [c, d] = *b else { return None };
+    let [_, _, _] = *a else { return None };
+    let i = a.iter().position(|&v| v == -n)?;
+    let (u, v) = (a[(i + 1) % 3], a[(i + 2) % 3]);
+    let exact = |x, y| {
+        let (s, e) = two_sum(x, y);
+        (e == 0.0 && s.is_finite()).then_some(s)
+    };
+    let cu = exact(c, -u)?;
+    if exact(cu, exact(d, -v)?)? != 1.0 - n {
+        return None;
+    }
+    let cv = exact(c, -v)?;
+    // (c-u-v)_n = (-1)^n (d)_n. The unit upper parameter cancels the
+    // implicit factorial in the coefficient ratio.
+    let mut m = Dd::ONE;
+    let mut e = 0;
+    for j in 0..n as u32 {
+        let (r, re) = series::pfq_frexp_ratio::<Dd>(&[1.0, cu, cv], b, f64::from(j));
+        if r.hi == 0.0 {
+            return Some(Estimate::exact(0.0));
+        }
+        let (next, shift) = (-m * r).frexp();
+        m = next;
+        e += re + i64::from(shift);
+    }
+    let err = f64::EPSILON + 16.0 * <Dd as SeriesReal>::EPSILON * n;
+    Estimate::scaled_certain(Scaled::new(m.hi, e.try_into().ok()?, err)?)
+}
+
 /// The sign of `prod Gamma(a_i) / prod Gamma(b_j)`, and so of the late terms of the series for
 /// `z > 0`, as `(v)_n = Gamma(v + n) / Gamma(v)`
 fn late_sign(a: &[f64], b: &[f64]) -> f64 {
@@ -477,7 +510,12 @@ fn pfq_real(a: &mut [f64], b: &mut [f64], z: f64) -> Option<Estimate> {
     } else {
         sort_descending(a);
         sort_descending(b);
-        pfq_accurate(a, b, z)
+        let result = pfq_accurate(a, b, z);
+        if z == 1.0 && degree <= f64::from(PFQ_DD_MAXITER) {
+            result.or_better(|| pfq_saalschutz(a, b, degree))
+        } else {
+            result
+        }
     }
 }
 
