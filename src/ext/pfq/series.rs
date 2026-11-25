@@ -385,8 +385,8 @@ pub(super) fn pfq_terms_of<T: SeriesReal>(
 pub(super) fn pfq_series(a: &[f64], b: &[f64], z: f64) -> Estimate {
     let mut sum = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     // (not in double-double, whose `EPSILON` leaves room for many more parameters)
-    sum.abs_error *= pfq_rounding_scale(a, b);
-    if sum.abs_error <= PFQ_TOL * sum.value.abs() || sum.abs_error == f64::INFINITY {
+    sum.error *= pfq_rounding_scale(a, b);
+    if sum.error <= PFQ_TOL * sum.value.abs() || sum.error == f64::INFINITY {
         sum.into()
     } else {
         pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER).into()
@@ -420,7 +420,7 @@ fn pfq_ratio_roundings(a: &[f64], b: &[f64]) -> f64 {
 pub(super) struct SeriesSum<T> {
     pub(super) value: T,
     /// Estimated absolute error of the sum, including any unsummed remainder.
-    pub(super) abs_error: f64,
+    pub(super) error: f64,
     /// Euclidean norm of the differences between the final and preceding partial sums.
     #[cfg(test)]
     tail_norm: f64,
@@ -428,7 +428,7 @@ pub(super) struct SeriesSum<T> {
 
 impl<T: SeriesReal> From<SeriesSum<T>> for Estimate {
     fn from(sum: SeriesSum<T>) -> Self {
-        Self::absolute((sum.value.to_f64(), sum.abs_error))
+        Self::absolute((sum.value.to_f64(), sum.error))
     }
 }
 
@@ -506,7 +506,7 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
             let estimate = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
             return SeriesSum {
                 value: sum + comp,
-                abs_error: estimate.0,
+                error: estimate.0,
                 #[cfg(test)]
                 tail_norm: estimate.1,
             };
@@ -527,7 +527,7 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
                 let estimate = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
                 return SeriesSum {
                     value: sum + comp,
-                    abs_error: estimate.0 + tail,
+                    error: estimate.0 + tail,
                     #[cfg(test)]
                     tail_norm: estimate.1,
                 };
@@ -536,7 +536,7 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
     }
     SeriesSum {
         value: sum + comp,
-        abs_error: f64::INFINITY,
+        error: f64::INFINITY,
         #[cfg(test)]
         tail_norm: f64::INFINITY,
     }
@@ -740,7 +740,7 @@ mod tests {
         // the partial sum jumps from 1 to 1e300, whose square needs two rescalings
         let sum = pfq_sum_terms::<f64>(&[-1.0], &[], 1.0, 2, [1e300].into_iter(), 1e-13);
         assert_eq!(sum.value, 1e300);
-        assert!(sum.abs_error.is_finite() && sum.tail_norm.is_finite());
+        assert!(sum.error.is_finite() && sum.tail_norm.is_finite());
     }
 
     #[test]
@@ -781,20 +781,15 @@ mod tests {
         let sum =
             pfq_sum_terms::<f64>(&[-1000.0], &[], 1.0, 1001, core::iter::repeat(1e-17), 1e-13);
         assert!((sum.value - (1.0 + 1e-14)).abs() <= 2.0 * f64::EPSILON, "{}", sum.value);
-        assert!(
-            sum.tail_norm > 1e-13 && sum.abs_error.is_finite(),
-            "{}, {}",
-            sum.tail_norm,
-            sum.abs_error
-        );
+        assert!(sum.tail_norm > 1e-13 && sum.error.is_finite(), "{}, {}", sum.tail_norm, sum.error);
         // cancelling partial sums leaving a tiny final offset: tail norm stays finite near 1
         let sum =
             pfq_sum_terms::<f64>(&[-3.0], &[], 1.0, 4, [1.0, -1.0, 1e-200].into_iter(), 1e-13);
         assert_eq!(sum.value, 1.0);
         assert!(
-            sum.abs_error.is_finite() && (sum.tail_norm - 1.0).abs() <= 4.0 * f64::EPSILON,
+            sum.error.is_finite() && (sum.tail_norm - 1.0).abs() <= 4.0 * f64::EPSILON,
             "{}, {}",
-            sum.abs_error,
+            sum.error,
             sum.tail_norm
         );
         let sum = pfq_sum_terms::<Dd>(
@@ -807,18 +802,16 @@ mod tests {
         );
         assert_eq!(sum.value.hi, 1.0);
         assert!(
-            sum.abs_error.is_finite() && (sum.tail_norm - 1.0).abs() <= 4.0 * f64::EPSILON,
+            sum.error.is_finite() && (sum.tail_norm - 1.0).abs() <= 4.0 * f64::EPSILON,
             "{}, {}",
-            sum.abs_error,
+            sum.error,
             sum.tail_norm
         );
         // non-finite partial sum bails out cleanly with infinite error
         let sum =
             pfq_sum_terms::<f64>(&[-2.0], &[], 1.0, 3, [f64::MAX, f64::MAX].into_iter(), 1e-13);
         assert!(
-            sum.value.is_infinite()
-                && sum.abs_error == f64::INFINITY
-                && sum.tail_norm == f64::INFINITY
+            sum.value.is_infinite() && sum.error == f64::INFINITY && sum.tail_norm == f64::INFINITY
         );
     }
 

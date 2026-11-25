@@ -1077,7 +1077,7 @@ fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
             return None;
         }
         // At most 2n fixed-arity ratios plus the final scaled product.
-        let rel = sum.abs_error / sum.value.hi.abs()
+        let rel = sum.error / sum.value.hi.abs()
             + 32.0 * <Dd as SeriesReal>::EPSILON * (n + 1.0)
             + f64::EPSILON;
         let (s, se) = sum.value.frexp();
