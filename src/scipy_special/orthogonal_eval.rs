@@ -174,6 +174,14 @@ mod sealed {
 
         #[inline]
         fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+            // Unlike in xsf, use `2F1(-n, n; 1/2; (1 - x) / 2) = cos(n acos(x))` (DLMF 15.4.12)
+            // beyond the degrees of the recurrence, where the series cancels catastrophically.
+            if b == n && c == 0.5 && n >= super::MAX_RECURRENCE_DEGREE {
+                // `acos(x) = -2i ln(sqrt((1 + x) / 2) + i sqrt((1 - x) / 2))`, without `1 - x^2`
+                let i = Self::i();
+                let w = ((self + 1.0) * 0.5).sqrt() + i * ((1.0 - self) * 0.5).sqrt();
+                return (w.ln() * (-2.0 * i) * n).cos();
+            }
             super::hyp2f1_sh_series(self, n, b, c, lam)
         }
 
@@ -231,13 +239,16 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
     jacobi_hyp2f1_recurrence(x, nu, lam, c, y).unwrap_or(y)
 }
 
+/// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
+const MAX_RECURRENCE_DEGREE: f64 = 1e5;
+
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
 /// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
 /// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
-///   `n < 1e5` (to bound its cost).
+///   `n < MAX_RECURRENCE_DEGREE` (to bound its cost).
 /// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried.
 /// - Elsewhere, it is tried only if `series` isn't finite or is estimated to cancel by more than
 ///   `HYP2F1_ETHRESH / EPSILON`, and if `x != -1`. There, `alpha, beta > -1` is checked as
@@ -276,7 +287,7 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
         // at `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20)
         cancels && xp1 > 0.0 && positive
     };
-    if !(tried && n > 2.0 && n < 1e5 && n.fract() != 0.0) {
+    if !(tried && n > 2.0 && n < MAX_RECURRENCE_DEGREE && n.fract() != 0.0) {
         return None;
     }
     // `G_v = (p G_{v-1} - q G_{v-2}) / r`
@@ -716,6 +727,14 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         // of the NaN of the Gamma ratio below (inf / inf).
         if n == 0.0 && alpha == 0.0 && !self.is_nan() {
             return Self::ZERO;
+        }
+
+        // Unlike in xsf, for complex x shift `-1 < alpha < -1/2` (`c < 0`) up by one (DLMF 18.9.7),
+        // since neither the series nor the degree recurrence is accurate there for large degrees.
+        if self.as_f64().is_none() && n > 2.0 && -1.0 < alpha && alpha < -0.5 {
+            let a1 = alpha + 1.0;
+            let d = self.clone().eval_gegenbauer(n, a1) - self.eval_gegenbauer(n - 2.0, a1);
+            return d * (alpha / (n + alpha));
         }
 
         let alpha2 = 2.0 * alpha;
