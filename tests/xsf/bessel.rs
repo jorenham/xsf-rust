@@ -1618,6 +1618,14 @@ fn test_hankel_integer_real_axis_below_turning_point() {
             -5.660_439_166_125_061e307,
             5.623_413_251_903_1e-310,
         ),
+        // subnormal J at a small order
+        (
+            9.0,
+            -5.041_445_768_569_864e-34,
+            1.132_303_642_210_289_4e-308,
+            3.123_523_038_616_515e306,
+            -3.396_910_926_630_868e-308,
+        ),
     ] {
         let z = c64(x, 0.0);
         for (h, re, im) in [(xsf::hankel_1(v, z), re1, im1), (xsf::hankel_2(v, z), re2, -im1)] {

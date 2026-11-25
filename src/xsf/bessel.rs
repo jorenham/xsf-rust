@@ -952,8 +952,12 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
             bessel_j1(x)
         } else if let Some((j, _)) = jy {
             j
-        } else if v < LARGE_ORDER_MIN_V {
-            bessel_j_axis_wronskian(v, x, cy.im.abs())
+        } else if let Some(j) = (v < LARGE_ORDER_MIN_V)
+            .then(|| bessel_j_axis_wronskian(v, x, cy.im.abs()))
+            // a subnormal J has fewer bits than the relative accuracy of Y
+            .filter(|j| j.is_normal())
+        {
+            j
         } else {
             cyl_bessel_j_amos(v, x)
         };
@@ -966,7 +970,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
 
 /// `J_n(x)` for an integer `n >= 1` and `0 < x <= n`, from `|Y_n(x)|`
 ///
-/// By the Wronskian `J_(n+1) Y_n - J_n Y_(n+1) = 2 / (pi x)` (DLMF 10.5.4), with `Y_(n+1) / Y_n`
+/// By the Wronskian `J_(n+1) Y_n - J_n Y_(n+1) = 2 / (pi x)` (DLMF 10.5.2), with `Y_(n+1) / Y_n`
 /// recurred up from `Y_1 / Y_0` (DLMF 10.6.1) and `J_(n+1) / J_n` from its continued fraction
 /// (DLMF 10.10.1). Up to the turning point, `Y_n < 0` and `J_(n+1) / J_n < 1 < Y_(n+1) / Y_n`, so
 /// their difference does not cancel much.
