@@ -986,17 +986,6 @@ fn test_hyp2f1_f64_c_lt_0() {
 }
 
 #[test]
-fn test_hyp2f1_f64_polynomial_neg_int_c_above_1() {
-    // a polynomial whose terms cancel, for an integer c <= a (exact rational sums)
-    let actual = [
-        xsf::hyp2f1(-43.0, -22.5, -47.0, 1.023_180_005_600_207_6),
-        xsf::hyp2f1(-45.0, -35.157_074_913_997_75, -53.0, 1.000_000_000_003_527),
-    ];
-    let desired = [4.883_556_412_840_876e-19, -3.889_513_609_716_145e-24];
-    np_assert_allclose!(actual, desired, rtol = 1e-13);
-}
-
-#[test]
 fn test_hyp2f1_f64_neg_int_c_minus_a_or_c_minus_b() {
     // unlike in xsf: by `hyp2f1_recur` if c - a or c - b is only near a negative integer and
     // -1 < c - a - b < 0, where the recurrence in `a` is estimated as accurate, but isn't. These
@@ -2058,6 +2047,9 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
         xsf::hyp2f1(-192.346_044_530_068_72, -303.0, -310.0, 0.290_678_693_500_093),
         // (b is an integer below c, so the polynomial is that of a)
         xsf::hyp2f1(-359.0, -401.0, -400.0, 0.012_918_049_583_765_393),
+        // (by its reversal about 1, for x > 1)
+        xsf::hyp2f1(-43.0, -22.5, -47.0, 1.023_180_005_600_207_6),
+        xsf::hyp2f1(-45.0, -35.157_074_913_997_75, -53.0, 1.000_000_000_003_527),
     ];
     let desired = [
         -5.330_688_234_478_712e36,
@@ -2065,6 +2057,8 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
         1.457_505_009_443_554_2e-6,
         9.959_364_424_242_371e-29,
         0.009_283_916_262_782_09,
+        4.883_556_412_840_876e-19,
+        -3.889_513_609_716_145e-24,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-15);
     // the sign of an overflow, also for x > 1 (about 1.8e623 and -3.1e379)

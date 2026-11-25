@@ -1104,8 +1104,8 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
 /// `F(a, b; c; x)` for finite `x != 0` and an integer `a` or `b = -n < 0`, with `c` not an integer
 /// in `(-n, 0]`: the polynomial (DLMF 15.2.4, or 15.2.5 for an integer `c <= -n`) in
 /// double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
-/// `F(-186, -26.75; -333; -9)`; if that is inaccurate, for `x < 1` its Pfaff transformation
-/// (DLMF 15.8.1), and then its reversal about 1 (DLMF 15.8.7); at `x = 1`, Chu-Vandermonde
+/// `F(-186, -26.75; -333; -9)`; if that is inaccurate, its Pfaff transformation (DLMF 15.8.1)
+/// for `x < 1`, and its reversal about 1 (DLMF 15.8.7); at `x = 1`, Chu-Vandermonde
 pub(crate) fn hyp2f1_poly_dd(
     a: impl Into<Dd>,
     b: impl Into<Dd>,
@@ -1135,8 +1135,11 @@ pub(crate) fn hyp2f1_poly_dd(
     } else {
         let direct = || poly_dd(n, q, c, Dd::new(x), true);
         let pfaff = || {
+            if !(x < 1.0) {
+                return None;
+            }
             let w = Dd::new(x) / (Dd::new(x) - Dd::ONE);
-            let y = (x < 1.0).then(|| poly_dd(n, c - q, c, w, true))??;
+            let y = poly_dd(n, c - q, c, w, true)?;
             Some(y.with_l(ln_dd(Dd::ONE - x) * n))
         };
         // `F(-n, q; d; 1 - x)` times `F(-n, q; c; 1)`, with `1 - x` exact in double-double
