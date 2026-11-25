@@ -543,11 +543,39 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C6
         let series_generator2 =
             hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
         result += prefactor * series_eval(series_generator2);
+        if n == 0.0 && a == b && result.re.is_nan() && result.im.is_nan() {
+            // Unlike in xsf, recover (1 - z)^(-a) at the coincident pole (DLMF 15.4.6).
+            return hyp2f1_equal_integer_recovery(a, z).unwrap_or(result);
+        }
         return result;
     }
     let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
     result += prefactor * series_eval(series_generator2);
     result
+}
+
+#[cold]
+#[inline(never)]
+fn hyp2f1_equal_integer_recovery(n: f64, z: C64) -> Option<C64> {
+    if !z.re.is_finite() || !z.im.is_normal() {
+        return None;
+    }
+    // The component separation below is impossible at n >= 256.
+    if !(2.0..256.0).contains(&n) || n != n.trunc() {
+        return None;
+    }
+    let base = 1.0 - z;
+    if base.re.abs().max(base.im.abs()) < 1.0 {
+        return None;
+    }
+    let denominator = base.powi(n as i32);
+    let re = denominator.re.abs();
+    let im = denominator.im.abs();
+    let norm_sqr = denominator.norm_sqr();
+    // This separation limits amplification of the O(n eps) power error to 256/n.
+    // With the squared norm and division, the relative component error is below 2^-39.
+    (norm_sqr.is_finite() && re.min(im) > (n / 256.0) * re.max(im))
+        .then(|| denominator.conj() / norm_sqr)
 }
 
 #[cold]
