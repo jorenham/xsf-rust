@@ -4,6 +4,7 @@
 //! supply the `(1)_n = n!` factor in the denominator where series terms or ratio bounds are
 //! evaluated.
 
+use core::cell::OnceCell;
 use core::iter::zip;
 use core::ops::Add;
 
@@ -572,11 +573,21 @@ fn gauss_sum(a: f64, b: f64, c: f64) -> Option<Estimate> {
 
 /// `pFq` for `p <= q` by series and asymptotic expansion, trying `series` first when `series_first`
 fn pfq_entire(a: &[f64], b: &[f64], z: f64, series_first: bool) -> Option<Estimate> {
+    pfq_entire_with_exp(a, b, z, series_first, None)
+}
+
+fn pfq_entire_with_exp(
+    a: &[f64],
+    b: &[f64],
+    z: f64,
+    series_first: bool,
+    exp_cache: Option<&OnceCell<Option<Scaled>>>,
+) -> Option<Estimate> {
     let Some(degree) = pfq_degree(a, b) else {
         return Some(Estimate::exact(f64::INFINITY));
     };
     let series = || Some(series::pfq_series_sorted(a, b, z));
-    let asymptotic = || asymptotic::pfq_asymptotic(a, b, z);
+    let asymptotic = || asymptotic::pfq_asymptotic(a, b, z, exp_cache);
     // last, as it is the slowest (and applies to `p = q`, `z <= 0` only)
     let asymptotic_dd = || asymptotic::pfq_asymptotic_dd(a, b, z);
     if degree.is_finite() {
@@ -750,24 +761,34 @@ fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
         let series_first = z > -HYP1F2_ASYMPTOTIC_FIRST;
         // a common parameter cancels, also at a pole; keep on `pfq_series`/`pfq_asymptotic`
         // rather than `hyp0f1` so large negative `z` stays accurate
-        match b.iter().position(|&bj| bj == a) {
-            Some(j) => pfq_entire(&[], &[b[1 - j]], z, series_first),
-            None => pfq_entire(&[a], &b, z, series_first).or_better(|| {
-                // DLMF 16.12.1, for the exact parameters in either order.
-                let (b, low) = two_sum(a, 0.5);
-                let pair = (b, 2.0 * a);
-                if !series_first && a > 0.0 && low == 0.0 && (pair == (b1, b2) || pair == (b2, b1))
-                {
-                    let root = pfq_entire(&[], &[b], z * 0.25, false)?;
-                    let y = root.y * root.y;
-                    // Propagate the relative error of the factor and the rounding of its square.
-                    let err = (2.0 + root.err) * root.err + f64::EPSILON;
-                    (err <= PFQ_TOL && y.is_finite() && y.mul_add(-err, y) > f64::MIN_POSITIVE)
-                        .then(|| Estimate::new(y, err))
-                } else {
-                    None
-                }
-            }),
+        if let Some(j) = b.iter().position(|&bj| bj == a) {
+            pfq_entire(&[], &[b[1 - j]], z, series_first)
+        } else {
+            let exp = OnceCell::new();
+            pfq_entire_with_exp(&[a], &b, z, series_first, Some(&exp))
+                .or_better(|| {
+                    // DLMF 16.12.1, for the exact parameters in either order.
+                    let (b, low) = two_sum(a, 0.5);
+                    let pair = (b, 2.0 * a);
+                    if !series_first
+                        && a > 0.0
+                        && low == 0.0
+                        && (pair == (b1, b2) || pair == (b2, b1))
+                    {
+                        let root = pfq_entire(&[], &[b], z * 0.25, false)?;
+                        let y = root.y * root.y;
+                        // Propagate the relative error of the factor and the rounding of its square.
+                        let err = (2.0 + root.err) * root.err + f64::EPSILON;
+                        (err <= PFQ_TOL && y.is_finite() && y.mul_add(-err, y) > f64::MIN_POSITIVE)
+                            .then(|| Estimate::new(y, err))
+                    } else {
+                        None
+                    }
+                })
+                .or_better(|| {
+                    asymptotic::hyp1f2_asymptotic_dd(a, &b, z, &exp)
+                        .filter(|estimate| estimate.is_accurate())
+                })
         }
     }
 }
