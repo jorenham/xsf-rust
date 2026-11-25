@@ -152,9 +152,26 @@ fn recurrence_start(
     accurate.then_some((y, err))
 }
 
-/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, in double-double, the part of the
-/// estimate of its absolute error from the rounding errors of the steps, and that estimate, or
-/// `None` if a start is `None`
+#[derive(Clone, Copy)]
+struct RecurrenceEstimate {
+    value: Dd,
+    // Absolute error from the recurrence steps alone.
+    step_error: f64,
+    // Includes the propagated absolute errors of the three starting values.
+    total_error: f64,
+}
+
+impl RecurrenceEstimate {
+    fn accurate(self) -> Option<Estimate> {
+        accurate(self.value, self.total_error)
+    }
+
+    fn steps_within_half_tolerance(self) -> bool {
+        2.0 * self.step_error <= PFQ_TOL * self.value.hi.abs()
+    }
+}
+
+/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, or `None` if a start is `None`.
 ///
 /// `step(k)` gives the `c_i` of the relation `c_0 F_{k+3} + c_1 F_{k+2} + c_2 F_{k+1} + c_3 F_k
 /// = 0` between the F at `k` steps from the result, and the sizes of the terms of each `c_i`.
@@ -162,7 +179,7 @@ fn recurrence_from(
     m: u32,
     start: impl Fn(f64) -> Option<(Dd, f64)>,
     step: impl Fn(f64) -> ([Dd; 4], [f64; 4]),
-) -> Option<(Dd, f64, f64)> {
+) -> Option<RecurrenceEstimate> {
     let start = |k: u32| start(f64::from(m + k));
     let starts = [start(0)?, start(1)?, start(2)?];
     // `[F_{k+1}, F_{k+2}, F_{k+3}]` for the next step `k`
@@ -191,7 +208,11 @@ fn recurrence_from(
         g = [g[0] * factors[0] + g[1], g[0] * factors[1] + g[2], g[0] * factors[2]];
     }
     let series: f64 = zip(g, starts).map(|(g, (_, err))| g.abs() * err).sum();
-    Some((f[0], rounding, rounding + series))
+    Some(RecurrenceEstimate {
+        value: f[0],
+        step_error: rounding,
+        total_error: rounding + series,
+    })
 }
 
 /// `recurrence_from` in the lower parameter `bj`, where `other` is the other one, or `None` if a
@@ -203,7 +224,7 @@ fn lower_recurrence(
     z: f64,
     m: u32,
     work: &Cell<u32>,
-) -> Option<(Dd, f64, f64)> {
+) -> Option<RecurrenceEstimate> {
     let checked = pfq_extreme(&a, &[bj, other]);
     work.set(work.get().checked_sub(m)?);
     let start = |k: f64| {
@@ -223,7 +244,7 @@ fn lower_steps(
     z: f64,
     m: u32,
     start: impl Fn(f64) -> Option<(Dd, f64)>,
-) -> Option<(Dd, f64, f64)> {
+) -> Option<RecurrenceEstimate> {
     let step = |k: f64| {
         // F(b_j + k) from the relation at b = b_j + k + 3
         let u = Dd::new(bj) + (k + 2.0);
@@ -258,7 +279,7 @@ fn upper_recurrence(
     m: u32,
     maxiter: u32,
     work: &Cell<u32>,
-) -> Option<(Dd, f64, f64)> {
+) -> Option<RecurrenceEstimate> {
     let others = [a[(i + 1) % 3], a[(i + 2) % 3]];
     let checked = pfq_extreme(&a, &b);
     work.set(work.get().checked_sub(m)?);
@@ -308,8 +329,8 @@ fn raised_recurrence(
         sizes.reverse();
         (c, sizes)
     };
-    let (y, _, err) = recurrence_from(m, start, step)?;
-    Some((y, err))
+    let result = recurrence_from(m, start, step)?;
+    Some((result.value, result.total_error))
 }
 
 /// `y` as an `Estimate` with the estimate `err` of its absolute error plus its rounding, if that
@@ -323,18 +344,18 @@ fn accurate(y: Dd, err: f64) -> Option<Estimate> {
 /// of its absolute error
 fn recurrence_first(
     starts: impl IntoIterator<Item = u32>,
-    run: impl Fn(u32) -> Option<(Dd, f64, f64)>,
+    run: impl Fn(u32) -> Option<RecurrenceEstimate>,
 ) -> Option<(Dd, f64)> {
     for m in starts {
         // (a series that is not accurate may be for a larger `m`)
-        let Some((y, rounding, err)) = run(m) else {
+        let Some(result) = run(m) else {
             continue;
         };
-        if accurate(y, err).is_some() {
-            return Some((y, err));
+        if result.accurate().is_some() {
+            return Some((result.value, result.total_error));
         }
         // a larger `m` ends with the same steps, after more of them
-        if accurate(y, rounding).is_none() {
+        if accurate(result.value, result.step_error).is_none() {
             break;
         }
     }
@@ -439,7 +460,7 @@ fn recurrence_nested(a: [f64; 3], [large, small]: [f64; 2], z: f64) -> Option<Es
         lower_steps(a, small, large, z, m, start)
     };
     let mut results = toward_zero(small).rev().filter_map(run);
-    results.find_map(|(y, _, err)| accurate(y, err))
+    results.find_map(RecurrenceEstimate::accurate)
 }
 
 /// Steps down in a negative upper parameter from about the most steps whose rounding errors are
@@ -463,11 +484,11 @@ fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<Estimate> {
         let (mut low, mut high) = (0, steps_to_zero(a[i]));
         if high > 2 * RECURRENCE_STARTS[0] {
             let m = high - RECURRENCE_STARTS[0];
-            if let Some((y, rounding, err)) = run(i, m, PFQ_DD_MAXITER) {
-                if let Some(y) = accurate(y, err) {
+            if let Some(result) = run(i, m, PFQ_DD_MAXITER) {
+                if let Some(y) = result.accurate() {
                     return Some(y);
                 }
-                if 2.0 * rounding <= PFQ_TOL * y.hi.abs() {
+                if result.steps_within_half_tolerance() {
                     low = m;
                 } else {
                     high = m;
@@ -483,12 +504,11 @@ fn recurrence_balanced(a: [f64; 3], b: [f64; 2], z: f64) -> Option<Estimate> {
             while low + 1 < high {
                 let m = low.midpoint(high);
                 let y = run(i, m, PFQ_LONG_MAXITER);
-                if let Some(y) = y.and_then(|(y, _, err)| accurate(y, err)) {
+                if let Some(y) = y.and_then(RecurrenceEstimate::accurate) {
                     return Some(y);
                 }
                 // within half of the tolerance, which leaves the other half to the series
-                let within =
-                    y.is_none_or(|(y, rounding, _)| 2.0 * rounding <= PFQ_TOL * y.hi.abs());
+                let within = y.is_none_or(RecurrenceEstimate::steps_within_half_tolerance);
                 if within { low = m } else { high = m }
             }
             None
