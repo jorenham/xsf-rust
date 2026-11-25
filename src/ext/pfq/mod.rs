@@ -25,6 +25,7 @@ mod borel;
 mod conformal;
 mod gamma;
 mod hyp3f2;
+mod hyp3f2_endpoint;
 pub use hyp3f2::hyp3f2;
 mod recurrence;
 mod residue;
@@ -482,8 +483,13 @@ fn pfq_real(a: &mut [f64], b: &mut [f64], z: f64) -> Option<Estimate> {
             return Some(value);
         }
         // +-inf where the series diverges, and no result where it converges without a method
-        let diverges = diverges_at_one(a, b)?;
-        diverges.then(|| Estimate::exact(f64::INFINITY * late_sign(a, b)))
+        if diverges_at_one(a, b)? {
+            return Some(Estimate::exact(f64::INFINITY * late_sign(a, b)));
+        }
+        let (&[a1, a2, a3], &[b1, b2]) = (&*a, &*b) else {
+            return None;
+        };
+        hyp3f2_endpoint::estimate([a1, a2, a3], [b1, b2])
     } else {
         sort_descending(a);
         sort_descending(b);
