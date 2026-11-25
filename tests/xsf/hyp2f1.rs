@@ -114,6 +114,49 @@ fn test_hyp2f1_c64_transform2_euler() {
 }
 
 #[test]
+fn test_hyp2f1_c64_inverse_near_integer_index() {
+    // Arb references at the exact binary64 arguments.
+    for (a, b, c, z, expected) in [
+        (
+            1.0,
+            2.0,
+            f64::from_bits(3.0_f64.to_bits() - 1),
+            c64(0.85, 0.71),
+            c64(0.893_382_297_136_081_9, 1.038_774_367_667_433_7),
+        ),
+        (
+            1.5,
+            2.5,
+            f64::from_bits(3.5_f64.to_bits() + 1),
+            c64(1.25, 0.5),
+            c64(-1.037_930_983_193_957, 2.216_972_649_752_144_3),
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 2e-14
+                );
+            }
+        }
+    }
+
+    // The integer power at the switch must not add a phase on the negative real axis.
+    let c = f64::from_bits(6.5_f64.to_bits() - 1);
+    assert_eq!(xsf::hyp2f1(3.5, 2.5, c, c64(-1.2, 0.0)).im, 0.0);
+    let actual = xsf::hyp2f1(3.5, 2.5, c, c64(-1.2, 1e-30));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [0.312_448_405_332_954_3, 2.275_890_463_150_229_3e-31],
+        rtol = 1e-11,
+        atol = 0.0
+    );
+}
+
+#[test]
 fn test_hyp2f1_c64_rounded_zero_balance() {
     for (a, b, c, x, y, re, im) in [
         (
