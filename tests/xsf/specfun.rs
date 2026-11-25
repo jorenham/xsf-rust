@@ -1144,6 +1144,18 @@ fn test_pmv_recovers_large_integer_diagonal() {
 }
 
 #[test]
+fn test_pmv_diagonal_with_underflowing_normalization() {
+    // Arb at the exact binary64 inputs.
+    for (x, expected) in [
+        (0.9999, -4.133_152_049_875_893_6e-5),
+        (1.0 - 2.0_f64.powi(-30), -6.367_365_808_470_012e-219),
+    ] {
+        assert_eq!(xsf::pmv(85, 85.0, x), expected);
+        assert_eq!(xsf::pmv(85, -86.0, -x), expected);
+    }
+}
+
+#[test]
 fn test_pmv_large_m() {
     // NaN in xsf, which overflows `-m`
     assert!(xsf::pmv(i32::MIN, 0.5, 0.5).is_nan());

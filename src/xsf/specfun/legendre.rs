@@ -145,7 +145,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
             return value;
         }
     }
-    let seed = |degree| lpmv0(degree, mx, x, linear_seed);
+    let seed = |degree| lpmv0(degree, mx, x, linear_seed, false);
     // Unlike in xsf, factor the first quadratic and cubic above the diagonal
     // from the Ferrers Rodrigues formula (DLMF 14.7.10).
     let order = f64::from(mx);
@@ -188,7 +188,9 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
             p1 = pmv;
         }
     } else {
-        pmv = seed(vx);
+        // For binary64 |x| < 1, sqrt(1-x²) rounds to at least 2^-26.
+        // At m = 33 the separate normalization is still above 2^-1022.
+        pmv = lpmv0(vx, mx, x, linear_seed, m >= 34);
     }
     if (neg_m != 0) && (pmv.abs() < SPECFUN_INF) {
         // DLMF 14.9.3
@@ -279,7 +281,7 @@ fn lpmv_origin_subnormal(x: f64, m: i32, n: i32) -> Option<f64> {
     (units <= f64::MIN_POSITIVE.to_bits()).then(|| f64::from_bits(units).copysign(phase))
 }
 
-fn lpmv0(v: f64, m: i32, x: f64, linear_seed: bool) -> f64 {
+fn lpmv0(v: f64, m: i32, x: f64, linear_seed: bool, recover_diagonal: bool) -> f64 {
     // =======================================================
     // Purpose: Compute the associated Legendre function
     //          Pmv(x) with an integer order and an arbitrary
@@ -320,6 +322,11 @@ fn lpmv0(v: f64, m: i32, x: f64, linear_seed: bool) -> f64 {
         let mut r0 = 1.0;
         for j in 1..=m {
             r0 = 0.5 * r0 * xq / f64::from(j);
+        }
+        // Unlike in xsf, retry the integer diagonal when its separate normalization
+        // underflows before multiplication by (2m)!.
+        if recover_diagonal && r0 < f64::MIN_POSITIVE && v == f64::from(m) && x.abs() < 1.0 {
+            return lpmv_scaled_integer(x, m, 0);
         }
         c0 = r0 * rg;
     }
