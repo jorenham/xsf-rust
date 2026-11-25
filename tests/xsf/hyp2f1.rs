@@ -2212,6 +2212,21 @@ fn test_hyp2f1_c64_beta_binomial_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_uniform_beta_binomial_polynomial() {
+    // The 1000 equally weighted powers of -i sum to zero.
+    for (a, b) in [(-999.0, 1.0), (1.0, -999.0)] {
+        assert_eq!(xsf::hyp2f1(a, b, 2.0, c64(1.0, 1.0)), c64(0.0, 0.0));
+    }
+    let value = xsf::hyp2f1(-1000.0, 1.0, 2.0, c64(1.0, 1.0));
+    assert_eq!(value, c64(1.0 / 1001.0, 0.0));
+
+    // At x=-1 the derivative is -sum(k*2^(k-1), k=1..10)/11.
+    let y = f64::from_bits(1);
+    let value = xsf::hyp2f1(-10.0, 1.0, 2.0, c64(-1.0, y));
+    assert_eq!(value.im, -f64::from_bits(838));
+}
+
+#[test]
 fn test_hyp2f1_c64_real_beta_binomial_projection() {
     // This endpoint is exactly halfway between two normal floats.
     let midpoint = xsf::hyp2f1(-30.0, 1.5, 3.0, c64(1.0, 0.0));
