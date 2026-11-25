@@ -26,6 +26,13 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
         }
     }
     let count = n + 1;
+    // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
+    if other == 1.0 && c == 2.0 && z.is_finite() {
+        let mean = uniform_beta_binomial(count, z);
+        if mean.is_finite() {
+            return mean;
+        }
+    }
     // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
     let positive_beta = other > 0.0 && other < c && c.is_finite();
     let finite_population = other < 0.0
@@ -61,6 +68,26 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
         }
     }
     value
+}
+
+// Mean of 1, w, ..., w^(count-1), with w = 1-z.
+// Store each complex number as a + i*b*z.im to retain subnormal input ordinates.
+fn uniform_beta_binomial(count: u64, z: C64) -> C64 {
+    let multiply =
+        |(a, b): (Dd, Dd), (c, d): (Dd, Dd)| (a * c - (b * z.im) * (d * z.im), a * d + b * c);
+    let w = (Dd::ONE - z.re, -Dd::ONE);
+    let mut power = w;
+    let mut sum = (Dd::ONE, Dd::new(0.0));
+    for bit in (0..count.ilog2()).rev() {
+        // S(2k) = S(k) (1 + w^k), and S(2k+1) = S(2k) + w^(2k).
+        sum = multiply(sum, (power.0 + 1.0, power.1));
+        power = multiply(power, power);
+        if count >> bit & 1 != 0 {
+            sum = (sum.0 + power.0, sum.1 + power.1);
+            power = multiply(power, w);
+        }
+    }
+    c64((sum.0 / count as f64).hi, ((sum.1 / count as f64) * z.im).hi)
 }
 
 // Unlike in xsf, advance the two positive beta moments on the real interval.
