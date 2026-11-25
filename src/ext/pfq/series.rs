@@ -396,10 +396,15 @@ pub(super) fn pfq_series(a: &[f64], b: &[f64], z: f64) -> Estimate {
     Estimate::absolute(y)
 }
 
-/// The series in double-double with up to `PFQ_LONG_MAXITER` terms, if it is accurate, as near
-/// `z = 1` it can need more than `pfq_series`
+/// The long series in double-double, if it is accurate
 pub(super) fn pfq_series_long(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
-    let (y, err, _) = pfq_sum::<Dd>(a, b, z, PFQ_LONG_MAXITER);
+    // A 3F2 close to 1 can need more than 20,000 terms to bound the remainder.
+    let maxiter = if a.len() == 3 && z >= 0.99 {
+        PFQ_LONG_MAXITER + PFQ_MAXITER
+    } else {
+        PFQ_LONG_MAXITER
+    };
+    let (y, err, _) = pfq_sum::<Dd>(a, b, z, maxiter);
     let y = Estimate::absolute((f64::from(y), err));
     y.is_accurate().then_some(y)
 }

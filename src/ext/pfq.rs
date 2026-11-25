@@ -32,7 +32,7 @@ const PFQ_MAXITER: u32 = 10_000;
 /// about 20 times as long
 const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 
-/// Maximum number of terms of `pfq_series_long`
+/// Default term limit for `pfq_series_long`
 ///
 /// Of 199 `None` of 3F2 on 20000 points, it gives 13, and twice as many terms would give 4
 /// more, in up to twice the time (measured).
