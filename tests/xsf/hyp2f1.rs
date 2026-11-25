@@ -219,6 +219,28 @@ fn test_hyp2f1_c64_euler_tiny_cut_lips() {
 }
 
 #[test]
+fn test_hyp2f1_c64_integral_euler_power() {
+    // (1 - 3z/5) / (1 - z)^2.
+    for y in [0.0, -0.0, 1e-30, -1e-30] {
+        let actual = xsf::hyp2f1(3.5, 1.0, 2.5, c64(2.0, y));
+        np_assert_allclose!([actual.re, actual.im], [-0.2, -0.2 * y], rtol = 5e-15);
+    }
+
+    let actual = xsf::hyp2f1(4097.0, 1024.0, 4096.0, c64(2.0, 0.0));
+    assert_eq!(actual, c64(0.5, 0.0));
+    let actual = xsf::hyp2f1(4097.0, 1024.0, 4096.0, c64(1.0, 1.0));
+    assert_eq!(actual, c64(0.75, 0.25));
+
+    let z = c64(1.5, 0.866_025_403_784_438_6);
+    let actual = xsf::hyp2f1(8_589_934_593.0, 2_147_483_648.0, 8_589_934_592.0, z);
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-0.124_999_976_671_243_7, -0.649_519_120_182_641_7],
+        rtol = 5e-15
+    );
+}
+
+#[test]
 fn test_hyp2f1_c64_transform1_maclaurin() {
     // unlike in xsf: the Maclaurin series if the 1 - z transformation cancels (mpmath references)
     for (a, b, c, z, expected) in [
