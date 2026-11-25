@@ -48,7 +48,7 @@ use crate::ext::{hyp2f1_poly_dd, ln_dd};
 use crate::utils::{is_nonpos_int, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
-use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
+use crate::xsf::cephes::hyp2f1::{hyp2f1_at_1, pow_1mx};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::complex::cpow_integral;
@@ -636,6 +636,24 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
             max_degree = b.abs();
         }
         if max_degree <= u64::MAX as f64 {
+            // Unlike in xsf, cancel a positive common parameter on the real axis.
+            if c > 0.0
+                && c.is_finite()
+                && (a == c || b == c)
+                && z.is_real()
+                && z.re.is_finite()
+                && max_degree < HYP2F1_MAX_FIXED_TERMS as f64
+            {
+                let (w, w_lo) = two_sum(1.0, -z.re);
+                let power = if z.re < 1.0 && w_lo != 0.0 && max_degree > 1.0 {
+                    pow_1mx(z.re, max_degree)
+                } else {
+                    w.powf(max_degree)
+                };
+                if power.is_finite() {
+                    return c64(power, 0.0);
+                }
+            }
             let series_generator = hypergeometric_series_generator(a, b, c, z);
             return series_eval_finite(series_generator, (max_degree + 1.0) as u64);
         }

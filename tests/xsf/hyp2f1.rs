@@ -48,6 +48,28 @@ fn test_hyp2f1_c64_unit_exponent_reciprocal() {
 }
 
 #[test]
+fn test_hyp2f1_c64_common_parameter_polynomial() {
+    for (a, b) in [(500.0, -500.0), (-500.0, 500.0)] {
+        for y in [0.0, -0.0] {
+            let actual = xsf::hyp2f1(a, b, 500.0, c64(0.75, y));
+            assert_eq!(actual.re, 2.0_f64.powi(-1000));
+            assert_eq!(actual.im.to_bits(), 0);
+        }
+    }
+    // The rounded subtraction would give 1 before taking the power.
+    let actual = xsf::hyp2f1(500.0, -1_048_575.0, 500.0, c64(2.0_f64.powi(-55), 0.0));
+    assert_eq!(actual, c64(0.999_999_999_970_896_2, 0.0));
+    // The real-axis shortcut must preserve small components off the axis.
+    let actual = xsf::hyp2f1(2.0, -2.0, 2.0, c64(2.0_f64.powi(-54), 1.0));
+    assert_eq!(actual, c64(-2.0_f64.powi(-53), -2.0));
+    let y = f64::from_bits(1);
+    let actual = xsf::hyp2f1(4.0, -3.0, 4.0, c64(1.5, y));
+    assert_eq!(actual, c64(-0.125, -y));
+    // With c negative, retain termination at c rather than canceling it.
+    assert_eq!(xsf::hyp2f1(-2.0, 3.0, -2.0, c64(0.5, 0.0)), c64(4.0, 0.0));
+}
+
+#[test]
 fn test_hyp2f1_c64_pfaff_accuracy() {
     // Arb at the exact binary64 inputs.
     for sign in [-1.0, 1.0] {
