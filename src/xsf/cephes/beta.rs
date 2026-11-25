@@ -122,7 +122,8 @@ fn lbeta_reflects_a(a: f64, b: f64) -> bool {
 fn beta_uses_lgam(a: f64, b: f64) -> bool {
     let y = a + b;
     // Unlike in xsf, also use the logarithmic path if a gamma factor is outside the normal range.
-    y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y)
+    // The Gamma path already overflows at MAXGAM itself.
+    y.abs() >= MAXGAM || a.abs() >= MAXGAM || b.abs() >= MAXGAM || gamma_out_of_range(a, b, y)
 }
 
 /// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and

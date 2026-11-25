@@ -29,6 +29,29 @@ fn test_betainc_nontrivial() {
 }
 
 #[test]
+fn test_betainc_gamma_overflow_threshold() {
+    // Arb at the exact binary64 shapes. Their sum is the Gamma overflow threshold.
+    let (a, b, x) = (170.374_376_956_302_7, 1.25, 0.994_519_889_789_174_7);
+    let actual = [
+        xsf::beta(a, b),
+        xsf::betaln(a, b),
+        xsf::betainc(a, b, x),
+        xsf::betaincc(a, b, x),
+        xsf::betaincinv(a, b, 0.5),
+        xsf::betainccinv(a, b, 0.5),
+    ];
+    let expected = [
+        0.001_471_187_499_158_436_8,
+        -6.521_685_381_747_758,
+        0.499_999_999_999_998_3,
+        0.500_000_000_000_001_7,
+        x,
+        x,
+    ];
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-15);
+}
+
+#[test]
 fn test_betainc_moderate_shapes_near_mean() {
     // Arb on the exact binary64 arguments.
     let (a, b, x) = (50.887_606_853_228_68, 1.998_018_595_463_802_8, 0.918_299_500_503_928_5);
