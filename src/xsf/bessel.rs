@@ -599,8 +599,38 @@ fn cyl_bessel_ye_c64(v: f64, z: C64) -> C64 {
         z,
         c64(-z.im.abs(), 0.0),
         |kode| cyl_bessel_y_kode(v, z, kode),
-        || scaled_bessel_from_k(v, z, false),
+        || scaled_bessel_y_on_imaginary_axis(v, z).or_else(|| scaled_bessel_from_k(v, z, false)),
     )
+}
+
+// Unlike in xsf, recover integer-order Y on the imaginary axis when its
+// scaled I component is below half the least subnormal (DLMF 10.27.8 and 10.27.11).
+#[cold]
+fn scaled_bessel_y_on_imaginary_axis(v: f64, z: C64) -> Option<C64> {
+    let (n, y) = (v.abs(), z.im.abs());
+    // Normal decay implies y < 710. The integral over [1, 2] alone gives
+    // K_n(y) > exp(n - 4y)/2 (DLMF 10.32.9), so n >= 4096 overflows.
+    if z.re != 0.0 || v.fract() != 0.0 || !(1.0..4096.0).contains(&n) {
+        return None;
+    }
+    let decay = (-y).exp();
+    if !decay.is_normal() {
+        return None;
+    }
+    let raw_k = cyl_bessel_k_f64(n, y);
+    // The Wronskian and K recurrence give 2n I_n(y) K_n(y) < 1 (DLMF 10.28.2, 10.29.1).
+    // With n >= 1, a zero quotient leaves at least a factor of two for rounding in K.
+    let k = (raw_k * FRAC_2_PI) * decay;
+    if !k.is_normal() || decay / raw_k != 0.0 {
+        return None;
+    }
+    let value = match (v as i32).rem_euclid(4) {
+        0 => c64(-k, 0.0),
+        1 => c64(-0.0, k),
+        2 => c64(k, -0.0),
+        _ => c64(0.0, -k),
+    };
+    Some(if z.im < 0.0 { value.conj() } else { value })
 }
 
 fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
