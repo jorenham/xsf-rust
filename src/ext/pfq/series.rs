@@ -286,30 +286,22 @@ pub(super) fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bo
     }
 }
 
-/// `t_{n+1} / t_n` as `Ok(ratio)` if the products, their quotient, and the product with `z` are
-/// normal, else `Err(ratio)` with the already-computed `q * z`
+/// `t_{n+1} / t_n`, with a quotient that is `checked` if the parameters are extreme
 ///
-/// With `checked = false`, the parameters must not be `pfq_extreme` so that partial products of
-/// `pfq_products` stay normal.
+/// It is normal only if the products and their quotient are: else they are 0, infinite, or NaN,
+/// and so is their product with `z`.
 #[inline]
-fn pfq_normal_ratio<T: SeriesReal>(
-    a: &[f64],
-    b: &[f64],
-    n: f64,
-    z: f64,
-    checked: bool,
-) -> Result<T, T> {
-    let (q, products_normal) = if checked {
-        (pfq_checked_ratio(a, b, n), true)
+fn pfq_term_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, checked: bool) -> T {
+    pfq_ratio::<T>(a, b, n, checked) * T::from_f64(z)
+}
+
+/// The term `t_{n+1}` after `term = t_n` for `ratio = pfq_term_ratio(n)`
+#[inline]
+fn pfq_step<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, ratio: T) -> T {
+    if is_normal(ratio) {
+        term * ratio
     } else {
-        let [num, den]: [T; 2] = pfq_products(a, b, n);
-        (num / den, is_normal(num) && is_normal(den))
-    };
-    let ratio = q * T::from_f64(z);
-    if products_normal && is_normal(q) && is_normal(ratio) {
-        Ok(ratio)
-    } else {
-        Err(ratio)
+        pfq_rescaled_next(a, b, n, z, term).unwrap_or_else(|| term * ratio)
     }
 }
 
@@ -317,19 +309,19 @@ fn pfq_normal_ratio<T: SeriesReal>(
 /// extreme
 #[inline]
 fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checked: bool) -> T {
-    match pfq_normal_ratio::<T>(a, b, n, z, checked) {
-        Ok(ratio) => term * ratio,
-        Err(ratio) => pfq_rescaled_next(a, b, n, z, term).unwrap_or_else(|| term * ratio),
-    }
+    pfq_step(a, b, n, z, term, pfq_term_ratio(a, b, n, z, checked))
 }
 
 /// `pfq_next` without its fallback to the rounded ratio, which can have more rounding errors, so
 /// `None` where `t_{n+1}` is not normal
 fn pfq_normal_next(a: &[f64], b: &[f64], n: f64, z: f64, term: f64, checked: bool) -> Option<f64> {
-    match pfq_normal_ratio::<f64>(a, b, n, z, checked) {
-        Ok(ratio) => Some(term * ratio).filter(|next| next.is_normal()),
-        Err(_) => pfq_rescaled_next(a, b, n, z, term),
-    }
+    let ratio = pfq_term_ratio::<f64>(a, b, n, z, checked);
+    let next = if is_normal(ratio) {
+        term * ratio
+    } else {
+        pfq_rescaled_next(a, b, n, z, term)?
+    };
+    next.is_normal().then_some(next)
 }
 
 /// `pfq_next` from the mantissas and exponents of its factors, as an intermediate product or
