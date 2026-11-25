@@ -471,17 +471,14 @@ fn pfq_saalschutz(a: &[f64], b: &[f64], n: f64) -> Option<Estimate> {
     let cv = exact(c, -v)?;
     // (c-u-v)_n = (-1)^n (d)_n. The unit upper parameter cancels the
     // implicit factorial in the coefficient ratio.
-    let mut m = Dd::ONE;
-    let mut e = 0;
-    for j in 0..n as u32 {
-        let (r, re) = series::pfq_frexp_ratio::<Dd>(&[1.0, cu, cv], b, f64::from(j));
-        if r.hi == 0.0 {
-            return Some(Estimate::exact(0.0));
-        }
-        let (next, shift) = (-m * r).frexp();
-        m = next;
-        e += re + i64::from(shift);
+    if first_zero(&[cu, cv]) < n {
+        return Some(Estimate::exact(0.0));
     }
+    let (m, e) = (0..n as u32).fold((Dd::ONE, 0_i64), |(m, e), j| {
+        let (r, re) = series::pfq_frexp_ratio::<Dd>(&[1.0, cu, cv], b, f64::from(j));
+        let (m, shift) = (-m * r).frexp();
+        (m, e + re + i64::from(shift))
+    });
     let err = f64::EPSILON + 16.0 * <Dd as SeriesReal>::EPSILON * n;
     Estimate::scaled_certain(Scaled::new(m.hi, e.try_into().ok()?, err)?)
 }
