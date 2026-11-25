@@ -779,9 +779,9 @@ fn centered_terminating_polynomial(n: u64, k: f64, population: f64, z: C64) -> (
             let (_, shift) = frexp_f64(size);
             [re, im] = [re, im].map(|v| v.ldexp(-shift));
             if positive_beta {
-                coefficient_exp -= shift
+                coefficient_exp -= shift;
             } else {
-                coefficient = coefficient.ldexp(-shift)
+                coefficient = coefficient.ldexp(-shift);
             }
             mass = ldexp_f64(mass, -shift);
             scale += shift;
