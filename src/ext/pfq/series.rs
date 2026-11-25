@@ -2,7 +2,6 @@
 //! overflow detection for `pFq`.
 
 use core::iter::{once, zip};
-use core::ops::ControlFlow;
 
 use super::{
     Dd, Estimate, PFQ_DD_MAXITER, PFQ_LONG_MAXITER, PFQ_MAX_UNCHECKED, PFQ_MAXITER, PFQ_MODERATE,
@@ -480,8 +479,7 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
         }
         (rounding / unit, tails / unit)
     };
-    let fail = ControlFlow::Break(None);
-    let res = (0..maxiter).map(f64::from).try_for_each(|n| {
+    for n in (0..maxiter).map(f64::from) {
         while s.abs().max(d.abs()) * unit > PFQ_SQUARE_MAX {
             // the squares would overflow, so the sums are rescaled (exactly, by a power of 2)
             let u2 = PFQ_UNIT * PFQ_UNIT;
@@ -494,36 +492,28 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
         sum2 += su * su;
         if n == degree {
             // the series terminated
-            ControlFlow::Break(Some(estimates(n, d, dsum1, dsum2, sum2, unit, abs1)))
-        } else if let Some(term) = terms.next() {
-            let t = term.to_f64();
-            abs1 += t.abs() * unit;
-            (sum, comp) = T::add_compensated(sum, comp, term);
-            (s, d) = T::sum_and_delta(sum, comp);
-            if !s.is_finite() {
-                fail
-            } else if n >= settled && t.abs() <= tol * s.abs() {
-                let rho = pfq_ratio_bound(a, b, z, n + 1.0);
-                // geometric bound on the remaining terms, if the series converges (p <= q + 1)
-                let tail = t.abs() * rho / (1.0 - rho);
-                if a.len() <= b.len() + 1 && rho < 1.0 && tail <= tol * s.abs() {
-                    let (rounding, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
-                    ControlFlow::Break(Some((rounding + tail, tails)))
-                } else {
-                    ControlFlow::Continue(())
-                }
-            } else {
-                ControlFlow::Continue(())
-            }
-        } else {
-            fail
+            let (err, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
+            return (sum + comp, err, tails);
         }
-    });
-    let (err, tails) = res
-        .break_value()
-        .flatten()
-        .unwrap_or((f64::INFINITY, f64::INFINITY));
-    (sum + comp, err, tails)
+        let Some(term) = terms.next() else { break };
+        let t = term.to_f64();
+        abs1 += t.abs() * unit;
+        (sum, comp) = T::add_compensated(sum, comp, term);
+        (s, d) = T::sum_and_delta(sum, comp);
+        if !s.is_finite() {
+            break;
+        }
+        if n >= settled && t.abs() <= tol * s.abs() {
+            let rho = pfq_ratio_bound(a, b, z, n + 1.0);
+            // geometric bound on the remaining terms, if the series converges (p <= q + 1)
+            let tail = t.abs() * rho / (1.0 - rho);
+            if a.len() <= b.len() + 1 && rho < 1.0 && tail <= tol * s.abs() {
+                let (rounding, tails) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
+                return (sum + comp, rounding + tail, tails);
+            }
+        }
+    }
+    (sum + comp, f64::INFINITY, f64::INFINITY)
 }
 
 /// Weniger's delta transformation of the series, and an estimate of its absolute error
