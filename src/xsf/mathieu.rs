@@ -14,7 +14,9 @@ use core::f64::consts::FRAC_PI_2;
 use num_traits::ToPrimitive;
 
 use crate::utils::neg_one_pow;
-use crate::xsf::specfun::{Status, coefficient_cv, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
+use crate::xsf::specfun::{
+    Status, characteristic_value, coefficient_cv, fcoef as specfun_fcoef, mtu0, mtu12,
+};
 
 /* Mathieu functions */
 /* Characteristic values */
@@ -37,7 +39,7 @@ fn cem_cva(m: f64, q: f64) -> f64 {
     if int_m % 2 != 0 {
         kd = 2;
     }
-    cva2(kd, int_m, q)
+    characteristic_value(kd, int_m, q)
 }
 
 fn sem_cva(m: f64, q: f64) -> f64 {
@@ -58,7 +60,7 @@ fn sem_cva(m: f64, q: f64) -> f64 {
     if int_m % 2 != 0 {
         kd = 3;
     }
-    cva2(kd, int_m, q)
+    characteristic_value(kd, int_m, q)
 }
 
 /* Mathieu functions */

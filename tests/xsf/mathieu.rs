@@ -156,6 +156,26 @@ fn test_mathieu_characteristic_index() {
 }
 
 #[test]
+fn test_mathieu_low_modes_large_q() {
+    // Indexed Fourier eigenvalues with the omitted tail bounded in Arb.
+    let actual = [
+        xsf::mathieu_a(0, 37_024.793_388_429_75),
+        xsf::mathieu_b(1, 76_500.0),
+        xsf::mathieu_a(1, 1600.0),
+        xsf::mathieu_a(1, 4000.0),
+        xsf::mathieu_b(2, 8000.0),
+    ];
+    let expected = [
+        -73_665.000_385_246_87,
+        -152_447.077_445_700_53,
+        -2_961.257_143_600_975_3,
+        -7_621.781_172_301_028,
+        -15_464.596_852_062_434,
+    ];
+    xsref::np_assert_allclose!(actual, expected, rtol = 4e-16);
+}
+
+#[test]
 fn test_mathieu_a_b_huge_m() {
     // 0 resp. NaN in xsf, because `m * m` overflows `int`; the second expected value is from
     // the series DLMF 28.6.14

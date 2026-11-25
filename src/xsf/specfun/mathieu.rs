@@ -112,7 +112,7 @@ fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     }
 }
 
-pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
+fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     // ======================================================
     // Purpose: Calculate a specific characteristic value of
     //          Mathieu functions
@@ -194,6 +194,23 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
         return indexed_cv(kd, m, q, a).unwrap_or(a);
     }
     a
+}
+
+pub(crate) fn characteristic_value(kd: i32, m: i32, q: f64) -> f64 {
+    // Unlike in xsf, keep the large-q expansion for the lowest four parity
+    // eigenvalues: refining it can converge to a different characteristic value.
+    if q >= 1600.0 && matches!((kd, m), (1, 0) | (2 | 3, 1) | (4, 2)) {
+        // Extend DLMF 28.8.1 by two terms in t=1/(16 sqrt(q)). At
+        // sqrt(q)>=40 the first omitted term is below half an ulp.
+        let (c6, c7) = if kd == 1 || kd == 3 {
+            (60_726.0, 1_047_750.5_f64)
+        } else {
+            (4_783_050.0, 115_297_222.5_f64)
+        };
+        let t = 1.0 / (16.0 * q.sqrt());
+        return (-t.powi(6)).mul_add(c7.mul_add(t, c6), cvql(kd, m, q));
+    }
+    cva2(kd, m, q)
 }
 
 // Unlike in xsf, verify the index before computing Fourier coefficients in the
