@@ -7181,9 +7181,9 @@ NOTES |= {
         "[28.24.2-5](https://dlmf.nist.gov/28.24), in mpmath."
     ),
     "mathieu_cv": (
-        "For some $`m`$ and $`q`$, the result is the characteristic value of another order of "
-        "the same parity, which the other functions of this section then use. For $`m = 0`$ and "
-        r"$`\lvert q\rvert \lesssim 10^{-162}`$ it is NaN."
+        "In xsf, for some $`m`$ and $`q`$, the result is the characteristic value of another "
+        "order of the same parity, which the other functions of this section then use, and for "
+        r"$`m = 0`$ and $`\lvert q\rvert \lesssim 10^{-162}`$ it is NaN."
     ),
     "mathieu_osc": (
         r"$`A = \sqrt{y^2 + y'^2 / w}`$ for $`y = \mathrm{ce}_m`$ or $`\mathrm{se}_m`$, and "

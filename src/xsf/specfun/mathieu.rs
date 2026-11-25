@@ -138,9 +138,10 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     let m2 = f64::from(m) * f64::from(m);
     if (m <= 12) || (q <= 3.0 * f64::from(m)) || (q > m2) {
         a = cv0(f64::from(kd), f64::from(m), q);
-        // Unlike in xsf, return the large-q expansion of `cvql` once its last term is below the
-        // rounding error: `refine` can't improve it, and the cost of `indexed_cv` grows with q.
-        if cvql_last_term(kd, m, q) <= f64::EPSILON * a.abs() {
+        // Unlike in xsf, return the expansion of `cvql` (used by `cv0` for large q) once its last
+        // term is below the rounding error: `refine` can't improve it, and the Sturm counts of
+        // `indexed_cv` need about q^(1/4) rows there.
+        if q > m2 && cvql_last_term(kd, m, q) <= f64::EPSILON * a.abs() {
             return a;
         }
         if (q != 0.0) && (m != 2) {
@@ -208,7 +209,7 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
         _ => 1,
     };
     let index = (m - start) / 2;
-    let square = |j: i32| (2.0 * f64::from(j) + f64::from(start)).powi(2);
+    let square = |j: i64| (2.0 * j as f64 + f64::from(start)).powi(2);
     let first_diag = square(0)
         + match kd {
             2 => q,
@@ -226,10 +227,9 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
         neg += i32::from(pivot < 0.0);
         for j in 2.. {
             let diag = square(j) - x;
-            // The rows from `j` on dominate the constant tail with this diagonal. For
-            // `diag > 2q`, it is positive definite and lowers the last pivot by at most
-            // `(diag - sqrt(diag^2 - 4q^2)) / 2 < q`, so the rest adds no negative pivots.
-            if diag > 2.0 * q && pivot > q {
+            // Since the diagonal increases, `diag > 2q` and a last pivot `> q` imply that every
+            // later pivot is `> diag - q > q`. This also stops at a NaN.
+            if !(diag <= 2.0 * q || pivot <= q) {
                 break;
             }
             pivot = signed_pivot(diag - q2 / pivot);
@@ -237,15 +237,15 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
         }
         neg
     };
-    let m2 = square(index);
+    let m2 = square(i64::from(index));
     let tol = 64.0 * f64::EPSILON * (m2 + 2.0 * q);
     // The potential has operator norm at most 2q.
     let (mut lo, mut hi) = (m2 - 2.0 * q, m2 + 2.0 * q);
     if a.is_finite() {
         if count(a + tol) <= index {
-            lo = a + tol;
+            lo = lo.max(a + tol);
         } else if count(a - tol) > index {
-            hi = a - tol;
+            hi = hi.min(a - tol);
         } else {
             return a;
         }
@@ -373,11 +373,11 @@ fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     a0
 }
 
-/// The last term of `cvql`, as in DLMF 28.8.1 with `s = w`
+/// The last term of `cvql`, as in DLMF 28.8.1 with `s = w` (`33_554_432 = 2^25`)
 fn cvql_last_term(kd: i32, m: i32, q: f64) -> f64 {
     let w = 2.0 * f64::from(m) + if kd <= 2 { 1.0 } else { -1.0 };
     let w2 = w * w;
-    (((527.0 * w2 + 15617.0) * w2 + 69001.0) * w2 + 41607.0) * w / (25.0f64.exp2() * q.powf(2.5))
+    (((527.0 * w2 + 15617.0) * w2 + 69001.0) * w2 + 41607.0) * w / (33_554_432.0 * q.powf(2.5))
 }
 
 fn cvqm(m: i32, q: f64) -> f64 {

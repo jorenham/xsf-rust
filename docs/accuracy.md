@@ -1405,7 +1405,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Reference of this section: the eigenvalues and eigenvectors of the recurrence relations [DLMF 28.4.5-8](https://dlmf.nist.gov/28.4#ii), the Fourier series [28.4.1-4](https://dlmf.nist.gov/28.4#i), and the series of Bessel function products [28.24.2-5](https://dlmf.nist.gov/28.24), in mpmath.
 
-<sup>†</sup> For some $`m`$ and $`q`$, the result is the characteristic value of another order of the same parity, which the other functions of this section then use. For $`m = 0`$ and $`\lvert q\rvert \lesssim 10^{-162}`$ it is NaN.
+<sup>†</sup> In xsf, for some $`m`$ and $`q`$, the result is the characteristic value of another order of the same parity, which the other functions of this section then use, and for $`m = 0`$ and $`\lvert q\rvert \lesssim 10^{-162}`$ it is NaN.
 
 <sup>‡</sup> Ill-conditioned near the zeros.
 
