@@ -284,6 +284,17 @@ fn test_hyp2f1_c64_binomial() {
         let value = xsf::hyp2f1(10.0, 10.0, 10.0, c64(x, sign));
         assert_eq!(value.im, -sign * 10.0 * f64::EPSILON);
     }
+    // A component of 1 - z below the rounding of the other one reaches the power.
+    let z = c64(1.0 + f64::EPSILON, 2.0_f64.powi(1023));
+    assert_eq!(xsf::hyp2f1(2.5, -1.0, 2.5, z), c64(-f64::EPSILON, -z.im));
+    let square = c64(f64::NEG_INFINITY, 2.0 * f64::EPSILON * z.im);
+    assert_eq!(xsf::hyp2f1(2.5, -2.0, 2.5, z), square);
+    // Next to the cut, it is the real part of a half-integer power.
+    for sign in [-1.0, 1.0] {
+        let actual = xsf::hyp2f1(2.5, -1000.5, 2.5, c64(3.0, sign * 2.0_f64.powi(-1000)));
+        let desired = [707.460_334_577_140_8, -sign * 1.515_342_004_482_324_3e301];
+        np_assert_allclose!([actual.re, actual.im], desired, rtol = 3e-15);
+    }
     // The power overflows and underflows.
     assert_eq!(
         xsf::hyp2f1(1.0, -3000.0, 1.0, c64(3.0, 1.0)),

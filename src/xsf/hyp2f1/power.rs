@@ -13,32 +13,40 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
     if !z.is_finite() {
         return w.powf(p);
     }
-    // Where (p Im z / (1 - Re z))^2 underflows, the power is linear in Im z:
-    // (1-z)^p = (1-x)^p (1 - i p y / (1-x)), on the lip of the sign of y if x > 1.
-    let y = z.im;
-    let tiny_phase = y.abs() * p.abs().max(1.0) < f64::MIN_POSITIVE.sqrt() * w.re.abs();
-    let z = if tiny_phase {
-        c64(z.re, 0.0_f64.copysign(y))
+    // Unlike in xsf, where the square of p times the ratio of the components of 1-z underflows,
+    // take the power of the larger one, on its lip of the cut, times 1 + i p t for the tilt t.
+    let limit = f64::MIN_POSITIVE.sqrt() / p.abs().max(1.0);
+    let (axis, tilt) = if w.im.abs() < limit * w.re.abs() {
+        (c64(z.re, 0.0_f64.copysign(z.im)), Some((w.im, w.re)))
+    } else if w.re.abs() < limit * w.im.abs() {
+        (c64(1.0, z.im), Some((-w.re, w.im)))
     } else {
-        z
+        (z, None)
     };
-    let (power, exponent) = one_minus_z_pow(z, p);
+    let (power, exponent) = one_minus_z_pow(axis, p);
     // The squarings lose about |p| 2^-104 of the power, or |p z| 2^-53 where 1-z rounds to 1.
-    // Beyond the accepted error, only a real or imaginary power, or an underflow, is certain.
-    let error = p.abs() * pow2(-104).min(z.l1_norm() * pow2(-53));
+    // Unlike in xsf, beyond the accepted error only a real or imaginary power, or an
+    // underflow, is certain: the rest is NaN.
+    let error = p.abs() * pow2(-104).min(axis.l1_norm() * pow2(-53));
     let certain = power.re == 0.0 || power.im == 0.0 || exponent + 2.0 * error < -1075.0;
     if error > HYP2F1_RECUR_TOL && !certain {
         return C64::NAN;
     }
-    // A nonzero imaginary part on the cut exceeds the linear term by 2^458.
-    let im = if tiny_phase && power.im == 0.0 {
-        let [(p, ep), (y, ey), (x, ex)] = [p, y, w.re].map(frexp_f64);
+    let mut value = c64(ldexp_sat(power.re, exponent), ldexp_sat(power.im, exponent));
+    // The linear term only reaches a component that vanishes on the axis.
+    if let Some((num, den)) = tilt {
+        let linear = |component: f64| {
+            let [(p, ep), (num, en), (den, ed)] = [p, num, den].map(frexp_f64);
+            ldexp_sat(p * component * num / den, exponent + f64::from(ep + en - ed))
+        };
         // (a zero stays positive)
-        ldexp_sat(-p * power.re * y / x, exponent + f64::from(ep + ey - ex)) + 0.0
-    } else {
-        ldexp_sat(power.im, exponent)
-    };
-    c64(ldexp_sat(power.re, exponent), im)
+        if power.im == 0.0 {
+            value.im = linear(power.re) + 0.0;
+        } else if power.re == 0.0 {
+            value.re = 0.0 - linear(power.im);
+        }
+    }
+    value
 }
 
 // m 2^e, where any |e| > 4096 under- or overflows.
@@ -81,5 +89,11 @@ pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, f64) {
         power
     };
     // The remaining exponent is small and barely amplifies rounding in 1-z.
-    (c64(real.hi, imag.hi) * w.powf(p - n), exponent)
+    // A half power of a real 1-z is exactly real or imaginary as a square root.
+    let rest = match p - n {
+        0.5 if w.im == 0.0 => w.sqrt(),
+        -0.5 if w.im == 0.0 => 1.0 / w.sqrt(),
+        rest => w.powf(rest),
+    };
+    (c64(real.hi, imag.hi) * rest, exponent)
 }
