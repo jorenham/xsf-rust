@@ -382,7 +382,12 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
             let f = (-1.0_f64).powf(m + n)
                 * crate::binom(c - 1.0, b - 1.0)
                 * poch(c - a + 1.0, m - 1.0);
-            factor = f / z.powf(k_);
+            // Unlike in xsf, use an integer power for the rounded index to retain small phases.
+            factor = if n != c - a {
+                (1.0 / z).powi(k as i32) * f
+            } else {
+                f / z.powf(k_)
+            };
         }
         let term = factor;
         let f = (b + m + k_) * (k_ + a - c + 1.0) / ((k + 1) as f64 * (m + k_ + 1.0));
@@ -495,7 +500,10 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C6
     result *= series_eval_finite(series_generator1, m as u64);
     let prefactor = (-z).powf(-a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
     let n = c - a;
-    if (n - n.round()).abs() < HYP2F1_EPS {
+    let n_int = n.round();
+    if (n - n_int).abs() < HYP2F1_EPS {
+        // Unlike in xsf, pass an integer at the positive-parameter coefficient switch.
+        let n = if n_int > 0.0 && b > 0.0 { n_int } else { n };
         let series_generator2 =
             hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
         result += prefactor * series_eval(series_generator2);
