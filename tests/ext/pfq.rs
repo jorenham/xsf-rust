@@ -106,6 +106,12 @@ fn test_hyp3f2_cancels_to_2f1() {
     assert_eq!(hyppfq([2.0, 2.0], [1.0], 2.0), Some(-3.0));
     // 2F1(5/2, 1; 3/2; z) = (1 - z/3) / (1 - z)^2
     assert_hyp3f2([1.0, 2.5, 1.0], [1.0, 1.5], 10.0, -7.0 / 243.0);
+    // Terminating Hahn polynomial, from the exact rational sum.
+    for (z, expected) in
+        [(1.0, 0.000_402_866_243_889_239_3), (1.0f64.next_down(), 0.000_402_866_243_889_197_8)]
+    {
+        assert_hyp3f2([-32.0, 36.25, -32.0], [4.0, -32.0], z, expected);
+    }
     // complex, where `hyp2f1` is +inf
     assert!(hyp3f2(1.75, 3.0, 4.0, 2.0, 4.0, 2.0).is_nan());
     assert!(hyppfq([1.75, 3.0], [2.0], 2.0).is_some_and(f64::is_nan));

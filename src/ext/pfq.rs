@@ -708,14 +708,30 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
         return hyp3f2_clausen(a, b, z).or_else(|| pfq_real(&mut a, &mut b, z));
     };
     let (mut a, mut b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j]]);
-    match a.iter().position(|&v| v == b[0]) {
+    let sum = match a.iter().position(|&v| v == b[0]) {
         // the closed form of `pfq_estimate` is also real for z > 1 if `a` is an integer
-        Some(i) => pfq_estimate(&[a[1 - i]], &[], z),
+        Some(i) => return pfq_estimate(&[a[1 - i]], &[], z),
         None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_better(|| pfq_real(&mut a, &mut b, z)),
         // `pfq_real` is NaN there, as complex, but this 2F1 can be real
-        None if z > 1.0 && first_zero(&a).is_infinite() => pfq_estimate(&a, &b, z),
+        None if z > 1.0 && first_zero(&a).is_infinite() => return pfq_estimate(&a, &b, z),
         None => pfq_real(&mut a, &mut b, z),
-    }
+    };
+    sum.or_better(|| {
+        // Retry an inaccurate finite reduced polynomial with the scaled evaluator
+        // on the unit interval.
+        if !(0.0..=1.0).contains(&z)
+            || !sum?.trusted()?.is_finite()
+            || !(1.0..=f64::from(PFQ_DD_MAXITER)).contains(&first_zero(&a))
+        {
+            return None;
+        }
+        let y = super::hyp2f1_poly_dd(a[0], a[1], b[0], z)?;
+        if y.m == 0.0 && y.err == 0.0 {
+            Some(Estimate::exact(0.0))
+        } else {
+            Estimate::scaled_certain(y).filter(|v| v.is_accurate())
+        }
+    })
 }
 
 // Clausen's square followed by the Gauss quadratic transformation (DLMF 16.12.2, 15.8.18).
