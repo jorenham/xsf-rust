@@ -148,8 +148,8 @@ fn recurrence_start(
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
     let sum = pfq_sum_terms(&a, &b, z, limit, terms, Dd::EPSILON);
-    let accurate = Estimate::absolute((sum.value.hi, sum.abs_error)).is_accurate();
-    accurate.then_some((sum.value, sum.abs_error))
+    let seed = (sum.value, sum.abs_error);
+    Estimate::from(sum).is_accurate().then_some(seed)
 }
 
 /// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, in double-double, the part of the

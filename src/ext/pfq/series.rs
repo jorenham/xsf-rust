@@ -383,16 +383,14 @@ pub(super) fn pfq_terms_of<T: SeriesReal>(
 /// its terms overflow, or underflow before they become large again. If it converged, but its
 /// terms cancel, then it is summed again in double-double arithmetic.
 pub(super) fn pfq_series(a: &[f64], b: &[f64], z: f64) -> Estimate {
-    let sum = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
+    let mut sum = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     // (not in double-double, whose `EPSILON` leaves room for many more parameters)
-    let err = sum.abs_error * pfq_rounding_scale(a, b);
-    let y = if err <= PFQ_TOL * sum.value.abs() || err == f64::INFINITY {
-        (sum.value, err)
+    sum.abs_error *= pfq_rounding_scale(a, b);
+    if sum.abs_error <= PFQ_TOL * sum.value.abs() || sum.abs_error == f64::INFINITY {
+        sum.into()
     } else {
-        let sum = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
-        (f64::from(sum.value), sum.abs_error)
-    };
-    Estimate::absolute(y)
+        pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER).into()
+    }
 }
 
 /// The long series in double-double, if it is accurate
@@ -403,9 +401,8 @@ pub(super) fn pfq_series_long(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> 
     } else {
         PFQ_LONG_MAXITER
     };
-    let sum = pfq_sum::<Dd>(a, b, z, maxiter);
-    let y = Estimate::absolute((f64::from(sum.value), sum.abs_error));
-    y.is_accurate().then_some(y)
+    let estimate = Estimate::from(pfq_sum::<Dd>(a, b, z, maxiter));
+    estimate.is_accurate().then_some(estimate)
 }
 
 /// Largest partial sum, in units of `unit`, whose square is added to the sums of squares
@@ -427,6 +424,12 @@ pub(super) struct SeriesSum<T> {
     /// Euclidean norm of the differences between the final and preceding partial sums.
     #[cfg(test)]
     tail_norm: f64,
+}
+
+impl<T: SeriesReal> From<SeriesSum<T>> for Estimate {
+    fn from(sum: SeriesSum<T>) -> Self {
+        Self::absolute((sum.value.to_f64(), sum.abs_error))
+    }
 }
 
 /// `pfq_series` in the arithmetic of `T`, with at most `maxiter` terms
@@ -500,12 +503,12 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
         sum2 += su * su;
         if n == degree {
             // the series terminated
-            let (abs_error, _tail_norm) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
+            let estimate = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
             return SeriesSum {
                 value: sum + comp,
-                abs_error,
+                abs_error: estimate.0,
                 #[cfg(test)]
-                tail_norm: _tail_norm,
+                tail_norm: estimate.1,
             };
         }
         let Some(term) = terms.next() else { break };
@@ -521,12 +524,12 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
             // geometric bound on the remaining terms, if the series converges (p <= q + 1)
             let tail = t.abs() * rho / (1.0 - rho);
             if a.len() <= b.len() + 1 && rho < 1.0 && tail <= tol * s.abs() {
-                let (rounding, _tail_norm) = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
+                let estimate = estimates(n, d, dsum1, dsum2, sum2, unit, abs1);
                 return SeriesSum {
                     value: sum + comp,
-                    abs_error: rounding + tail,
+                    abs_error: estimate.0 + tail,
                     #[cfg(test)]
-                    tail_norm: _tail_norm,
+                    tail_norm: estimate.1,
                 };
             }
         }

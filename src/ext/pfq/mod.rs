@@ -927,10 +927,9 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         return exact(y);
     }
     // a polynomial is short enough for double-double
-    let polynomial = degree.is_finite().then(|| {
-        let sum = series::pfq_sum::<Dd>(&a, &b, z, PFQ_DD_MAXITER);
-        Estimate::absolute((f64::from(sum.value), sum.abs_error))
-    });
+    let polynomial = degree
+        .is_finite()
+        .then(|| Estimate::from(series::pfq_sum::<Dd>(&a, &b, z, PFQ_DD_MAXITER)));
     if polynomial.is_some_and(Estimate::is_accurate) {
         return polynomial;
     }
