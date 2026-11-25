@@ -251,244 +251,178 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
 /// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, the third
 /// return value is an error estimate as in `hys2f1`.
 fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
-    let (mut p, mut q, mut r, mut t, mut w, d);
-    let (d1, d2, e, mut y1);
-    let mut sign;
-
-    let mut neg_int_a = false;
-    let mut neg_int_b = false;
-
-    let ia = a.round() as i32;
-    let ib = b.round() as i32;
-
-    if a <= 0.0 && (a - f64::from(ia)).abs() < HYP2F1_EPS {
-        /* a is a negative integer */
-        neg_int_a = true;
-    }
-
-    if b <= 0.0 && (b - f64::from(ib)).abs() < HYP2F1_EPS {
-        /* b is a negative integer */
-        neg_int_b = true;
-    }
-
-    let (mut err, err_full);
+    let neg_int = |v: f64| v <= 0.0 && (v - f64::from(v.round() as i32)).abs() < HYP2F1_EPS;
+    let polynomial = neg_int(a) || neg_int(b);
     let s = 1.0 - x;
-    let y = 'done: {
-        if x < -0.5 && !(neg_int_a || neg_int_b) {
-            let y;
-            if b > a {
-                (y, err, err_full) = hys2f1(a, c - b, c, -x / s);
-                break 'done s.powf(-a) * y;
-            }
-            (y, err, err_full) = hys2f1(c - a, b, c, -x / s);
-            break 'done s.powf(-b) * y;
+    if x < -0.5 && !polynomial {
+        let (p, (y, err, full)) = if b > a {
+            (a, hys2f1(a, c - b, c, -x / s))
+        } else {
+            (b, hys2f1(c - a, b, c, -x / s))
+        };
+        return (s.powf(-p) * y, err, full);
+    }
+    if polynomial || !(x > 0.9) {
+        // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too.
+        return hys2f1_checked(a, b, c, x);
+    }
+
+    let d = c - a - b;
+    let id = d.round();
+    /* Try the power series first */
+    // Unlike in xsf, also if c-a-b is an integer, as the psi function expansion below
+    // can be inexact or fail.
+    //
+    // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate incl.
+    // the recurrence in `a` isn't, it is only replaced by AMS55 #15.3.6 if that shows it
+    // to be less accurate.
+    let (y0, loss0, full0) = hys2f1_checked(a, b, c, x);
+    if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
+        return (y0, loss0, full0);
+    }
+
+    // Unlike in xsf (scipy/xsf#461), use the psi function expansion if c-a-b is an
+    // integer up to `HYP2F1_EPS`, not `MACHEP`, as AMS55 #15.3.6 cancels near one, and
+    // only up to `HYP2F1_MAXITER`, beyond which its finite sum can hang
+    if (d - id).abs() > HYP2F1_EPS || id.abs() > HYP2F1_MAXITER as f64 {
+        // AMS55 #15.3.6: the two terms use Gamma(d)/[Gamma(c-a) Gamma(c-b)]
+        // and Gamma(-d)/[Gamma(a) Gamma(b)].
+        let log_gamma_ratio = |u, v, w| {
+            let (lu, su) = lgam_sgn(u);
+            let (lv, sv) = lgam_sgn(v);
+            let (lw, sw) = lgam_sgn(w);
+            (lu - lv - lw, f64::from(su * sv * sw))
+        };
+        let (mut q, mut err, q_full) = hys2f1_checked(a, b, 1.0 - d, s);
+        let (w_q, sign_q) = log_gamma_ratio(d, c - a, c - b);
+        let (mut r, err1, r_full) = hys2f1_checked(c - a, c - b, d + 1.0, s);
+        let (w, sign) = log_gamma_ratio(-d, a, b);
+        // Unlike in xsf (scipy/xsf#473), if a factor leaves the normal range, combine
+        // `Gamma(c)` and `s^d` with the logarithms of the others, as the terms can still be
+        // normal (e.g. for a tiny `b`). Not at a pole of `Gamma(+-d)`, nor if an inner
+        // series is inaccurate.
+        let (mut exp_q, mut s_d, mut exp_r, mut gamma_c) =
+            (w_q.exp(), s.powf(d), w.exp(), gamma(c));
+        let in_range = [exp_q, s_d, exp_r, gamma_c].into_iter().all(f64::is_normal);
+        let accurate = q_full < HYP2F1_ETHRESH && r_full < HYP2F1_ETHRESH;
+        if !in_range && w_q.is_finite() && w.is_finite() && accurate {
+            // `s^d` and `|Gamma(c)|` are moved into the exponents
+            let (lg_c, sign_c) = lgam_sgn(c);
+            exp_q = (w_q + lg_c).exp();
+            (s_d, exp_r) = (1.0, (w + d * s.ln() + lg_c).exp());
+            gamma_c = f64::from(sign_c);
         }
+        q *= sign_q * exp_q;
+        r = r * s_d * (sign * exp_r);
+        let mut y = q + r;
 
-        d = c - a - b;
-        let id = d.round(); /* nearest integer to d */
+        // the error of `y` from `q` and `r` (incl. their recurrences in `a`), their sum,
+        // and `Gamma(+-d)`: its poles amplify the rounding of `d` by `|a|+|b|+|c|` to
+        // `|d - id|`
+        let near_pole = 1.0 + (a.abs() + b.abs() + c.abs()) / (d - id).abs();
+        let full =
+            (q.abs() * q_full + r.abs() * r_full + MACHEP * near_pole * q.abs().max(r.abs()))
+                / y.abs();
 
-        if x > 0.9 && !(neg_int_a || neg_int_b) {
-            /* Try the power series first */
-            // Unlike in xsf, also if c-a-b is an integer, as the psi function expansion below
-            // can be inexact or fail.
-            //
-            // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate incl.
-            // the recurrence in `a` isn't, it is only replaced by AMS55 #15.3.6 if that shows it
-            // to be less accurate.
-            let (y0, loss0, full0) = hys2f1_checked(a, b, c, x);
-            if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
-                (err, err_full) = (loss0, full0);
-                break 'done y0;
-            }
-
-            // Unlike in xsf (scipy/xsf#461), use the psi function expansion if c-a-b is an
-            // integer up to `HYP2F1_EPS`, not `MACHEP`, as AMS55 #15.3.6 cancels near one, and
-            // only up to `HYP2F1_MAXITER`, beyond which its finite sum can hang
-            if (d - id).abs() > HYP2F1_EPS || id.abs() > HYP2F1_MAXITER as f64 {
-                let (mut lg, mut sgngam);
-                let (err1, q_full, r_full);
-
-                /* test for integer c-a-b */
-                /* If power series fails, then apply AMS55 #15.3.6 */
-                (q, err, q_full) = hys2f1_checked(a, b, 1.0 - d, s);
-                sign = 1;
-                (w, sgngam) = lgam_sgn(d);
-                sign *= sgngam;
-                (lg, sgngam) = lgam_sgn(c - a);
-                w -= lg;
-                sign *= sgngam;
-                (lg, sgngam) = lgam_sgn(c - b);
-                w -= lg;
-                sign *= sgngam;
-                let (w_q, sign_q) = (w, f64::from(sign));
-                (r, err1, r_full) = hys2f1_checked(c - a, c - b, d + 1.0, s);
-                sign = 1;
-                (w, sgngam) = lgam_sgn(-d);
-                sign *= sgngam;
-                (lg, sgngam) = lgam_sgn(a);
-                w -= lg;
-                sign *= sgngam;
-                (lg, sgngam) = lgam_sgn(b);
-                w -= lg;
-                sign *= sgngam;
-                // Unlike in xsf (scipy/xsf#473), if a factor leaves the normal range, combine
-                // `Gamma(c)` and `s^d` with the logarithms of the others, as the terms can still be
-                // normal (e.g. for a tiny `b`). Not at a pole of `Gamma(+-d)`, nor if an inner
-                // series is inaccurate.
-                let (mut exp_q, mut s_d, mut exp_r, mut gamma_c) =
-                    (w_q.exp(), s.powf(d), w.exp(), gamma(c));
-                let in_range = [exp_q, s_d, exp_r, gamma_c].into_iter().all(f64::is_normal);
-                let accurate = q_full < HYP2F1_ETHRESH && r_full < HYP2F1_ETHRESH;
-                if !in_range && w_q.is_finite() && w.is_finite() && accurate {
-                    // `s^d` and `|Gamma(c)|` are moved into the exponents
-                    let (lg_c, sign_c) = lgam_sgn(c);
-                    exp_q = (w_q + lg_c).exp();
-                    (s_d, exp_r) = (1.0, (w + d * s.ln() + lg_c).exp());
-                    gamma_c = f64::from(sign_c);
-                }
-                q *= sign_q * exp_q;
-                r = r * s_d * (f64::from(sign) * exp_r);
-                let mut y = q + r;
-
-                // the error of `y` from `q` and `r` (incl. their recurrences in `a`), their sum,
-                // and `Gamma(+-d)`: its poles amplify the rounding of `d` by `|a|+|b|+|c|` to
-                // `|d - id|`
-                let near_pole = 1.0 + (a.abs() + b.abs() + c.abs()) / (d - id).abs();
-                let full = (q.abs() * q_full
-                    + r.abs() * r_full
-                    + MACHEP * near_pole * q.abs().max(r.abs()))
-                    / y.abs();
-
-                q = q.abs(); /* estimate cancellation error */
-                r = r.abs();
-                if q > r {
-                    r = q;
-                }
-                err += err1 + (MACHEP * r) / y;
-
-                y *= gamma_c;
-                if loss0 < HYP2F1_ETHRESH && !less_accurate(y0, y, full) {
-                    (err, err_full) = (loss0, full0);
-                    break 'done y0;
-                }
-                err_full = full;
-                break 'done y;
-            }
-            /* Psi function expansion, AMS55 #15.3.10, #15.3.11, #15.3.12
-             *
-             * Although AMS55 does not explicitly state it, this expansion fails
-             * for negative integer a or b, since the psi and Gamma functions
-             * involved have poles.
-             */
-
-            let aid;
-            if id >= 0.0 {
-                e = d;
-                d1 = d;
-                d2 = 0.0;
-                aid = id as i32;
-            } else {
-                e = -d;
-                d1 = 0.0;
-                d2 = d;
-                aid = -id as i32;
-            }
-
-            let ax = s.ln();
-
-            /* sum for t = 0 */
-            let mut y = psi(1.0) + psi(1.0 + e) - psi(a + d1) - psi(b + d1) - ax;
-            y *= rgamma(e + 1.0);
-            // Unlike in xsf, estimate the errors of both sums and their cancellation (scaled
-            // as the sums), as the `t`-th term is a product of about `t` roundings
-            let (mut y_err, mut y1_err) = (y.abs(), 1.0_f64);
-            // the relative error of `y` from the absolute error `e`, but no digit
-            // (`HYP2F1_LOST`) if `y` is 0 or either isn't finite, e.g. as the factors below
-            // over- or underflow
-            let rel_err = |e: f64, y: f64| {
-                let err = MACHEP * e / y.abs();
-                if err.is_finite() && y.is_finite() && y != 0.0 {
-                    err
-                } else {
-                    HYP2F1_LOST
-                }
-            };
-
-            p = (a + d1) * (b + d1) * s * rgamma(e + 2.0); /* Poch for t=1 */
-            t = 1.0;
-            loop {
-                r = psi(1.0 + t) + psi(1.0 + t + e) - psi(a + t + d1) - psi(b + t + d1) - ax;
-                q = p * r;
-                y += q;
-                y_err += t * q.abs();
-                p *= s * (a + t + d1) / (t + 1.0);
-                p *= (b + t + d1) / (t + 1.0 + e);
-                t += 1.0;
-                if t > HYP2F1_MAXITER as f64 {
-                    /* should never happen */
-                    (err, err_full) = (1.0, 1.0);
-                    break 'done f64::NAN;
-                }
-                if !(y == 0.0 || (q / y).abs() > HYP2F1_EPS) {
-                    break;
-                }
-            }
-
-            if id == 0.0 {
-                let f = gamma(c) / (gamma(a) * gamma(b));
-                y *= f;
-                err = rel_err(y_err * f.abs(), y);
-                err_full = err;
-                break 'done y; // goto psidon
-            }
-
-            y1 = 1.0;
-
-            'nosum: {
-                if aid == 1 {
-                    break 'nosum;
-                }
-
-                t = 0.0;
-                p = 1.0;
-                for _ in 1..aid {
-                    r = 1.0 - e + t;
-                    p *= s * (a + t + d2) * (b + t + d2) / r;
-                    t += 1.0;
-                    p /= t;
-                    y1 += p;
-                    y1_err += t * p.abs();
-                }
-            }
-            // nosum:
-            p = gamma(c);
-            let f1 = gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
-            let f = p * (rgamma(a + d2) * rgamma(b + d2));
-            // `y` or `y1` times `s^id`
-            let q = (s.powf(id), id * ax); /* s to the id power */
-            let one = (1.0, 0.0);
-            let (q, q1) = if id > 0.0 { (q, one) } else { (one, q) };
-            (y1, y1_err) = times_gamma_ratio((y1, y1_err), f1, q1, [e, c], [a + d1, b + d1]);
-            (y, y_err) = times_gamma_ratio((y, y_err), f, q, [1.0, c], [a + d2, b + d2]);
-            if (aid & 1) != 0 {
-                y = -y;
-            }
-
-            y += y1;
-            err = rel_err(y_err + y1_err, y);
-            err_full = err;
-            // psidon:
-            break 'done y;
+        q = q.abs(); /* estimate cancellation error */
+        r = r.abs();
+        if q > r {
+            r = q;
         }
+        err += err1 + (MACHEP * r) / y;
 
-        /* Use defining power series if no special cases */
-        // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too
-        let y;
-        (y, err, err_full) = hys2f1_checked(a, b, c, x);
-        y
+        y *= gamma_c;
+        if loss0 < HYP2F1_ETHRESH && !less_accurate(y0, y, full) {
+            return (y0, loss0, full0);
+        }
+        return (y, err, full);
+    }
+
+    /* Psi function expansion, AMS55 #15.3.10, #15.3.11, #15.3.12
+     *
+     * Although AMS55 does not explicitly state it, this expansion fails
+     * for negative integer a or b, since the psi and Gamma functions
+     * involved have poles.
+     */
+
+    let (e, d1, d2, aid) = if id >= 0.0 {
+        (d, d, 0.0, id as i32)
+    } else {
+        (-d, 0.0, d, -id as i32)
     };
-    // done:
-    (y, err, err_full)
+
+    let ax = s.ln();
+
+    /* sum for t = 0 */
+    let mut y = psi(1.0) + psi(1.0 + e) - psi(a + d1) - psi(b + d1) - ax;
+    y *= rgamma(e + 1.0);
+    // Unlike in xsf, estimate the errors of both sums and their cancellation (scaled
+    // as the sums), as the `t`-th term is a product of about `t` roundings
+    let (mut y_err, mut y1_err) = (y.abs(), 1.0_f64);
+    // the relative error of `y` from the absolute error `e`, but no digit
+    // (`HYP2F1_LOST`) if `y` is 0 or either isn't finite, e.g. as the factors below
+    // over- or underflow
+    let rel_err = |e: f64, y: f64| {
+        let err = MACHEP * e / y.abs();
+        if err.is_finite() && y.is_finite() && y != 0.0 {
+            err
+        } else {
+            HYP2F1_LOST
+        }
+    };
+
+    let mut p = (a + d1) * (b + d1) * s * rgamma(e + 2.0); /* Poch for t=1 */
+    let mut t = 1.0;
+    loop {
+        let r = psi(1.0 + t) + psi(1.0 + t + e) - psi(a + t + d1) - psi(b + t + d1) - ax;
+        let q = p * r;
+        y += q;
+        y_err += t * q.abs();
+        p *= s * (a + t + d1) / (t + 1.0);
+        p *= (b + t + d1) / (t + 1.0 + e);
+        t += 1.0;
+        if t > HYP2F1_MAXITER as f64 {
+            /* should never happen */
+            return (f64::NAN, 1.0, 1.0);
+        }
+        if !(y == 0.0 || (q / y).abs() > HYP2F1_EPS) {
+            break;
+        }
+    }
+
+    if id == 0.0 {
+        let f = gamma(c) / (gamma(a) * gamma(b));
+        y *= f;
+        let err = rel_err(y_err * f.abs(), y);
+        return (y, err, err);
+    }
+
+    let mut y1 = 1.0;
+    let mut p = 1.0;
+    for j in 1..aid {
+        let t = f64::from(j - 1);
+        let r = 1.0 - e + t;
+        p *= s * (a + t + d2) * (b + t + d2) / r;
+        p /= f64::from(j);
+        y1 += p;
+        y1_err += f64::from(j) * p.abs();
+    }
+    let gamma_c = gamma(c);
+    let f1 = gamma(e) * gamma_c * (rgamma(a + d1) * rgamma(b + d1));
+    let f = gamma_c * (rgamma(a + d2) * rgamma(b + d2));
+    // `y` or `y1` times `s^id`
+    let q = (s.powf(id), id * ax); /* s to the id power */
+    let one = (1.0, 0.0);
+    let (q, q1) = if id > 0.0 { (q, one) } else { (one, q) };
+    (y1, y1_err) = times_gamma_ratio((y1, y1_err), f1, q1, [e, c], [a + d1, b + d1]);
+    (y, y_err) = times_gamma_ratio((y, y_err), f, q, [1.0, c], [a + d2, b + d2]);
+    if (aid & 1) != 0 {
+        y = -y;
+    }
+
+    y += y1;
+    let err = rel_err(y_err + y1_err, y);
+    (y, err, err)
 }
 
 /// `y f q` and its error in `MACHEP`, from `y` and its error, the ratio
