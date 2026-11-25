@@ -508,14 +508,18 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64) -> (C64, f64)
     let m = (c - a - b).round();
     // gamma(c) / (gamma(a) gamma(b)) for c near a + b + m and m >= 0.
     // Unlike in xsf, cancel it as four gammas if the ratio over- or underflows.
+    // (in the order of a and b whose rising factorial is representable, if any)
     let mut recovered = false;
     let mut cancelled = |ratio: f64, a: f64, b: f64, m: f64| {
-        recovered = !ratio.is_finite() || ratio == 0.0;
-        if recovered {
-            four_gammas(c, 1.0, a, b + m + 1.0) * poch(b, m + 1.0)
-        } else {
-            ratio
+        if ratio.is_finite() && ratio != 0.0 {
+            return ratio;
         }
+        let product = [(a, b), (b, a)]
+            .into_iter()
+            .map(|(a, b)| four_gammas(c, 1.0, a, b + m + 1.0) * poch(b, m + 1.0))
+            .find(|product| product.is_finite() && *product != 0.0);
+        recovered = product.is_some();
+        product.unwrap_or(ratio)
     };
     let mut result = C64::ZERO;
     let (prefactor, series_generator) = if m >= 0.0 {
@@ -858,13 +862,15 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
 /// The limit of the 1 - z series for an integer balance, if it is closer than `result`.
 #[cold]
 fn hyp2f1_transform1_near_limit(a: f64, b: f64, c: f64, z: C64, offset: f64, result: C64) -> C64 {
-    let (limit, cancellation) = hyp2f1_transform1_limiting_case(a, b, c, z);
-    // A heuristic for the relative derivative of the limit in the balance, from the
-    // logarithm and the digammas of its terms (DLMF 15.8.10).
+    // At the integer balance, which its gamma ratios assume.
+    let (limit, cancellation) =
+        hyp2f1_transform1_limiting_case(a, b, a + b + (c - a - b).round(), z);
+    // A heuristic for the relative derivative of the terms of the limit in the balance, from
+    // their logarithm and digammas (DLMF 15.8.10). The sum amplifies it by its cancellation.
     let sensitivity =
         (1.0 - z).ln().norm() + [a, b, c].map(|x| digamma(x).abs()).iter().sum::<f64>();
-    let error = offset * sensitivity + f64::EPSILON * cancellation;
-    // The margin covers the estimate, which the error of the limit exceeds up to 25 times.
+    let error = (offset * sensitivity + f64::EPSILON) * cancellation;
+    // The margin covers the heuristic estimate.
     let agree = (result - limit).norm() <= 32.0 * error * limit.norm();
     if error < f64::EPSILON.cbrt() && !agree {
         limit
@@ -879,11 +885,12 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
+    let large_c = c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs());
     let (mut result, cancellation) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
-        if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
+        if large_c {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
             return series_eval(series_generator);
         }
@@ -906,7 +913,8 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Rounding in c - a - b moves the poles that cancel between the two 1 - z series by a
     // relative eps / offset, for an error near eps / offset^2, where the limit is off by its
     // sensitivity to the balance: the two meet at an offset near cbrt(eps).
-    if offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON {
+    // (not for a large c, whose limit has as many terms)
+    if offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON && !large_c {
         return hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
     }
     result

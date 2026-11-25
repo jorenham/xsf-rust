@@ -374,6 +374,16 @@ fn test_hyp2f1_c64_rounded_integer_balance() {
             3.770_952_191_815_918e-22,
             -9.784_596_732_535_692e-23,
         ),
+        // A rising factorial that overflows in one order of a and b.
+        (
+            -169.25,
+            173.5,
+            170.25,
+            1.0001,
+            1e-40,
+            1.879_389_312_714_306e-110,
+            -3.344_377_011_037_522e-148,
+        ),
         // The Maclaurin series is closer than the limit.
         (
             -0.515_978_988_132_843_6,
@@ -392,6 +402,9 @@ fn test_hyp2f1_c64_rounded_integer_balance() {
             }
         }
     }
+    // The limit cancels eight digits, more than a balance of 1e-7 leaves.
+    let actual = xsf::hyp2f1(40.0, 60.0, 112.000_000_1, c64(0.97, 0.0));
+    np_assert_allclose!([actual.re], [3.906_774_039_774_269e17], rtol = 3e-12);
     // A balance of 1e-12, which the limit is off by.
     let actual = xsf::hyp2f1(8.000_000_000_001, 8.0, 16.0, c64(1.0001, 1e-6));
     let desired = [205_297.257_891_800_95, 160_165.783_237_828_03];
