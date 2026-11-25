@@ -950,7 +950,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if cy.is_finite() && cy.re.abs() < 0.5 * cy.im.abs() {
         let j = if v == 1.0 {
             bessel_j1(x)
-        } else if let Some((j, _)) = jy {
+        } else if let Some((j, _)) = jy.filter(|(j, _)| j.is_finite()) {
             j
         } else if let Some(j) = (v < LARGE_ORDER_MIN_V)
             .then(|| bessel_j_axis_wronskian(v, x, cy.im.abs()))
