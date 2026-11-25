@@ -1,11 +1,14 @@
 //! Divergent `p > q + 1` Borel summation and `2F0` evaluation via `hypu`.
 
 use core::cell::OnceCell;
-use core::iter::once;
+use core::iter::{once, successors};
 
 use super::asymptotic::{Alg, asymptotic_sum, pfq_alg, pfq_alg_dd};
 use super::series::{pfq_terms, pfq_weniger_dd};
-use super::{Estimate, OrBetter, PFQ_INACCURATE, PFQ_TOL, add_exp, ldexp_i64, pfq_settled};
+use super::{
+    Dd, Estimate, OrBetter, PFQ_DD_MAXITER, PFQ_INACCURATE, PFQ_TOL, SeriesReal, add_exp,
+    ldexp_i64, pfq_settled,
+};
 use crate::utils::{SQRT_EPSILON, is_nonpos_int, pow2};
 use crate::xsf::cephes::dd_real::{frexp_f64, two_prod, two_sum};
 use crate::xsf::xsf_hypu_digits;
@@ -200,11 +203,104 @@ impl RawBorel {
     }
 }
 
+/// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), or `None` if it would take
+/// more than `PFQ_DD_MAXITER` steps
+///
+/// With `x = -1/z`, the `v_k = (a1)_k (a2)_k / k! U(a1 + k, a1 - a2 + 1, x)` are the minimal
+/// solution of
+///
+/// `(a1 + k - 1) (a2 + k - 1) v_(k-1) = k ((a1 + a2 + 2 k - 1 + x) v_k - (k + 1) v_(k+1))`
+///
+/// and sum to `x^(-a1)`, so that 2F0 is `v_0 / sum_k v_k` (DLMF 13.6.21): without a gamma
+/// function, a power, or the rounded `x` and `a1 - a2 + 1`. It is in double-double, with a
+/// first-order estimate of its rounding errors. The estimate is not a bound: it propagates the
+/// errors of the steps with one choice of signs.
+///
+/// As the sum cancels unless `a1, a2 > 0`, it is that of `a1 + shift` and `a2 + shift`, and the
+/// `f_k = 2F0(a1 + k, a2 + k;; z)` then go down from `k = shift` by (DLMF 13.3.7)
+///
+/// `f_(k-1) = (1 - (a1 + a2 + 2 k - 1) z) f_k - (a1 + k) (a2 + k) z^2 f_(k+1)`
+///
+/// with the rounding errors of its steps and of `f_shift` and `f_(shift+1)`, each times the
+/// sensitivity of `f_0` to it.
+fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
+    // the least for a1 + shift, a2 + shift > 0
+    let shift = ((-a1).max(-a2).floor() + 1.0).max(0.0);
+    let x = Dd::new(-1.0) / z;
+    let sum = x + a1 + a2 + (2.0 * shift - 1.0);
+    // v_0 / sum_k v_k from v_n = 1 and v_(n+1) = 0, and its relative rounding and truncation
+    // errors (with the rounding of the quotient and of `y`)
+    let ratio = |n: f64| {
+        let (mut v, mut e) = ([Dd::ONE, Dd::ZERO], [0.0; 2]);
+        let (mut total, mut e_total) = (v[0], 0.0);
+        for k in (1..=n as u32).rev().map(f64::from) {
+            let (p, q) = ((sum + 2.0 * k) * v[0], v[1] * (k + 1.0));
+            let den = (Dd::new(a1) + (shift + k - 1.0)) * (Dd::new(a2) + (shift + k - 1.0)) / k;
+            // the rounding error of this step, with the sign of the errors so far
+            let rounding = Dd::EPSILON * (p.hi.abs() + q.hi.abs());
+            let propagated = (sum.hi + 2.0 * k) * e[0] - (k + 1.0) * e[1];
+            e = [(propagated + rounding.copysign(propagated)) / den.hi, e[0]];
+            v = [(p - q) / den, v[0]];
+            total = total + v[0];
+            e_total += e[0].abs();
+        }
+        // f_shift and f_(shift+1) times sum_k v_k (DLMF 13.6.21)
+        let den = (Dd::new(a1) + shift) * (Dd::new(a2) + shift) * -z;
+        let mut f = [v[0], v[1] / den];
+        // and their rounding errors
+        let e_f1 = (e[1] / den.hi).abs() + Dd::EPSILON * f[1].hi.abs();
+        let mut steps = Vec::with_capacity(shift as usize);
+        for k in (1..=shift as u32).rev().map(f64::from) {
+            let c = (Dd::new(a1) + a2 + (2.0 * k - 1.0)) * -z + 1.0;
+            let d = (Dd::new(a1) + k) * (Dd::new(a2) + k) * z * z;
+            let (p, q) = (c * f[0], d * f[1]);
+            steps.push((c.hi, d.hi, Dd::EPSILON * (p.hi.abs() + q.hi.abs())));
+            f = [p - q, f[0]];
+        }
+        // the sensitivities of f_0 to f_(k-1) and f_k, up from k = 1
+        let (mut w, mut e_f) = ([1.0, 0.0], 0.0);
+        for (c, d, rounding) in steps.into_iter().rev() {
+            e_f += (w[0] * rounding).abs();
+            w = [w[0] * c + w[1], -w[0] * d];
+        }
+        e_f += (w[0] * e[0]).abs() + (w[1] * e_f1).abs();
+        let rounding = (e_f / f[0].hi).abs() + (e_total / total.hi).abs() + f64::EPSILON;
+        // The sum lacks the v_k past n, and v_(n+1) = 0 adds some of the dominant solution to
+        // those up to n. By the recurrence at k = n, the two solutions are locally as
+        // `Gamma(k + 1 - mu) / Gamma(k + 1)` for the roots mu of
+        //
+        // `q(mu) = (mu + a1 - 1) (mu + a2 - 1) + (mu - n) x`
+        //
+        // which they are for x = 0, with mu = 1 - a_i. The sum of the one past n and that of
+        // the other up to n are `q(n + 1) / -q(1)` in all for v_n = 1, or
+        //
+        // `(c1 c2 / x + 1) / (n - 1 - (c1 - n) (c2 - n) / x)` for `c_i = a_i + n`
+        //
+        // and infinite where the v_k don't decay faster than 1 / k yet. (Over x, as the
+        // products may overflow.)
+        let [c1, c2] = [a1, a2].map(|a| a + (shift + n));
+        let decay = (n - 1.0 - (c1 - n) / x.hi * (c2 - n)).max(0.0);
+        let truncation = (c1 / x.hi * c2 + 1.0) / decay / total.hi.abs();
+        ((f[0] / total).hi, rounding, truncation)
+    };
+    // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
+    // (DLMF 13.8.11), which decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power
+    // of k. So the steps double while the truncation error exceeds the rounding errors, and
+    // there is no result if it still does at `PFQ_DD_MAXITER` steps.
+    let (m, max) = (-f64::EPSILON.ln(), f64::from(PFQ_DD_MAXITER));
+    let n = (m + ((a1 - a2).abs() + m).powi(2) / (4.0 * x.hi)).ceil();
+    successors((shift <= max).then_some(n.min(max)), |&n| (n < max).then(|| (2.0 * n).min(max)))
+        .map(ratio)
+        .find(|&(_, rounding, truncation)| truncation <= rounding)
+        .map(|(y, rounding, truncation)| Estimate::rounded(y, rounding + truncation))
+}
+
 /// Borel sum of `2F0(a1, a2;; z)` for `z < 0` (DLMF 13.6.21)
 ///
 /// Tries `x^a1 U(a1, a1 - a2 + 1, x)` with `CHGU_DIGITS_MARGIN`, the truncated asymptotic
 /// series, the swapped `U` orientation (DLMF 13.2.40), double-double Weniger and double-double
-/// residues (`pfq_borel_dd`), and finally the cached `U` evaluations at `margin = 0.0`.
+/// residues (`pfq_borel_dd`), Miller's algorithm (`hyp2f0_miller`) where the residues cancel,
+/// e.g. for `a1, a2 < 0`, and finally the cached `U` evaluations at `margin = 0.0`.
 /// For large arguments and nearly terminating series, prefer the residues.
 pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
     // the smaller |a_i| first, as x^a1 then overflows less often
@@ -276,6 +372,7 @@ pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
                 weniger_dd().or_better(residues)
             }
         })
+        .or_better(|| hyp2f0_miller(a1, a2, z))
         .or_better(|| raw1.as_ref()?.estimate(0.0))
         .or_better(|| eval2()?.estimate(0.0))
 }
@@ -308,6 +405,33 @@ mod tests {
             let y = crate::hyppfq(a, [], z).unwrap();
             assert!((y / expected - 1.0).abs() <= PFQ_TOL, "{y:e} != {expected:e}");
         }
+    }
+
+    #[test]
+    fn test_hyp2f0_miller_err() {
+        // the estimate covers the rounding of the result, that of the recurrence in a1 and a2
+        // (1.7e-13), and the truncation at twice the steps, up to `PFQ_DD_MAXITER` (Arb)
+        for (a1, a2, z, expected) in [
+            (-36.5, -51.8, -0.026, -6.120_387_741_382_293e-9),
+            (
+                -50.999_999_999_699_924,
+                -104.536_535_990_336_39,
+                -0.056_613_881_920_597_09,
+                2.794_502_416_895_517_4e22,
+            ),
+            (7.0, 9.0, -1.8, 6.911_864_984_250_697e-8),
+        ] {
+            let Estimate { y, err } = hyp2f0_miller(a1, a2, z).unwrap();
+            assert!(err >= f64::EPSILON && (y / expected - 1.0).abs() <= err, "{y:e} {err:e}");
+        }
+        // and there is no result where those steps leave a truncation error (1.7e-11), or where
+        // the v_k don't decay within them, or only as 1 / k
+        assert!(hyp2f0_miller(7.6, 6.8, -3.3).is_none());
+        assert!(hyp2f0_miller(760.0, 280.0, -0.014).is_none());
+        assert!(hyp2f0_miller(2.2e-16, 300.0, -1e304).is_none());
+        // the estimate has the spacing of a subnormal result, ~6.8e-324 (Arb)
+        let y = hyp2f0_miller(600.0, 4600.0, -0.000_56).unwrap();
+        assert!(!y.is_accurate(), "{y:?}");
     }
 
     #[test]
