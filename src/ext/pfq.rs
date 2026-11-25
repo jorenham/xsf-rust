@@ -557,8 +557,8 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
         None => pfq_real(&mut a, &mut b, z),
     };
     sum.or_better(|| {
-        // Unlike in xsf, refine an inaccurate finite reduced polynomial with the
-        // scaled polynomial evaluator on the unit interval.
+        // Retry an inaccurate finite reduced polynomial with the scaled evaluator
+        // on the unit interval.
         if !(0.0..=1.0).contains(&z)
             || !sum?.trusted()?.is_finite()
             || !(1.0..=f64::from(PFQ_DD_MAXITER)).contains(&first_zero(&a))
