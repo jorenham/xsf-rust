@@ -474,6 +474,13 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let odd = terms();
             sum += even;
             sum += odd;
+            // Unlike in xsf, skip Euclidean norms when the pair is too large to stop.
+            // Two bounds sqrt(2) with rounding room; half-MAX keeps the norms finite.
+            let pair_abs = even.l1_norm() + odd.l1_norm();
+            let sum_abs = sum.l1_norm();
+            if pair_abs.max(sum_abs) <= 0.5 * f64::MAX && pair_abs > 2.0 * HYP2F1_EPS * sum_abs {
+                continue;
+            }
             let last = even.norm() + odd.norm();
             let tol = sum.norm() * HYP2F1_EPS;
             if !last.is_finite() || !tol.is_finite() {
