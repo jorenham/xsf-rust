@@ -782,7 +782,65 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     power * tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER)
 }
 
+// Unlike in xsf, use the complementary incomplete beta integral (DLMF 8.17.4, 8.17.7)
+// when c = a + 1 and d = 1 - b is small. The constant terms of the two series
+// then combine as [d B(d,a) - 1] - [w^d - 1], for w = 1 - z.
+fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
+    // c - 1 is exact here, so the numerator comparison tests the identity exactly.
+    if !(1.0 < c && c < 2.0) {
+        return None;
+    }
+    let shape = c - 1.0;
+    let d = if shape == a {
+        1.0 - b
+    } else if shape == b {
+        1.0 - a
+    } else {
+        return None;
+    };
+    if !(d > 0.0 && d <= 1.0 / 64.0) {
+        return None;
+    }
+    // Below the cut, a subnormal d*Im(z) can erase the phase of expm1(d*log(w)).
+    // Use z F'(z) = a [(1-z)^(-b) - F(z)] where (Im(z)/(1-Re(z)))^2 underflows.
+    let y = z.im;
+    let tiny_phase = z.re < 1.0 && y != 0.0 && y.abs() < f64::MIN_POSITIVE.sqrt() * (1.0 - z.re);
+    let z = if tiny_phase { c64(z.re, 0.0) } else { z };
+    let w = 1.0 - z;
+    let log_power = w.ln() * d;
+    // log(d B(d,a)) = log1p(d/a) + log Gamma(1+d) - integral of psi from 1+a to
+    // 1+a+d. Three-point Gauss quadrature errs by at most zeta(7) d^7 / 2800.
+    let mid = c + 0.5 * d;
+    let step = 0.5 * (3.0_f64 / 5.0).sqrt() * d;
+    let integral =
+        d / 18.0 * (5.0 * (digamma(mid - step) + digamma(mid + step)) + 8.0 * digamma(mid));
+    let log_beta = (d / shape).ln_1p() + crate::lgam1p(d) - integral;
+    let constant = log_beta.exp_m1() - crate::xsf::cexpm1(log_power);
+
+    // Factor the first nonconstant term out of F(1-a,d;1+d;w) - 1. The normalized
+    // series starts at one even for a subnormal w, and its term ratios are at most |w|.
+    let mut term = C64::ONE;
+    let mut n = 1.0;
+    let tail = series_eval(|| {
+        let value = term;
+        term *= w * ((1.0 - shape + n) * (d + n) / ((n + 1.0) * (d + n + 1.0)));
+        n += 1.0;
+        value
+    });
+    let value = z.powf(-shape)
+        * shape
+        * (constant / d - (log_power.exp() * w) * ((1.0 - shape) / (1.0 + d)) * tail);
+    if tiny_phase {
+        let derivative = (shape / z.re) * ((1.0 - z.re).powf(d - 1.0) - value.re);
+        return Some(c64(value.re, y * derivative));
+    }
+    Some(value)
+}
+
 fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64, z_abs: f64) -> C64 {
+    if let Some(value) = hyp2f1_incomplete_beta(a, b, c, z) {
+        return value;
+    }
     let balance = c - a - b;
     // Unlike in xsf, also take the limit when a + b - c rounds to a gamma pole.
     // On or outside the unit disk the Maclaurin fallback cannot recover that pole.
