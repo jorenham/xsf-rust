@@ -42,7 +42,7 @@
 //! The C++ generator classes are functions that return `FnMut` closures here. `set_error` is a
 //! no-op in our build of xsf, so the calls to it are omitted.
 
-mod terminating;
+mod polynomial;
 
 use core::f64::consts::{FRAC_1_PI, FRAC_PI_4, PI};
 
@@ -923,7 +923,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         };
         // Unlike in xsf, cap the number of terms in the finite series.
         return if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
-            terminating::evaluate(a, b, c, z, degree as u64)
+            polynomial::evaluate(a, b, c, z, degree as u64)
         } else {
             C64::NAN
         };
