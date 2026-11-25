@@ -899,10 +899,10 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         };
         (parity * a, parity * b)
     });
-    if let Some((a, b)) = axis {
-        // A subnormal J is left to the overflow recovery below, which rounds 3 J only once.
-        let jy = bessel_jy_large_order(v, x).filter(|(j, y)| j.is_normal() && y.is_finite());
-        if let Some((j, y)) = jy {
+    let jy = axis.and_then(|_| bessel_jy_large_order(v, x));
+    if let (Some((a, b)), Some((j, y))) = (axis, jy) {
+        // 3 J would round twice if J is subnormal
+        if y.is_finite() && (j.is_normal() || a.abs() == 1.0) {
             return c64(a * j, b * y);
         }
     }
@@ -945,15 +945,17 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
         return cy;
     };
 
-    // Unlike in xsf, recover a small real component from J where the expansions for large
-    // orders do not apply. When |Re| >= |Im|/2, the norm is at most sqrt(5) times |Re|.
+    // Unlike in xsf, recover a small real component from J. When |Re| >= |Im|/2, the norm is at
+    // most sqrt(5) times |Re|.
     if cy.is_finite() && cy.re.abs() < 0.5 * cy.im.abs() {
         let j = if v == 1.0 {
             bessel_j1(x)
+        } else if let Some((j, _)) = jy {
+            j
         } else if v < LARGE_ORDER_MIN_V {
             bessel_j_axis_wronskian(v, x, cy.im.abs())
         } else {
-            cyl_bessel_j_f64(v, x)
+            cyl_bessel_j_amos(v, x)
         };
         if j.is_finite() {
             cy.re = a * j;
@@ -976,7 +978,7 @@ fn bessel_j_axis_wronskian(n: f64, x: f64, y_abs: f64) -> f64 {
         s = k * t - 1.0 / s;
         k += 1.0;
     }
-    // 1 / (b_1 - 1 / (b_2 - ...)) with b_k = (n + k) t, by the modified Lentz method
+    // J_n / J_(n+1) = b_1 - 1 / (b_2 - ...) with b_k = (n + k) t, by the modified Lentz method
     let mut f = (n + 1.0) * t;
     let (mut c, mut d) = (f, 0.0);
     let mut k = n + 2.0;
@@ -1297,7 +1299,10 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     if let Some(j) = bessel_j_large_order(v, x) {
         return j;
     }
+    cyl_bessel_j_amos(v, x)
+}
 
+fn cyl_bessel_j_amos(v: f64, x: f64) -> f64 {
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
     // Unlike in xsf (scipy/xsf#402), also if AMOS underflowed.
     if !res.re.is_finite() || amos_underflow(res.re, v, x) {
