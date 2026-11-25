@@ -902,7 +902,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     let jy = axis.and_then(|_| bessel_jy_large_order(v, x));
     if let (Some((a, b)), Some((j, y))) = (axis, jy) {
         // 3 J would round twice if J is subnormal
-        if y.is_finite() && (j.is_normal() || a.abs() == 1.0) {
+        if y.is_finite() && j.is_finite() && (j.is_normal() || a.abs() == 1.0) {
             return c64(a * j, b * y);
         }
     }
