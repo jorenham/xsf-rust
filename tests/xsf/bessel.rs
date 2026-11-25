@@ -1453,6 +1453,22 @@ xsref::tests! {
 }
 
 #[test]
+fn test_hankel_scaled_normal_imaginary_axis_components() {
+    // Arb from the real I and K projections at the exact inputs.
+    for (v, y, expected, reflection) in [
+        (5.0, 0.1, c64(22_106_016.678_818_2, 4.714_658_859_156_428e-9), -1.0),
+        (1000.0, 620.0, c64(5.119_524_193_643_601e-306, 3.154_003_271_594_677_5e-237), 1.0),
+    ] {
+        for (actual, expected) in [
+            (xsf::hankel_2e(v, c64(0.0, y)), expected),
+            (xsf::hankel_1e(-v, c64(-0.0, -y)), expected.conj() * reflection),
+        ] {
+            np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 5e-13);
+        }
+    }
+}
+
+#[test]
 fn test_hankel_scaled_integer_imaginary_axis() {
     // Arb from the real I and K projections at the exact inputs.
     for (v, re, im) in [

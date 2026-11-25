@@ -695,6 +695,12 @@ fn rescale_bessel(raw: C64, exponent: C64) -> Option<C64> {
 
 fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
     let sign = if m == 1 { 1.0 } else { -1.0 };
+    if z.re == 0.0 && sign * z.im < 0.0 && v.fract() == 0.0 {
+        // Unlike in xsf, evaluate both normal imaginary-axis projections separately.
+        if let Some(value) = damped_hankel_axis_normal(v, z.im) {
+            return value;
+        }
+    }
     scaled_bessel(
         z,
         c64(sign * z.im, -sign * z.re),
@@ -708,6 +714,23 @@ fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
             }
         },
     )
+}
+
+// The damped Hankel function on the imaginary axis has orthogonal I and K
+// projections for integer order (DLMF 10.4.4 and 10.27.8).
+fn damped_hankel_axis_normal(v: f64, y: f64) -> Option<C64> {
+    let t = y.abs();
+    let decay = (-t).exp();
+    if !decay.is_normal() {
+        return None;
+    }
+    let n = v.abs();
+    let i = cyl_bessel_i_amos(n, c64(t, 0.0), false).re * decay;
+    if !i.is_normal() {
+        return None;
+    }
+    let (_, k) = normal_scaled_axis_k(n, t, decay)?;
+    Some(damped_hankel_axis_projection(v, y, 2.0 * i, k))
 }
 
 // With 2 exp(-|Im z|) I_n rounded to zero (DLMF 10.4.4 and 10.27.8),
