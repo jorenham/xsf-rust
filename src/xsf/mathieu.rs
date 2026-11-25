@@ -323,7 +323,7 @@ fn mathieu_sem_in(unit: AngleUnit, m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Even modified Mathieu function of the first kind and its derivative
 ///
 /// Evaluates the even modified Mathieu function of the first kind, $\mathrm{Mc1}_m(x, q)$,
-/// and its derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
+/// and its derivative at $x$ for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modcem1`][scipy].
 ///
@@ -332,11 +332,11 @@ fn mathieu_sem_in(unit: AngleUnit, m: u32, q: f64, x: f64) -> (f64, f64) {
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
-/// - `x`: Argument of the function, *given in degrees, not radians*
+/// - `x`: Real radial argument
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. $x$
+/// - `yp`: Derivative with respect to the radial argument $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
@@ -354,7 +354,7 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Odd modified Mathieu function of the first kind and its derivative
 ///
 /// Evaluates the odd modified Mathieu function of the first kind, $\mathrm{Ms1}_m(x, q)$, and its
-/// derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
+/// derivative at $x$ for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modsem1`][scipy].
 ///
@@ -363,11 +363,11 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
-/// - `x`: Argument of the function, *given in degrees, not radians*
+/// - `x`: Real radial argument
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. $x$
+/// - `yp`: Derivative with respect to the radial argument $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
@@ -385,7 +385,7 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Even modified Mathieu function of the second kind and its derivative
 ///
 /// Evaluates the even modified Mathieu function of the second kind, $\mathrm{Mc2}_m(x, q)$, and
-/// its derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
+/// its derivative at $x$ for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modcem2`][scipy].
 ///
@@ -394,11 +394,11 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
-/// - `x`: Argument of the function, *given in degrees, not radians*
+/// - `x`: Real radial argument
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. $x$
+/// - `yp`: Derivative with respect to the radial argument $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
@@ -416,7 +416,7 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Odd modified Mathieu function of the second kind and its derivative
 ///
 /// Evaluates the odd modified Mathieu function of the second kind, $\mathrm{Ms2}_m(x, q)$, and
-/// its derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
+/// its derivative at $x$ for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modsem2`][scipy].
 ///
@@ -425,11 +425,11 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
-/// - `x`: Argument of the function, *given in degrees, not radians*
+/// - `x`: Real radial argument
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. $x$
+/// - `yp`: Derivative with respect to the radial argument $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
