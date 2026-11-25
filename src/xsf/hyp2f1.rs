@@ -627,6 +627,62 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
         .then_some(value)
 }
 
+// Unlike in xsf, advance the two positive beta moments on the real interval.
+fn positive_beta_real_polynomial(n: u64, b: f64, c: f64, x: f64) -> Option<(C64, f64)> {
+    // Keep the products and their double-word residuals away from either exponent limit.
+    const MIN: f64 = pow2(-192);
+    const MAX: f64 = pow2(384);
+    let h = Dd::new(c) - b;
+    if h.hi < MIN || b < MIN || c > pow2(256) {
+        return None;
+    }
+    let w = Dd::ONE - x;
+    let mut r = h;
+    let b = Dd::new(b);
+    let mut d = b;
+    let c = Dd::new(c);
+    let mut divisor = c;
+    let mut scale = 0;
+    for j in 1..n {
+        let j = j as f64;
+        let dw = d * w;
+        let sum = r + dw;
+        (r, d) = (h * sum + r * j, b * sum + dw * j);
+        divisor = divisor * (c + j);
+
+        // Rescale the two moments together, independently of the normalizer.
+        // Each holds at least min(b,h)/(c+j) of their total.
+        let peak = r.hi.max(d.hi);
+        if !(MIN..=MAX).contains(&peak) {
+            let shift = if peak > MAX { -512 } else { 512 };
+            let factor = pow2(shift);
+            (r, d) = (r.mul_pwr2(factor), d.mul_pwr2(factor));
+            scale -= shift;
+        }
+        if divisor.hi > MAX {
+            divisor = divisor.mul_pwr2(pow2(-512));
+            scale -= 512;
+        }
+    }
+    let (m, e) = (r + w * d).frexp();
+    let (divisor, divisor_exp) = divisor.frexp();
+    let quotient = m / divisor;
+    let exponent = scale + e - divisor_exp;
+    // Positive sums propagate the largest relative input error without cancellation.
+    let relative = (64.0 * n as f64 + 32.0) * pow2(-100);
+    // Widen the estimate before projecting its endpoints to allow for DD rounding.
+    let radius = 2.0 * quotient.hi * relative;
+    let [lower, upper] = [quotient - radius, quotient + radius].map(|v| {
+        let value = ldexp_f64(v.hi, exponent);
+        if value <= f64::MIN_POSITIVE {
+            v.ldexp(exponent + 1074).round_subnormal_units()
+        } else {
+            value
+        }
+    });
+    (lower == upper && lower.is_finite()).then_some((c64(lower, 0.0), lower * relative))
+}
+
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
 #[cold]
 fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
@@ -696,6 +752,11 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
 fn centered_terminating_polynomial(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
     let positive_beta = c > 0.0;
+    if positive_beta && z.is_real() && (0.0..=1.0).contains(&z.re) {
+        if let Some(result) = positive_beta_real_polynomial(n, b, c, z.re) {
+            return result;
+        }
+    }
     // The beta-binomial coefficients have leading term (b)_n / (c)_n.
     let product = |p: f64| {
         let shift = if p > pow2(384) { frexp_f64(p).1 } else { 0 };
