@@ -187,35 +187,25 @@ pub(super) fn gamma_alg_term(
     let sizes = mode == Alg::Sizes;
     err.is_finite().then_some(())?;
     let rel = err / sum.hi.abs();
-    let term = if sum.hi == 0.0 || !rel.is_finite() {
+    let error_only = sum.hi == 0.0 || !rel.is_finite();
+    let base = if error_only {
         let abs_err = err + sum.hi.abs();
         if abs_err == 0.0 {
-            None
-        } else {
-            let mut e =
-                mul_gammas_in(num, den, Scaled::new(abs_err, 0, 0.0)?.with_l(l), dd, cache)?;
-            if sizes {
-                e.m = e.m.abs();
-                Some(e)
-            } else {
-                Some(e.into_zero_err())
-            }
+            return Some(());
         }
+        Scaled::new(abs_err, 0, 0.0)?.with_l(l)
+    } else if dd {
+        mul_dd(Scaled::new(1.0, 0, rel)?.with_l(l), sum)
     } else {
-        let base = if dd {
-            mul_dd(Scaled::new(1.0, 0, rel)?.with_l(l), sum)
-        } else {
-            Scaled::new(sum.hi, 0, rel)?.with_l(l)
-        };
-        let mut y = mul_gammas_in(num, den, base, dd, cache)?;
-        if sizes {
-            y.m = y.m.abs();
-        }
-        Some(y)
+        Scaled::new(sum.hi, 0, rel)?.with_l(l)
     };
-    if let Some(y) = term {
-        terms.push(y);
+    let mut term = mul_gammas_in(num, den, base, dd, cache)?;
+    if sizes {
+        term.m = term.m.abs();
+    } else if error_only {
+        term = term.into_zero_err();
     }
+    terms.push(term);
     Some(())
 }
 
