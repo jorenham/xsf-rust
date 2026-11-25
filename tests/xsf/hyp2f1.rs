@@ -152,7 +152,7 @@ fn test_hyp2f1_c64_lopez_temme_small_odd_terms() {
 fn test_hyp2f1_c64_lopez_temme_paired_sum_fallback() {
     let b = f64::from_bits(5e11_f64.to_bits() - 1);
     let actual = xsf::hyp2f1(1000.0, b, 1e12, c64(0.5, 0.866_025_403_784_438_6));
-    // López–Temme moments evaluated in Arb at the exact binary64 inputs.
+    // Lopez-Temme moments evaluated in Arb at the exact binary64 inputs.
     let expected = c64(-1.473_459_611_433_148e62, 2.552_106_909_903_471e62);
     np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-13);
 }
