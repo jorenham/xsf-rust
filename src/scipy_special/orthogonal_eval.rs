@@ -236,19 +236,20 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
-/// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
-///   `n < 1e5` (to bound its cost).
-/// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried.
+/// - It needs positive denominators, `n > 2` (at least one step), and `n < 1e5` (to bound its
+///   cost). For larger `n`, it is NaN if `series` is estimated to have no correct digits left.
+/// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried, with `alpha, beta > -1`
+///   for positive denominators.
 /// - Elsewhere, it is tried only if `series` isn't finite or is estimated to cancel by more than
-///   `HYP2F1_ETHRESH / EPSILON`, and `beta > -1` is checked as `lam + 1 > c`, which keeps the
-///   digits of a small `beta + 1`.
+///   `HYP2F1_ETHRESH / EPSILON`, if `x != -1`, and if the denominators of the first step are
+///   positive (and so those of the later ones).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
 ///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
 ///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
-/// - `tol` is `HYP2F1_ETHRESH`, or off `-1 < x < 1` twice the relative residual of the starting
+/// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the relative residual of the starting
 ///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
-///   accuracy for nearly degenerate parameters. Twice, so that `series` is then the less accurate
-///   one. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
+///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the
+///   steps. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
 ///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
@@ -257,23 +258,30 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     c: f64,
     series: Z,
 ) -> Option<Z> {
-    let (alpha, beta) = (c - 1.0, lam - c);
+    let (alpha, beta, ab) = (c - 1.0, lam - c, lam - 1.0);
+    // `n - j` is exact for integer `0 <= j <= n`
+    let m = n.floor();
     let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
+    let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
+    // A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)`: the terms of the series
+    // add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about `|xi(x)|^n`, with
+    // `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of `(|x + 1| + |x - 1|) / 2`.
+    let loss = || n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
     let tried = if segment {
-        beta > -1.0
+        c > 0.0 && beta > -1.0
     } else {
-        // The terms of the series add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about
-        // `|xi(x)|^n`, with `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of
-        // `(|x + 1| + |x - 1|) / 2`.
-        let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
-        let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
-        let cancels = !series.is_finite() || loss > (HYP2F1_ETHRESH / f64::EPSILON).ln();
-        cancels && lam + 1.0 > c
+        let v = n - m + 2.0;
+        let cancels = !series.is_finite() || loss() > (HYP2F1_ETHRESH / f64::EPSILON).ln();
+        // at `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20)
+        cancels && xp1 > 0.0 && v + alpha > 0.0 && v + ab > 0.0 && 2.0 * v + ab > 2.0
     };
-    if !(tried && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0) {
+    if !(tried && n > 2.0 && n.fract() != 0.0) {
         return None;
     }
-    let ab = lam - 1.0;
+    if n >= 1e5 {
+        // Unlike in xsf, NaN if the series has no correct digits left
+        return (loss() > -f64::EPSILON.ln()).then_some(Z::ZERO * f64::NAN);
+    }
     // `G_v = (p G_{v-1} - q G_{v-2}) / r`
     let pqr = |v: f64| {
         let t = 2.0 * v + ab;
@@ -282,17 +290,19 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
         let r = 2.0 * (v + ab) * (t - 2.0) * (v + alpha);
         (p, q, r)
     };
-    // `n - j` is exact for integer `0 <= j <= n`
-    let m = n.floor();
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    let residual = if segment {
-        0.0
+    if !(segment || g0.is_finite() && g1.is_finite()) {
+        return None;
+    }
+    let (residual, rounding) = if segment {
+        (0.0, 0.0)
     } else {
         let (p, q, r) = pqr(n - m + 2.0);
-        ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
-            / ((p * g1).norm() + (g0 * q).norm())
+        let residual = ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
+            / ((p * g1).norm() + (g0 * q).norm());
+        (residual, m * f64::EPSILON)
     };
     // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
     let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
@@ -309,7 +319,7 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
     let stable = growth * SQRT_EPSILON <= rec.norm();
     let tol = if stable && residual <= SQRT_EPSILON {
-        (2.0 * residual).max(HYP2F1_ETHRESH)
+        (2.0 * residual).max(HYP2F1_ETHRESH) + rounding
     } else {
         1.0
     };
@@ -744,8 +754,9 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE && g.is_finite()
         {
             let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
-            if inv_beta.is_normal() {
-                return g * alpha2 * (inv_beta / n);
+            let y = g.clone() * alpha2 * (inv_beta / n);
+            if inv_beta.is_normal() && y.is_finite() {
+                return y;
             }
         }
         g * d

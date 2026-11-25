@@ -995,6 +995,32 @@ fn test_eval_real_degree_complex_far() {
 }
 
 #[test]
+fn test_eval_real_degree_edge_cases() {
+    // Arb at the exact binary64 inputs, at endpoints and near degenerate parameters
+    let (geg, jac) = (0.014_866_840_119_749_19, 0.051_003_083_013_708_025);
+    let actual = [eval_gegenbauer(1020.5, -235.625, 1.213), eval_jacobi(65535.5, 0.5, -0.25, -1.0)];
+    np_assert_allclose!(actual, [geg, jac], rtol = 1e-12);
+    let actual = [
+        eval_gegenbauer(1020.5, -235.625, c64(1.213, 0.0)),
+        eval_jacobi(65535.5, 0.5, -0.25, c64(-1.0, 0.0)),
+        eval_gegenbauer(200.5, -0.500_000_000_000_000_1, c64(0.0, 0.01)),
+    ];
+    let expected = [
+        c64(geg, 0.0),
+        c64(jac, 0.0),
+        c64(-0.000_750_436_409_148_205_5, -0.000_723_438_634_106_565_9),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-12);
+    let actual = [eval_chebyshev_t(99_999.125, c64(-0.999_999_999_999_999_8, 0.0))];
+    np_assert_allclose!(actual, [c64(-0.924_683_918_502_596_3, 0.0)], rtol = 1e-11);
+
+    // no correct digits left (Arb: -1.99745e-25)
+    assert!(eval_gegenbauer(100_000.5, 1e-20, 0.999_999).is_nan());
+    let actual = eval_gegenbauer(100_000.5, 1e-20, c64(0.999_999, 0.0));
+    assert!(actual.re.is_nan() && actual.im.is_nan(), "{actual}");
+}
+
+#[test]
 fn test_eval_gegenbauer_near_minus_half() {
     // Arb at the exact binary64 inputs.
     let cases = [
