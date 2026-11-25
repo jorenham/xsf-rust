@@ -59,6 +59,24 @@ fn test_hyp3f2_polynomial() {
 }
 
 #[test]
+fn test_hyp3f2_legendre_square() {
+    // Exact binary64 arguments evaluated with high-precision Legendre polynomials.
+    for (n, z, expected) in [
+        (64.0, 0.8, 4.115_612_815_518_15e-5),
+        (64.0, 0.760_484_561_072_041_1, 6.462_907_492_322_526e-19),
+        (64.0, 1.0, 0.009_869_777_480_259_175),
+        (65.0, 1.0 - f64::EPSILON / 2.0, 4.629_608_902_249_992e-15),
+        (65.0, 1.0, 0.0),
+    ] {
+        let a = [-n, n + 1.0, 0.5];
+        let b = [1.0; 2];
+        assert_hyp3f2(a, b, z, expected);
+        let actual = hyppfq(a, b, z).unwrap();
+        assert!((actual - expected).abs() <= 1e-13 * expected.abs());
+    }
+}
+
+#[test]
 fn test_hyp3f2_cancels_to_1f0() {
     // 1F0(a;;2) = (1 - 2)^-a, also past the radius of convergence
     assert_eq!(hyp3f2(2.0, 2.0, 3.0, 2.0, 3.0, 2.0), 1.0);

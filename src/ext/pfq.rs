@@ -397,6 +397,53 @@ fn skip(v: &[f64], i: usize) -> impl Iterator<Item = f64> + Clone + '_ {
 /// A method for `p = q + 1`, returning an `Estimate` or `None`
 type Method = fn(&[f64], &[f64], f64) -> Option<Estimate>;
 
+// Clausen's identity (DLMF 16.12.2), the quadratic transform (15.8.18), and the
+// Legendre representation (18.5.7) give P_n(sqrt(1-z))^2.
+fn legendre_square(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+    let (&[upper, 0.5, lower], &[1.0, 1.0]) = (a, b) else {
+        return None;
+    };
+    let n = -lower;
+    if !(1.0..=f64::from(PFQ_DD_MAXITER)).contains(&n)
+        || n.fract() != 0.0
+        || upper != n + 1.0
+        || !(0.0 < z && z <= 1.0)
+    {
+        return None;
+    }
+    let odd = n as u32 % 2 == 1;
+    if z == 1.0 && odd {
+        return Some(Estimate::exact(0.0));
+    }
+
+    // Unlike in xsf, track even P_k and odd P_k / x in double-double, using exact x^2 = 1-z.
+    let x2 = 1.0 - Dd::new(z);
+    // In the unscaled recurrence each step contracts the error norm with square
+    // (e_{k-1} - x e_k)^2 + z e_k^2. An error added to the new P has that norm.
+    // Budget 4 eps^2 for each of five DD operations and the reciprocal refinement.
+    // The combined unscaled summand size after division is at most (2 + 1) * 2
+    // when each previous value is within 1 of its exact value (whose magnitude is at most 1).
+    let step = 6.0 * (4.0 * EPSILON_SQ) * (3.0 * 2.0);
+    let error = (n - 1.0) * step / z.sqrt();
+    if error >= 1.0 {
+        return None;
+    }
+    let (mut prev, mut curr) = (Dd::ONE, Dd::ONE);
+    for k in 1..n as u32 {
+        let j = f64::from(k);
+        let x_curr = if k % 2 == 0 { curr } else { x2 * curr };
+        let d = j + 1.0;
+        let inv = 1.0 / d;
+        let inv = Dd::new(inv) + (-d).mul_add(inv, 1.0) / d;
+        (prev, curr) = (curr, ((2.0 * j + 1.0) * x_curr - j * prev) * inv);
+    }
+    let square = curr * curr;
+    let y = f64::from(if odd { square * x2 } else { square });
+    let err = 3.0 * error / y.sqrt() + f64::EPSILON;
+    let y = Estimate::rounded(y, err);
+    y.is_accurate().then_some(y)
+}
+
 /// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate,
 /// else by the most accurate one
 ///
@@ -407,7 +454,9 @@ fn pfq_accurate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let series: Method = |a, b, z| Some(series::pfq_series(a, b, z));
     let weniger: Method = |a, b, z| series::pfq_weniger::<f64>(a, b, z).map(Estimate::absolute);
     let polynomial = first_zero(a).is_finite();
-    let methods: &[Method] = if polynomial || z > PFQ_WENIGER_MAX_Z {
+    let methods: &[Method] = if polynomial {
+        &[series, legendre_square]
+    } else if z > PFQ_WENIGER_MAX_Z {
         &[series]
     } else if z > -1.0 {
         &[weniger, series]
