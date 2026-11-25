@@ -455,6 +455,36 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
             return sum;
         }
     }
+    let mut terms = lopez_temme_series_generator(a, b, c, z);
+    if !(a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite()) {
+        return series_eval(terms);
+    }
+    // Unlike in xsf, bound the tails on both parities for a positive beta weight.
+    // The absolute beta moments decrease on each parity. On the odd parity,
+    // reflecting the integral to one half gives a density difference of fixed sign.
+    let w2 = (z / (z - 2.0)).norm_sqr();
+    let a_bound = a.max(1.0);
+    let mut sum = C64::ZERO;
+    for k in 0..HYP2F1_MAXITER / 2 {
+        let even = terms();
+        let odd = terms();
+        sum += even;
+        sum += odd;
+        let last = even.norm() + odd.norm();
+        let tol = sum.norm() * HYP2F1_EPS;
+        if !last.is_finite() || !tol.is_finite() {
+            break;
+        }
+        if last < tol {
+            let n = (2 * k) as f64;
+            let ratio = w2 * ((a_bound + n) / (n + 1.0)) * ((a_bound + n + 1.0) / (n + 2.0));
+            if ratio < 1.0 && last * ratio < tol * (1.0 - ratio) {
+                return sum;
+            }
+        }
+    }
+    // Unlike in xsf, retry the single-term stopping rule if the paired sum
+    // cannot converge before its unweighted coefficients overflow or the limit.
     series_eval(lopez_temme_series_generator(a, b, c, z))
 }
 
