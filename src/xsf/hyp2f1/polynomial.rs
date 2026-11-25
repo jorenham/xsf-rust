@@ -5,6 +5,12 @@ use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_
 use crate::xsf::cephes::hyp2f1::pow_1mx;
 use crate::xsf::tools::series_eval_fixed_length;
 
+struct Estimate {
+    value: C64,
+    // Absolute evaluation roundoff, before accounting for the final rounding to f64.
+    abs_roundoff: f64,
+}
+
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     let other = if a == -(n as f64) { b } else { a };
     // Unlike in xsf, cancel a positive common parameter on the real axis.
@@ -58,7 +64,7 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
 }
 
 // Unlike in xsf, advance the two positive beta moments on the real interval.
-fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<(C64, f64)> {
+fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<Estimate> {
     // Keep the products and their double-word residuals away from either exponent limit.
     const MIN: f64 = pow2(-192);
     const MAX: f64 = pow2(384);
@@ -112,7 +118,10 @@ fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<(C64, f64)> {
             value
         }
     });
-    (lower == upper && lower.is_finite()).then_some((c64(lower, 0.0), lower * relative))
+    (lower == upper && lower.is_finite()).then_some(Estimate {
+        value: c64(lower, 0.0),
+        abs_roundoff: lower * relative,
+    })
 }
 
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
@@ -140,57 +149,59 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     }
 
     let other = if a == -(n as f64) { b } else { a };
-    let (centered, rounding) = centered(n, other, c, z);
+    let estimate = centered(n, other, c, z);
+    let centered = estimate.value;
     if !centered.is_finite() {
         return origin;
     }
     if c > 0.0 {
-        let select = |old: f64, new: f64, uncertainty: f64| {
-            let limit = uncertainty + f64::EPSILON * new.abs() + f64::from_bits(1);
-            if (old.is_finite() && (old - new).abs() > 4.0 * limit)
-                || (!old.is_finite() && limit < new.abs())
-            {
-                new
-            } else {
-                old
-            }
-        };
-        // |Im(F)| <= n |Im(z)| on the closed disk |1-z| <= 1.
-        let imag_uncertainty = if z.re >= z.im.abs() && 2.0 - z.re >= z.im.abs() {
-            rounding.min(centered.im.abs() + (2.0 * n as f64) * z.im.abs())
-        } else {
-            rounding
-        };
-        return c64(
-            select(origin.re, centered.re, rounding),
-            if z.is_real() {
-                0.0
-            } else {
-                select(origin.im, centered.im, imag_uncertainty)
-            },
-        );
+        return select_positive_beta(origin, &estimate, n, z);
     }
     let magnitude = centered.re.abs().max(centered.im.abs());
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
     let limit = if origin_finite { error } else { magnitude };
-    if rounding + f64::EPSILON * magnitude < limit {
+    if estimate.abs_roundoff + f64::EPSILON * magnitude < limit {
         centered
     } else {
         origin
     }
 }
 
-/// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
-fn centered(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
-    // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
-    let positive_beta = c > 0.0;
-    if positive_beta && z.is_real() && (0.0..=1.0).contains(&z.re) {
-        if let Some(result) = positive_beta_real(n, b, c, z.re) {
-            return result;
+fn select_positive_beta(origin: C64, estimate: &Estimate, n: u64, z: C64) -> C64 {
+    let &Estimate {
+        value: centered,
+        abs_roundoff,
+    } = estimate;
+    let select = |old: f64, new: f64, uncertainty: f64| {
+        let limit = uncertainty + f64::EPSILON * new.abs() + f64::from_bits(1);
+        if (old.is_finite() && (old - new).abs() > 4.0 * limit)
+            || (!old.is_finite() && limit < new.abs())
+        {
+            new
+        } else {
+            old
         }
-    }
-    // The beta-binomial coefficients have leading term (b)_n / (c)_n.
-    let product = |p: f64| {
+    };
+    // |Im(F)| <= n |Im(z)| on the closed disk |1-z| <= 1.
+    let imag_uncertainty = if z.re >= z.im.abs() && 2.0 - z.re >= z.im.abs() {
+        abs_roundoff.min(centered.im.abs() + (2.0 * n as f64) * z.im.abs())
+    } else {
+        abs_roundoff
+    };
+    c64(
+        select(origin.re, centered.re, abs_roundoff),
+        if z.is_real() {
+            0.0
+        } else {
+            select(origin.im, centered.im, imag_uncertainty)
+        },
+    )
+}
+
+// The leading coefficient is (b)_n/(c)_n. Carry the products' binary scales separately.
+fn leading_coefficient(n: u64, b: f64, c: f64) -> (Dd, i32) {
+    let positive_beta = c > 0.0;
+    let product = |p| {
         let shift = if p > pow2(384) { frexp_f64(p).1 } else { 0 };
         (0..n).fold((Dd::ONE, 0), |(product, scale), j| {
             let factor = if positive_beta {
@@ -213,7 +224,19 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
     };
     let (num, num_scale) = product(b.abs());
     let (den, den_scale) = product(c.abs());
-    let (leading, mut scale) = (num / den, num_scale - den_scale);
+    (num / den, num_scale - den_scale)
+}
+
+/// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
+fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
+    // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
+    let positive_beta = c > 0.0;
+    if positive_beta && z.is_real() && (0.0..=1.0).contains(&z.re) {
+        if let Some(result) = positive_beta_real(n, b, c, z.re) {
+            return result;
+        }
+    }
+    let (leading, mut scale) = leading_coefficient(n, b, c);
     let t = Dd::ONE - z.re;
     let square = Dd::new(z.im) * z.im;
     let radius = t.hi.hypot(z.im);
@@ -291,5 +314,8 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
         round(im * u, scale + e)
     };
     let rounding = ldexp_f64(mass * leading.hi * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
-    (c64(round(re, scale), imag), rounding)
+    Estimate {
+        value: c64(round(re, scale), imag),
+        abs_roundoff: rounding,
+    }
 }
