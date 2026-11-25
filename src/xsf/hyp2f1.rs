@@ -865,7 +865,120 @@ fn certified_c_down(a: f64, b: f64, c: f64, z: C64, current: C64) -> Option<C64>
     ))
 }
 
-fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
+fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
+    let (a, b) = if 0.0 < b && b < a && a < c {
+        (b, a)
+    } else {
+        (a, b)
+    };
+    let series_generator = hypergeometric_series_generator(a, c - b, c, z / (z - 1.0));
+    let positive_parameters = a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite();
+    if z.is_real() || !positive_parameters {
+        return (1.0 - z).powf(-a) * series_eval(series_generator);
+    }
+    // Unlike in xsf, evaluate the Pfaff prefactor without rounding |1-z| first.
+    let log_modulus = 0.5 * z.re.mul_add(z.re - 2.0, z.im * z.im).ln_1p();
+    let (sin, cos) = (a * z.im.atan2(1.0 - z.re)).sin_cos();
+    let power = c64(cos, sin) * (-a * log_modulus).exp();
+    // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon.
+    power * tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER)
+}
+
+fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64, z_abs: f64) -> C64 {
+    let balance = c - a - b;
+    // Unlike in xsf, also take the limit when a + b - c rounds to a gamma pole.
+    // On or outside the unit disk the Maclaurin fallback cannot recover that pole.
+    // The radius bound keeps the limiting series coefficients rapidly decreasing.
+    let use_limit = (balance - balance.round()).abs() < HYP2F1_EPS
+        || (z_abs >= 1.0
+            && a + b == c
+            && (1.0..=32.0).contains(&a)
+            && (1.0..=32.0).contains(&b)
+            && (1.0 - z).norm_sqr() <= (0.5 / (a * b)).powi(2));
+    let (result, cancellation) = if use_limit {
+        // Removable singularity when c - a - b is an integer. Need to use limiting formula.
+        // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
+        // terms vanish fast.
+        if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
+            let series_generator = hypergeometric_series_generator(a, b, c, z);
+            return series_eval(series_generator);
+        }
+        hyp2f1_transform1_limiting_case(a, b, c, z)
+    } else {
+        series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z))
+    };
+    // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
+    // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
+    // terms are huge, but the first Maclaurin terms decay fast for large c > 0 (DLMF 15.12.2),
+    // e.g. for hyp2f1(4.5, 2.5, 57, 0.64+0.65i).
+    if c > 0.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
+        let series_generator = hypergeometric_series_generator(a, b, c, z);
+        let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
+        if maclaurin_cancellation < cancellation {
+            return maclaurin;
+        }
+    }
+    result
+}
+
+fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
+    // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
+    // reduces a and b, as for |z| < 0.9.
+    let euler = c - a < a && c - b < b;
+    // times (1 - z)^(c - a - b), if both are normal
+    let euler_scaled = move |result: C64| {
+        let prefactor = (1.0 - z).powf(c - a - b);
+        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
+    };
+    if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
+        let (a, b) = if b > a { (b, a) } else { (a, b) };
+        let m = (a - b).round();
+        // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
+        let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
+        if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
+            let result = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
+            if let Some(result) = euler_scaled(result) {
+                return result;
+            }
+        }
+        let result = hyp2f1_transform2_limiting_case(a, b, c, m, z);
+        if result.re.is_nan()
+            && result.im.is_nan()
+            && ((a == c && b == 1.0) || (b == c && a == 1.0))
+            && z.re.is_finite()
+            && z.im.is_normal()
+        {
+            // Unlike in xsf, recover the unit-exponent case 2F1(a, 1; a; z) = 1/(1 - z)
+            // (DLMF 15.4.6).
+            if z.re == 1.0 {
+                return c64(0.0, 1.0 / z.im);
+            }
+            let reciprocal = 1.0 / (1.0 - z);
+            // Stay clear of subnormal rounding in the mixed-component quotient.
+            if reciprocal.is_finite()
+                && reciprocal.re.abs().min(reciprocal.im.abs()) >= 2.0 * f64::MIN_POSITIVE
+            {
+                return reciprocal;
+            }
+        }
+        return result;
+    }
+    let series_generator = hyp2f1_transform2_generator(a, b, c, z);
+    let (result, cancellation) = series_eval_cancellation(series_generator);
+    if euler {
+        // use the one that cancels less
+        let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
+        let (euler_result, euler_cancellation) = series_eval_cancellation(series_generator);
+        if euler_cancellation < cancellation {
+            if let Some(euler_result) = euler_scaled(euler_result) {
+                return euler_result;
+            }
+        }
+    }
+    result
+}
+
+fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
     if a.is_nan() || b.is_nan() || c.is_nan() || z.is_nan() {
@@ -961,7 +1074,6 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
             return c64(y, 0.0);
         }
     }
-    let mut result;
     let c_minus_a_neg_int = c - a == (c - a).trunc() && c - a < 0.0;
     let c_minus_b_neg_int = c - b == (c - b).trunc() && c - b < 0.0;
     /* If one of c - a or c - b is a negative integer, reduces to evaluating
@@ -987,13 +1099,12 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
                 && w.is_finite()
                 && w != C64::ZERO
                 && two_sum(c, -terminating).1 == 0.0;
-            result = integral
+            let prefactor = integral
                 .then(|| cpow_integral(w, Dd::new(-max_degree) - other))
                 .filter(|power| power.is_finite())
                 .unwrap_or_else(|| w.powf(c - a - b));
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
-            result *= series_eval_finite(series_generator, (max_degree + 2.0) as u64);
-            return result;
+            return prefactor * series_eval_finite(series_generator, (max_degree + 2.0) as u64);
         }
         return C64::NAN;
     }
@@ -1007,7 +1118,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     if z.re == 1.0 && z.is_real() && c - a - b > 0.0 && !c_non_pos_int {
         return c64(four_gammas(c, c - a - b, c - a, c - b), 0.0);
     }
-    /* |z| < 0, z.real() >= 0. Use the Maclaurin Series.
+    /* |z| < 0.9, z.real() >= 0. Use the Maclaurin Series.
      * -----------------------------------------------------------------------
      * Apply Euler Hypergeometric Transformation (DLMF 15.8.1) to reduce
      * size of a and b if possible. We follow Zhang and Jin's
@@ -1016,7 +1127,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
      * stands, this hurts precision in some cases. */
     if z_abs < 0.9 && z.re >= 0.0 {
         if c - a < a && c - b < b {
-            result = (1.0 - z).powf(c - a - b);
+            let prefactor = (1.0 - z).powf(c - a - b);
             let mut series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             // Unlike in xsf, track cancellation and try a certified recurrence down in c.
             if a > 0.0 && b > 0.0 && c < -1.0 && -c < HYP2F1_MAXITER as f64 {
@@ -1027,7 +1138,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
                     terms += 1.0;
                     term
                 });
-                let value = result * sum;
+                let value = prefactor * sum;
                 if !(8.0 * CERT_U * terms * mass <= crate::ext::HYP2F1_RECUR_TOL * sum.l1_norm()) {
                     if let Some(recovered) = certified_c_down(a, b, c, z, value) {
                         return recovered;
@@ -1035,8 +1146,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
                 }
                 return value;
             }
-            result *= series_eval(series_generator);
-            return result;
+            return prefactor * series_eval(series_generator);
         }
         let series_generator = hypergeometric_series_generator(a, b, c, z);
         return series_eval(series_generator);
@@ -1051,127 +1161,25 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
          * used in Zhang and Jin's implementation for |z| < 0.9,
          *  real(z) >= 0. */
         if (c - a <= a && c - b < b) || (c - a < a && c - b <= b) {
-            result = (1.0 - z * 0.5).powf(a - c); // Lopez-Temme prefactor
-            result *= lopez_temme_series(c - a, c - b, c, z);
+            let prefactor = (1.0 - z * 0.5).powf(a - c); // Lopez-Temme prefactor
+            let result = prefactor * lopez_temme_series(c - a, c - b, c, z);
             return (1.0 - z).powf(c - a - b) * result; // Euler transform prefactor.
         }
-        result = lopez_temme_series(a, b, c, z);
+        let result = lopez_temme_series(a, b, c, z);
         return (1.0 - z * 0.5).powf(-a) * result; // Lopez-Temme prefactor.
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
      * occur with Maclaurin series for real(z) < 0.
      * -------------------------------------------------------------------------*/
     if z_abs < 1.1 && z.re < 0.0 {
-        if 0.0 < b && b < a && a < c {
-            core::mem::swap(&mut a, &mut b);
-        }
-        let series_generator = hypergeometric_series_generator(a, c - b, c, z / (z - 1.0));
-        let positive_parameters = a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite();
-        if z.is_real() || !positive_parameters {
-            return (1.0 - z).powf(-a) * series_eval(series_generator);
-        }
-        // Unlike in xsf, evaluate the Pfaff prefactor without rounding |1-z| first.
-        let log_modulus = 0.5 * z.re.mul_add(z.re - 2.0, z.im * z.im).ln_1p();
-        let (sin, cos) = (a * z.im.atan2(1.0 - z.re)).sin_cos();
-        let power = c64(cos, sin) * (-a * log_modulus).exp();
-        // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon.
-        return power
-            * tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER);
+        return hyp2f1_pfaff(a, b, c, z);
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {
-        let balance = c - a - b;
-        // Unlike in xsf, also take the limit when a + b - c rounds to a gamma pole.
-        // On or outside the unit disk the Maclaurin fallback cannot recover that pole.
-        // The radius bound keeps the limiting series coefficients rapidly decreasing.
-        let use_limit = (balance - balance.round()).abs() < HYP2F1_EPS
-            || (z_abs >= 1.0
-                && a + b == c
-                && (1.0..=32.0).contains(&a)
-                && (1.0..=32.0).contains(&b)
-                && (1.0 - z).norm_sqr() <= (0.5 / (a * b)).powi(2));
-        let (result, cancellation) = if use_limit {
-            // Removable singularity when c - a - b is an integer. Need to use limiting formula.
-            // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
-            // terms vanish fast.
-            if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
-                let series_generator = hypergeometric_series_generator(a, b, c, z);
-                return series_eval(series_generator);
-            }
-            hyp2f1_transform1_limiting_case(a, b, c, z)
-        } else {
-            series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z))
-        };
-        // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
-        // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
-        // terms are huge, but the first Maclaurin terms decay fast for large c > 0 (DLMF 15.12.2),
-        // e.g. for hyp2f1(4.5, 2.5, 57, 0.64+0.65i).
-        if c > 0.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
-            let series_generator = hypergeometric_series_generator(a, b, c, z);
-            let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
-            if maclaurin_cancellation < cancellation {
-                return maclaurin;
-            }
-        }
-        return result;
+        return hyp2f1_near_one(a, b, c, z, z_abs);
     }
     /* 1/z transformation (DLMF 15.8.2). */
-    // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
-    // reduces a and b, as for |z| < 0.9.
-    let euler = c - a < a && c - b < b;
-    // times (1 - z)^(c - a - b), if both are normal
-    let euler_scaled = move |result: C64| {
-        let prefactor = (1.0 - z).powf(c - a - b);
-        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
-    };
-    if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
-        if b > a {
-            core::mem::swap(&mut a, &mut b);
-        }
-        let m = (a - b).round();
-        // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
-        let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
-        if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
-            let result = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
-            if let Some(result) = euler_scaled(result) {
-                return result;
-            }
-        }
-        let result = hyp2f1_transform2_limiting_case(a, b, c, m, z);
-        if result.re.is_nan()
-            && result.im.is_nan()
-            && ((a == c && b == 1.0) || (b == c && a == 1.0))
-            && z.re.is_finite()
-            && z.im.is_normal()
-        {
-            // Unlike in xsf, recover the unit-exponent case 2F1(a, 1; a; z) = 1/(1 - z)
-            // (DLMF 15.4.6).
-            if z.re == 1.0 {
-                return c64(0.0, 1.0 / z.im);
-            }
-            let reciprocal = 1.0 / (1.0 - z);
-            // Stay clear of subnormal rounding in the mixed-component quotient.
-            if reciprocal.is_finite()
-                && reciprocal.re.abs().min(reciprocal.im.abs()) >= 2.0 * f64::MIN_POSITIVE
-            {
-                return reciprocal;
-            }
-        }
-        return result;
-    }
-    let series_generator = hyp2f1_transform2_generator(a, b, c, z);
-    let (result, cancellation) = series_eval_cancellation(series_generator);
-    if euler {
-        // use the one that cancels less
-        let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
-        let (euler_result, euler_cancellation) = series_eval_cancellation(series_generator);
-        if euler_cancellation < cancellation {
-            if let Some(euler_result) = euler_scaled(euler_result) {
-                return euler_result;
-            }
-        }
-    }
-    result
+    hyp2f1_inverse(a, b, c, z)
 }
 
 pub trait Hyp2F1Arg: crate::sealed::Sealed {
