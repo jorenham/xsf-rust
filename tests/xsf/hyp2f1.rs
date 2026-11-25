@@ -2769,13 +2769,13 @@ fn test_hyp2f1_c64_negative_lower_parameter() {
         ),
     ] {
         let actual = xsf::hyp2f1(10.0, 5.0, -300.5, z);
-        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 4e-14);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 1e-13);
     }
 }
 
 #[test]
 fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
-    // Arb at the exact binary64 inputs. The c-down value is less accurate.
+    // Arb at the exact binary64 inputs.
     let actual = xsf::hyp2f1(
         19.714_877_719_930_925,
         1.135_255_778_495_805_7,
@@ -2788,4 +2788,46 @@ fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
         rtol = 5e-13,
         atol = 0.0
     );
+}
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_connection() {
+    // Arb at the exact binary64 inputs. The power z^(1-c) amplifies rounding for large -c.
+    for (a, b, c, z, expected, rtol) in [
+        (
+            48.182_200_865_203_15,
+            36.346_344_282_079_976,
+            -462.5,
+            c64(0.367_892_340_752_568_55, 0.0),
+            c64(-5.961_484_280_097_055_4e32, 0.0),
+            1e-13,
+        ),
+        (
+            0.218_038_636_317_081_54,
+            17.265_619_719_555_445,
+            -499.003_703_751_683_4,
+            c64(0.212_418_840_135_297_27, 0.737_066_445_331_071_8),
+            c64(0.998_315_176_639_864_1, -0.005_506_388_833_780_157),
+            1e-13,
+        ),
+        (
+            37.017_066_355_571_25,
+            18.820_456_630_672_53,
+            -455.5,
+            c64(0.066_319_771_490_485_67, 0.696_745_444_703_667_1),
+            c64(0.426_933_370_197_611_1, -0.749_970_908_904_107_3),
+            1e-13,
+        ),
+        (
+            35.814_904_418_297_68,
+            5.870_706_585_831_542,
+            -13_409.206_097_240_702,
+            c64(0.321_249_329_126_809, 0.030_792_978_506_227_82),
+            c64(0.994_977_840_225_617, -0.000_479_923_719_001_871_2),
+            4e-12,
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = rtol);
+    }
 }
