@@ -5,9 +5,11 @@
 //! evaluated.
 
 use core::cell::OnceCell;
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2};
 use core::iter::zip;
 use core::ops::Add;
 
+use super::quadpack::quad;
 use super::{Scaled, add_exp, add_exp_in, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, next_up_nonneg, pow2};
 use crate::xsf::Real;
@@ -1283,6 +1285,10 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2_estimate(a1, a2, a3, b1, b2, z),
+        // Near one the elliptic integral is faster than summing this series.
+        (&[0.5, 0.5, 0.5, 0.5], &[1.0, 1.0, 1.0]) if (0.9375..=1.0).contains(&z) => {
+            Some(hyp4f3_half_integral(z)).or_better(|| pfq_real(&mut a, &mut b, z))
+        },
         _ if a.len() == b.len() + 1 => pfq_real(&mut a, &mut b, z),
         _ if a.len() <= b.len() => {
             // the terms of the series for z < 0 reach about e^x, and the result
@@ -1389,6 +1395,29 @@ fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
         .find_map(|(an, ay)| {
             evaluate(an, ay, lower_a, lower_b).or_else(|| evaluate(an, ay, lower_b, lower_a))
         })
+}
+
+// Integrate the three-dimensional hyper-BCC elliptic square over the fourth angle
+// (Guttmann, J. Phys. A 43 (2010) 305205, sections 1 and 2.1).
+#[cold]
+fn hyp4f3_half_integral(z: f64) -> Estimate {
+    let gap = 1.0 - z;
+    let f = |theta: f64| {
+        let s = theta.sin();
+        crate::ellipkm1(0.5 * (1.0 + (gap + z * s * s).sqrt())).powi(2)
+    };
+    let (value, error) = if z == 1.0 {
+        quad(f, 0.0, FRAC_PI_2, 0.0, PFQ_TOL / 4.0)
+    } else {
+        // Resolve the layer at theta = 0 with theta = sqrt(1-z) sinh(u).
+        let d = gap.sqrt();
+        let hi = (FRAC_PI_2 / d).asinh();
+        quad(|u| f(d * u.sinh()) * (d * u.cosh()), 0.0, hi, 0.0, PFQ_TOL / 4.0)
+    };
+    let norm = FRAC_2_PI.powi(3);
+    // Allow for the transformed abscissae, Jacobian, elliptic evaluation and normalization
+    // separately from the quadrature estimate.
+    Estimate::absolute((norm * value, norm * (error + 100.0 * f64::EPSILON * value)))
 }
 
 // The defining series (DLMF 16.2.1) for these parameters is sum (256z)^k/(4k)!.

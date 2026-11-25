@@ -2084,3 +2084,13 @@ fn terminating_balanced_at_one() {
     assert_eq!(xsf::hyppfq([-3.0, 3.0, 4.5], [2.0, 3.5], 1.0), Some(0.0));
     assert_eq!(xsf::hyppfq([-3.0, 3.0, 4.5], [-1.0, 6.5], 1.0), Some(f64::INFINITY));
 }
+
+#[test]
+fn test_hyppfq_hyper_bcc() {
+    let a = [0.5; 4];
+    let b = [1.0; 3];
+    // Guttmann, J. Phys. A 43 (2010) 305205, section 2.1 at z = 1.
+    assert_hyppfq(&a, &b, 1.0, 1.118_636_387_164_187_1);
+    // Arb integration at the exact binary64 argument, with the near-one endpoint layer.
+    assert_hyppfq(&a, &b, 0.999_999_999_995_261_2, 1.118_636_387_151_514);
+}
