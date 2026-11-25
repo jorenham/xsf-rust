@@ -38,6 +38,9 @@ mod sealed {
         fn is_finite(&self) -> bool;
         fn is_nan(&self) -> bool;
 
+        /// The absolute value
+        fn norm(&self) -> f64;
+
         /// `Some(x)` if `Self` is `f64`
         fn as_f64(&self) -> Option<f64>;
 
@@ -87,6 +90,11 @@ mod sealed {
         }
 
         #[inline]
+        fn norm(&self) -> f64 {
+            self.abs()
+        }
+
+        #[inline]
         fn as_f64(&self) -> Option<f64> {
             Some(*self)
         }
@@ -103,11 +111,7 @@ mod sealed {
 
         #[inline]
         fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
-            // Unlike in xsf, use the recurrence in the degree if -1 < x < 1, since the
-            // hypergeometric series cancels catastrophically for large non-integer degrees.
-            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
-            let y = crate::hyp2f1(-n, b, c, self * -0.5 + 0.5);
-            super::jacobi_hyp2f1_recurrence(self, nu, lam, c, y).unwrap_or(y)
+            super::hyp2f1_sh_series(self, n, b, c, lam)
         }
 
         #[inline]
@@ -149,6 +153,11 @@ mod sealed {
         }
 
         #[inline]
+        fn norm(&self) -> f64 {
+            Self::norm(*self)
+        }
+
+        #[inline]
         fn as_f64(&self) -> Option<f64> {
             None
         }
@@ -164,8 +173,22 @@ mod sealed {
         }
 
         #[inline]
-        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
-            crate::hyp2f1(-n, b, c, self * -0.5 + 0.5)
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+            // Unlike in xsf, use `2F1(-n, n; 1/2; (1 - x) / 2) = cos(n acos(x))` (DLMF 15.4.12)
+            // beyond the degrees of the recurrence, where the series cancels by more than the
+            // `n eps` error of `n acos(x)`. At `x = -1`, `hyp2f1` uses Gauss's sum (DLMF 15.4.20).
+            if b == n
+                && c == 0.5
+                && n >= super::MAX_RECURRENCE_DEGREE
+                && self != Self::new(-1.0, 0.0)
+                && super::series_loss(self, n) > n.ln()
+            {
+                // `acos(x) = -2i ln(sqrt((1 + x) / 2) + i sqrt((1 - x) / 2))`, without `1 - x^2`
+                let i = Self::i();
+                let w = ((self + 1.0) * 0.5).sqrt() + i * ((1.0 - self) * 0.5).sqrt();
+                return (w.ln() * (-2.0 * i) * n).cos();
+            }
+            super::hyp2f1_sh_series(self, n, b, c, lam)
         }
 
         #[inline]
@@ -213,48 +236,108 @@ mod sealed {
     }
 }
 
+/// `hyp2f1_sh` without `hyp2f1_sh_recurrence`
+fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64, lam: f64) -> Z {
+    // Unlike in xsf, try the recurrence in the degree where the hypergeometric series cancels
+    // catastrophically for large non-integer degrees.
+    let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+    let y = crate::hyp2f1(-n, b, c, x * -0.5 + 0.5);
+    jacobi_hyp2f1_recurrence(x, nu, lam, c, y).unwrap_or(y)
+}
+
+/// A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)` in the series of
+/// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)`: the terms add up to about `xi(1 + |1 - x|)^n`, and
+/// `G_n` is about `|xi(x)|^n`, with `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh`
+/// of `(|x + 1| + |x - 1|) / 2`.
+fn series_loss<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64) -> f64 {
+    let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
+    n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh())
+}
+
+/// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
+const MAX_RECURRENCE_DEGREE: f64 = 1e5;
+
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
 /// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
 /// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
-///   `n < 1e5` (to bound its cost).
+///   `n < MAX_RECURRENCE_DEGREE` (to bound its cost).
+/// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried.
+/// - Elsewhere, it is tried only if `series` isn't finite or is estimated to cancel by more than
+///   `HYP2F1_ETHRESH / EPSILON`, and if `x != -1`. There, `alpha, beta > -1` is checked as
+///   `c, lam + 1 - c > -4 EPSILON`, which keeps the digits of a small `beta + 1` and admits the
+///   rounding of `c` and `lam`, and `alpha, beta` a few ulps below -1 (the recurrence is
+///   continuous in `alpha` and `beta`).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
-///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
-///   `tol` is `HYP2F1_ETHRESH` if the recurrence is stable (`growth * SQRT_EPSILON <= |G_n|`, which
-///   limits that amplification to `1 / SQRT_EPSILON`), and 1 otherwise.
-fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Option<f64> {
-    let (alpha, beta) = (c - 1.0, lam - c);
-    if !(x.abs() < 1.0 && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && beta > -1.0) {
+///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
+///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
+/// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the relative residual of the starting
+///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
+///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the
+///   steps. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
+///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
+fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
+    x: Z,
+    n: f64,
+    lam: f64,
+    c: f64,
+    series: Z,
+) -> Option<Z> {
+    let (alpha, beta, ab) = (c - 1.0, lam - c, lam - 1.0);
+    let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
+    let eligible = if segment {
+        c > 0.0 && beta > -1.0
+    } else {
+        let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
+        let cancels = !series.is_finite() || series_loss(x, n) > ln_tol;
+        let slack = 4.0 * f64::EPSILON;
+        // at `x = -1`, `hyp2f1` uses Gauss's sum (DLMF 15.4.20)
+        cancels && (x + 1.0).norm() > 0.0 && c > -slack && lam + 1.0 - c > -slack
+    };
+    if !(eligible && n > 2.0 && n < MAX_RECURRENCE_DEGREE && n.fract() != 0.0) {
         return None;
     }
-    let ab = lam - 1.0;
-    // `n - j` is exact for integer `0 <= j <= n`
-    let m = n.floor();
-    let recur = |mut g0: f64, mut g1: f64| {
-        let mut j = m - 2.0;
-        while j >= 0.0 {
-            let v = n - j;
-            let t = 2.0 * v + ab;
-            let g2 = ((t - 1.0) * (t * (t - 2.0) * x + (alpha - beta) * ab) * g1
-                - 2.0 * (v - 1.0) * (v + beta - 1.0) * t * g0)
-                / (2.0 * (v + ab) * (t - 2.0) * (v + alpha));
-            (g0, g1) = (g1, g2);
-            j -= 1.0;
-        }
-        g1
+    // `G_v = (p G_{v-1} - q G_{v-2}) / r`
+    let pqr = |v: f64| {
+        let t = 2.0 * v + ab;
+        let p = (x * (t * (t - 2.0)) + (alpha - beta) * ab) * (t - 1.0);
+        let q = 2.0 * (v - 1.0) * (v + beta - 1.0) * t;
+        let r = 2.0 * (v + ab) * (t - 2.0) * (v + alpha);
+        (p, q, r)
     };
-
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
+    // `n - j` is exact for integer `0 <= j <= n`
+    let m = n.floor();
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    let rec = recur(g0, g1);
-    // the solutions with starting values (1, 0) and (0, 1)
-    let growth = (recur(1.0, 0.0) * g0).abs() + (recur(0.0, 1.0) * g1).abs();
-    let stable = growth * SQRT_EPSILON <= rec.abs();
-    let tol = if stable { HYP2F1_ETHRESH } else { 1.0 };
-    (!series.is_finite() || (rec - series).abs() > tol * growth).then_some(rec)
+    let (residual, rounding) = if segment {
+        (0.0, 0.0)
+    } else if g0.is_finite() && g1.is_finite() {
+        let (p, q, r) = pqr(n - m + 2.0);
+        let residual = ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
+            / ((p * g1).norm() + (g0 * q).norm());
+        (residual, m * f64::EPSILON)
+    } else {
+        return None;
+    };
+    // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
+    let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
+    let start = [(g0, g1), (one, zero), (zero, one)];
+    let [(_, rec), (_, rec10), (_, rec01)] = (0..m as u32 - 1).rev().fold(start, |sols, j| {
+        let (p, q, r) = pqr(n - f64::from(j));
+        sols.map(|(g0, g1)| (g1, (p * g1 - g0 * q) / r))
+    });
+    let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
+    let stable = growth * SQRT_EPSILON <= rec.norm();
+    let tol = if stable && residual <= SQRT_EPSILON {
+        (2.0 * residual).max(HYP2F1_ETHRESH) + rounding
+    } else {
+        1.0
+    };
+    let better = !series.is_finite() || (rec - series).norm() > tol * growth;
+    (better && (segment || rec.is_finite())).then_some(rec)
 }
 
 ///////////////////////////////
@@ -654,7 +737,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         let alpha2 = 2.0 * alpha;
         let b = n + alpha2;
         let c = alpha + 0.5;
-        let rec = self.hyp2f1_sh_recurrence(n, b, c, alpha2, true);
+        let g = self.hyp2f1_sh(n, b, c, alpha2, true);
 
         // Gamma(n + 2 alpha) / Gamma(n + 1) / Gamma(2 alpha) = 1 / (n B(2 alpha, n))
         // (DLMF 5.12.1), avoiding overflow of the Gamma factors. At the poles of Gamma(2 alpha)
@@ -680,28 +763,15 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             }
         };
 
-        if let Some(g) = rec {
-            // Unlike in xsf, scale the finite recurrence by 2 alpha first for subnormal prefactors.
-            if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE {
-                let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
-                if inv_beta.is_finite() {
-                    return g * alpha2 * (inv_beta / n);
-                }
+        // Unlike in xsf, scale a finite 2F1 by 2 alpha first for subnormal prefactors.
+        if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE {
+            let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
+            let y = g.clone() * alpha2 * (inv_beta / n);
+            if inv_beta.is_normal() && y.is_finite() {
+                return y;
             }
-            return g * d;
         }
-        // Unlike in xsf, keep the binomial when b - n rounds to a nonpositive integer and the
-        // first term of the large-degree complex series exceeds its constant term in magnitude.
-        let d = if 1.0 + n >= MAXGAM
-            && crate::utils::is_nonpos_int(b - n)
-            && self.as_f64().is_none()
-            && (self.clone().into() - 1.0).norm() * n * b.abs() > 2.0 * c.abs()
-        {
-            crate::binom(b - 1.0, n)
-        } else {
-            d
-        };
-        self.hyp2f1_sh_series(n, b, c, alpha2) * d
+        g * d
     }
 }
 

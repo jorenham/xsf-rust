@@ -74,6 +74,21 @@ fn test_eval_real_degree_large() {
         -0.010_204_813_296_612_693,
     ];
     np_assert_allclose!(actual, desired, rtol = 2e-12);
+    // also for complex z (Arb)
+    let z = c64(0.3, 0.2);
+    let actual = [
+        xsf::eval_legendre(50.5, z),
+        xsf::eval_chebyshev_t(50.5, z),
+        xsf::eval_gegenbauer(50.5, 0.3, z),
+        xsf::eval_jacobi(50.5, 0.25, 1.5, z),
+    ];
+    let desired = [
+        c64(550.051_775_457_943_8, 2_186.084_077_764_542_6),
+        c64(2_298.274_313_068_606, 17_832.861_537_143_56),
+        c64(132.530_922_975_592_74, 656.007_814_100_209_7),
+        c64(-1_564.599_837_723_061, 3_835.876_170_509_127),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 
     // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (Arb,
     // mpmath)
@@ -222,12 +237,18 @@ fn test_eval_integer_degree_complex() {
     let desired = c64(8.226_656_351_555_531e296, 0.0);
     np_assert_allclose!([actual], [desired], rtol = 3e-14);
 
-    // a fractional degree keeps the rounded prefactor, which hides the cancelled series (mpmath:
-    // 2.67e-312 + 2.57e-312i and 2.67e-22 + 2.57e-22i)
-    for alpha in [1e-310, 1e-20] {
-        let actual = xsf::eval_gegenbauer(200.5, alpha, c64(0.0, 0.01));
-        assert!(actual.norm() <= 1e-21, "{actual}");
-    }
+    // and a fractional degree with a tiny or subnormal prefactor (Arb)
+    let actual = [
+        xsf::eval_gegenbauer(200.5, 1e-20, c64(0.0, 0.01)),
+        xsf::eval_gegenbauer(200.5, 1e-310, c64(0.0, 0.01)),
+        c64(xsf::eval_gegenbauer(200.5, 1e-310, 0.3), 0.0),
+    ];
+    let desired = [
+        c64(2.666_378_194_870_680_3e-22, 2.571_393_267_128_632_5e-22),
+        c64(2.666_378_194_87e-312, 2.571_393_267_13e-312),
+        c64(-8.146_108_069_7e-313, 0.0),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-11);
 
     // but not with a wrong finite value where `alpha + 1/2` is a negative integer, the
     // overflowed parameters look symmetric, or the degree is negative (mpmath, exact)
@@ -880,6 +901,9 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
         eval_gegenbauer(300.5, 1e-20, c64(1.0, 1e-30)),
         c64(eval_gegenbauer(169.5, -84.749_999_999_999_99, 1.0), 0.0),
         c64(eval_gegenbauer(1028.5, -255.125, 0.98), 0.0),
+        eval_gegenbauer(200.5, 1e-20, c64(1.5, 0.2)),
+        eval_gegenbauer(171.5, 1e-15, c64(0.5, 0.5)),
+        eval_gegenbauer(200.5, -0.499_999_999_999_999_94, c64(0.0, 0.01)),
     ];
     let expected = [
         c64(4.570_588_854_908_153e212, -2.686_746_914_026_384_5e212),
@@ -890,14 +914,153 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
         c64(6.655_574_043_261_23e-23, 6.01e-48),
         c64(11_199_533_475_042.438, 0.0),
         c64(-1.866_722_552_602_418e-302, 0.0),
+        c64(-1.685_123_473_219_177_2e63, -9.643_855_446_004_103e62),
+        c64(-1.908_277_711_514_167_5e22, -3.643_575_503_507_152e21),
+        c64(-7.504_364_091_482_06e-4, -7.234_386_341_065_666e-4),
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-11);
 
-    let cancelled = eval_gegenbauer(200.5, -0.499_999_999_999_999_94, c64(0.0, 0.01));
-    assert!(cancelled.norm() <= 0.002);
-
     let near_pole = eval_gegenbauer(45.124_999_999_999_964, -150.0625, 1.0);
     assert!(near_pole.is_nan() || (near_pole / -3.314_213_978_469_249e66 - 1.0).abs() < 1e-11);
+}
+
+#[test]
+fn test_eval_gegenbauer_half_integer_degree_tiny_alpha() {
+    // Arb at the exact binary64 inputs
+    let actual = [
+        eval_gegenbauer(
+            28.5,
+            3.953_574_776_672_447e-15,
+            c64(1.844_541_722_177_252_9, 3.290_867_804_413_006_4),
+        ),
+        eval_gegenbauer(6.5, 2.152_107_484_123_784_7e-14, c64(4.567_469_368_404_611, -0.0)),
+        c64(eval_gegenbauer(6.5, 2.152_107_484_123_784_7e-14, 4.567_469_368_404_611), 0.0),
+        eval_gegenbauer(3.5, 3.228_128_641_071_311_5e-15, c64(-2.652_613_532_567_407, 0.0)),
+    ];
+    let expected = [
+        c64(1_311_443_533.492_234_7, -1_330_749_354.686_459_8),
+        c64(5.371_352_596_079_037e-9, 0.0),
+        c64(5.371_352_596_079_037e-9, 0.0),
+        c64(6.204_188_651_495_294e-32, -2.781_035_336_194_326_3e-13),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // `hyp2f1` with `b - a` near an integer is off by about 1e-7, depending on the platform
+    let z = c64(-1.163_354_742_242_470_2, -0.421_997_928_241_190_87);
+    let actual = eval_gegenbauer(20.5, 3.737_515_729_697_872e-15, z);
+    let expected = c64(-1.532_492_659_017_981e-9, 1.214_073_328_126_497_4e-9);
+    np_assert_allclose!([actual], [expected], rtol = 1e-6);
+}
+
+#[test]
+fn test_eval_real_degree_complex_far() {
+    // Arb at the exact binary64 inputs: (near-)integer degrees and values near overflow
+    let actual = [
+        eval_chebyshev_u(
+            110.000_000_000_000_01,
+            c64(110.395_851_246_461_49, -93.619_263_249_809_53),
+        ),
+        eval_chebyshev_u(
+            133.999_999_999_999_86,
+            c64(-29.514_775_527_348_483, -2.093_091_029_918_290_3e-15),
+        ),
+        eval_chebyshev_t(
+            49.999_999_999_057_36,
+            c64(-127.583_556_352_952_04, -59.242_895_885_893_88),
+        ),
+        eval_legendre(
+            337.954_089_363_107_47,
+            c64(3.777_241_426_537_581_8, 1.195_857_734_146_253_7),
+        ),
+        eval_gegenbauer(
+            126.781_197_186_081_44,
+            0.5,
+            c64(-92.269_847_891_519_03, 80.139_289_837_013_59),
+        ),
+        eval_jacobi(
+            164.812_827_677_618_5,
+            0.0,
+            0.0,
+            c64(-26.326_820_233_234_177, 23.961_913_639_808_216),
+        ),
+    ];
+    let expected = [
+        c64(-2.353_258_116_766_187e270, -5.552_992_349_497_835e270),
+        c64(2.026_406_586_740_218_3e237, 9.239_510_791_962_757e224),
+        c64(-1.398_646_826_352_088_6e122, 3.641_160_306_552_269e121),
+        c64(2.304_404_353_982_515_4e300, 5.685_152_419_318_602e298),
+        c64(2.868_615_133_767_861_6e301, -7.369_867_401_616_242e300),
+        c64(8.756_513_500_020_92e303, 1.802_444_071_507_219e303),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-12);
+}
+
+#[test]
+fn test_eval_real_degree_edge_cases() {
+    // Arb at the exact binary64 inputs, at endpoints and near degenerate parameters, for real x
+    // and the same x as complex
+    let expected = [0.014_866_840_119_749_19, 0.051_003_083_013_708_025];
+    let actual = [eval_gegenbauer(1020.5, -235.625, 1.213), eval_jacobi(65535.5, 0.5, -0.25, -1.0)];
+    np_assert_allclose!(actual, expected, rtol = 1e-12);
+    let actual = [
+        eval_gegenbauer(1020.5, -235.625, c64(1.213, 0.0)),
+        eval_jacobi(65535.5, 0.5, -0.25, c64(-1.0, 0.0)),
+    ];
+    np_assert_allclose!(actual, expected.map(|y| c64(y, 0.0)), rtol = 1e-12);
+
+    let y = -1.997_449_814_066_256e-25;
+    let actual = eval_gegenbauer(100_000.5, 1e-20, 0.999_999);
+    np_assert_allclose!([actual], [y], rtol = 1e-11);
+    let actual = [
+        eval_gegenbauer(100_000.5, 1e-20, c64(0.999_999, 0.0)),
+        eval_gegenbauer(100_000.5, 1e-20, c64(0.999_999, 1e-12)),
+        eval_chebyshev_t(99_999.125, c64(-0.999_999_999_999_999_8, 0.0)),
+    ];
+    let expected = [
+        c64(y, 0.0),
+        c64(-1.997_449_819_058_151_7e-25, -7.125_428_839_815_872e-31),
+        c64(-0.924_683_918_502_596_3, 0.0),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-11);
+
+    let alphas = [
+        -0.500_000_000_000_000_1,
+        -0.500_000_000_000_000_2,
+        -0.500_000_000_000_000_3,
+        -0.500_000_000_000_000_4,
+        -0.500_000_000_000_000_6,
+    ];
+    let actual = alphas.map(|alpha| eval_gegenbauer(200.5, alpha, c64(0.0, 0.01)));
+    let expected = [
+        c64(-0.000_750_436_409_148_205_5, -0.000_723_438_634_106_565_9),
+        c64(-0.000_750_436_409_148_205_1, -0.000_723_438_634_106_565_6),
+        c64(-0.000_750_436_409_148_204_7, -0.000_723_438_634_106_565_3),
+        c64(-0.000_750_436_409_148_204_3, -0.000_723_438_634_106_564_9),
+        c64(-0.000_750_436_409_148_204, -0.000_723_438_634_106_564_5),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-14);
+    let actual = [
+        eval_jacobi(80.25, 160.0, -50.5, c64(-0.99, 0.0)),
+        eval_gegenbauer(100.5, -0.500_000_000_000_000_1, c64(1.0, 0.0)),
+        eval_gegenbauer(2.5, -0.500_000_000_000_000_1, c64(-1.0, 0.0)),
+        eval_gegenbauer(2.5, -0.999_999_999_999_999_9, c64(-1.25, 0.005)),
+    ];
+    let expected = [
+        c64(2.427_175_418_570_017_2e-24, 0.0),
+        c64(2.220_501_561_789_355_7e-20, 0.0),
+        c64(-0.169_765_272_631_355_05, 0.0),
+        c64(-1.831_787_617_468_887e-18, -5.755_828_128_849_5e-17),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-13);
+    // `cos(pi n) = 0` for half-integer `n`
+    let actual = [
+        eval_chebyshev_t(100_000.5, c64(-1.0, 0.0)),
+        eval_chebyshev_t(2.0_f64.powi(50) + 0.5, c64(-1.0, 0.0)),
+    ];
+    assert_eq!(actual, [c64(0.0, 0.0); 2]);
+    // The series converges near `x = 1`, where `n acos(x)` loses digits.
+    let actual = eval_chebyshev_t(1_000_000.5, c64(1.000_000_000_000_000_2, 0.0));
+    assert_eq!(actual, c64(1.000_222_053_044_408_8, 0.0));
 }
 
 #[test]
@@ -919,6 +1082,10 @@ fn test_eval_gegenbauer_near_minus_half() {
     let endpoint = eval_gegenbauer(100_000, alpha, 1.0);
     np_assert_allclose!([endpoint], [2.220_468_253_932_847e-26], rtol = 2e-14);
     assert_eq!(eval_gegenbauer(1000, -0.5, 1.0), 0.0);
+
+    let fractional =
+        eval_gegenbauer(964.596_671_315_672_9, -0.499_999_999_999_999_94, 0.999_997_086_812_469_2);
+    np_assert_allclose!([fractional], [1.339_167_976_758_087_8e-6], rtol = 1e-14);
 }
 
 #[test]
