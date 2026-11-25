@@ -1684,6 +1684,17 @@ fn test_hyppfq_series() {
 }
 
 #[test]
+fn test_hyppfq_bessel_product() {
+    // Arb at z = -(48 * 0.9)^2 and the exact binary64 parameters.
+    let z = -1_866.240_000_000_000_2;
+    let expected = 2.238_751_067_328_882e-10;
+    assert_hyppfq(&[47.5, 48.0], &[47.0, 49.0, 95.0], z, expected);
+    assert_hyppfq(&[48.0, 47.5], &[95.0, 47.0, 49.0], z, expected);
+
+    assert_eq!(hyppfq([47.5, 48.0], [47.0, 49.0, f64::from_bits(95.0_f64.to_bits() + 1)], z), None);
+}
+
+#[test]
 fn test_hyppfq_series_flat() {
     // the sum of the |t_k| is just above 2^-20 (Arb reference)
     let y = hyppfq([-1.59065e-7, -1.000_000_001_4, 2.0, 3.0], [1.0; 3], 0.999_25).unwrap();

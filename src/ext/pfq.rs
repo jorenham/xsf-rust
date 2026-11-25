@@ -1291,10 +1291,12 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             let x = kappa * z.abs().powf(1.0 / kappa);
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
             pfq_entire(&a, &b, z, z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST).or_better(|| {
-                if a.is_empty() && b.len() == 3 && [0.25, 0.5, 0.75].iter().all(|v| b.contains(v)) {
-                    hyp0f3_quarter_parameters(z)
-                } else {
-                    None
+                match (a.as_slice(), b.as_slice()) {
+                    (&[a1, a2], &[b1, b2, b3]) => hyp2f3_bessel_product([a1, a2], [b1, b2, b3], z),
+                    (&[], &[_, _, _]) if [0.25, 0.5, 0.75].iter().all(|v| b.contains(v)) => {
+                        hyp0f3_quarter_parameters(z)
+                    },
+                    _ => None,
                 }
             })
         },
@@ -1409,6 +1411,36 @@ fn hyp0f3_quarter_parameters(z: f64) -> Option<Estimate> {
     }
     let amplitude = cosine * (1.0 + (-2.0 * t.hi).exp());
     Estimate::scaled_certain(Scaled::new(amplitude, -1, err)?.with_l(t))
+}
+
+// DLMF 16.12.1 gives 0F1(u; z/4) 0F1(v; z/4) for this family.
+#[cold]
+fn hyp2f3_bessel_product(a: [f64; 2], b: [f64; 3], z: f64) -> Option<Estimate> {
+    let w = z * 0.25;
+    if z >= 0.0 || !w.is_normal() {
+        return None;
+    }
+    let [sum, v, u] = descending(b);
+    let (u_minus_one, rem) = two_sum(u, -1.0);
+    if u < 1.0
+        || rem != 0.0
+        || two_sum(v, u_minus_one) != (sum, 0.0)
+        || a[0].min(a[1]) * 2.0 != sum
+        || two_sum(sum, 1.0) != (a[0].max(a[1]) * 2.0, 0.0)
+    {
+        return None;
+    }
+    let series_first = z.abs().sqrt() < PFQ_ASYMPTOTIC_FIRST;
+    let factor = |v| pfq_entire(&[], &[v], w, series_first).filter(|e| e.is_accurate());
+    let (left, right) = (factor(u)?, factor(v)?);
+    let y = left.y * right.y;
+    let err = left.err + right.err + left.err * right.err + f64::EPSILON;
+    let magnitude = y.abs();
+    (err <= PFQ_TOL
+        && y.is_normal()
+        && magnitude.mul_add(err, magnitude).is_finite()
+        && magnitude.mul_add(-err, magnitude) >= f64::MIN_POSITIVE)
+        .then(|| Estimate::new(y, err))
 }
 
 /// Generalized hypergeometric function $_pF_q$ as `hyp![a_1, ..., a_p; b_1, ..., b_q; z]`
