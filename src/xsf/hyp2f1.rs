@@ -1118,17 +1118,37 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
             let beta = a.max(b);
             let positive_beta = beta > 0.0 && beta < c && c.is_finite();
-            if ((a_neg_int && b_neg_int && max_degree - 1.0 < population
+            let value = if ((a_neg_int && b_neg_int && max_degree - 1.0 < population
                 && (-a.min(b)).max(population) <= pow2(53)) || positive_beta)
                 && count <= HYP2F1_MAX_FIXED_TERMS
                 && (z.re > 0.0 || z.im != 0.0)
                 // Headroom for the squared ordinate in the centered recurrence.
                 && z.re.abs().max(z.im.abs()) <= pow2(256)
             {
-                return population_polynomial(a, b, c, max_degree as u64, z);
+                population_polynomial(a, b, c, max_degree as u64, z)
+            } else {
+                series_eval_finite(hypergeometric_series_generator(a, b, c, z), count)
+            };
+            // Unlike in xsf, recover a finite linear result when forming its
+            // coefficient overflows for a subnormal denominator.
+            if count == 2 && c.is_subnormal() && !value.is_finite() {
+                let coefficient = if a == -1.0 { -b } else { -a };
+                if coefficient.is_finite() && z.is_finite() && (coefficient / c).is_infinite() {
+                    let (p, ep) = frexp_f64(coefficient);
+                    let (q, eq) = frexp_f64(c);
+                    // Multiply mantissas before applying their exponents, and retain
+                    // the low word for cancellation against the constant term.
+                    let linear = |z| {
+                        let (w, ew) = frexp_f64(z);
+                        (Dd::new(p) * w / q).ldexp(ep + ew - eq)
+                    };
+                    let candidate = c64((linear(z.re) + 1.0).hi, 0.0 + linear(z.im).hi);
+                    if candidate.is_finite() {
+                        return candidate;
+                    }
+                }
             }
-            let series_generator = hypergeometric_series_generator(a, b, c, z);
-            return series_eval_finite(series_generator, count);
+            return value;
         }
         return C64::NAN;
     }

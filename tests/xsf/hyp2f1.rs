@@ -70,6 +70,30 @@ fn test_hyp2f1_c64_common_parameter_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_linear_subnormal_denominator() {
+    // For a=b=-1 the exact polynomial is 1 + z/c.
+    let c = -f64::from_bits(1_u64 << 50);
+    let large = 2.0_f64.powi(1022);
+    for zero in [0.0, -0.0] {
+        let value = xsf::hyp2f1(-1.0, -1.0, c, c64(0.25, zero));
+        assert_eq!(value.re, -large);
+        assert_eq!(value.im.to_bits(), 0);
+    }
+    for sign in [1.0, -1.0] {
+        let value = xsf::hyp2f1(-1.0, -1.0, c * 0.5, c64(0.125, sign * 0.125));
+        assert_eq!(value, c64(-large, -sign * large));
+    }
+    let value = xsf::hyp2f1(-1.0, -1.0, c, c64(-c, f64::from_bits(1)));
+    assert_eq!(value, c64(0.0, -2.0_f64.powi(-50)));
+    assert!(xsf::hyp2f1(-1.0, -1.0, c, c64(1.0, 0.0)).re.is_infinite());
+    assert!(
+        xsf::hyp2f1(-1.0, -1.0, 0.0, c64(0.25, 0.0))
+            .re
+            .is_infinite()
+    );
+}
+
+#[test]
 fn test_hyp2f1_c64_pfaff_accuracy() {
     // Arb at the exact binary64 inputs.
     for sign in [-1.0, 1.0] {
