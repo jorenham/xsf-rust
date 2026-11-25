@@ -176,9 +176,11 @@ fn erfc_rescale_overflow(z: C64, k: f64, result: C64) -> Option<C64> {
             })
         };
         // Unlike in xsf, recover a finite part even when the NaN part overflows.
-        let repair = |missing, overflowed| {
+        // A companion near MAX with a known sign keeps the rescaled estimate.
+        let repair = |missing, overflowed: f64| {
             let value = certify(missing, error)?;
-            let other = companion(overflowed);
+            let other = companion(overflowed)
+                .or_else(|| (overflowed.abs() > error).then(|| overflowed / f64::MIN_POSITIVE));
             (value.is_finite() || other.is_some()).then_some((value, other))
         };
         return if result.re.is_nan() {
