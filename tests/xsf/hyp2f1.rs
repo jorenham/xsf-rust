@@ -76,14 +76,14 @@ fn test_hyp2f1_c64_lopez_temme_symmetric_beta_weight() {
 #[test]
 fn test_hyp2f1_c64_lopez_temme_small_odd_terms() {
     let b = 16.3125_f64.to_bits();
+    let z = c64(0.5, 0.866_025_403_784_438_6);
     // Arb at the exact binary64 inputs.
     for (b, expected) in [
         (b - 1, c64(-1.145_189_436_074_619, 2.764_731_868_057_758_6)),
         (b, c64(-1.145_189_436_074_624_2, 2.764_731_868_057_756_6)),
         (b + 1, c64(-1.145_189_436_074_629_2, 2.764_731_868_057_754_5)),
     ] {
-        let actual =
-            xsf::hyp2f1(15.75, f64::from_bits(b), 32.625, c64(0.5, 0.866_025_403_784_438_6));
+        let actual = xsf::hyp2f1(15.75, f64::from_bits(b), 32.625, z);
         np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 1e-14);
     }
 }
