@@ -945,10 +945,11 @@ fn test_eval_gegenbauer_half_integer_degree_tiny_alpha() {
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-13);
 
+    // `hyp2f1` with `b - a` near an integer is off by about 1e-7, depending on the platform
     let z = c64(-1.163_354_742_242_470_2, -0.421_997_928_241_190_87);
     let actual = eval_gegenbauer(20.5, 3.737_515_729_697_872e-15, z);
     let expected = c64(-1.532_492_659_017_981e-9, 1.214_073_328_126_497_4e-9);
-    np_assert_allclose!([actual], [expected], rtol = 1e-7);
+    np_assert_allclose!([actual], [expected], rtol = 1e-6);
 }
 
 #[test]
