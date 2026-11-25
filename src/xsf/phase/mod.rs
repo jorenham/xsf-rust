@@ -91,7 +91,7 @@ pub(super) const MIN_DIAGONAL_TAIL_ARG: f64 = pow2(55);
 // Payne–Hanek reduction of pi/4 + 2*x^2 without rounding the doubled square.
 #[cold]
 pub(super) fn sin_diagonal_tail_phase(x: f64) -> f64 {
-    let (quadrant, angle) = reduce_diagonal_phase(x);
+    let (quadrant, angle) = reduce_diagonal_phase(x, 2.0);
     // Unlike in xsf, absorb the first erfc tail correction into the reduced angle.
     // The leading term alone has a relative remainder below 2^-57 from 2^82.
     let angle = if x.abs() < pow2(82) {
@@ -130,11 +130,12 @@ fn read_quadrant_window(words: &[u64; 5], offset: usize) -> [u64; 4] {
     [join(3) & 3, join(0), join(1), join(2)]
 }
 
-pub(super) fn reduce_diagonal_phase(x: f64) -> (Quadrant, f64) {
-    debug_assert!(x.is_finite() && x.abs() >= MIN_DIAGONAL_TAIL_ARG);
+// Reduction of pi/4 + k*x^2 for k = 1 or 2.
+pub(super) fn reduce_diagonal_phase(x: f64, k: f64) -> (Quadrant, f64) {
+    debug_assert!(x.is_finite() && x.abs() >= MIN_DIAGONAL_TAIL_ARG && (k == 1.0 || k == 2.0));
     let (mantissa, exponent) = decompose(x);
     // The exact distance from an axis is > 2^-117 quadrants (continued-fraction bound).
-    center_pi_4(quadrant_window(u128::from(mantissa).pow(2), 2 * exponent + 1))
+    center_pi_4(quadrant_window(u128::from(mantissa).pow(2), 2 * exponent + i32::from(k == 2.0)))
 }
 
 fn center_pi_4([quadrant, lo, mid, hi]: [u64; 4]) -> (Quadrant, f64) {
