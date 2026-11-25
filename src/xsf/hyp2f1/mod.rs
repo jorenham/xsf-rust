@@ -55,6 +55,7 @@ use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::complex::cpow_integral;
+use crate::xsf::log::clog1p;
 use crate::xsf::tools::{self, series_eval_fixed_length};
 use crate::{cospi, digamma, sinpi};
 
@@ -953,7 +954,7 @@ fn pow_1mz(z: C64, p: f64) -> C64 {
     }
     // The scaled power needs a finite base, and a binary exponent that fits in i64.
     if !(z.is_finite() && p.abs() < pow2(52)) {
-        return w.powf(p);
+        return (clog1p(-z) * p).exp();
     }
     // Where (Im z / (1 - Re z))^2 underflows, the power is linear in Im z:
     // (1-z)^p = (1-x)^p (1 - i p y / (1-x)), on the lip of the sign of y if x > 1.
