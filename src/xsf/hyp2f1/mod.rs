@@ -280,7 +280,7 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
 
 /// `series_eval_cancellation`, but converged only after three successive small terms
 //
-// One term of the limit series can vanish with its logarithmic coefficient.
+// One term of the limit or paired series can vanish with its logarithmic coefficient.
 fn series_eval_settled(mut g: impl FnMut() -> C64) -> (C64, f64) {
     let (mut sum, mut abs_sum, mut small) = (C64::ZERO, 0.0, 0);
     for _ in 0..HYP2F1_MAXITER {
@@ -844,11 +844,15 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     Some(value)
 }
 
-/// `ln Gamma(x + h) - ln Gamma(x)`, the integral of digamma from `x` to `x + h`
+/// `ln Gamma(x + h) - ln Gamma(x)`, the integral of digamma from `x` to `x + h`, or NaN if
+/// `x < -HYP2F1_MAXITER`
 //
 // Gamma(x + 1) = x Gamma(x) (DLMF 5.5.1) moves x to at least max(1, 128 |h|), where
 // three-point Gauss quadrature errs by less than 4.2e-4 (h/x)^6 |h| < 1e-16 |h|.
 fn digamma_integral(mut x: f64, h: f64) -> f64 {
+    if x < -(HYP2F1_MAXITER as f64) {
+        return f64::NAN;
+    }
     let mut integral = 0.0;
     while x < (128.0 * h.abs()).max(1.0) {
         integral -= (h / x).ln_1p();
@@ -860,21 +864,31 @@ fn digamma_integral(mut x: f64, h: f64) -> f64 {
 }
 
 /// The 1 - z series (DLMF 15.8.4) for a balance c - a - b near zero, uniformly in the balance,
-/// and its estimated cancellation as in `series_eval_cancellation`
+/// and its estimated cancellation as in `series_eval_cancellation`, if finite
 //
 // Unlike in xsf, pair the k-th terms of the two series, whose poles in the balance d cancel:
 // with A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
 // B_k = (a+d)_k (b+d)_k / (k! Gamma(1+d+k)), it is -Gamma(c) Gamma(-d) / (Gamma(a) Gamma(b))
 // w^d / B_0 times the sum of B_k w^k expm1(log(A_k / B_k) - d log(w)), w = 1 - z.
-fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> (C64, f64) {
+fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     let d = f64::from(Dd::new(c) - a - b);
+    // `four_gammas` reflects x < 1/2 with a relative error near eps |x| / dist(x, Z), worth it
+    // only where the unpaired series lose more, eps / |d|, to their cancelling poles.
+    let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (d * x).abs();
+    if [a, b, c].into_iter().any(reflected) {
+        return None;
+    }
     let w = 1.0 - z;
     let log_power = w.ln() * d;
+    // The phase of w^d must not underflow before the prefactor restores its scale.
+    if z.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE {
+        return None;
+    }
     let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
     let mut log_ratio = log_ratio - digamma_integral(b, d); // log(A_k / B_k)
     let mut upper = C64::ONE; // B_k w^k / B_0
     let mut k = 0.0;
-    let (series, cancellation) = series_eval_cancellation(|| {
+    let (series, cancellation) = series_eval_settled(|| {
         let term = upper * crate::xsf::cexpm1(log_ratio - log_power);
         let (p, q, n) = (a + k, b + k, k + 1.0);
         // A_k+1 / B_k+1 = (A_k / B_k) (1 + d step)
@@ -884,7 +898,8 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> (C64, f64) 
         k = n;
         term
     });
-    (series * (log_power.exp() * -four_gammas(c, -d, a, b)), cancellation)
+    let value = series * (log_power.exp() * -four_gammas(c, -d, a, b));
+    value.is_finite().then_some((value, cancellation))
 }
 
 /// The limit of the 1 - z series for an integer balance, if it is closer than `result`.
@@ -913,6 +928,12 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
+    // Unlike in xsf, pair the two 1 - z series for a balance near zero.
+    let paired = if offset >= HYP2F1_EPS && balance.round() == 0.0 {
+        hyp2f1_transform1_near_balance(a, b, c, z)
+    } else {
+        None
+    };
     let (mut result, cancellation) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
@@ -923,11 +944,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
         hyp2f1_transform1_limiting_case(a, b, c, z, false)
     } else {
-        // Unlike in xsf, pair the two 1 - z series for a balance near zero.
-        (balance.round() == 0.0)
-            .then(|| hyp2f1_transform1_near_balance(a, b, c, z))
-            .filter(|(value, _)| value.is_finite())
-            .unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
+        paired.unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
     };
     // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
     // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
@@ -945,9 +962,9 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // relative eps / offset, for an error near eps / offset^2, where the limit is off by its
     // sensitivity to the balance: the two meet at an offset near cbrt(eps).
     // (not for a balance beyond the term limit, which the limit sums as many terms for, nor
-    // near zero, where the paired series has no such error)
+    // for the paired series, which has no such error)
     let near = offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON;
-    if near && balance.round() != 0.0 && balance.abs() <= HYP2F1_MAXITER as f64 {
+    if near && paired.is_none() && balance.abs() <= HYP2F1_MAXITER as f64 {
         return hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
     }
     result

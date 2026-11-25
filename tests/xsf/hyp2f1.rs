@@ -585,6 +585,28 @@ fn test_hyp2f1_c64_near_zero_balance() {
 }
 
 #[test]
+fn test_hyp2f1_c64_near_zero_balance_edges() {
+    // A vanishing term at a balance of 1/8.
+    let actual = xsf::hyp2f1(4.375, 4.375, 8.875, c64(0.904_973_484_375_869_2, 0.0));
+    np_assert_allclose!([actual.re], [43.253_829_995_862_97], rtol = 1e-13);
+    // A large negative a returns.
+    let _ = xsf::hyp2f1(-1_125_899_906_842_623.5, 1_125_899_906_842_624.5, 1.25, c64(0.95, 0.0));
+    // An overflowing gamma ratio, at a balance of 2^-43.
+    let actual = xsf::hyp2f1(500.0, 500.0, 1000_f64.next_up(), c64(1.0, 1e-8));
+    let desired = [3.272_480_137_841_555e302, 1.049_871_344_510_691_8e302];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 3e-12);
+    // Near a negative integer a, at a balance of 1/4.
+    let actual =
+        xsf::hyp2f1(-100.999_999_999_999_99, -0.5, -101.249_999_999_999_99, c64(1.0, 1e-6));
+    np_assert_allclose!([actual.re], [0.073_418_179_070_418_16], rtol = 1e-13);
+    np_assert_allclose!([actual.im], [-4.943_490_717_715_763_5e-6], rtol = 1e-10);
+    // A subnormal imaginary part of z.
+    let actual = xsf::hyp2f1(20.0, 20.0, 40.000_000_000_000_01, c64(0.999, 1e-313));
+    np_assert_allclose!([actual.re], [855_282_174_438.874_3], rtol = 1e-13);
+    np_assert_allclose!([actual.im], [6.987_929_090_888_118e-299], rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
