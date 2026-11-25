@@ -408,6 +408,9 @@ fn test_hyp2f1_c64_rounded_integer_balance() {
     // A term of the limit series vanishes before the series has converged.
     let actual = xsf::hyp2f1(8.0, 8.0, 16.000_000_1, c64(0.967_797_599_699_437_9, 0.0));
     np_assert_allclose!([actual.re], [6_343.004_188_994_46], rtol = 3e-12);
+    // The same, at an exact balance where the gamma ratio overflows.
+    let actual = xsf::hyp2f1(2.0, 170.0, 172.0, c64(0.989_486_905_267_847_8, 0.0));
+    np_assert_allclose!([actual.re], [2_842.713_082_597_145_3], rtol = 3e-12);
     // A balance of 1e-12, which the limit is off by.
     let actual = xsf::hyp2f1(8.000_000_000_001, 8.0, 16.0, c64(1.0001, 1e-6));
     let desired = [205_297.257_891_800_95, 160_165.783_237_828_03];

@@ -525,7 +525,7 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
 //
-// Unlike in xsf, `settled` sums the series with `series_eval_settled`.
+// Unlike in xsf, `settled` or a cancelled gamma ratio sums the series with `series_eval_settled`.
 fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool) -> (C64, f64) {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
     let m = (c - a - b).round();
@@ -564,7 +564,7 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
         (c64(prefactor, 0.0), series_generator2)
     };
-    let (series, series_cancellation) = if settled {
+    let (series, series_cancellation) = if settled || recovered {
         series_eval_settled(series_generator)
     } else {
         series_eval_cancellation(series_generator)
