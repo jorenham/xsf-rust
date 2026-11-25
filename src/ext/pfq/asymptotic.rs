@@ -824,37 +824,28 @@ fn pfq_exp_cos(
         4.0 * EPSILON_SQ * (x + PI * nu.hi.abs()) + (x * sin.hi).abs() * x_rel + PI * nu_err / kf;
     // single pass over `terms`: each residue class `k = r mod kappa` tracks its own
     // `AsymptoticSum` state in double-double, with a `kappa`-term lookahead window
-    let mut classes = vec![AsymptoticSum::<Dd>::new(settled / kf, x / kf, Dd::EPSILON); kappa];
-    let mut win: Vec<Option<(Dd, f64)>> = (0..kappa).map(|_| terms.next()).collect();
-    let mut active = kappa;
-    let _ = (0..PFQ_MAXITER).try_for_each(|j| {
+    let state = AsymptoticSum::<Dd>::new(settled / kf, x / kf, Dd::EPSILON);
+    let mut classes: Vec<_> = (0..kappa).map(|_| (state, terms.next())).collect();
+    for j in 0..PFQ_MAXITER {
         let (nf, sign) = (f64::from(j), if j % 2 == 0 { 1.0 } else { -1.0 });
-        for (cls, slot) in zip(&mut classes, &mut win) {
+        let mut active = false;
+        for (cls, slot) in &mut classes {
             let raw = core::mem::replace(slot, terms.next());
             if !cls.done {
-                let next = slot.map_or(0.0, Term::bound);
-                match raw {
-                    None => {
-                        cls.done = true;
-                        active -= 1;
-                    },
-                    Some(term @ (v, v_err))
-                        if cls
-                            .step(nf, v * sign, term.bound(), v_err, next, |_| 0.0)
-                            .is_break() =>
-                    {
-                        active -= 1;
-                    },
-                    Some(_) => {},
+                if let Some(term @ (v, v_err)) = raw {
+                    let next = slot.map_or(0.0, Term::bound);
+                    active |= cls
+                        .step(nf, v * sign, term.bound(), v_err, next, |_| 0.0)
+                        .is_continue();
+                } else {
+                    cls.done = true;
                 }
             }
         }
-        if active == 0 {
-            ControlFlow::Break(())
-        } else {
-            ControlFlow::Continue(())
+        if !active {
+            break;
         }
-    });
+    }
     let (cos0, sin0) = if kappa == 2 {
         (cospi(t.hi), sinpi(t.hi))
     } else {
@@ -864,7 +855,7 @@ fn pfq_exp_cos(
         classes
             .iter()
             .enumerate()
-            .fold((Dd::ZERO, 0.0, 0.0), |(sum, err, size), (r, cls)| {
+            .fold((Dd::ZERO, 0.0, 0.0), |(sum, err, size), (r, (cls, _))| {
                 let (s, s_err) = cls.best;
                 let (c, u_err) = if kappa == 2 {
                     let c = if r == 0 {
