@@ -9,7 +9,7 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
     if w == C64::ZERO {
         return c64(0.0_f64.powf(p), 0.0);
     }
-    // The power at an infinite z is infinite or zero.
+    // The power at an infinite or NaN z is infinite, zero or NaN.
     if !z.is_finite() {
         return w.powf(p);
     }
@@ -28,7 +28,8 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
     } else {
         (z, None)
     };
-    // A half power is a square root, which keeps a component that vanishes on the cut.
+    // Unlike in xsf, a half power is a square root, which keeps a component that vanishes on
+    // the cut.
     let half = p - p.round();
     let (power, exponent) = if half.abs() == 0.5 {
         let (power, exponent) = one_minus_z_pow(axis, p.round());
