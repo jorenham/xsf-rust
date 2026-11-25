@@ -171,6 +171,16 @@ fn test_hyp3f2_special() {
 }
 
 #[test]
+fn test_hyp3f2_dilogarithm_near_one() {
+    // Arb Li₂(z) / z at the exact inputs.
+    for (z, expected) in [(0.999_999_99, 1.644_933_889_090_756), (1.0, 1.644_934_066_848_226_4)] {
+        let (a, b) = ([1.0; 3], [2.0; 2]);
+        assert_hyp3f2(a, b, z, expected);
+        assert!((hyppfq(a, b, z).unwrap() - expected).abs() < 1e-14);
+    }
+}
+
+#[test]
 fn test_hyp3f2_continuation() {
     // mpmath references at 50 and 120 digits, cross-checked with Mathematica
     for (a, b, z, expected) in [

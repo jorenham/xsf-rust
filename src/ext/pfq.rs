@@ -542,6 +542,12 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
         return pfq_estimate(&[a1, a2, a3], &[b1, b2], z);
     }
     let (mut a, mut b) = ([a1, a2, a3], [b1, b2]);
+    if (0.99..=1.0).contains(&z) && a == [1.0; 3] && b == [2.0; 2] {
+        // Li₂(z) / z by the series coefficients. The complement is exact, and the
+        // Spence reflection has no large cancellation in this interval.
+        let y = crate::xsf::cephes::spence(1.0 - z) / z;
+        return Some(Estimate::new(y, 8.0 * f64::EPSILON));
+    }
     // a common parameter cancels: 2F1, or 1F0 if that has one as well
     let mut pairs = (0..3).flat_map(|i| (0..2).map(move |j| (i, j)));
     let Some((i, j)) = pairs.find(|&(i, j)| a[i] == b[j]) else {
