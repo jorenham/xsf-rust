@@ -4,10 +4,8 @@ use core::cell::OnceCell;
 use core::iter::once;
 
 use super::asymptotic::{Alg, asymptotic_sum, pfq_alg, pfq_alg_dd};
-use super::series::{pfq_terms, pfq_weniger, weniger_drift};
-use super::{
-    Dd, Estimate, OrBetter, PFQ_INACCURATE, PFQ_TOL, SeriesReal, add_exp, ldexp_i64, pfq_settled,
-};
+use super::series::{pfq_terms, pfq_weniger_dd};
+use super::{Estimate, OrBetter, PFQ_INACCURATE, PFQ_TOL, add_exp, ldexp_i64, pfq_settled};
 use crate::utils::{SQRT_EPSILON, is_nonpos_int, pow2};
 use crate::xsf::cephes::dd_real::{frexp_f64, two_prod, two_sum};
 use crate::xsf::xsf_hypu_digits;
@@ -33,16 +31,13 @@ pub(super) fn pfq_borel(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let d = (a.len() - b.len() - 1) as f64;
     // (capped as for 2F0)
     let scale = z.abs().powf(-1.0 / d).min(f64::EPSILON.recip());
-    let terms = || once(1.0).chain(pfq_terms(a, b, z));
+    let terms = once(1.0).chain(pfq_terms(a, b, z));
     let settled = pfq_settled(a, b).ceil();
-    let series = || Some(Estimate::absolute(asymptotic_sum(terms(), settled, scale, |_| 0.0)));
-    // also with the rounding errors of the terms, as for 2F0
-    let weniger_dd =
-        || Some(weniger_drift(pfq_weniger::<Dd>(a, b, z)?, terms(), settled, Dd::EPSILON));
+    let series = || Some(Estimate::absolute(asymptotic_sum(terms, settled, scale, |_| 0.0)));
     let residues = || Some(Estimate::scaled(add_exp(pfq_alg(a, b, z, Alg::Value)?)?, None));
     series()
         .or_better(residues)
-        .or_better(weniger_dd)
+        .or_better(|| pfq_weniger_dd(a, b, z, settled))
         .or_better(|| pfq_borel_dd(a, b, z))
 }
 
@@ -190,7 +185,6 @@ pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
             .flatten()
     };
     let a = [a1, a2];
-    let terms = || once(1.0).chain(pfq_terms(&a, &[], z));
     // keep the 2-factor asymptotic terms split in `(mantissa, exponent)` so an underflowing or
     // subnormal term (e.g. tiny `a1 * a2 * z`) stays a conservative bound rather than ending the
     // series before `t_1`
@@ -222,8 +216,7 @@ pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
     let series =
         || Some(Estimate::absolute(asymptotic_sum(series_terms(), settled, scale, |_| 0.0)));
     let residues = || pfq_borel_dd(&a, &[], z);
-    let weniger_dd =
-        || Some(weniger_drift(pfq_weniger::<Dd>(&a, &[], z)?, terms(), settled, Dd::EPSILON));
+    let weniger_dd = || pfq_weniger_dd(&a, &[], z, settled);
     raw1.as_ref()
         .and_then(|r| r.estimate(CHGU_DIGITS_MARGIN))
         .or_better(series)

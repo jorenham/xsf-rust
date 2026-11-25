@@ -625,19 +625,16 @@ pub(super) fn pfq_weniger<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> Option
     Some((delta.to_f64(), f64::INFINITY))
 }
 
-/// `pfq_weniger`, also with the rounding errors (of relative size `eps`) that the terms `t_n`
-/// accumulated up to `settled` added, as `a + n` can round alike
-pub(super) fn weniger_drift(
-    (y, err): (f64, f64),
-    terms: impl Iterator<Item = f64>,
-    settled: f64,
-    eps: f64,
-) -> Estimate {
+/// Double-double Weniger estimate including the rounding errors accumulated by the terms
+/// up to `settled`, as `a + n` can round alike.
+pub(super) fn pfq_weniger_dd(a: &[f64], b: &[f64], z: f64, settled: f64) -> Option<Estimate> {
+    let (y, err) = pfq_weniger::<Dd>(a, b, z)?;
     // (each scaled, as their sum can overflow)
-    let drift = terms
+    let drift = once(1.0)
+        .chain(pfq_terms(a, b, z))
         .zip(0..=settled as u32)
-        .map(|(t, n)| 4.0 * eps * f64::from(n) * t.abs());
-    Estimate::absolute((y, err + drift.sum::<f64>()))
+        .map(|(t, n)| 4.0 * Dd::EPSILON * f64::from(n) * t.abs());
+    Some(Estimate::absolute((y, err + drift.sum::<f64>())))
 }
 
 /// Most terms that `pfq_overflow` follows
