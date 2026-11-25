@@ -294,6 +294,13 @@ fn test_hyp2f1_c64_binomial() {
         let actual = xsf::hyp2f1(2.5, -1000.5, 2.5, c64(3.0, sign * 2.0_f64.powi(-1000)));
         let desired = [707.460_334_577_140_8, -sign * 1.515_342_004_482_324_3e301];
         np_assert_allclose!([actual.re, actual.im], desired, rtol = 3e-15);
+        // Also further from the cut.
+        let actual = xsf::hyp2f1(2.5, -0.5, 2.5, c64(2.0, sign * 2.0_f64.powi(-100)));
+        assert_eq!(actual, c64(2.0_f64.powi(-101), -sign));
+        // A power that is linear in an ordinate below its own reciprocal.
+        let z = c64(-(2.0_f64.powi(1000)), sign * 2.0_f64.powi(-1000));
+        let actual = xsf::hyp2f1(2.5, -(2.0_f64.powi(564)), 2.5, z);
+        assert_eq!(actual, c64(f64::INFINITY, -sign * f64::INFINITY));
     }
     // The power overflows and underflows.
     assert_eq!(

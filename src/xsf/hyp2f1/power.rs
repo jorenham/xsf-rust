@@ -15,15 +15,28 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
     }
     // Unlike in xsf, where the square of p times the ratio of the components of 1-z underflows,
     // take the power of the larger one, on its lip of the cut, times 1 + i p t for the tilt t.
-    let limit = f64::MIN_POSITIVE.sqrt() / p.abs().max(1.0);
-    let (axis, tilt) = if w.im.abs() < limit * w.re.abs() {
+    // (compared as mantissas and exponents, as the scaled bound itself underflows)
+    let [(pm, pe), (re, re_e), (im, im_e)] =
+        [p.abs().max(1.0), w.re.abs(), w.im.abs()].map(frexp_f64);
+    let below = |small: f64, small_e: i32, large: f64, large_e: i32| {
+        pm * small < ldexp_f64(large, large_e - small_e - pe + (f64::MIN_EXP - 1) / 2)
+    };
+    let (axis, tilt) = if below(im, im_e, re, re_e) {
         (c64(z.re, 0.0_f64.copysign(z.im)), Some((w.im, w.re)))
-    } else if w.re.abs() < limit * w.im.abs() {
+    } else if below(re, re_e, im, im_e) {
         (c64(1.0, z.im), Some((-w.re, w.im)))
     } else {
         (z, None)
     };
-    let (power, exponent) = one_minus_z_pow(axis, p);
+    // A half power is a square root, which keeps a component that vanishes on the cut.
+    let half = p - p.round();
+    let (power, exponent) = if half.abs() == 0.5 {
+        let (power, exponent) = one_minus_z_pow(axis, p.round());
+        let root = c64(1.0 - axis.re, -axis.im).sqrt();
+        (power * if half > 0.0 { root } else { 1.0 / root }, exponent)
+    } else {
+        one_minus_z_pow(axis, p)
+    };
     // The squarings lose about |p| 2^-104 of the power, or |p z| 2^-53 where 1-z rounds to 1.
     // Unlike in xsf, beyond the accepted error only a real or imaginary power, or an
     // underflow, is certain: the rest is NaN.
@@ -89,11 +102,5 @@ pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, f64) {
         power
     };
     // The remaining exponent is small and barely amplifies rounding in 1-z.
-    // A half power of a real 1-z is exactly real or imaginary as a square root.
-    let rest = match p - n {
-        0.5 if w.im == 0.0 => w.sqrt(),
-        -0.5 if w.im == 0.0 => 1.0 / w.sqrt(),
-        rest => w.powf(rest),
-    };
-    (c64(real.hi, imag.hi) * rest, exponent)
+    (c64(real.hi, imag.hi) * w.powf(p - n), exponent)
 }
