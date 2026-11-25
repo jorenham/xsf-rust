@@ -156,18 +156,18 @@ fn recurrence_start(
 struct RecurrenceEstimate {
     value: Dd,
     // Absolute error from the recurrence steps alone.
-    step_error: f64,
+    error_step: f64,
     // Includes the propagated absolute errors of the three starting values.
-    total_error: f64,
+    error_total: f64,
 }
 
 impl RecurrenceEstimate {
     fn accurate(self) -> Option<Estimate> {
-        accurate(self.value, self.total_error)
+        accurate(self.value, self.error_total)
     }
 
     fn steps_within_half_tolerance(self) -> bool {
-        2.0 * self.step_error <= PFQ_TOL * self.value.hi.abs()
+        2.0 * self.error_step <= PFQ_TOL * self.value.hi.abs()
     }
 }
 
@@ -210,8 +210,8 @@ fn recurrence_from(
     let series: f64 = zip(g, starts).map(|(g, (_, err))| g.abs() * err).sum();
     Some(RecurrenceEstimate {
         value: f[0],
-        step_error: rounding,
-        total_error: rounding + series,
+        error_step: rounding,
+        error_total: rounding + series,
     })
 }
 
@@ -330,7 +330,7 @@ fn raised_recurrence(
         (c, sizes)
     };
     let result = recurrence_from(m, start, step)?;
-    Some((result.value, result.total_error))
+    Some((result.value, result.error_total))
 }
 
 /// `y` as an `Estimate` with the estimate `err` of its absolute error plus its rounding, if that
@@ -352,10 +352,10 @@ fn recurrence_first(
             continue;
         };
         if result.accurate().is_some() {
-            return Some((result.value, result.total_error));
+            return Some((result.value, result.error_total));
         }
         // a larger `m` ends with the same steps, after more of them
-        if accurate(result.value, result.step_error).is_none() {
+        if accurate(result.value, result.error_step).is_none() {
             break;
         }
     }
