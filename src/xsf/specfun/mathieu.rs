@@ -186,7 +186,70 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             }
         }
     }
+    // Use the same handoff across low orders, beyond their largest m² transition.
+    if m <= 25 && (1.0..=768.0).contains(&q) {
+        return indexed_cv(kd, m, q, a).unwrap_or(a);
+    }
     a
+}
+
+// Unlike in xsf, check the order of a moderate characteristic value against
+// the symmetric Fourier matrix (DLMF 28.4.5–28.4.8).
+fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> Option<f64> {
+    let start = match kd {
+        1 => 0,
+        4 => 2,
+        _ => 1,
+    };
+    let index = (m - start) / 2;
+    let n = index + 16 + q.sqrt() as i32;
+    let square = |j| f64::from(start + 2 * j).powi(2);
+    let first_diag = square(0)
+        + match kd {
+            2 => q,
+            3 => -q,
+            _ => 0.0,
+        };
+    let q2 = q * q;
+    let first_edge2 = if kd == 1 { 2.0 * q2 } else { q2 };
+    let count = |x: f64, tail_shift: f64| {
+        let signed_pivot = |p: f64| if p == 0.0 { -1e-100 } else { p };
+        let mut pivot = signed_pivot(first_diag - x);
+        let mut neg = i32::from(pivot < 0.0);
+        pivot = signed_pivot(square(1) - x - first_edge2 / pivot);
+        neg += i32::from(pivot < 0.0);
+        for j in 2..(n - 1) {
+            pivot = signed_pivot(square(j) - x - q2 / pivot);
+            neg += i32::from(pivot < 0.0);
+        }
+        neg + i32::from(square(n - 1) - x - tail_shift - q2 / pivot <= 0.0)
+    };
+    let m2 = square(index);
+    let tol = 64.0 * f64::EPSILON * (m2 + 2.0 * q);
+    let enclosed = |value: f64| {
+        let lo = value - tol;
+        let hi = value + tol;
+        // The excluded tail is bounded below by its first diagonal minus 2q.
+        // Eliminating it decreases the last retained diagonal by at most this shift.
+        let gap = square(n) - 2.0 * q - lo;
+        gap > 0.0 && count(lo, q2 / gap) <= index && count(hi, 0.0) > index
+    };
+    if enclosed(a) {
+        return None;
+    }
+    // The potential has operator norm at most 2q. Bisect this interval in
+    // the finite matrix, then check the excluded tail at the result.
+    let (mut lo, mut hi) = (m2 - 2.0 * q, m2 + 2.0 * q);
+    while hi - lo > tol / 32.0 {
+        let mid = lo.midpoint(hi);
+        if count(mid, 0.0) > index {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    let value = lo.midpoint(hi);
+    enclosed(value).then_some(value)
 }
 
 fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
