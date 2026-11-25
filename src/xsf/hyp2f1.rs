@@ -644,15 +644,48 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let error = (6.0 * n as f64 + 8.0) * f64::EPSILON * mass;
     let origin_finite = origin.is_finite();
     // Keep the origin sum when the estimate leaves at least half the significand.
-    if origin_finite && error <= pow2(-26) * origin.re.abs().max(origin.im.abs()) {
+    if (c <= 0.0 || ((c + n as f64) * n as f64).is_finite())
+        && origin_finite
+        && error <= pow2(-26) * origin.re.abs().max(origin.im.abs())
+    {
         return origin;
     }
 
-    let (centered, rounding) = centered_population_polynomial(n, -a.min(b), -c, z);
+    let other = if a == -(n as f64) { b } else { a };
+    let (centered, rounding) = centered_terminating_polynomial(n, other, c, z);
+    if !centered.is_finite() {
+        return origin;
+    }
+    if c > 0.0 {
+        let select = |old: f64, new: f64, uncertainty: f64| {
+            let limit = uncertainty + f64::EPSILON * new.abs() + f64::from_bits(1);
+            if (old.is_finite() && (old - new).abs() > 4.0 * limit)
+                || (!old.is_finite() && limit < new.abs())
+            {
+                new
+            } else {
+                old
+            }
+        };
+        // |Im(F)| <= n |Im(z)| on the closed disk |1-z| <= 1.
+        let imag_uncertainty = if z.re >= z.im.abs() && 2.0 - z.re >= z.im.abs() {
+            rounding.min(centered.im.abs() + (2.0 * n as f64) * z.im.abs())
+        } else {
+            rounding
+        };
+        return c64(
+            select(origin.re, centered.re, rounding),
+            if z.is_real() {
+                0.0
+            } else {
+                select(origin.im, centered.im, imag_uncertainty)
+            },
+        );
+    }
     let magnitude = centered.re.abs().max(centered.im.abs());
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
     let limit = if origin_finite { error } else { magnitude };
-    if centered.is_finite() && rounding + f64::EPSILON * magnitude < limit {
+    if rounding + f64::EPSILON * magnitude < limit {
         centered
     } else {
         origin
@@ -660,21 +693,33 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
 }
 
 /// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
-fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C64, f64) {
+fn centered_terminating_polynomial(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
-    let falling = |p| {
+    let positive_beta = c > 0.0;
+    // The beta-binomial coefficients have leading term (b)_n / (c)_n.
+    let product = |p: f64| {
+        let shift = if p > pow2(384) { frexp_f64(p).1 } else { 0 };
         (0..n).fold((Dd::ONE, 0), |(product, scale), j| {
-            // The factors p - j are exact because j is integral and 0 < p - j <= p <= 2^53.
-            let product = product * Dd::new(p - j as f64);
+            let factor = if positive_beta {
+                (Dd::new(p) + j as f64).ldexp(-shift)
+            } else {
+                // The integral falling-factor offset j is exact; p - j is exact when p is integral.
+                Dd::new(p - j as f64)
+            };
+            let product = product * factor;
+            let scale = scale + shift;
             if product.hi > pow2(384) {
                 (product.ldexp(-512), scale + 512)
+            } else if positive_beta && product.hi < pow2(-384) {
+                let (mantissa, shift) = product.frexp();
+                (mantissa, scale + shift)
             } else {
                 (product, scale)
             }
         })
     };
-    let (num, num_scale) = falling(k);
-    let (den, den_scale) = falling(population);
+    let (num, num_scale) = product(b.abs());
+    let (den, den_scale) = product(c.abs());
     let (leading, mut scale) = (num / den, num_scale - den_scale);
     let t = Dd::ONE - z.re;
     let square = Dd::new(z.im) * z.im;
@@ -682,9 +727,10 @@ fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C
     let mut coefficient = Dd::ONE;
     let (mut re, mut im) = (Dd::ONE, Dd::ZERO);
     let mut mass = 1.0;
-    let excess = (Dd::new(population) - k) - n as f64;
+    let h = Dd::new(c) - b;
+    let excess = -h - n as f64;
     // Use one quotient correction when the real centered sum cannot cancel.
-    let nonnegative = z.is_real() && z.re <= 1.0 && excess >= -1.0;
+    let nonnegative = z.is_real() && z.re <= 1.0 && (positive_beta || excess >= -1.0);
     let divide = |numerator: Dd, denominator: Dd| {
         if nonnegative && denominator.lo == 0.0 {
             let d = denominator.hi;
@@ -697,17 +743,41 @@ fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C
         }
         numerator / denominator
     };
+    // Small beta-binomial weights can grow back to normal, so retain their own scale.
+    let mut coefficient_scale = scale;
     for j in (1..=n).rev() {
         let j = j as f64;
-        coefficient =
-            divide(coefficient * (excess + j) * j, Dd::new(k - j + 1.0) * (n as f64 - j + 1.0));
+        let remaining = n as f64 - j;
+        let term = if positive_beta {
+            let (u, ue) = (h + remaining).frexp();
+            let (l, le) = (Dd::new(b) + (j - 1.0)).frexp();
+            let (m, e) = divide(coefficient * u * j, l * (remaining + 1.0)).frexp();
+            coefficient = m;
+            coefficient_scale += e + ue - le;
+            let delta = coefficient_scale - scale;
+            if delta > 384 {
+                [re, im] = [re, im].map(|v| v.ldexp(-delta));
+                mass = ldexp_f64(mass, -delta);
+                scale = coefficient_scale;
+                coefficient
+            } else {
+                coefficient.ldexp(delta)
+            }
+        } else {
+            coefficient =
+                divide(coefficient * (excess + j) * j, Dd::new(-b - j + 1.0) * (remaining + 1.0));
+            coefficient
+        };
         // Carry Im(P) divided by Im(t) so even a subnormal ordinate survives Horner.
-        (re, im) = (re * t - im * square + coefficient, re + im * t);
-        mass = mass * radius + coefficient.hi.abs();
+        (re, im) = (re * t - im * square + term, re + im * t);
+        mass = mass * radius + term.hi.abs();
         let size = mass.max(im.hi.abs());
         if size != 0.0 && !(pow2(-384)..=pow2(384)).contains(&size) {
             let (_, shift) = frexp_f64(size);
-            [coefficient, re, im] = [coefficient, re, im].map(|v| v.ldexp(-shift));
+            [re, im] = [re, im].map(|v| v.ldexp(-shift));
+            if !positive_beta {
+                coefficient = coefficient.ldexp(-shift);
+            }
             mass = ldexp_f64(mass, -shift);
             scale += shift;
         }
@@ -1046,11 +1116,11 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let count = (max_degree + 1.0) as u64;
             let population = -c;
             // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
-            if a_neg_int
-                && b_neg_int
+            let beta = a.max(b);
+            let positive_beta = beta > 0.0 && beta < c && c.is_finite();
+            if ((a_neg_int && b_neg_int && max_degree - 1.0 < population
+                && (-a.min(b)).max(population) <= pow2(53)) || positive_beta)
                 && count <= HYP2F1_MAX_FIXED_TERMS
-                && max_degree - 1.0 < population
-                && (-a.min(b)).max(population) <= pow2(53)
                 && (z.re > 0.0 || z.im != 0.0)
                 // Headroom for the squared ordinate in the centered recurrence.
                 && z.re.abs().max(z.im.abs()) <= pow2(256)

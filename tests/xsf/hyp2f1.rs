@@ -2162,6 +2162,32 @@ fn test_hyp2f1_c64_nonnegative_population_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_beta_binomial_polynomial() {
+    // Pearson, Olver and Porter, Table A.2 case 18, and its off-axis continuation.
+    for (a, b) in [(-300.0, 5.0), (5.0, -300.0)] {
+        for y in [0.0, -0.0, f64::from_bits(1)] {
+            let value = xsf::hyp2f1(a, b, 10.0, c64(0.5, y));
+            np_assert_allclose!([value.re], [1.661_006_238_211_309e-7], rtol = 1e-14);
+            assert_eq!(value.im.to_bits(), if y == 0.0 { 0 } else { (-0.0_f64).to_bits() });
+        }
+        let value = xsf::hyp2f1(a, b, 10.0, c64(0.5, 0.01));
+        np_assert_allclose!(
+            [value.re, value.im],
+            [1.651_579_371_189_262_2e-7, -1.612_740_700_807_058e-8],
+            rtol = 1e-14
+        );
+    }
+
+    let y = f64::from_bits(1);
+    let value = xsf::hyp2f1(-3.0, 0.125, 0.25, c64(2.0, y));
+    assert_eq!(value, c64(0.0, -y));
+
+    // The interior probabilities are subnormal, while both endpoint probabilities are normal.
+    let value = xsf::hyp2f1(-32.0, y, 16.0 * y, c64(2.0, y));
+    assert_eq!(value.re, 1.0);
+}
+
+#[test]
 fn test_hyp2f1_c64_negative_lower_parameter() {
     // Pearson et al., Table A.2, case 19, and nearby complex arguments (Arb).
     let expected_re = -3.852_027_081_523_918_5e32;
