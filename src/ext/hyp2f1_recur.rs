@@ -240,10 +240,16 @@ const RESCALE_LIMIT_EXP: i32 = 500;
 
 /// The exponent `k` that scales `|x|` to about 1 by `2^-k`, if `|x|` is outside `[2^-500, 2^500]`
 fn rescale_exp(x: f64) -> Option<i32> {
+    const MIN: u64 = pow2(-RESCALE_LIMIT_EXP).to_bits();
+    const MAX: u64 = pow2(RESCALE_LIMIT_EXP).to_bits();
     // (|x| is finite and nonzero, so log2(|x|) is in [-1075, 1024])
-    let big = pow2(RESCALE_LIMIT_EXP);
     let x = x.abs();
-    (x != 0.0 && x.is_finite() && !(1.0 / big..=big).contains(&x)).then(|| x.log2().round() as i32)
+    // For positive finite values the bit order matches the numerical order.
+    let bits = x.to_bits();
+    if (MIN..=MAX).contains(&bits) {
+        return None;
+    }
+    (x != 0.0 && x.is_finite()).then(|| x.log2().round() as i32)
 }
 
 /// `t 2^e`, with `t` scaled to about 1 if `|t|` is outside `[2^-500, 2^500]`
