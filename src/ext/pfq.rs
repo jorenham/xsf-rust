@@ -142,10 +142,10 @@ trait OrBetter {
 
 impl OrBetter for Option<Estimate> {
     fn or_better(self, other: impl FnOnce() -> Self) -> Self {
-        match (self, self.is_some_and(Estimate::is_accurate)) {
-            (Some(_), true) => self,
-            (Some(y), false) => other().filter(|v| v.err < y.err).or(self),
-            (None, _) => other(),
+        match self {
+            Some(y) if y.is_accurate() => self,
+            Some(y) => other().filter(|v| v.err < y.err).or(self),
+            None => other(),
         }
     }
 }
@@ -830,16 +830,17 @@ fn pfq_entire_with_exp(
         return Some(Estimate::exact(f64::INFINITY));
     };
     let series = || Some(series::pfq_series_sorted(a, b, z));
-    let asymptotic = || asymptotic::pfq_asymptotic(a, b, z, exp_cache);
-    // last, as it is the slowest (and applies to `p = q`, `z <= 0` only)
-    let asymptotic_dd = || asymptotic::pfq_asymptotic_dd(a, b, z);
     if degree.is_finite() {
-        series()
-    } else if series_first {
-        series().or_better(asymptotic).or_better(asymptotic_dd)
-    } else {
-        asymptotic().or_better(series).or_better(asymptotic_dd)
+        return series();
     }
+    let asymptotic = || asymptotic::pfq_asymptotic(a, b, z, exp_cache);
+    let result = if series_first {
+        series().or_better(asymptotic)
+    } else {
+        asymptotic().or_better(series)
+    };
+    // last, as it is the slowest (and applies to `p = q`, `z <= 0` only)
+    result.or_better(|| asymptotic::pfq_asymptotic_dd(a, b, z))
 }
 
 /// Generalized hypergeometric function $_2F_2$ for real arguments
