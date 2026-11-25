@@ -51,6 +51,7 @@ use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
 use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
+use crate::xsf::complex::cpow_integral;
 use crate::xsf::tools::{self, series_eval_fixed_length};
 use crate::{cospi, digamma, sinpi};
 
@@ -616,11 +617,8 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
      * a polynomial through an Euler hypergeometric transformation.
      * (DLMF 15.8.1) */
     if c_minus_a_neg_int || c_minus_b_neg_int {
-        let max_degree = if c_minus_b_neg_int {
-            (c - b).abs()
-        } else {
-            (c - a).abs()
-        };
+        let (terminating, other) = if c_minus_b_neg_int { (b, a) } else { (a, b) };
+        let max_degree = (c - terminating).abs();
         if max_degree <= u64::MAX as f64 {
             // Unlike in xsf, retain the exact cut phase for certified tiny ordinates.
             // The power term alone limits |Im z| to about eps² (Re z - 1).
@@ -632,7 +630,16 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
                     return value;
                 }
             }
-            result = (1.0 - z).powf(c - a - b);
+            let w = 1.0 - z;
+            // Unlike in xsf, retain the phase of exactly integral Euler powers across the cut.
+            let integral = other.fract() == 0.0
+                && w.is_finite()
+                && w != C64::ZERO
+                && two_sum(c, -terminating).1 == 0.0;
+            result = integral
+                .then(|| cpow_integral(w, Dd::new(-max_degree) - other))
+                .filter(|power| power.is_finite())
+                .unwrap_or_else(|| w.powf(c - a - b));
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             result *= series_eval_finite(series_generator, (max_degree + 2.0) as u64);
             return result;

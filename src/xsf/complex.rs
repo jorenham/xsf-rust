@@ -3,7 +3,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::ldexp_f64;
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::log::clog;
 use crate::xsf::trig::cephes_sinpi;
@@ -138,17 +138,62 @@ pub(crate) fn cpow(z: C64, y: f64) -> C64 {
         c64(z.re.powf(y), 0.0)
     } else {
         let t = clog(z);
-        let r = z.norm();
-        // `r` is exact on the axes
-        let exact = z.re == 0.0 || z.im == 0.0;
-        let rho = if exact || !(0.5..=2.0).contains(&r) && r.is_normal() {
-            r.powf(y)
-        } else {
-            (y * t.re).exp()
-        };
+        let rho = pow_magnitude(z, y, t.re);
         // std::polar(rho, y * t.imag())
         let (sin, cos) = (y * t.im).sin_cos();
         c64(rho * cos, rho * sin)
+    }
+}
+
+fn pow_magnitude(z: C64, y: f64, ln_abs: f64) -> f64 {
+    let r = z.norm();
+    // `r` is exact on the axes.
+    if z.re == 0.0 || z.im == 0.0 || !(0.5..=2.0).contains(&r) && r.is_normal() {
+        r.powf(y)
+    } else {
+        (y * ln_abs).exp()
+    }
+}
+
+/// A finite nonzero complex number to an integral power.
+pub(crate) fn cpow_integral(z: C64, n: Dd) -> C64 {
+    if n == 0.0 {
+        return C64::ONE;
+    }
+    // Rotate to the nearest axis. Integer powers of i carry the rotation exactly.
+    let (w, turns) = if z.im.abs() > z.re.abs() {
+        if z.im > 0.0 {
+            (c64(z.im, -z.re), 1)
+        } else {
+            (c64(-z.im, z.re), -1)
+        }
+    } else if z.re < 0.0 {
+        (-z, 2)
+    } else {
+        (z, 0)
+    };
+    // The ordinary power introduces only a few ulps of absolute phase error below 16 radians.
+    let v = if n.lo == 0.0 && n.hi.abs() * (1.0 / 16.0) * w.im.abs() <= w.re {
+        w.powf(n.hi)
+    } else {
+        let ln_abs = clog(w).re;
+        let rho = if n.lo == 0.0 {
+            pow_magnitude(w, n.hi, ln_abs)
+        } else {
+            (n * ln_abs).hi.exp()
+        };
+        let (_, e) = frexp_f64(w.re);
+        let x = Dd::new(w.re).ldexp(1 - e);
+        let y = Dd::new(w.im).ldexp(1 - e);
+        let (sin, cos) = (y.atan2(x) * n).sin_cos();
+        c64(rho * cos, rho * sin)
+    };
+    let power_mod_four = (n.hi % 4.0 + n.lo % 4.0) as i32;
+    match (turns * power_mod_four).rem_euclid(4) {
+        0 => v,
+        1 => c64(-v.im, v.re),
+        2 => -v,
+        _ => c64(v.im, -v.re),
     }
 }
 
