@@ -962,11 +962,11 @@ pub(super) fn pfq_asymptotic(
     };
     let mode = if z > 0.0 { Alg::Sizes } else { Alg::Value };
     let alg = pfq_alg_with_cache(a, b, z, mode, cache)?;
-    let exp = pfq_exp(a, b, z, cache);
-    if let Some(exp_cache) = exp_cache {
-        let _ = exp_cache.set(exp);
-    }
-    let exp = exp?;
+    let mut exponential = || pfq_exp(a, b, z, cache);
+    let exp = match exp_cache {
+        Some(cell) => *cell.get_or_init(exponential),
+        None => exponential(),
+    }?;
     if z > 0.0 {
         // distinguish an empty algebraic part (zero error) from a failed `add_exp`
         let other = if alg.is_empty() {
