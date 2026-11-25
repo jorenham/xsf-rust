@@ -430,6 +430,58 @@ fn test_legendre_q_all_extreme_complex() {
     let z = c64(2.0_f64.powi(511), 5.048_054_719_547_867e145);
     let (_, dq) = xsf::legendre_q_all(0, z);
     assert_eq!(dq[0].re.to_bits(), 0x800f_ffff_ffff_ffff);
+
+    let x = 2.0_f64.powi(537);
+    let (q, dq) = xsf::legendre_q_all(1, c64(x, x));
+    // Here the leading imaginary derivative is the half-minsub midpoint.
+    assert_eq!(dq[0].re.to_bits(), 0);
+    assert_eq!(dq[0].im.to_bits(), 0);
+    assert_eq!(q[1].re.to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(q[1].im.to_bits(), (-0.0_f64).to_bits());
+
+    // Arb: the real part cancels to about 2^-51 of the imaginary one.
+    let x = 1.25 * 2.0_f64.powi(479);
+    let (_, dq) = xsf::legendre_q_all(0, c64(x, f64::from_bits(x.to_bits() + 2)));
+    assert_eq!(dq[0].re, 4.666_318_092_516_091e-305);
+}
+
+#[test]
+fn test_legendre_q_all_extreme_degree_two() {
+    let check = |z: num_complex::Complex64, expected: [f64; 4], order_one: [f64; 4]| {
+        let (q, d) = xsf::legendre_q_all(2, z);
+        assert_eq!(
+            [q[2].re, q[2].im, d[2].re, d[2].im].map(f64::to_bits),
+            expected.map(f64::to_bits)
+        );
+        let (q, d) = xsf::assoc_legendre_q_all(2, 73, z);
+        for (order, (&q, &d)) in q[2].iter().zip(&d[2]).enumerate() {
+            let expected = if order % 2 == 0 { expected } else { order_one };
+            assert_eq!([q.re, q.im, d.re, d.im].map(f64::to_bits), expected.map(f64::to_bits));
+        }
+    };
+    let scale = 2.0_f64.powi(479);
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            // Arb at the exact binary64 arguments. The last pair has x^2 - 2xy - y^2 = -1
+            // before scaling, so the order-zero derivative's real projection is positive.
+            for (x, y, q_re, q_im, d_re, d_im) in [
+                (1.0, 0.1, 0.0, -0.0, -0.0, 0.0),
+                (1.0, 1.0, -0.0, -0.0, 0.0, -0.0),
+                (4_217_293_152_016_490.0, 1_746_860_020_068_409.0, 0.0, -0.0, 0.0, 0.0),
+            ] {
+                check(
+                    c64(sx * x * scale, sy * y * scale),
+                    [sx * q_re, sy * q_im, d_re, sx * sy * d_im],
+                    [-q_re, -sx * sy * q_im, -sx * d_re, -sy * d_im],
+                );
+            }
+            check(
+                c64(sx * 0.0, sy * scale),
+                [0.0, sy * 0.0, -0.0, 0.0],
+                [0.0, -sx * sy * 0.0, sx * 0.0, 0.0],
+            );
+        }
+    }
 }
 
 #[test]
@@ -450,10 +502,17 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
         }
     }
 
-    // A tiny projection rounds to the nearest subnormal (Arb: 0.72 of the least one).
-    let (q, _) =
-        xsf::assoc_legendre_q_all(0, 1, c64(1.207_381_461_363_012_6e208, 2.0_f64.powi(308)));
-    assert_eq!(q[0][1].im.to_bits(), 1);
+    // Round tiny projections, including ties where the first tail correction matters.
+    for (x, y, bits) in [
+        (1.207_381_461_363_012_6e208, 2.0_f64.powi(308), 1),
+        (3.0 * 2.0_f64.powi(536), 1.125, 1),
+        (3.375, 3.0 * 2.0_f64.powi(536), (-f64::from_bits(1)).to_bits()),
+        (1.0 - f64::EPSILON / 2.0, 2.0_f64.powi(511), 0x800f_ffff_ffff_ffff),
+    ] {
+        let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(x, y));
+        let projection = if x < y { q[0][1].re } else { q[0][1].im };
+        assert_eq!(projection.to_bits(), bits);
+    }
 }
 
 #[test]
@@ -522,6 +581,17 @@ fn test_assoc_legendre_q_all_extreme_complex_orders() {
     // The next order need not underflow at the dispatch boundary (Arb: 6.69 least subnormals).
     let (q, _) = xsf::assoc_legendre_q_all(2, 74, c64(2.0_f64.powi(479), 1.0));
     assert_eq!(q[2][74].re.to_bits(), 7);
+
+    // On the diagonal the leading real parts vanish, and the next terms in 1/z^2 give them.
+    let x = 2.0_f64.powi(479);
+    let (q, dq) = xsf::assoc_legendre_q_all(1, 200, c64(x, x));
+    assert_eq!(q[1][200].re, -8.903_420_595_702_894e-198);
+    assert_eq!(dq[0][180].re, 1.370_823_570_613_042_2e-244);
+
+    // Arb. The real part is 7e-32 of the modulus here, near the double-double resolution.
+    let z = c64(4_217_293_152_016_490.0 * x, 1_746_860_020_068_409.0 * x);
+    let (_, dq) = xsf::assoc_legendre_q_all(2, 200, z);
+    xsref::np_assert_allclose!([dq[2][200].re], [1.686_547_975_285_891e-292], rtol = 0.15);
 
     // `z^2` overflows here
     let (q, dq) = xsf::assoc_legendre_q_all(1, 100, c64(-6e199, 8e199));

@@ -1127,8 +1127,13 @@ fn lq_is_extreme(z: C64) -> bool {
     z.is_finite() && z.re.abs().max(z.im.abs()) >= LQ_LARGE_X
 }
 
-// Use the leading term in 1/z (DLMF 14.3.7 and 14.3.10), with the exterior branch
-// sqrt(z^2 - 1) ~ sign(Re z) z. Its relative error is O((n + m)^2 / z^2).
+// Use the first terms of the expansion in 1/z (DLMF 14.3.7 and 14.3.10), with the exterior
+// branch sqrt(z^2 - 1) ~ sign(Re z) z:
+//
+//   Q_n^m(z) ~ c_{n,m} z^-(n+1) (1 + k_1 / z^2 + k_2 / z^4).
+//
+// The corrections supply the parts where the leading term cancels, and the direction at rounding
+// midpoints. On the diagonals z^-2 is imaginary, so only z^-4 resolves those.
 //
 // Keep the exponent of each part separate, because raising the order can bring an underflowed
 // part back into range, also one far below the other part.
@@ -1143,6 +1148,7 @@ fn lqmn_extreme<T>(
         reason = "the binary64 mantissa width fits i32"
     )]
     const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
+    const TERMS: usize = 3;
 
     // `m 2^e` as `(m, e)`, with `m` zero or normalized
     type Part = (DoubleDouble, i64);
@@ -1156,59 +1162,81 @@ fn lqmn_extreme<T>(
     let mul = |a: Part, b: Part| norm((a.0 * b.0, a.1 + b.1));
     let div = |a: Part, b: Part| norm((a.0 / b.0, a.1 - b.1));
     let add = |a: Part, b: Part| {
-        if a.0.hi == 0.0 {
-            return b;
-        }
         if b.0.hi == 0.0 {
             return a;
         }
+        if a.0.hi == 0.0 {
+            return b;
+        }
         let e = a.1.max(b.1);
-        let align = |(m, k): Part| m.ldexp((k - e).max(i64::from(i32::MIN)) as i32);
+        // A negligible part stays as a sticky least subnormal, below the precision of the other.
+        let align = |(m, k): Part| m.ldexp((k - e).max(i64::from(MIN_SUB_EXP + 1)) as i32);
         norm((align(a) + align(b), e))
     };
     let neg = |(m, e): Part| (-m, e);
     let cmul = |a: [Part; 2], b: [Part; 2]| {
         [add(mul(a[0], b[0]), neg(mul(a[1], b[1]))), add(mul(a[0], b[1]), mul(a[1], b[0]))]
     };
-    let scale = |a: [Part; 2], f: f64| a.map(|(m, e)| norm((m * f, e)));
+    let scale = |a: [Part; 2], f: DoubleDouble| a.map(|(m, e)| norm((m * f, e)));
+
+    // The series of DLMF 14.3.7 times that of (1 - 1/z^2)^(m/2), relative to the leading term
+    let coefficients = |n: f64, m: f64| -> [DoubleDouble; TERMS] {
+        let (mut f, mut b, mut i) = ([DoubleDouble::ONE; TERMS], [DoubleDouble::ONE; TERMS], 0.0);
+        for j in 1..TERMS {
+            f[j] = f[j - 1] * (n + m + 1.0 + 2.0 * i) * (n + m + 2.0 + 2.0 * i)
+                / (2.0 * (i + 1.0) * (2.0 * n + 3.0 + 2.0 * i));
+            b[j] = b[j - 1] * (2.0 * i - m) / (2.0 * (i + 1.0));
+            i += 1.0;
+        }
+        core::array::from_fn(|j| (0..=j).fold(DoubleDouble::ZERO, |s, i| s + f[j - i] * b[i]))
+    };
 
     let (x, y) = (norm((DoubleDouble::new(z.re), 0)), norm((DoubleDouble::new(z.im), 0)));
-    // The separate exponents keep |z|^2 in range.
+    // Powers of `1/z = conj(z) / |z|^2` keep cancelling parts exact in the numerator.
+    let conj = [x, neg(y)];
     let abs2 = add(mul(x, x), mul(y, y));
-    let inv = [div(x, abs2), neg(div(y, abs2))];
-    let mut seed = inv;
+    let (conj2, abs4) = (cmul(conj, conj), mul(abs2, abs2));
+    // `sum_j k_j num / (den z^2j)`
+    let series = |mut num: [Part; 2], mut den: Part, k: [DoubleDouble; TERMS]| {
+        let [lead, rest @ ..] = k.map(|k| {
+            let term = scale(num, k).map(|p| div(p, den));
+            (num, den) = (cmul(num, conj2), mul(den, abs4));
+            term
+        });
+        rest.into_iter()
+            .fold(lead, |s, t| [add(s[0], t[0]), add(s[1], t[1])])
+    };
+
     let order_sign = -z.re.signum();
     // Normalized parts are normal above `MIN_EXP`.
     let scaled = |(a, e): Part| {
         if e > i64::from(f64::MIN_EXP) {
             return ldexp_f64(a.hi, e.min(i64::from(i32::MAX)) as i32);
         }
-        if e < i64::from(MIN_SUB_EXP - 1) {
-            return 0.0_f64.copysign(a.hi);
-        }
-        // Round in units of the least subnormal. At an exact midpoint of the leading term, round
-        // away from zero, as the first omitted term does for real z.
-        let units = ldexp_f64(a.hi, (e - i64::from(MIN_SUB_EXP)) as i32);
-        let rounded = if units.fract().abs() == 0.5
-            && a.lo != 0.0
-            && a.lo.is_sign_negative() != a.hi.is_sign_negative()
-        {
-            units.trunc()
-        } else {
-            units.round()
-        };
-        ldexp_f64(rounded, MIN_SUB_EXP)
+        let units = a.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32);
+        units.round_subnormal_units()
     };
     let scaled = |a: [Part; 2]| c64(scaled(a[0]), scaled(a[1]));
+    // `c_{n,0} conj(z)^(n+1)` over `|z|^(2n+2)`
+    let (mut seed, mut den) = (conj, abs2);
     for n in 0..int(qm.extent(1)) {
         let next = f64::from(n) + 1.0;
-        let slope = scale(inv, -next);
         let mut value = seed;
         for m in 0..int(qm.extent(0)) {
-            (qm[(m, n)], qd[(m, n)]) = output(scaled(value), scaled(cmul(value, slope)));
-            value = scale(value, order_sign * (next + f64::from(m)));
+            let k = coefficients(f64::from(n), f64::from(m));
+            // d/dz z^-p = -p z^-(p+1), for p = n + 1 + 2j
+            let mut power = next;
+            let dk = k.map(|k| {
+                let dk = k * -power;
+                power += 2.0;
+                dk
+            });
+            let derivative = series(cmul(value, conj), mul(den, abs2), dk);
+            (qm[(m, n)], qd[(m, n)]) = output(scaled(series(value, den, k)), scaled(derivative));
+            value = scale(value, DoubleDouble::new(order_sign * (next + f64::from(m))));
         }
-        seed = cmul(seed, slope).map(|(m, e)| norm((-m / (2.0 * next + 1.0), e)));
+        seed = scale(cmul(seed, conj), DoubleDouble::new(next) / (2.0 * next + 1.0));
+        den = mul(den, abs2);
     }
 }
 
