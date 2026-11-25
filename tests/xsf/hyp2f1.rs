@@ -114,6 +114,37 @@ fn test_hyp2f1_c64_transform2_euler() {
 }
 
 #[test]
+fn test_hyp2f1_c64_rounded_zero_balance() {
+    for (a, b, c, x, y, re, im) in [
+        (
+            8.000_000_000_000_002,
+            8.0,
+            16.0,
+            1.0001,
+            1e-6,
+            205_297.257_891_107_5,
+            160_165.783_236_770_77,
+        ),
+        (
+            32.0,
+            31.999_999_999_999_996,
+            64.0,
+            1.0,
+            f64::from_bits(1),
+            2.159_228_790_004_916_6e22,
+            4.605_886_830_369_123e19,
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for sign in [-1.0, 1.0] {
+                let actual = xsf::hyp2f1(a, b, c, c64(x, sign * y));
+                np_assert_allclose!([actual.re, actual.im], [re, sign * im], rtol = 3e-12);
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {

@@ -705,7 +705,17 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {
-        let (result, cancellation) = if (c - a - b - (c - a - b).round()).abs() < HYP2F1_EPS {
+        let balance = c - a - b;
+        // Unlike in xsf, also take the limit when a + b - c rounds to a gamma pole.
+        // On or outside the unit disk the Maclaurin fallback cannot recover that pole.
+        // The radius bound keeps the limiting series coefficients rapidly decreasing.
+        let use_limit = (balance - balance.round()).abs() < HYP2F1_EPS
+            || (z_abs >= 1.0
+                && a + b == c
+                && (1.0..=32.0).contains(&a)
+                && (1.0..=32.0).contains(&b)
+                && (1.0 - z).norm_sqr() <= (0.5 / (a * b)).powi(2));
+        let (result, cancellation) = if use_limit {
             // Removable singularity when c - a - b is an integer. Need to use limiting formula.
             // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
             // terms vanish fast.
