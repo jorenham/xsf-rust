@@ -2348,3 +2348,24 @@ fn test_amos_orders_above_2_30() {
     let desired = [c64(i, i), c64(1.685_736_916_683_522e-5, -1.175_317_735_666_563_8e-5)];
     np_assert_allclose!(&actual, &desired, rtol = 1e-5);
 }
+
+#[test]
+fn bessel_ye_integer_order_on_imaginary_axis() {
+    for (order, re, im) in [
+        (1000.0, -0.741_397_822_053_917_6, 0.0),
+        (1001.0, -0.0, 3.477_291_343_434_034_7),
+        (-1001.0, 0.0, -3.477_291_343_434_034_7),
+    ] {
+        let expected = c64(re, im);
+        for (z, expected) in [(c64(0.0, 446.75), expected), (c64(-0.0, -446.75), expected.conj())] {
+            let y = xsf::bessel_ye(order, z);
+            for (actual, expected) in [(y.re, expected.re), (y.im, expected.im)] {
+                if expected == 0.0 {
+                    assert_eq!(actual.to_bits(), expected.to_bits(), "{order}, {z:?}");
+                } else {
+                    assert!((actual / expected - 1.0).abs() < 2e-13, "{order}, {z:?}: {y:?}");
+                }
+            }
+        }
+    }
+}

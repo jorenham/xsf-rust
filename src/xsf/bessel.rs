@@ -15,6 +15,7 @@ use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_PI_2_DD, LOG2, two_sum};
 use crate::xsf::cephes::ikv_asymptotic_uniform_sums;
 use crate::xsf::expint::scaled_exp1;
+use crate::xsf::phase::Quadrant;
 use crate::xsf::specfun;
 use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_INF};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
@@ -599,8 +600,43 @@ fn cyl_bessel_ye_c64(v: f64, z: C64) -> C64 {
         z,
         c64(-z.im.abs(), 0.0),
         |kode| cyl_bessel_y_kode(v, z, kode),
-        || scaled_bessel_from_k(v, z, false),
+        || scaled_bessel_y_on_imaginary_axis(v, z).or_else(|| scaled_bessel_from_k(v, z, false)),
     )
+}
+
+// Unlike in xsf, recover integer-order Y on the imaginary axis when its
+// scaled I component is below half the least subnormal (DLMF 10.27.8 and 10.27.11).
+#[cold]
+fn scaled_bessel_y_on_imaginary_axis(v: f64, z: C64) -> Option<C64> {
+    let k = scaled_axis_k_when_i_rounds_to_zero(v, z)?;
+    let quadrant = v.rem_euclid(4.0) as u32;
+    let (re, im) = Quadrant::from_index(u64::from(quadrant)).rotate(0.0, neg_if_odd(quadrant, -k));
+    let value = c64(re, im);
+    Some(if z.im < 0.0 { value.conj() } else { value })
+}
+
+#[cold]
+fn scaled_axis_k_when_i_rounds_to_zero(v: f64, z: C64) -> Option<f64> {
+    let (n, y) = (v.abs(), z.im.abs());
+    // Normal decay implies y < 710. The integral over [1, 2] alone gives
+    // K_n(y) > exp(n - 4y)/2 (DLMF 10.32.9), so n >= 4096 overflows.
+    if z.re != 0.0 || v.fract() != 0.0 || !(1.0..4096.0).contains(&n) {
+        return None;
+    }
+    let decay = (-y).exp();
+    if !decay.is_normal() {
+        return None;
+    }
+    let (raw_k, k) = normal_scaled_axis_k(n, y, decay)?;
+    // The Wronskian and K recurrence give 2n I_n(y) K_n(y) < 1 (DLMF 10.28.2, 10.29.1).
+    // With n >= 1, a zero quotient leaves at least a factor of two for rounding in K.
+    (decay / raw_k == 0.0).then_some(k)
+}
+
+fn normal_scaled_axis_k(n: f64, y: f64, decay: f64) -> Option<(f64, f64)> {
+    let raw = cyl_bessel_k_f64(n, y);
+    let scaled = (FRAC_2_PI * raw) * decay;
+    scaled.is_normal().then_some((raw, scaled))
 }
 
 fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
