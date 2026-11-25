@@ -811,16 +811,45 @@ pub trait Hyp2F1Arg: crate::sealed::Sealed {
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self;
 }
 
+// Unlike in xsf, use the symmetric quadratic transform (DLMF 15.8.21)
+// for moderate positive real arguments.
+fn hyp2f1_symmetric_real(h: f64, b: f64, c: f64, z: f64) -> Option<f64> {
+    if h != b || !(0.5..=32.0).contains(&h) || c != 2.0 * h || !(z > 0.0 && z <= 0.75) {
+        return None;
+    }
+    let u = 1.0 + (1.0 - z).sqrt();
+    let rho = z / (u * u);
+    let w = rho * rho;
+    // Successive positive terms have ratio at most w <= 1/9.
+    let tail = w / (1.0 - w);
+    let (mut sum, mut term) = (1.0, 1.0);
+    let mut n = 0.0;
+    while term * tail > f64::EPSILON * 0.25 * sum {
+        term *= w * (h + n) * (n + 0.5) / ((h + n + 0.5) * (n + 1.0));
+        sum += term;
+        n += 1.0;
+    }
+    Some((c * rho.ln_1p()).exp() * sum)
+}
+
 impl Hyp2F1Arg for f64 {
     #[inline]
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self {
-        crate::xsf::cephes::hyp2f1(a, b, c, self)
+        // Unlike in xsf, try the symmetric real fast path before Cephes.
+        hyp2f1_symmetric_real(a, b, c, self)
+            .unwrap_or_else(|| crate::xsf::cephes::hyp2f1(a, b, c, self))
     }
 }
 
 impl Hyp2F1Arg for num_complex::Complex<f64> {
     #[inline]
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self {
+        // Unlike in xsf, exactly real arguments can use the symmetric real fast path.
+        if self.im == 0.0 {
+            if let Some(value) = hyp2f1_symmetric_real(a, b, c, self.re) {
+                return Self::new(value, 0.0);
+            }
+        }
         self.via(|z| hyp2f1_c64(a, b, c, z))
     }
 }
