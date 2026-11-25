@@ -1060,13 +1060,12 @@ fn hyp0f3_quarter_parameters(z: f64) -> Option<Estimate> {
 
 // DLMF 16.12.1 gives 0F1(u; z/4) 0F1(v; z/4) for this family.
 #[cold]
-fn hyp2f3_bessel_product(a: [f64; 2], mut b: [f64; 3], z: f64) -> Option<Estimate> {
+fn hyp2f3_bessel_product(a: [f64; 2], b: [f64; 3], z: f64) -> Option<Estimate> {
     let w = z * 0.25;
     if z >= 0.0 || !w.is_normal() {
         return None;
     }
-    sort_descending(&mut b);
-    let [sum, v, u] = b;
+    let [sum, v, u] = descending(b);
     let (u_minus_one, rem) = two_sum(u, -1.0);
     if u < 1.0
         || rem != 0.0
@@ -1081,10 +1080,11 @@ fn hyp2f3_bessel_product(a: [f64; 2], mut b: [f64; 3], z: f64) -> Option<Estimat
     let (left, right) = (factor(u)?, factor(v)?);
     let y = left.y * right.y;
     let err = left.err + right.err + left.err * right.err + f64::EPSILON;
+    let magnitude = y.abs();
     (err <= PFQ_TOL
         && y.is_normal()
-        && y.abs().mul_add(err, y.abs()).is_finite()
-        && y.abs().mul_add(-err, y.abs()) >= f64::MIN_POSITIVE)
+        && magnitude.mul_add(err, magnitude).is_finite()
+        && magnitude.mul_add(-err, magnitude) >= f64::MIN_POSITIVE)
         .then(|| Estimate::new(y, err))
 }
 
