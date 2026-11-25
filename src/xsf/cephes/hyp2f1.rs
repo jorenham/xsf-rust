@@ -137,30 +137,20 @@ fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 /// The `loss` (the second return value) estimates loss of significance. Unlike in xsf, the third
 /// is an estimate of the relative error that also includes the error of the recurrence in `a`.
 fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
-    let mut f;
-    let mut intflag = false;
-
+    // Put the larger magnitude first, except when b is near a non-positive integer.
     if b.abs() > a.abs() {
-        /* Ensure that |a| > |b| ... */
-        f = b;
-        b = a;
-        a = f;
+        core::mem::swap(&mut a, &mut b);
     }
-
     let ib = b.round() as i32;
-
-    if (b - f64::from(ib)).abs() < HYP2F1_EPS
+    let near_nonpositive = (b - f64::from(ib)).abs() < HYP2F1_EPS
         && ib <= 0
-        && (b.abs() < a.abs() || (b == -a && a <= HYP2F1_MAXITER as f64))
-    {
-        /* .. except when `b` is a negative integer with |b| <= |a| */
-        f = b;
-        b = a;
-        a = f;
-        intflag = a.abs() != b.abs(); /* not for the tie `b == -a` */
+        && (b.abs() < a.abs() || (b == -a && a <= HYP2F1_MAXITER as f64));
+    if near_nonpositive {
+        core::mem::swap(&mut a, &mut b);
     }
+    let prefer_recurrence = near_nonpositive && a.abs() != b.abs();
 
-    if (a.abs() > c.abs() + 1.0 || intflag) && (c - a).abs() > 2.0 && a.abs() > 2.0 {
+    if (a.abs() > c.abs() + 1.0 || prefer_recurrence) && (c - a).abs() > 2.0 && a.abs() > 2.0 {
         /* |a| >> |c| implies that large cancellation error is to be expected.
          *
          * We try to reduce it with the recurrence relations
@@ -172,74 +162,62 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 
 /// The power series of `hys2f1`, without the recurrence in `a`
 fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
-    let mut i: u64 = 0;
-    let mut umax = 0.0;
-    let f = a;
-    let g = b;
-    let h = c;
-    let mut s = 1.0;
-    let mut u = 1.0;
-    let mut k = 0.0;
+    // Unlike in xsf, only if c = 0, since the series is finite for a tiny c != 0
+    if c == 0.0 {
+        return (f64::INFINITY, 1.0, 1.0);
+    }
+    let (mut sum, mut term, mut max_term) = (1.0, 1.0, 0.0);
     // Unlike in xsf, if x > 0 and c < 0 is not an integer (even if near one), don't stop before
     // the terms have passed k = -c and stopped growing, since they can be tiny before and huge
     // after it.
-    let pole_ahead = x > 0.0 && h < 0.0 && h.fract() != 0.0;
+    let pole_ahead = x > 0.0 && c < 0.0 && c.fract() != 0.0;
     // up to `HYP2F1_MAXITER` terms before and after k = -c
     let maxiter = HYP2F1_MAXITER * if pole_ahead { 2 } else { 1 };
     // the terms are scaled by `HYP2F1_SCALE^n_scaled` so that they don't underflow, and are only
     // summed (and counted in `loss`) if `n_scaled == 0`, as they are negligible otherwise
-    let (mut n_scaled, mut i_scaled) = (0, 0);
+    let (mut n_scaled, mut skipped) = (0, 0);
     // Unlike in xsf, for c `near_pole`, `loss` weighs each term by its index instead of counting
     // the largest one once, as its rounding accumulates over the term ratios, and a term after
     // the pole can be the largest (times MACHEP before summing, so that it doesn't overflow)
-    let (weigh, mut weighted) = (near_pole(h), 0.0);
-    loop {
-        // Unlike in xsf, only if c = 0, since the series is finite for a tiny c != 0
-        if h == 0.0 {
-            return (f64::INFINITY, 1.0, 1.0);
-        }
+    let (weigh, mut weighted) = (near_pole(c), 0.0);
+    for i in 0..=maxiter {
+        let k = i as f64;
         let m = k + 1.0;
-        let r = (f + k) * (g + k) * x / ((h + k) * m);
-        u *= r;
+        let ratio = (a + k) * (b + k) * x / ((c + k) * m);
+        term *= ratio;
         // fail if the term ratio underflows, e.g. for tiny a and b
-        if pole_ahead && r.abs() < f64::MIN_POSITIVE && f + k != 0.0 && g + k != 0.0 {
-            return (s, 1.0, 1.0);
+        if pole_ahead && ratio.abs() < f64::MIN_POSITIVE && a + k != 0.0 && b + k != 0.0 {
+            return (sum, 1.0, 1.0);
         }
-        if pole_ahead && u != 0.0 && u.abs() < 1.0 / HYP2F1_SCALE {
-            (u, n_scaled) = (u * HYP2F1_SCALE, n_scaled + 1);
-        } else if n_scaled > 0 && u.abs() > 1.0 {
-            (u, n_scaled) = (u / HYP2F1_SCALE, n_scaled - 1);
+        if pole_ahead && term != 0.0 && term.abs() < 1.0 / HYP2F1_SCALE {
+            (term, n_scaled) = (term * HYP2F1_SCALE, n_scaled + 1);
+        } else if n_scaled > 0 && term.abs() > 1.0 {
+            (term, n_scaled) = (term / HYP2F1_SCALE, n_scaled - 1);
         }
-        let t = if n_scaled == 0 { u } else { 0.0 };
-        s += t;
+        let summand = if n_scaled == 0 { term } else { 0.0 };
+        sum += summand;
         if weigh {
-            weighted += MACHEP * m * t.abs();
+            weighted += MACHEP * m * summand.abs();
         }
-        k = t.abs(); /* remember largest term summed */
-        if k > umax {
-            umax = k;
+        let magnitude = summand.abs();
+        if magnitude > max_term {
+            max_term = magnitude;
         }
-        k = m;
-        i += 1;
-        i_scaled += u64::from(n_scaled > 0);
-        if i > maxiter {
-            /* should never happen */
-            return (s, 1.0, 1.0);
-        }
-        let growing = pole_ahead && u != 0.0 && (k < 1.0 - h || r.abs() > 1.0);
-        // Unlike in xsf (scipy/xsf#470), a negligible term doesn't end the sum if a later one
-        // isn't, e.g. a tiny first term from a tiny `a`, after which the terms can grow again.
-        let grows_back = || (t / s).abs() * ln_max_growth(f, g, h, x, k).exp() > MACHEP;
-        if !(s == 0.0 || (t / s).abs() > MACHEP || growing || grows_back()) {
+        skipped += u64::from(n_scaled > 0);
+        if i == maxiter {
             break;
         }
+        let growing = pole_ahead && term != 0.0 && (m < 1.0 - c || ratio.abs() > 1.0);
+        // Unlike in xsf (scipy/xsf#470), a negligible term doesn't end the sum if a later one
+        // isn't, e.g. a tiny first term from a tiny `a`, after which the terms can grow again.
+        let grows_back = || (summand / sum).abs() * ln_max_growth(a, b, c, x, m).exp() > MACHEP;
+        if !(sum == 0.0 || (summand / sum).abs() > MACHEP || growing || grows_back()) {
+            let lost = if weigh { weighted } else { MACHEP * max_term };
+            let loss = lost / sum.abs() + MACHEP * (i + 1 - skipped) as f64;
+            return (sum, loss, loss);
+        }
     }
-
-    /* return estimated relative error */
-    let lost = if weigh { weighted } else { MACHEP * umax };
-    let loss = lost / s.abs() + (MACHEP * (i - i_scaled) as f64);
-
-    (s, loss, loss)
+    (sum, 1.0, 1.0)
 }
 
 /// The largest `ln(t_m / t_n)` (`m >= n`) of the terms `t_m` of the power series, if their ratios
@@ -621,7 +599,6 @@ fn sums_to_zero(b: f64, m: f64, x: f64) -> bool {
 ///
 /// AMS55 #15.2.10
 fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
-    let mut f2;
     // the coefficients `(A, B)` of a step `f0 = A f1 + B f2`, and its rounding error in MACHEP
     let mut steps = Vec::new();
     let step = |t: f64, q: f64, den: f64, f1: f64, f2: f64| {
@@ -665,7 +642,7 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         t -= 1.0;
         let mut n = 1.0;
         while n < -da {
-            f2 = f1;
+            let f2 = f1;
             f1 = f0;
             f0 = -(2.0 * t - c - t * x + b * x) / (c - t) * f1 - t * (x - 1.0) / (c - t) * f2;
             steps.push(step(t, t * (x - 1.0), c - t, f1, f2));
@@ -677,7 +654,7 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         t += 1.0;
         let mut n = 1.0;
         while n < da {
-            f2 = f1;
+            let f2 = f1;
             f1 = f0;
             f0 = -((2.0 * t - c - t * x + b * x) * f1 + (c - t) * f2) / (t * (x - 1.0));
             steps.push(step(t, c - t, t * (x - 1.0), f1, f2));
