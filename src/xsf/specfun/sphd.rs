@@ -1569,8 +1569,10 @@ fn sdmn(m: i32, n: i32, c: f64, cv: f64, kd: i32, df: &mut [f64]) -> Status {
                         df[(j - 1) as usize] = f;
                     }
                     if f.abs() > 1.0e+100 {
-                        for k1 in 1..=j {
-                            df[(k1 - 1) as usize] *= 1.0e-100;
+                        // Unlike in xsf, keep the backward coefficient at kb on its
+                        // original scale when the last forward term is held only in f.
+                        for value in &mut df[..j.min(kb) as usize] {
+                            *value *= 1.0e-100;
                         }
                         f *= 1.0e-100;
                         f2 *= 1.0e-100;

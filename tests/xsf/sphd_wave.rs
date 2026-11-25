@@ -70,6 +70,20 @@ fn test_prolate_radial1_near_endpoint() {
 }
 
 #[test]
+fn test_radial1_matching_coefficient_rescale() {
+    // Angular eigenvector and spherical Bessel expansions at 90 decimal digits.
+    let (value, derivative) = xsf::prolate_radial1_nocv(2, 130, 5.0, 30.0);
+    let expected = [0.008_643_531_359_915_08, 0.008_964_805_883_160_51];
+    xsref::np_assert_allclose!([value, derivative], expected, rtol = 1e-13);
+
+    let expected = [0.005_795_475_310_634_448, -1.732_746_487_595_648_8e-11];
+    for radial in [xsf::prolate_radial1, xsf::oblate_radial1] {
+        let (value, derivative) = radial(2, 42, 5e-9, 1806.0, 3e10);
+        xsref::np_assert_allclose!([value, derivative], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_prolate_radial1_large_argument() {
     let (c, x) = (7.1, 100_000_000.3);
     for (n, expected) in [
