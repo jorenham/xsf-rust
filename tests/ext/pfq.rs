@@ -45,6 +45,21 @@ fn test_hyp3f2_slow_series_near_one() {
 }
 
 #[test]
+fn test_hyp3f2_clausen_near_one() {
+    // Arb complete elliptic K at (1 - sqrt(1 - z)) / 2.
+    for (z, expected) in [(0.999_999_99, 1.393_140_271_918_224_9), (1.0, 1.393_203_929_685_676_9)] {
+        let (a, b) = ([0.5; 3], [1.0; 2]);
+        assert_hyp3f2(a, b, z, expected);
+        assert!((hyppfq(a, b, z).unwrap() - expected).abs() < 1e-14);
+    }
+    // Arb on the Clausen square at the original argument.
+    let (a, b) = ([2.5, 3.25, 2.875], [5.75, 3.375]);
+    let expected = 27.908_323_339_537_848;
+    assert_hyp3f2(a, b, 0.999_999_99, expected);
+    assert!((hyppfq(a, b, 0.999_999_99).unwrap() / expected - 1.0).abs() < 1e-14);
+}
+
+#[test]
 fn test_hyp3f2_polynomial() {
     // mpmath references, cross-checked with Arb
     for (a, b, z, expected) in [
