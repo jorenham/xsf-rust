@@ -140,6 +140,8 @@ fn test_mathieu_characteristic_index() {
         xsf::mathieu_a(13, 82.75),
         xsf::mathieu_b(3, 91.0),
         xsf::mathieu_b(6, 31.75),
+        xsf::mathieu_a(26, 279.75),
+        xsf::mathieu_b(30, 143.0),
     ];
     let expected = [
         37.462_613_226_028_195,
@@ -147,6 +149,8 @@ fn test_mathieu_characteristic_index() {
         192.319_383_638_457_1,
         -89.983_058_073_142_89,
         42.396_659_114_178_3,
+        737.764_264_597_566_3,
+        911.465_825_166_304_3,
     ];
     xsref::np_assert_allclose!(actual, expected, rtol = 2e-14);
 }
