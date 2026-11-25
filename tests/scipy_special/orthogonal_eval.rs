@@ -74,6 +74,21 @@ fn test_eval_real_degree_large() {
         -0.010_204_813_296_612_693,
     ];
     np_assert_allclose!(actual, desired, rtol = 2e-12);
+    // also for complex z (Arb)
+    let z = c64(0.3, 0.2);
+    let actual = [
+        xsf::eval_legendre(50.5, z),
+        xsf::eval_chebyshev_t(50.5, z),
+        xsf::eval_gegenbauer(50.5, 0.3, z),
+        xsf::eval_jacobi(50.5, 0.25, 1.5, z),
+    ];
+    let desired = [
+        c64(550.051_775_457_943_8, 2_186.084_077_764_542_6),
+        c64(2_298.274_313_068_606, 17_832.861_537_143_56),
+        c64(132.530_922_975_592_74, 656.007_814_100_209_7),
+        c64(-1_564.599_837_723_061, 3_835.876_170_509_127),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 
     // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (Arb,
     // mpmath)
@@ -222,12 +237,18 @@ fn test_eval_integer_degree_complex() {
     let desired = c64(8.226_656_351_555_531e296, 0.0);
     np_assert_allclose!([actual], [desired], rtol = 3e-14);
 
-    // a fractional degree keeps the rounded prefactor, which hides the cancelled series (mpmath:
-    // 2.67e-312 + 2.57e-312i and 2.67e-22 + 2.57e-22i)
-    for alpha in [1e-310, 1e-20] {
-        let actual = xsf::eval_gegenbauer(200.5, alpha, c64(0.0, 0.01));
-        assert!(actual.norm() <= 1e-21, "{actual}");
-    }
+    // and a fractional degree with a tiny or subnormal prefactor (Arb)
+    let actual = [
+        xsf::eval_gegenbauer(200.5, 1e-20, c64(0.0, 0.01)),
+        xsf::eval_gegenbauer(200.5, 1e-310, c64(0.0, 0.01)),
+        c64(xsf::eval_gegenbauer(200.5, 1e-310, 0.3), 0.0),
+    ];
+    let desired = [
+        c64(2.666_378_194_870_680_3e-22, 2.571_393_267_128_632_5e-22),
+        c64(2.666_378_194_87e-312, 2.571_393_267_13e-312),
+        c64(-8.146_108_069_7e-313, 0.0),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-11);
 
     // but not with a wrong finite value where `alpha + 1/2` is a negative integer, the
     // overflowed parameters look symmetric, or the degree is negative (mpmath, exact)
@@ -880,6 +901,9 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
         eval_gegenbauer(300.5, 1e-20, c64(1.0, 1e-30)),
         c64(eval_gegenbauer(169.5, -84.749_999_999_999_99, 1.0), 0.0),
         c64(eval_gegenbauer(1028.5, -255.125, 0.98), 0.0),
+        eval_gegenbauer(200.5, 1e-20, c64(1.5, 0.2)),
+        eval_gegenbauer(171.5, 1e-15, c64(0.5, 0.5)),
+        eval_gegenbauer(200.5, -0.499_999_999_999_999_94, c64(0.0, 0.01)),
     ];
     let expected = [
         c64(4.570_588_854_908_153e212, -2.686_746_914_026_384_5e212),
@@ -890,11 +914,11 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
         c64(6.655_574_043_261_23e-23, 6.01e-48),
         c64(11_199_533_475_042.438, 0.0),
         c64(-1.866_722_552_602_418e-302, 0.0),
+        c64(-1.685_123_473_219_177_2e63, -9.643_855_446_004_103e62),
+        c64(-1.908_277_711_514_167_5e22, -3.643_575_503_507_152e21),
+        c64(-7.504_364_091_482_06e-4, -7.234_386_341_065_666e-4),
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-11);
-
-    let cancelled = eval_gegenbauer(200.5, -0.499_999_999_999_999_94, c64(0.0, 0.01));
-    assert!(cancelled.norm() <= 0.002);
 
     let near_pole = eval_gegenbauer(45.124_999_999_999_964, -150.0625, 1.0);
     assert!(near_pole.is_nan() || (near_pole / -3.314_213_978_469_249e66 - 1.0).abs() < 1e-11);

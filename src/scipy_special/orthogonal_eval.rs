@@ -38,6 +38,9 @@ mod sealed {
         fn is_finite(&self) -> bool;
         fn is_nan(&self) -> bool;
 
+        /// The absolute value
+        fn norm(&self) -> f64;
+
         /// `Some(x)` if `Self` is `f64`
         fn as_f64(&self) -> Option<f64>;
 
@@ -87,6 +90,11 @@ mod sealed {
         }
 
         #[inline]
+        fn norm(&self) -> f64 {
+            self.abs()
+        }
+
+        #[inline]
         fn as_f64(&self) -> Option<f64> {
             Some(*self)
         }
@@ -103,11 +111,7 @@ mod sealed {
 
         #[inline]
         fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
-            // Unlike in xsf, use the recurrence in the degree if -1 < x < 1, since the
-            // hypergeometric series cancels catastrophically for large non-integer degrees.
-            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
-            let y = crate::hyp2f1(-n, b, c, self * -0.5 + 0.5);
-            super::jacobi_hyp2f1_recurrence(self, nu, lam, c, y).unwrap_or(y)
+            super::hyp2f1_sh_series(self, n, b, c, lam)
         }
 
         #[inline]
@@ -149,6 +153,11 @@ mod sealed {
         }
 
         #[inline]
+        fn norm(&self) -> f64 {
+            Self::norm(*self)
+        }
+
+        #[inline]
         fn as_f64(&self) -> Option<f64> {
             None
         }
@@ -164,8 +173,8 @@ mod sealed {
         }
 
         #[inline]
-        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
-            crate::hyp2f1(-n, b, c, self * -0.5 + 0.5)
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+            super::hyp2f1_sh_series(self, n, b, c, lam)
         }
 
         #[inline]
@@ -213,48 +222,65 @@ mod sealed {
     }
 }
 
+/// `hyp2f1_sh` without `hyp2f1_sh_recurrence`
+fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64, lam: f64) -> Z {
+    // Unlike in xsf, try the recurrence in the degree, since the hypergeometric series cancels
+    // catastrophically for large non-integer degrees near [-1, 1].
+    let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+    let y = crate::hyp2f1(-n, b, c, x * -0.5 + 0.5);
+    jacobi_hyp2f1_recurrence(x, nu, lam, c, y).unwrap_or(y)
+}
+
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
 /// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
-/// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
-///   `n < 1e5` (to bound its cost).
+/// - It needs `alpha, beta > -1` (positive denominators; `beta > -1` as `lam + 1 > c`, which keeps
+///   the digits of a small `beta + 1`), `n > 2` (at least one step), `n < 1e5` (to bound its
+///   cost), and `-1 < x < 1` for real x (where the series cancels).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
 ///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
 ///   `tol` is `HYP2F1_ETHRESH` if the recurrence is stable (`growth * SQRT_EPSILON <= |G_n|`, which
 ///   limits that amplification to `1 / SQRT_EPSILON`), and 1 otherwise.
-fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Option<f64> {
+fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
+    x: Z,
+    n: f64,
+    lam: f64,
+    c: f64,
+    series: Z,
+) -> Option<Z> {
     let (alpha, beta) = (c - 1.0, lam - c);
-    if !(x.abs() < 1.0 && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && beta > -1.0) {
+    let inside = x.as_f64().is_none_or(|x| x.abs() < 1.0);
+    if !(inside && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && lam + 1.0 > c) {
         return None;
     }
     let ab = lam - 1.0;
     // `n - j` is exact for integer `0 <= j <= n`
     let m = n.floor();
-    let recur = |mut g0: f64, mut g1: f64| {
-        let mut j = m - 2.0;
-        while j >= 0.0 {
-            let v = n - j;
-            let t = 2.0 * v + ab;
-            let g2 = ((t - 1.0) * (t * (t - 2.0) * x + (alpha - beta) * ab) * g1
-                - 2.0 * (v - 1.0) * (v + beta - 1.0) * t * g0)
-                / (2.0 * (v + ab) * (t - 2.0) * (v + alpha));
-            (g0, g1) = (g1, g2);
-            j -= 1.0;
-        }
-        g1
-    };
-
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    let rec = recur(g0, g1);
-    // the solutions with starting values (1, 0) and (0, 1)
-    let growth = (recur(1.0, 0.0) * g0).abs() + (recur(0.0, 1.0) * g1).abs();
-    let stable = growth * SQRT_EPSILON <= rec.abs();
+    // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
+    let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
+    let mut sols = [(g0, g1), (one, zero), (zero, one)];
+    let mut j = m - 2.0;
+    while j >= 0.0 {
+        let v = n - j;
+        let t = 2.0 * v + ab;
+        let p = (x * (t * (t - 2.0)) + (alpha - beta) * ab) * (t - 1.0);
+        let q = 2.0 * (v - 1.0) * (v + beta - 1.0) * t;
+        let r = 2.0 * (v + ab) * (t - 2.0) * (v + alpha);
+        for (g0, g1) in &mut sols {
+            (*g0, *g1) = (*g1, (p * *g1 - *g0 * q) / r);
+        }
+        j -= 1.0;
+    }
+    let [(_, rec), (_, rec10), (_, rec01)] = sols;
+    let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
+    let stable = growth * SQRT_EPSILON <= rec.norm();
     let tol = if stable { HYP2F1_ETHRESH } else { 1.0 };
-    (!series.is_finite() || (rec - series).abs() > tol * growth).then_some(rec)
+    (!series.is_finite() || (rec - series).norm() > tol * growth).then_some(rec)
 }
 
 ///////////////////////////////
@@ -654,7 +680,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         let alpha2 = 2.0 * alpha;
         let b = n + alpha2;
         let c = alpha + 0.5;
-        let rec = self.hyp2f1_sh_recurrence(n, b, c, alpha2, true);
+        let g = self.hyp2f1_sh(n, b, c, alpha2, true);
 
         // Gamma(n + 2 alpha) / Gamma(n + 1) / Gamma(2 alpha) = 1 / (n B(2 alpha, n))
         // (DLMF 5.12.1), avoiding overflow of the Gamma factors. At the poles of Gamma(2 alpha)
@@ -680,28 +706,15 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             }
         };
 
-        if let Some(g) = rec {
-            // Unlike in xsf, scale the finite recurrence by 2 alpha first for subnormal prefactors.
-            if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE {
-                let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
-                if inv_beta.is_finite() {
-                    return g * alpha2 * (inv_beta / n);
-                }
-            }
-            return g * d;
-        }
-        // Unlike in xsf, keep the binomial when b - n rounds to a nonpositive integer and the
-        // first term of the large-degree complex series exceeds its constant term in magnitude.
-        let d = if 1.0 + n >= MAXGAM
-            && crate::utils::is_nonpos_int(b - n)
-            && self.as_f64().is_none()
-            && (self.clone().into() - 1.0).norm() * n * b.abs() > 2.0 * c.abs()
+        // Unlike in xsf, scale a finite 2F1 by 2 alpha first for subnormal prefactors.
+        if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE && g.is_finite()
         {
-            crate::binom(b - 1.0, n)
-        } else {
-            d
-        };
-        self.hyp2f1_sh_series(n, b, c, alpha2) * d
+            let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
+            if inv_beta.is_normal() {
+                return g * alpha2 * (inv_beta / n);
+            }
+        }
+        g * d
     }
 }
 
