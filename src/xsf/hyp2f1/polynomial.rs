@@ -31,7 +31,7 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
         // Headroom for the squared ordinate in the centered recurrence.
         && z.re.abs().max(z.im.abs()) <= pow2(256)
     {
-        population_polynomial(a, b, c, n, z)
+        population(a, b, c, n, z)
     } else {
         series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, count)
     };
@@ -58,7 +58,7 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
 }
 
 // Unlike in xsf, advance the two positive beta moments on the real interval.
-fn positive_beta_real_polynomial(n: u64, b: f64, c: f64, x: f64) -> Option<(C64, f64)> {
+fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<(C64, f64)> {
     // Keep the products and their double-word residuals away from either exponent limit.
     const MIN: f64 = pow2(-192);
     const MAX: f64 = pow2(384);
@@ -117,7 +117,7 @@ fn positive_beta_real_polynomial(n: u64, b: f64, c: f64, x: f64) -> Option<(C64,
 
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
 #[cold]
-fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
+fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let mut terms = hypergeometric_series_generator(a, b, c, z);
     let mut mass = 0.0;
     let origin = series_eval_fixed_length(
@@ -140,7 +140,7 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     }
 
     let other = if a == -(n as f64) { b } else { a };
-    let (centered, rounding) = centered_polynomial(n, other, c, z);
+    let (centered, rounding) = centered(n, other, c, z);
     if !centered.is_finite() {
         return origin;
     }
@@ -181,11 +181,11 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
 }
 
 /// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
-fn centered_polynomial(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
+fn centered(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
     let positive_beta = c > 0.0;
     if positive_beta && z.is_real() && (0.0..=1.0).contains(&z.re) {
-        if let Some(result) = positive_beta_real_polynomial(n, b, c, z.re) {
+        if let Some(result) = positive_beta_real(n, b, c, z.re) {
             return result;
         }
     }
