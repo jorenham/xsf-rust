@@ -44,19 +44,27 @@ fn near_neg_int(t: f64) -> bool {
     t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS
 }
 
-/// Unlike in xsf (scipy/xsf#371), `hys2f1`, or the power series and `true` if the recurrence in
-/// `a` has a small `loss` but a large error estimate, and the series is accurate and confirms the
-/// discrepancy (see `less_accurate`). Not if `a` or `b` is near a non-positive integer, where the
-/// series can stop too early.
-fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> ((f64, f64, f64), bool) {
-    let (y, loss, err) = hys2f1(a, b, c, x);
+/// Unlike in xsf (scipy/xsf#371), use the power series if it confirms that the recurrence in
+/// `a` lost precision despite its small `loss`. Near a non-positive integer it can stop too early.
+fn checked_series(
+    a: f64,
+    b: f64,
+    c: f64,
+    x: f64,
+    (y, loss, err): (f64, f64, f64),
+) -> Option<(f64, f64, f64)> {
     if loss < HYP2F1_ETHRESH && err >= HYP2F1_ETHRESH && !(near_neg_int(a) || near_neg_int(b)) {
         let series = hys2f1_series(a, b, c, x);
         if series.1 < HYP2F1_ETHRESH && less_accurate(y, series.0, series.1) {
-            return (series, true);
+            return Some(series);
         }
     }
-    ((y, loss, err), false)
+    None
+}
+
+fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
+    let original = hys2f1(a, b, c, x);
+    checked_series(a, b, c, x, original).unwrap_or(original)
 }
 
 /// Whether `y` is less accurate than `alt` with the estimated relative error `err`, by at least
@@ -309,7 +317,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate incl.
             // the recurrence in `a` isn't, it is only replaced by AMS55 #15.3.6 if that shows it
             // to be less accurate.
-            let ((y0, loss0, full0), _) = hys2f1_checked(a, b, c, x);
+            let (y0, loss0, full0) = hys2f1_checked(a, b, c, x);
             if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
                 (err, err_full) = (loss0, full0);
                 break 'done y0;
@@ -324,7 +332,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 
                 /* test for integer c-a-b */
                 /* If power series fails, then apply AMS55 #15.3.6 */
-                ((q, err, q_full), _) = hys2f1_checked(a, b, 1.0 - d, s);
+                (q, err, q_full) = hys2f1_checked(a, b, 1.0 - d, s);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(d);
                 sign *= sgngam;
@@ -335,7 +343,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 w -= lg;
                 sign *= sgngam;
                 let (w_q, sign_q) = (w, f64::from(sign));
-                ((r, err1, r_full), _) = hys2f1_checked(c - a, c - b, d + 1.0, s);
+                (r, err1, r_full) = hys2f1_checked(c - a, c - b, d + 1.0, s);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(-d);
                 sign *= sgngam;
@@ -498,7 +506,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         /* Use defining power series if no special cases */
         // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too
         let y;
-        ((y, err, err_full), _) = hys2f1_checked(a, b, c, x);
+        (y, err, err_full) = hys2f1_checked(a, b, c, x);
         y
     };
     // done:
@@ -641,11 +649,10 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     // Unlike in xsf (scipy/xsf#371), check the starting values, but only replace both, as their
     // errors correlate
     let t0 = if da < 0.0 { t - 1.0 } else { t + 1.0 };
-    let ((mut start_f1, checked1), (mut start_f0, checked0)) =
-        (hys2f1_checked(t, b, c, x), hys2f1_checked(t0, b, c, x));
-    if checked1 != checked0 {
-        (start_f1, start_f0) = (hys2f1(t, b, c, x), hys2f1(t0, b, c, x));
-    }
+    let starts = (hys2f1(t, b, c, x), hys2f1(t0, b, c, x));
+    let checked_starts =
+        || Some((checked_series(t, b, c, x, starts.0)?, checked_series(t0, b, c, x, starts.1)?));
+    let (start_f1, start_f0) = checked_starts().unwrap_or(starts);
     let ((mut f1, loss1, _), (mut f0, loss0, _)) = (start_f1, start_f0);
     let loss = loss1 + loss0;
 
