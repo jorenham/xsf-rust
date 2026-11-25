@@ -45,7 +45,7 @@
 use core::f64::consts::{FRAC_1_PI, FRAC_PI_4, PI};
 
 use crate::ext::{hyp2f1_poly_dd, ln_dd};
-use crate::utils::{is_nonpos_int, neg_one_pow, pow2};
+use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::hyp2f1::{hyp2f1_at_1, pow_1mx};
@@ -731,6 +731,140 @@ fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C
     (c64(round(re, scale), imag), rounding)
 }
 
+const CERT_U: f64 = f64::EPSILON / 2.0;
+const OUTWARD: f64 = 1.0 + 32.0 * CERT_U;
+// Floors keep the products of nonnegative enclosure factors normal.
+const CERT_FLOOR: f64 = pow2(-400);
+
+fn seed_series(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
+    let (mut sum, mut term) = (C64::ONE, C64::ONE);
+    let radius = z.norm() * OUTWARD;
+    for j in 0..HYP2F1_MAXITER {
+        let j = j as f64;
+        let p = (a + j) / (1.0 + j);
+        let q = (b + j) / (c + j);
+        let rho = radius * p.max(1.0) * q.max(1.0);
+        if rho < 1.0 && term.l1_norm() * rho <= CERT_U * sum.l1_norm() * (1.0 - rho) {
+            return Some(sum);
+        }
+        term = term * (p * q) * z;
+        if !term.l1_norm().is_normal() {
+            return None;
+        }
+        sum += term;
+    }
+    None
+}
+
+// Only used for bounded inputs. The normal floor also covers a subnormal squared modulus.
+fn mod_upper(z: C64) -> f64 {
+    (z.re.mul_add(z.re, z.im * z.im).max(f64::MIN_POSITIVE)).sqrt() * OUTWARD
+}
+
+fn steps_for_c_down(a: f64, b: f64, c: f64) -> Option<usize> {
+    let shift = (a.max(b) - c).floor() + 1.0;
+    if shift >= HYP2F1_MAXITER as f64 {
+        return None;
+    }
+    let n = shift as usize;
+    let (_, low) = two_sum(c, (n + 1) as f64);
+    let t = c + n as f64;
+    // Lower-index arguments have the same dyadic fractional part and no coarser
+    // grid than c or c+n+1. Check the outer endpoint exactly, without a lattice cutoff.
+    (low == 0.0 && t >= a.max(b)).then_some(n)
+}
+
+// DLMF 15.5.18, with t=c+k and F_t=F(a,b;t;z):
+// F_(t-1) = ((1-l*z)*F_t + beta*z*F_(t+1))/(1-z).
+// Carry an absolute bound over the vertical segment of width `vertical` from z.
+#[cold]
+fn c_down(a: f64, b: f64, c: f64, z: C64, vertical: f64) -> Option<(C64, f64)> {
+    let n = steps_for_c_down(a, b, c)?;
+    let r = (mod_upper(z) + vertical) * OUTWARD;
+    let k = (1..=4).find(|&k| r <= 1.0 - pow2(-k))?;
+    // At a seed with t >= max(a,b), the absolute series is at most
+    // (1-r)^(-min(a,b)), by comparison with the binomial series.
+    let e = f64::from(k) * a.min(b).ceil();
+    if e > 1023.0 {
+        return None;
+    }
+    let (mut u, mut v) = (pow2(e as i32), pow2(e as i32));
+    let t0 = c + n as f64;
+    let (mut f, mut fp) = (seed_series(a, b, t0, z)?, seed_series(a, b, t0 + 1.0, z)?);
+    let w = 1.0 - z;
+    let inv = C64::ONE / w;
+    // On a vertical segment from the real axis, |1-z| is smallest at its base.
+    let inv_bound = OUTWARD / w.re.mul_add(w.re, w.im * w.im).sqrt();
+    for k in (1..=n).rev() {
+        let t = c + k as f64;
+        let d = t - 1.0;
+        let l = (2.0 * t - 1.0 - a - b) / d;
+        let beta = (t - a) * (t - b) / (t * d);
+        let p = 1.0 - l * z;
+        let next = (p * f + (beta * z) * fp) * inv;
+        // t and d are exact, and nonzero beta factors stay normal under the
+        // shift cap. The coefficient 1-l*z needs an additive allowance for cancellation.
+        let l_error = 16.0 * CERT_U * ((2.0 * t).abs() + 1.0 + a + b) / d.abs();
+        let p_error = l_error * r + 8.0 * CERT_U * (1.0 + l.abs() * r);
+        let pa =
+            ((mod_upper(p) + p_error + l.abs() * vertical) * inv_bound * OUTWARD).max(CERT_FLOOR);
+        let qa = (beta.abs() * OUTWARD * r * inv_bound * OUTWARD).max(CERT_FLOOR);
+        let new_u = ((pa * u + qa * v) * OUTWARD).max(CERT_FLOOR);
+        (f, fp, u, v) = (next, f, new_u, u);
+        if !f.l1_norm().is_normal() || !u.is_normal() {
+            return None;
+        }
+    }
+    Some((f, u))
+}
+
+// The true component is at most `bound` in magnitude. If the
+// candidates are separated by more than twice the resulting error radius,
+// the triangle inequality proves that the replacement is closer.
+fn closer_component(candidate: f64, legacy: f64, bound: f64) -> Option<f64> {
+    if candidate == legacy {
+        Some(legacy)
+    } else {
+        (candidate.is_finite()
+            && next_down_nonneg((candidate - legacy).abs())
+                > 2.0 * next_up_nonneg(candidate.abs() + bound))
+        .then_some(candidate)
+    }
+}
+
+#[cold]
+fn certified_c_down(a: f64, b: f64, c: f64, z: C64, current: C64) -> Option<C64> {
+    if !current.is_finite() {
+        return None;
+    }
+    let tiny = z.im.abs();
+    let scaled = tiny != 0.0 && tiny < f64::MIN_POSITIVE.sqrt() * f64::EPSILON.sqrt();
+    let (value, re_bound, im_bound) = if scaled {
+        let real_z = c64(z.re, 0.0);
+        // Enlarge the segment to keep the coefficient bounds in normal range.
+        let vertical = tiny.max(CERT_FLOOR);
+        // DLMF 15.5.1: F'=(ab/c)F(a+1,b+1;c+1). Use the same
+        // enclosure on the shifted function over the segment.
+        let [(ap, da), (bp, db), (cp, dc)] = [a, b, c].map(|v| two_sum(v, 1.0));
+        if da != 0.0 || db != 0.0 || dc != 0.0 {
+            return None;
+        }
+        let (f, u) = c_down(a, b, c, real_z, vertical)?;
+        closer_component(f.re, current.re, u)?;
+        let (shifted, shifted_u) = c_down(ap, bp, cp, real_z, vertical)?;
+        let scale = (a * b).max(CERT_FLOOR) / c.abs() * OUTWARD;
+        let im_bound = next_up_nonneg((scale * shifted_u * OUTWARD) * tiny);
+        (c64(f.re, ((a * b) / c) * shifted.re * z.im), u, im_bound)
+    } else {
+        let (f, u) = c_down(a, b, c, z, 0.0)?;
+        (f, u, if tiny == 0.0 { 0.0 } else { u })
+    };
+    Some(c64(
+        closer_component(value.re, current.re, re_bound)?,
+        closer_component(value.im, current.im, im_bound)?,
+    ))
+}
+
 fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
@@ -883,7 +1017,24 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     if z_abs < 0.9 && z.re >= 0.0 {
         if c - a < a && c - b < b {
             result = (1.0 - z).powf(c - a - b);
-            let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
+            let mut series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
+            // Unlike in xsf, track cancellation and try a certified recurrence down in c.
+            if a > 0.0 && b > 0.0 && c < -1.0 && -c < HYP2F1_MAXITER as f64 {
+                let (mut mass, mut terms) = (0.0, 0.0);
+                let sum = series_eval(|| {
+                    let term = series_generator();
+                    mass += term.l1_norm();
+                    terms += 1.0;
+                    term
+                });
+                let value = result * sum;
+                if !(8.0 * CERT_U * terms * mass <= crate::ext::HYP2F1_RECUR_TOL * sum.l1_norm()) {
+                    if let Some(recovered) = certified_c_down(a, b, c, z, value) {
+                        return recovered;
+                    }
+                }
+                return value;
+            }
             result *= series_eval(series_generator);
             return result;
         }
