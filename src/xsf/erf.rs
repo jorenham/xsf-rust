@@ -65,31 +65,33 @@ impl ErfArg for Complex64 {
 }
 
 fn erfc_c64(z: C64) -> C64 {
-    use crate::xsf::faddeeva::erfc_c64 as raw_erfc;
+    gaussian_tail(z, 2.0)
+}
+
+// k/2 * erfc(z * sqrt(k/2)) for k = 1 or 2, with the Gaussian factor exp(-k*z^2/2) of the
+// unscaled z, so that ndtr shares the overflow and zero-sign recovery of erfc.
+#[inline]
+pub(super) fn gaussian_tail(z: C64, k: f64) -> C64 {
+    let raw_erfc = |z: C64| crate::xsf::faddeeva::erfc_c64(z * (0.5 * k).sqrt()) * (0.5 * k);
 
     let (x_abs, y_abs) = (z.re.abs(), z.im.abs());
-    // The rounded phase has at least one radian between representable values here.
-    let wide_phase = || (2.0 * x_abs) * y_abs > pow2(53);
     // Unlike in xsf, try certifying overflow before evaluation in this wedge,
     // where the exact Gaussian exponent exceeds MAX.
-    if y_abs >= pow2(513)
-        && y_abs.is_finite()
-        && x_abs != 0.0
-        && x_abs <= y_abs * 0.5
-        && wide_phase()
-    {
-        return erfc_overflow(z).unwrap_or_else(|| raw_erfc(z));
+    if y_abs >= 64.0 && x_abs <= y_abs * 0.5 {
+        if let Some(result) = erfc_overflow(z, k) {
+            return result;
+        }
     }
     let result = raw_erfc(z);
-    if result.is_nan() && z.is_finite() && x_abs == y_abs && (2.0 * z.re * z.re).is_infinite() {
-        return erfc_overrange_diagonal(z, result);
+    if result.is_nan() && z.is_finite() && x_abs == y_abs && (k * z.re * z.re).is_infinite() {
+        return erfc_overrange_diagonal(z, k, result);
     }
     if result.is_nan() {
-        return erfc_overflow(z)
+        return erfc_overflow(z, k)
             .or_else(|| {
                 // Unlike in xsf, recover a finite component independently of its infinite companion.
                 if result.re.is_infinite() || result.im.is_infinite() {
-                    erfc_rescale_overflow(z, result)
+                    erfc_rescale_overflow(z, k, result)
                 } else {
                     None
                 }
@@ -98,23 +100,26 @@ fn erfc_c64(z: C64) -> C64 {
     }
     if result.re.is_infinite() && result.im.is_infinite() {
         // Unlike in xsf, include the Faddeeva factor when deciding overflow.
-        return if wide_phase() {
-            erfc_overflow(z)
+        // The rounded phase has at least one radian between representable values here.
+        return if (k * x_abs) * y_abs > pow2(53) {
+            erfc_overflow(z, k)
         } else {
-            erfc_rescale_overflow(z, result)
+            erfc_rescale_overflow(z, k, result)
         }
         .unwrap_or(result);
     }
     // Unlike in xsf, keep the sign of a component that rounds to zero in the Gaussian tail.
     if result.im == 0.0 && z.im != 0.0 {
-        return gaussian_tail_zeros(z, 2.0, result);
+        return gaussian_tail_zeros(z, k, result);
     }
     result
 }
 
 #[cold]
-fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
-    let (x, y) = (z.re.abs(), z.im);
+fn erfc_rescale_overflow(z: C64, k: f64, result: C64) -> Option<C64> {
+    // The continued fraction takes the scaled argument, the phase and exponent the unscaled one.
+    let t = z * (0.5 * k).sqrt();
+    let (x, y) = (t.re.abs(), t.im);
     let partial = result.is_nan();
     let min_real = if partial { 8.0 } else { 32.0 };
     // In this region the general Gaussian continued fraction has degree four through nine.
@@ -122,18 +127,19 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
         return None;
     }
     let (w, degree) = crate::xsf::faddeeva::w_continued_fraction(-y, x);
-    let theta = (Dd::new(-x) * y).mul_pwr2(2.0);
+    let (x0, y0) = (z.re.abs(), z.im);
+    let theta = (Dd::new(-x0) * y0).mul_pwr2(k);
     let (sin, cos) = theta.sin_cos();
     let projected = c64(cos, sin) * w;
-    let exp = (Dd::new(y.abs()) - x) * (Dd::new(y.abs()) + x);
+    let exp = ((Dd::new(y0.abs()) - x0) * (Dd::new(y0.abs()) + x0)).mul_pwr2(0.5 * k);
     // Keep the upper and lower overflow tests at the same scaled magnitude.
-    let scale = mul_exp(f64::MIN_POSITIVE, exp.hi) * (1.0 + exp.lo);
+    let scale = mul_exp(f64::MIN_POSITIVE, exp.hi) * (1.0 + exp.lo) * (0.5 * k);
     let limit = f64::MAX * f64::MIN_POSITIVE;
 
     // Bound the remainder of the Gaussian Cauchy transform (DLMF 7.7.2)
     // by 1/(x*(|z|-4)^8).
     // Pad for the continued fraction and its rotation and scale.
-    let distance_squared = (z.norm() - 4.0).powi(2);
+    let distance_squared = (t.norm() - 4.0).powi(2);
     let remainder = 1.0 / (x * distance_squared.powi(4));
     let roundoff = w.l1_norm() * pow2(-44);
     let error = scale * (remainder + roundoff);
@@ -142,7 +148,7 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
         let a = val.abs();
         (a > error && a + error < limit).then(|| val / f64::MIN_POSITIVE)
     };
-    let reflect_real = |re| if z.re < 0.0 { 2.0 - re } else { re };
+    let reflect_real = |re| if z.re < 0.0 { k - re } else { re };
     let certify = |val: f64, error: f64| {
         if val.abs() - error > limit {
             Some(f64::INFINITY.copysign(val))
@@ -173,7 +179,7 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
         let repair = |missing, overflowed| {
             let value = certify(missing, error)?;
             let other = companion(overflowed);
-            (value.is_finite() || other.is_some_and(f64::is_finite)).then_some((value, other))
+            (value.is_finite() || other.is_some()).then_some((value, other))
         };
         return if result.re.is_nan() {
             repair(scaled.re, scaled.im)
@@ -182,13 +188,12 @@ fn erfc_rescale_overflow(z: C64, result: C64) -> Option<C64> {
             repair(scaled.im, scaled.re).map(|(im, re)| c64(re.map_or(result.re, reflect_real), im))
         };
     }
-    let (re, im) = (certify(scaled.re, error)?, certify(scaled.im, error)?);
-    (re.is_finite() || im.is_finite()).then(|| c64(reflect_real(re), im))
+    Some(c64(reflect_real(certify(scaled.re, error)?), certify(scaled.im, error)?))
 }
 
 // Recover the zero signs of k/2 * erfc(z * sqrt(k/2)), with k = 1 or 2.
 #[cold]
-pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
+fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
     let reflected = z.re < 0.0;
     let limit = if reflected { k } else { 0.0 };
     if result.re != limit {
@@ -244,9 +249,9 @@ pub(super) fn gaussian_tail_zeros(z: C64, k: f64, result: C64) -> C64 {
 }
 
 #[cold]
-fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
+fn erfc_overrange_diagonal(z: C64, k: f64, result: C64) -> C64 {
     let x = z.re.abs();
-    let (quadrant, r) = phase::reduce_diagonal_phase(x);
+    let (quadrant, r) = phase::reduce_diagonal_phase(x, k);
     let (sin, cos) = r.sin_cos();
     let (re, im) = quadrant.rotate(sin.abs().copysign(r), cos.abs());
     // On |r| <= pi/4, Taylor bounds give 7|r|/8 <= |sin r| <= |r|
@@ -265,7 +270,7 @@ fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
         if !old.is_nan() {
             return old;
         }
-        let scale = 0.5 * SQRT_FRAC_2_PI;
+        let scale = 0.5 * SQRT_FRAC_2_PI * (0.5 * k).sqrt();
         let value = (scale * factor) / x;
         let lower = ((scale * lo) * (1.0 - PAD)) / x;
         let upper = ((scale * hi) * (1.0 + PAD)) / x;
@@ -276,7 +281,7 @@ fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
         }
     };
     let re = if z.re < 0.0 && result.re.is_nan() {
-        2.0
+        k
     } else {
         component(re, re_bounds, result.re)
     };
@@ -284,8 +289,8 @@ fn erfc_overrange_diagonal(z: C64, result: C64) -> C64 {
 }
 
 #[cold]
-fn erfc_overflow(z: C64) -> Option<C64> {
-    // Leave roundoff margin above ln(4*MAX).
+fn erfc_overflow(z: C64, k: f64) -> Option<C64> {
+    // Leave roundoff margin above ln(6*MAX).
     const LOG_OVERFLOW_BOUND: f64 = 713.0;
 
     let (x, y) = (z.re, z.im);
@@ -296,11 +301,18 @@ fn erfc_overflow(z: C64) -> Option<C64> {
 
     // Unlike in xsf, recover signed infinities when the leading term of erfcx
     // certifies both signs. Use the original argument for the phase.
+    let (hi, lo) = two_prod(-x, y);
+    let phase = k * hi;
     let exponent = if y_abs >= 64.0 && x_abs <= y_abs * 0.5 {
-        // In this wedge the exponent is at least 3072; the sign test suffices.
+        if phase.abs() < 0.5 {
+            // Integrate from 0 to iy, then to z: the small phase keeps the horizontal
+            // cosine positive and its sine term below the vertical integral.
+            return Some(c64(-f64::INFINITY.copysign(x), -f64::INFINITY.copysign(y)));
+        }
+        // In this wedge the exponent is at least 1536k; the sign test suffices.
         f64::INFINITY
     } else {
-        let exponent = (y_abs - x_abs) * (y_abs + x_abs);
+        let exponent = 0.5 * k * (y_abs - x_abs) * (y_abs + x_abs);
         // A positive clearance is below one, and ln(|y|) > 3 whenever
         // the exponent exceeds LOG_OVERFLOW_BOUND.
         if exponent <= LOG_OVERFLOW_BOUND + 3.0 {
@@ -308,13 +320,11 @@ fn erfc_overflow(z: C64) -> Option<C64> {
         }
         exponent
     };
-    let (hi, lo) = two_prod(-x, y);
-    let phase = 2.0 * hi;
     let (quadrant, r) = if phase.abs() > pow2(53) {
-        phase::reduce_product_phase(-x, y)
+        phase::reduce_product_phase((-0.5 * k) * x, y)
     } else {
         // Keep the rounded quadrant within the exact-integer range of f64.
-        recentered_phase(phase, 2.0 * lo)
+        recentered_phase(phase, k * lo)
     };
     if r.abs() > 1.0 {
         return None;
@@ -328,11 +338,12 @@ fn erfc_overflow(z: C64) -> Option<C64> {
     let (re, im) = quadrant.rotate(sin, cos);
 
     let leading = c64(x / y_abs, -y.signum()) * c64(re, im);
-    // The normalized erfcx remainder is bounded by 3/|y|².
+    // The normalized erfcx remainder is bounded by 6/(k*y^2).
     // Allow for phase reduction and floating-point evaluation.
-    let error = r2 * r2 * r2 / 600.0 + (4.0 / y_abs) / y_abs + pow2(-44);
+    let error = r2 * r2 * r2 / 600.0 + (8.0 / k / y_abs) / y_abs + pow2(-44);
     let clearance = leading.re.abs().min(leading.im.abs()) - error;
-    // The exact scale is at least exp(y² - x²) / (4*|y|).
+    // The exact scale is at least sqrt(k/2) * exp(exponent) / (2*sqrt(pi)*|y|),
+    // which exceeds exp(exponent) / (6*|y|).
     // Positive clearance gives true normalized magnitudes above 2^-45, so
     // exponent >= 1536 suffices even at |y| = MAX.
     if clearance > 0.0
@@ -342,16 +353,6 @@ fn erfc_overflow(z: C64) -> Option<C64> {
     } else {
         None
     }
-}
-
-// Rotation and the sum of the sine/cosine Taylor errors for a split phase.
-pub(super) fn bounded_phase_rotation(phase: f64, lo: f64) -> Option<(C64, f64)> {
-    // Keep the rounded quadrant within the exact-integer range of f64.
-    if phase.abs() > pow2(53) {
-        return None;
-    }
-    let (quadrant, r) = recentered_phase(phase, lo);
-    phase_rotation(quadrant, r)
 }
 
 fn phase_rotation(quadrant: Quadrant, r: f64) -> Option<(C64, f64)> {

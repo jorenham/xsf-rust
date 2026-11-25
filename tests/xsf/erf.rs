@@ -269,6 +269,20 @@ fn test_complex_erfc_rescales_infinite_companion() {
 }
 
 #[test]
+fn test_complex_erfc_overflow_shared_with_ndtr() {
+    // Arb at the exact binary64 inputs: a small phase, and both components just above MAX.
+    for (z, expected) in [
+        (c64(1e-30, 300.0), c64(f64::NEG_INFINITY, f64::NEG_INFINITY)),
+        (c64(-250.0, -251.435_876_517_254_4), c64(f64::NEG_INFINITY, f64::NEG_INFINITY)),
+    ] {
+        assert_eq!(xsf::erfc(z), expected);
+        assert_eq!(xsf::erfc(z.conj()), expected.conj());
+        assert_eq!(xsf::erfc(-z), -expected);
+        assert_eq!(xsf::erfc(-z.conj()), -expected.conj());
+    }
+}
+
+#[test]
 fn test_complex_erfc_phase_product_overflow() {
     let z = c64(5.0, 8.988_465_674_311_05e307);
     let expected = c64(f64::INFINITY, f64::NEG_INFINITY);

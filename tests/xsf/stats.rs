@@ -438,6 +438,38 @@ fn test_ndtr_c64_bounded_overflow_phase() {
 }
 
 #[test]
+fn test_ndtr_c64_overflow_like_erfc() {
+    // Arb at the exact binary64 inputs: a wide phase, and both components just above MAX.
+    for (z, expected) in [
+        (c64(-1e5, -1e12), c64(f64::INFINITY, f64::INFINITY)),
+        (c64(-1e5, 1e50), c64(f64::INFINITY, f64::INFINITY)),
+        (c64(-100.0, -106.962_610_289_764_34), c64(f64::NEG_INFINITY, f64::NEG_INFINITY)),
+    ] {
+        assert_eq!(xsf::ndtr(z), expected);
+        assert_eq!(xsf::ndtr(z.conj()), expected.conj());
+        assert_eq!(xsf::ndtr(-z), -expected);
+        assert_eq!(xsf::ndtr(-z.conj()), -expected.conj());
+    }
+
+    // An overflowing squared diagonal, and a finite part next to an overflowing one.
+    for (z, re, im) in [
+        (c64(-1e300, -1e300), 2.703_582_075_983_466_4e-301, -8.052_273_672_793_895e-302),
+        (
+            c64(-250.0, -252.835_915_170_293_8),
+            3.027_401_123_304_904e306,
+            -4.022_582_231_100_544e306,
+        ),
+    ] {
+        let actual = xsf::ndtr(z);
+        xsref::np_assert_allclose!([actual.re, actual.im], [re, im], rtol = 2e-15);
+    }
+    let actual = xsf::ndtr(c64(-250.0, -252.863_599_594_722_22));
+    // The real part is below 1% of the modulus.
+    xsref::np_assert_allclose!([actual.re], [3.968_472_849_220_208_6e307], rtol = 5e-14);
+    assert_eq!(actual.im, f64::NEG_INFINITY);
+}
+
+#[test]
 fn test_log_ndtr_c64_near_0() {
     // mpmath `log1p(-erfc(z / sqrt(2)) / 2)`, where `ndtr(-z)` is small
     let z = [

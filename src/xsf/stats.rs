@@ -15,7 +15,7 @@ use num_complex::Complex64;
 use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT_TAU, pow2};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod};
+use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{
     betainc_xy, gamma, incbet_cf_factor, incbet_pseries_sum, lgam, lgam1p, mul_exp_sq,
@@ -40,41 +40,10 @@ impl StatsArg for f64 {
     }
 }
 
-fn ndtr_c64_with_overflow(z: C64) -> C64 {
-    let result = ndtr_c64(z);
-    let (x, y) = (z.re, z.im);
-    if !result.is_nan() {
-        // Unlike in xsf, keep underflow-zero signs using the phase of the original argument.
-        return if result.im == 0.0 && y != 0.0 {
-            crate::xsf::erf::gaussian_tail_zeros(-z, 1.0, result)
-        } else {
-            result
-        };
-    }
-    let y_abs = y.abs();
-    if !z.is_finite() || x == 0.0 || y_abs < 64.0 || x.abs() > y_abs * 0.5 {
-        return result;
-    }
-
-    // Unlike in xsf, recover overflow signs from the phase -x*y of the original argument.
-    let (phase, lo) = two_prod(-x, y);
-    let Some((rotation, error)) = crate::xsf::erf::bounded_phase_rotation(phase, lo) else {
-        return result;
-    };
-    let leading = c64(-x / y_abs, y.signum()) * rotation;
-    // The scaled erfcx remainder is at most 6/|y|². The margin also allows for
-    // roundoff; in this wedge (y² - x²)/2 >= 1536, so both components overflow.
-    if leading.re.abs().min(leading.im.abs()) > error + pow2(-9) {
-        c64(f64::INFINITY.copysign(leading.re), f64::INFINITY.copysign(leading.im))
-    } else {
-        result
-    }
-}
-
 impl StatsArg for Complex64 {
     #[inline]
     fn ndtr(self) -> Self {
-        self.via(ndtr_c64_with_overflow)
+        self.via(ndtr_c64)
     }
 
     #[inline]
@@ -84,13 +53,8 @@ impl StatsArg for Complex64 {
 }
 
 fn ndtr_c64(z: C64) -> C64 {
-    let (x, y) = (z.re, z.im);
-    if y.abs() >= 64.0 && x != 0.0 && (x * y).abs() < 0.5 {
-        // Unlike in xsf, infer both signs from the CDF integrals. The small phase
-        // keeps the cosine positive, and at |y| >= 64 both components overflow.
-        return c64(f64::INFINITY.copysign(x), f64::INFINITY.copysign(y));
-    }
-    crate::xsf::faddeeva::erfc_c64(-z * FRAC_1_SQRT_2) * 0.5
+    // Unlike in xsf, use the phase of the unscaled argument to recover overflow and zero signs.
+    crate::xsf::erf::gaussian_tail(-z, 1.0)
 }
 
 /*
