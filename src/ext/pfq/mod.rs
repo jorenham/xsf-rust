@@ -192,7 +192,7 @@ trait SeriesReal: Real + Add<f64, Output = Self> {
     fn frexp(self) -> (Self, i32);
     /// `self` times `2^e`
     fn ldexp(self, e: i32) -> Self;
-    /// Adds `term` to `(sum, comp)` with Neumaier compensation in `f64` (no-op `comp` in `Dd`)
+    /// Adds `term` to `sum`, and its rounding error to `comp` in `f64` (no-op `comp` in `Dd`)
     fn add_compensated(sum: Self, comp: Self, term: Self) -> (Self, Self);
     /// The compensated partial sum and its offset from `t_0 = 1`, as `f64`
     fn sum_and_delta(sum: Self, comp: Self) -> (f64, f64);
@@ -214,25 +214,8 @@ impl SeriesReal for f64 {
 
     #[inline]
     fn add_compensated(sum: Self, comp: Self, term: Self) -> (Self, Self) {
-        let next = sum + term;
-        if next.is_finite() && term.is_finite() {
-            let delta = if sum.abs() >= term.abs() {
-                (sum - next) + term
-            } else {
-                (term - next) + sum
-            };
-            let next_comp = comp + delta;
-            (
-                next,
-                if next_comp.is_finite() {
-                    next_comp
-                } else {
-                    comp
-                },
-            )
-        } else {
-            (next, 0.0)
-        }
+        let (next, delta) = two_sum(sum, term);
+        (next, comp + delta)
     }
 
     #[inline]
