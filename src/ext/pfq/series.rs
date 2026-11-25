@@ -342,31 +342,71 @@ fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: 
 /// or that is such a bound and not negligible.
 pub(super) fn pfq_terms<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> impl Iterator<Item = T> {
     let checked = pfq_extreme(a, b);
-    pfq_terms_of(first_zero(a), z, move |n, term| pfq_next(a, b, n, z, term, checked))
+    let ratio_at = move |n| pfq_term_ratio::<T>(a, b, n, z, checked);
+    // the ratio for the next term, computed one term early: its division then overlaps the
+    // summation of the term before it, which is faster
+    let mut ahead = ratio_at(0.0);
+    pfq_terms_of(first_zero(a), z, move |n, term| {
+        let ratio = core::mem::replace(&mut ahead, ratio_at(n + 1.0));
+        pfq_step(a, b, n, z, term, ratio)
+    })
 }
 
 /// `pfq_terms` with `next(n, t_n) = t_{n+1}`, for the degree of a polynomial, else infinity
 pub(super) fn pfq_terms_of<T: SeriesReal>(
     degree: f64,
     z: f64,
-    next: impl Fn(f64, T) -> T,
+    next: impl FnMut(f64, T) -> T,
 ) -> impl Iterator<Item = T> {
-    // the largest term, which is small once the terms are only upper bounds
-    let mut limit = f64::MAX;
-    let indices = (0_u32..).map(f64::from);
-    indices.scan(T::from_f64(1.0), move |term, n| {
-        let next = next(n, *term);
+    Terms {
+        next,
+        degree,
+        z,
+        n: 0,
+        term: T::from_f64(1.0),
+        limit: f64::MAX,
+    }
+}
+
+/// The iterator of `pfq_terms_of`: unlike an adapter with a closure, its `next` can always be
+/// inlined into the loop over the terms, which is faster
+struct Terms<T, F> {
+    next: F,
+    degree: f64,
+    z: f64,
+    /// The index of `term`
+    n: u32,
+    term: T,
+    /// The largest term, which is small once the terms are only upper bounds
+    limit: f64,
+}
+
+impl<T: SeriesReal, F: FnMut(f64, T) -> T> Iterator for Terms<T, F> {
+    type Item = T;
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn next(&mut self) -> Option<T> {
+        let n = f64::from(self.n);
+        self.n += 1;
+        let next = (self.next)(n, self.term);
+        let size = next.to_f64().abs();
+        // (most terms are accurate and not too large; tested first, as that is faster)
+        if (T::MIN_POSITIVE..=self.limit).contains(&size) {
+            self.term = next;
+            return Some(next);
+        }
         // (the terms after the last one of a polynomial are zero; tested last, as that is faster)
-        *term = if next.to_f64().abs() < T::MIN_POSITIVE && n < degree {
+        self.term = if size < T::MIN_POSITIVE && n < self.degree {
             // the term or its ratio underflows, after which the terms can become large again:
             // follow a bound on them
-            limit = PFQ_NEGLIGIBLE;
-            pfq_underflow_bound(*term, z)
+            self.limit = PFQ_NEGLIGIBLE;
+            pfq_underflow_bound(self.term, self.z)
         } else {
             next
         };
-        (term.to_f64().abs() <= limit).then_some(*term)
-    })
+        (self.term.to_f64().abs() <= self.limit).then_some(self.term)
+    }
 }
 
 /// The series `sum_n t_n` (DLMF 16.2.1) and an estimate of its relative error
