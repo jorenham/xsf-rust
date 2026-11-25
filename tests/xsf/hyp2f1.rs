@@ -2260,6 +2260,24 @@ fn test_hyp2f1_c64_beta_binomial_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_complex_binomial_power() {
+    // Pearson, Olver and Porter case 13 continued off-axis, checked with Arb.
+    for (a, b) in [(500., -500.), (-500., 500.)] {
+        for sign in [-1., 1.] {
+            let value = xsf::hyp2f1(a, b, 500., c64(0.75, sign * 0.01));
+            np_assert_allclose!(
+                [value.re, value.im],
+                [5.814_852_388_330_934e-302, -sign * 1.264_531_485_912_276_4e-301],
+                rtol = 3e-15
+            );
+        }
+    }
+    // The power amplifies the smallest subnormal ordinate to a normal component.
+    let value = xsf::hyp2f1(1., -512., 1., c64(-0.5, f64::from_bits(1)));
+    np_assert_allclose!([value.im], [-2.430_457_299_045_594e-231], rtol = 3e-15);
+}
+
+#[test]
 fn test_hyp2f1_c64_uniform_beta_binomial_polynomial() {
     // The 1000 equally weighted powers of -i sum to zero.
     for (a, b) in [(-999.0, 1.0), (1.0, -999.0)] {

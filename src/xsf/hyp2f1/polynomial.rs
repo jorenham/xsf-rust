@@ -13,16 +13,23 @@ struct Estimate {
 
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     let other = if a == -(n as f64) { b } else { a };
-    // Unlike in xsf, cancel a positive common parameter on the real axis.
-    if c > 0.0 && c.is_finite() && other == c && z.is_real() && z.re.is_finite() {
-        let (w, w_lo) = two_sum(1.0, -z.re);
-        let power = if z.re < 1.0 && w_lo != 0.0 && n > 1 {
-            pow_1mx(z.re, n as f64)
+    // Unlike in xsf, cancel a positive common parameter to obtain (1-z)^n.
+    if c > 0.0 && c.is_finite() && other == c && z.is_finite() {
+        let power = if z.is_real() {
+            let (w, w_lo) = two_sum(1.0, -z.re);
+            let power = if z.re < 1.0 && w_lo != 0.0 && n > 1 {
+                pow_1mx(z.re, n as f64)
+            } else {
+                w.powf(n as f64)
+            };
+            c64(power, 0.0)
+        } else if n == 1 {
+            1.0 - z
         } else {
-            w.powf(n as f64)
+            binomial_power(n, z)
         };
         if power.is_finite() {
-            return c64(power, 0.0);
+            return power;
         }
     }
     let count = n + 1;
@@ -68,6 +75,23 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
         }
     }
     value
+}
+
+fn binomial_power(n: u64, z: C64) -> C64 {
+    let (power, exponent) = super::beta_endpoints::one_minus_z_pow(z, n as f64);
+    // The polynomial degree is below 2^20, so the binary exponent fits in i32.
+    let exponent = exponent as i32;
+    let w = 1.0 - z.re;
+    // When the squared relative ordinate underflows, Im(w-iy)^n is
+    // -n*y/w times the real part to well beyond double precision.
+    let (imag, shift) = if z.im.abs() < f64::MIN_POSITIVE.sqrt() * w.abs() {
+        let (y, ey) = frexp_f64(z.im);
+        let (x, ex) = frexp_f64(w);
+        (-power.re * n as f64 * y / x, ey - ex)
+    } else {
+        (power.im, 0)
+    };
+    c64(ldexp_f64(power.re, exponent), ldexp_f64(imag, exponent + shift))
 }
 
 // Mean of 1, w, ..., w^(count-1), with w = 1-z.

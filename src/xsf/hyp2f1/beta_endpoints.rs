@@ -139,7 +139,7 @@ fn scale_endpoint(
     })
 }
 
-fn one_minus_z_pow(z: C64, p: f64) -> (C64, i64) {
+pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, i64) {
     // Exponentiation by squaring with double-double components and a separate scale.
     // A nonintegral binary64 exponent needs at most 53 bits in its integral part.
     let n = p.round();
