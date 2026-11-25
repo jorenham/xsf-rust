@@ -42,6 +42,7 @@
 //! The C++ generator classes are functions that return `FnMut` closures here. `set_error` is a
 //! no-op in our build of xsf, so the calls to it are omitted.
 
+mod beta_endpoints;
 mod polynomial;
 
 use core::f64::consts::{FRAC_1_PI, FRAC_PI_4, PI};
@@ -985,6 +986,10 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         } else {
             C64::NAN
         };
+    }
+    // Unlike in xsf, try a beta contour for a large negative nonintegral upper parameter.
+    if let Some(value) = beta_endpoints::evaluate(a, b, c, z, z_abs) {
+        return value;
     }
     // Kummer's Theorem for z = -1; c = 1 + a - b (DLMF 15.4.26)
     if (z + 1.0).norm() < HYP2F1_EPS && (1.0 + a - b - c).abs() < HYP2F1_EPS && !c_non_pos_int {

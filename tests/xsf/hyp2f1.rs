@@ -2275,6 +2275,57 @@ fn test_hyp2f1_c64_uniform_beta_binomial_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_nonterminating_beta_endpoints() {
+    // Neighbors of the degree-300 beta-binomial polynomial, checked with Arb.
+    let degree = (-300.0_f64).to_bits();
+    for ([a, b, c], [x, y], [re, im]) in [
+        (
+            [5.0, f64::from_bits(degree + 1), 10.0],
+            [0.5, 0.875],
+            [-4.379_935_823_703_022e-8, -3.095_636_837_235_489e-8],
+        ),
+        (
+            [5.0, f64::from_bits(degree - 1), 10.0],
+            [0.5, 0.875],
+            [-4.379_935_823_702_598e-8, -3.095_636_837_236_046e-8],
+        ),
+        (
+            [4.96, -300.01, 10.26],
+            [0.5, 0.875],
+            [-8.234_050_476_240_338e-9, -9.331_698_463_661_137e-9],
+        ),
+        (
+            [5.0, -300.01, 10.0],
+            [0.3, 0.35],
+            [-1.266_497_033_807_951_7e-7, 2.263_173_931_583_558_2e-7],
+        ),
+        (
+            [5.0, -300.01, 10.0],
+            [0.1, 0.1],
+            [-6.794_542_122_765_471e-5, 3.268_748_884_411_728_4e-5],
+        ),
+    ] {
+        for sign in [1.0, -1.0] {
+            let z = c64(x, sign * y);
+            let value = xsf::hyp2f1(a, b, c, z);
+            np_assert_allclose!([value.re, value.im], [re, sign * im], rtol = 1e-13);
+            assert_eq!(value, xsf::hyp2f1(b, a, c, z));
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_beta_endpoints_tiny_imaginary_part() {
+    // The series retains a small imaginary part that is poorly resolved by the contour.
+    let value = xsf::hyp2f1(1.0, -48.125, 2.0, c64(0.01, 1e-24));
+    np_assert_allclose!(
+        [value.re, value.im],
+        [0.793_180_702_499_857_2, -1.766_655_712_908_216_4e-23],
+        rtol = 1e-13
+    );
+}
+
+#[test]
 fn test_hyp2f1_c64_real_beta_binomial_projection() {
     // This endpoint is exactly halfway between two normal floats.
     let midpoint = xsf::hyp2f1(-30.0, 1.5, 3.0, c64(1.0, 0.0));
