@@ -30,6 +30,30 @@ fn test_shichi_c64_negative_real_cut() {
 }
 
 #[test]
+fn test_shichi_c64_beyond_expi_overflow() {
+    // Arb at the exact binary64 inputs.
+    let (re, im) = (1.252_999_571_039_782_9e308, 1.164_840_763_997_151e308);
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            let (shi, chi) = xsf::shichi(c64(sx * 717.0, sy * 0.75));
+            np_assert_allclose!(
+                [shi.re, shi.im, chi.re, chi.im],
+                [sx * re, sy * im, re, sx * sy * im],
+                rtol = 1e-15
+            );
+        }
+    }
+
+    let (shi, chi) = xsf::shichi(c64(718.0, 1.25));
+    np_assert_allclose!([shi.re, chi.re], [1.472_027_305_516_963_8e308; 2], rtol = 1e-15);
+    assert_eq!((shi.im, chi.im), (f64::INFINITY, f64::INFINITY));
+
+    // Near a phase zero, the bound cannot certify a formerly overflowing part.
+    let (shi, chi) = xsf::shichi(c64(755.999_999_999_540_4, 9.437_277_058_566_693));
+    assert_eq!((shi.im, chi.im), (f64::NEG_INFINITY, f64::NEG_INFINITY));
+}
+
+#[test]
 fn test_sici_c64_huge_re() {
     // `Ci` keeps the imaginary part of the small `E1(+-iz)`
     let z = c64(2.981_344_618_416_097e61, 55.611_119_890_015_31);
