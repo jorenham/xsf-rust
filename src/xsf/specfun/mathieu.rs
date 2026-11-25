@@ -186,8 +186,9 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             }
         }
     }
-    // Use the same handoff across low orders, beyond their largest m² transition.
-    if m <= 25 && (1.0..=768.0).contains(&q) {
+    // Unlike in xsf, verify the index across the moderate transition.
+    // Start the higher-order check below the observed wrong-index region.
+    if m <= 30 && (m <= 25 || q > 4.0 * f64::from(m)) && (1.0..=768.0).contains(&q) {
         return indexed_cv(kd, m, q, a).unwrap_or(a);
     }
     a
