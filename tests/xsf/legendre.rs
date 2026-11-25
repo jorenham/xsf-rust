@@ -659,39 +659,23 @@ fn test_legendre_q_all_c64_inf() {
 }
 
 #[test]
-fn test_legendre_q_all_c64_exterior_near_unit_circle() {
-    // Arb references at the exact binary64 inputs.
+fn test_complex_legendre_q_exterior_near_unit_circle() {
     let z = c64(0.154_255_747_404_549_34, -0.988_032_379_898_993_6);
     let (q, d) = xsf::legendre_q_all(30, z);
+    let z = c64(0.702_729_738_621_847_4, 0.711_585_757_122_401_1);
+    let (aq, ad) = xsf::assoc_legendre_q_all(13, 7, z);
+    let (inner, _) = xsf::assoc_legendre_q_all(32, 32, c64(0.0, 1.00005));
+    let (outer, _) = xsf::assoc_legendre_q_all(32, 32, c64(0.0, 1.02));
+    // Arb values, derivatives, and the oblate radial ratio Q_n^m(i u/E) / Q_n^m(i b/E).
     xsref::np_assert_allclose!(
-        [q[30], d[30]],
+        [q[30], d[30], aq[13][7], ad[13][7], outer[32][32] / inner[32][32]],
         [
             c64(1.096_037_748_414_413_7e-13, 4.462_716_575_483_255e-13),
             c64(9.583_271_348_237_42e-12, -3.148_034_361_847_163_4e-12),
-        ],
-        rtol = 1e-13
-    );
-
-    let z = c64(0.702_729_738_621_847_4, 0.711_585_757_122_401_1);
-    let (q, d) = xsf::assoc_legendre_q_all(13, 7, z);
-    xsref::np_assert_allclose!(
-        [q[13][7], d[13][7]],
-        [
             c64(1_425.676_174_740_597_4, 2_272.285_117_041_535_6),
             c64(-28_530.805_247_220_02, 7_356.536_755_705_318),
+            c64(0.712_916_713_273_161_5, 0.0),
         ],
-        rtol = 1e-13
-    );
-}
-
-#[test]
-fn test_assoc_legendre_q_all_c64_oblate_radial_ratio() {
-    let (inner, _) = xsf::assoc_legendre_q_all(32, 32, c64(0.0, 1.00005));
-    let (outer, _) = xsf::assoc_legendre_q_all(32, 32, c64(0.0, 1.02));
-    // Arb for the radial factor Q_n^m(i u/E) / Q_n^m(i b/E).
-    xsref::np_assert_allclose!(
-        [outer[32][32] / inner[32][32]],
-        [c64(0.712_916_713_273_161_5, 0.0)],
         rtol = 1e-13
     );
 }

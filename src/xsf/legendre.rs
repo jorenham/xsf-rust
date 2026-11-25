@@ -1053,22 +1053,34 @@ fn lq_extreme_complex_degree_two(z: C64) -> (C64, C64) {
     )
 }
 
-// Unlike in xsf, factor the real part of z² − 1 near the endpoints to avoid cancellation.
-fn lq_near_exterior_square(z: C64) -> C64 {
-    let xy = z.re * z.im;
-    c64((z.re - 1.0).mul_add(z.re + 1.0, -(z.im * z.im)), xy + xy)
+#[derive(Clone, Copy)]
+struct LqNearExterior {
+    square: C64,
+    root: C64,
+    backward_start: Option<i32>,
 }
 
-// Unlike in xsf, choose the direction near the exterior unit circle from the roots of the
-// large-degree recurrence, z ± sqrt(z² − 1). The backward contamination decays approximately
-// as rho^(-2k) after k extra steps, with rho the larger root magnitude.
-fn lq_near_exterior_start(z: C64, root: C64, n: i32) -> Option<i32> {
+fn lq_near_exterior(z: C64, radius: f64, n: i32) -> Option<LqNearExterior> {
+    if z.is_real() || !(radius > 1.0 && radius < 1.1) {
+        return None;
+    }
+
+    // Unlike in xsf, factor the real part of z² − 1 to avoid cancellation near ±1.
+    let xy = z.re * z.im;
+    let square = c64((z.re - 1.0).mul_add(z.re + 1.0, -(z.im * z.im)), xy + xy);
+    let root = square.sqrt();
+    // Unlike in xsf, select the recurrence direction using the large-degree roots.
+    // An extra k steps dampen contamination by about rho^(-2k), with rho the larger modulus.
     let log_rho = (z + root).norm().max((z - root).norm()).ln();
-    // exp(-2 * 18) is about f64::EPSILON.
-    let extra = (18.0 / log_rho).ceil();
-    // Where backward iteration would be too long, n * log(rho) is below 18 / 12, limiting
-    // the growth of the dominant mode in the forward recurrence.
-    (extra <= 12.0 * (f64::from(n) + 1.0)).then(|| n.saturating_add(extra as i32))
+    let extra = (18.0 / log_rho).ceil(); // exp(-2 * 18) ≈ f64::EPSILON
+    // If backward iteration would take too long, n * log(rho) < 1.5 limits forward growth.
+    let backward_start =
+        (extra <= 12.0 * (f64::from(n) + 1.0)).then(|| n.saturating_add(extra as i32));
+    Some(LqNearExterior {
+        square,
+        root,
+        backward_start,
+    })
 }
 
 // ==================================================
@@ -1104,22 +1116,10 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     cqn[0] = cq0;
     cqn[1] = cq1;
 
-    let xc = z.norm();
-    let near_exterior = !z.is_real() && xc > 1.0 && xc < 1.1;
-    let zz = if near_exterior {
-        lq_near_exterior_square(z)
-    } else {
-        z * z - 1.0
-    };
-    let start = near_exterior
-        .then(|| lq_near_exterior_start(z, zz.sqrt(), n))
-        .flatten();
-    let forward = if near_exterior {
-        start.is_none()
-    } else {
-        xc < 1.0001
-    };
-    if forward {
+    let radius = z.norm();
+    let near = lq_near_exterior(z, radius, n);
+    let zz = near.map_or_else(|| z * z - 1.0, |near| near.square);
+    if near.map_or(radius < 1.0001, |near| near.backward_start.is_none()) {
         cqf0 = cq0;
         cqf1 = cq1;
         for k in 2..=n {
@@ -1130,14 +1130,17 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             cqf1 = cqf2;
         }
     } else {
-        let km = start.unwrap_or_else(|| {
-            if xc > 1.1 {
-                40_i32.wrapping_add(n)
-            } else {
-                // Unlike in xsf, use `|z| - 1` instead of `|z - 1|`.
-                (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (xc - 1.0).ln()).floor()) as i32
-            }
-        });
+        let km = near
+            .and_then(|near| near.backward_start)
+            .unwrap_or_else(|| {
+                let base = 40_i32.wrapping_add(n);
+                if radius > 1.1 {
+                    base
+                } else {
+                    // Unlike in xsf, use `|z| - 1` instead of `|z - 1|`.
+                    (f64::from(base) * (-1.0 - 1.8 * (radius - 1.0).ln()).floor()) as i32
+                }
+            });
 
         cqf2 = C64::ZERO;
         cqf1 = C64::ONE;
@@ -1164,7 +1167,8 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         cqn[0] = cq0;
     }
     cqd[0] = q0_derivative_near_pole(z).unwrap_or_else(|| {
-        if near_exterior {
+        if near.is_some() {
+            // Unlike in xsf, use the exact numerator −1 for Q₀′ here.
             -1.0 / zz
         } else {
             (cqn[1] - z * cqn[0]) / zz
@@ -1217,25 +1221,20 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     }
 }
 
-/// The exterior `Q_n^m(z)` of `lqmn` and `lqmn_c64`, from `Q_0^0(z) = q0` and
-/// `zq = sqrt(z^2 - 1)`, with the backward recurrences in the degree of the orders 0 and 1 from a
-/// start degree `km` and the recurrence in the order; xsf writes these out separately for real and
-/// complex `z`, and the backward recurrences also for each of the orders 0 and 1
-fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, start: Option<i32>) {
+fn lqmn_start(radius: f64, n: i32, m: i32) -> i32 {
+    let base = 40_i32.wrapping_add(m).wrapping_add(n);
+    if radius > 1.1 {
+        base
+    } else {
+        // Unlike in xsf (scipy/xsf#368), use `log(|x| - 1)` for real x.
+        base.wrapping_mul((-1.0 - 1.8 * (radius - 1.0).ln()) as i32)
+    }
+}
+
+/// Exterior `Q_n^m(z)`, using backward recurrences in degree for orders zero and one.
+fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, km: i32) {
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
-    // Unlike in xsf (scipy/xsf#368), `log(|x| - 1)` for real `x` (as for complex `z`) instead of
-    // `log(x - 1)`
-    let km = start.unwrap_or_else(|| {
-        if z.abs() > 1.1 {
-            40_i32.wrapping_add(m).wrapping_add(n)
-        } else {
-            40_i32
-                .wrapping_add(m)
-                .wrapping_add(n)
-                .wrapping_mul((-1.0 - 1.8 * (z.abs() - 1.0).ln()) as i32)
-        }
-    });
     let l1 = |q: T| q.real().abs() + q.imag().abs();
     let ldexp = |q: T, e: i32| if e == 0 { q } else { q.ldexp(e) };
 
@@ -1440,7 +1439,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
             }
         }
     } else {
-        lqmn_large(x, xq, q0, Mdspan::new(qm.data, qm.extents), None);
+        lqmn_large(x, xq, q0, Mdspan::new(qm.data, qm.extents), lqmn_start(x.abs(), n, m));
     }
 
     let exterior = ls < 0.0 && x.is_finite();
@@ -1514,31 +1513,18 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     if xc > 1.0 {
         ls = -1;
     }
-    let near_exterior = !z.is_real() && xc > 1.0 && xc < 1.1;
-    let zs = if near_exterior {
-        lq_near_exterior_square(z)
-    } else {
-        (1.0 - z * z) * f64::from(ls)
-    };
-    let zq = zs.sqrt();
-    let start = near_exterior
-        .then(|| lq_near_exterior_start(z, zq, n))
-        .flatten();
-
+    let near = lq_near_exterior(z, xc, n);
+    let denominator = near.map_or_else(|| 1.0 - z * z, |near| -near.square);
+    let zs = denominator * f64::from(ls);
+    let zq = near.map_or_else(|| zs.sqrt(), |near| near.root);
     let cq0 = q0_c64(z);
-    let forward = if near_exterior {
-        start.is_none()
-    } else {
-        xc < 1.0001
-    };
-    if forward {
+    if near.map_or(xc < 1.0001, |near| near.backward_start.is_none()) {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = -1.0 / zq;
         cqm[(0, 1)] = z * cq0 - 1.0;
         // Unlike in xsf, use the exterior square-root branch for Q_1^1 when ls < 0.
         // The derivative relation on x > 1 is DLMF 14.7.12.
         let root = if ls < 0 { zq } else { -zq };
-        let denominator = if near_exterior { -zs } else { 1.0 - z * z };
         cqm[(1, 1)] = root * (cq0 + z / denominator);
 
         for i in 0..=1 {
@@ -1558,7 +1544,10 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             }
         }
     } else {
-        lqmn_large(z, zq, cq0, Mdspan::new(cqm.data, cqm.extents), start);
+        let km = near
+            .and_then(|near| near.backward_start)
+            .unwrap_or_else(|| lqmn_start(xc, n, m));
+        lqmn_large(z, zq, cq0, Mdspan::new(cqm.data, cqm.extents), km);
     }
 
     cqd[(0, 0)] = q0_derivative_near_pole(z).unwrap_or_else(|| f64::from(ls) / zs);
