@@ -551,7 +551,8 @@ fn sph_legendre_p_recurrence_m_abs_m<T: Num>(theta_sin: T, m: i32, res: &mut [T;
 
 fn sph_legendre_p_for_each_m_abs_m<T: Num>(m: i32, theta: T, mut f: impl FnMut(i32, T, i64)) {
     let m_signbit = m < 0;
-    let theta_sin = theta.sin();
+    let mut theta_sin = theta.sin();
+    let mut sine_exponent = None;
     let mut res = [T::from(0.0); 2];
 
     // Unlike in xsf, keep the scale of small real diagonal seeds through the degree recurrence.
@@ -567,45 +568,58 @@ fn sph_legendre_p_for_each_m_abs_m<T: Num>(m: i32, theta: T, mut f: impl FnMut(i
             && sin.abs().log2() * f64::from(order) < -f64::from(SPECFUN_BIG_LOG2)
         {
             let (mantissa, exponent) = frexp_f64(sin);
-            sph_legendre_p_scaled_diagonal(m, T::from(mantissa), exponent, f);
-            return;
+            theta_sin = T::from(mantissa);
+            sine_exponent = Some(i64::from(exponent));
         }
     }
 
     sph_legendre_p_initializer_m_abs_m(m_signbit, theta_sin, &mut res);
-    let re_m_abs_m = |m, res: &mut _| sph_legendre_p_recurrence_m_abs_m(theta_sin, m, res);
-    let f = |m, res: &[T; 2]| f(m, res[1], 0);
-    if m >= 0 {
-        forward_recur(0, m.wrapping_add(1), re_m_abs_m, &mut res, f);
+    let coefficients = |j, c: &mut _| sph_legendre_p_recurrence_m_abs_m(theta_sin, j, c);
+    if let Some(exponent) = sine_exponent {
+        let mut scales = [0, exponent];
+        sph_recur(0, m, res, coefficients, |j, p| {
+            if j.unsigned_abs() >= 2 {
+                let mut scale = scales[0] + 2 * exponent;
+                if p[1].abs() < 1.0 / SPECFUN_BIG {
+                    p[1] = p[1] * SPECFUN_BIG;
+                    scale -= i64::from(SPECFUN_BIG_LOG2);
+                }
+                scales = [scales[1], scale];
+            }
+            f(j, p[1], scales[usize::from(j != 0)]);
+        });
     } else {
-        backward_recur(0, m.wrapping_sub(1), re_m_abs_m, &mut res, f);
+        let emit = |j, p: &[T; 2]| f(j, p[1], 0);
+        if m >= 0 {
+            forward_recur(0, m.wrapping_add(1), coefficients, &mut res, emit);
+        } else {
+            backward_recur(0, m.wrapping_sub(1), coefficients, &mut res, emit);
+        }
     }
 }
 
-#[cold]
-fn sph_legendre_p_scaled_diagonal<T: Num>(
-    m: i32,
-    mantissa: T,
-    exponent: i32,
-    mut f: impl FnMut(i32, T, i64),
+// Unlike in xsf, let the spherical recurrence carry its scale between steps.
+fn sph_recur<T: Num>(
+    first: i32,
+    last: i32,
+    mut p: [T; 2],
+    coefficients: impl Fn(i32, &mut [T; 2]),
+    mut emit: impl FnMut(i32, &mut [T; 2]),
 ) {
-    let mut res = [T::from(0.0); 2];
-    sph_legendre_p_initializer_m_abs_m(m < 0, mantissa, &mut res);
-    let mut scales = [0, i64::from(exponent)];
-    f(0, res[0], scales[0]);
-    f(m.signum(), res[1], scales[1]);
-    for order in 2..=m.abs() {
-        let mut coefficients = [T::from(0.0); 2];
-        sph_legendre_p_recurrence_m_abs_m(mantissa, order, &mut coefficients);
-        let mut next = dot(&coefficients, &res);
-        let mut scale = scales[0] + 2 * i64::from(exponent);
-        if next.abs() < 1.0 / SPECFUN_BIG {
-            next = next * SPECFUN_BIG;
-            scale -= i64::from(SPECFUN_BIG_LOG2);
+    p.swap(0, 1);
+    emit(first, &mut p);
+    if first != last {
+        let step = if first < last { 1 } else { -1 };
+        let mut j = first + step;
+        p.swap(0, 1);
+        emit(j, &mut p);
+        while j != last {
+            j += step;
+            let mut c = [T::from(0.0); 2];
+            coefficients(j, &mut c);
+            p = [p[1], dot(&c, &p)];
+            emit(j, &mut p);
         }
-        res = [res[1], next];
-        scales = [scales[1], scale];
-        f(order * m.signum(), next, scale);
     }
 }
 
@@ -644,49 +658,29 @@ fn sph_legendre_p_for_each_n_from<T: Num>(
     }
 
     let theta_cos = theta.cos();
-    let (diagonal, scale) = diagonal;
-    let unscaled = if scale == 0 {
-        diagonal
-    } else {
-        diagonal.ldexp(scale.clamp(-4096, 4096) as i32)
-    };
+    let (mut diagonal, mut scale) = diagonal;
+    if scale != 0 {
+        let unscaled = diagonal.ldexp(scale.clamp(-4096, 4096) as i32);
+        if unscaled.abs() >= 1.0 / SPECFUN_BIG {
+            (diagonal, scale) = (unscaled, 0);
+        }
+    }
     let mut p = [T::from(0.0); 2];
-    if scale == 0 || unscaled.abs() >= 1.0 / SPECFUN_BIG {
-        sph_legendre_p_initializer_n(m, theta_cos, unscaled, &mut p);
-        let re_n = |n, res: &mut _| sph_legendre_p_recurrence_n(m, theta_cos, n, res);
-        forward_recur(m_abs, n.wrapping_add(1), re_n, &mut p, |n, p| f(n, p[1], 0));
+    sph_legendre_p_initializer_n(m, theta_cos, diagonal, &mut p);
+    let recurrence = |n, coefficients: &mut _| {
+        sph_legendre_p_recurrence_n(m, theta_cos, n, coefficients);
+    };
+    if scale == 0 {
+        forward_recur(m_abs, n.wrapping_add(1), recurrence, &mut p, |n, p| f(n, p[1], 0));
     } else {
-        sph_legendre_p_initializer_n(m, theta_cos, diagonal, &mut p);
-        sph_legendre_p_scaled_degrees(n, m, theta_cos, p, scale, f);
-    }
-}
-
-// Unlike in xsf, rescale the degree recurrence (DLMF 14.10.3) as its mantissas grow.
-#[cold]
-fn sph_legendre_p_scaled_degrees<T: Num>(
-    n: i32,
-    m: i32,
-    theta_cos: T,
-    mut p: [T; 2],
-    mut scale: i64,
-    mut f: impl FnMut(i32, T, i32),
-) {
-    let start = m.abs();
-    f(start, p[0], scale.clamp(-4096, 4096) as i32);
-    if n == start {
-        return;
-    }
-    for degree in start + 1..=n {
-        if degree != start + 1 {
-            let mut coefficients = [T::from(0.0); 2];
-            sph_legendre_p_recurrence_n(m, theta_cos, degree, &mut coefficients);
-            p = [p[1], dot(&coefficients, &p)];
+        // Unlike in xsf, rescale the degree recurrence (DLMF 14.10.3) as its mantissas grow.
+        sph_recur(m_abs, n, p, recurrence, |n, p| {
             if p[0].abs().max(p[1].abs()) > SPECFUN_BIG {
-                p = p.map(|value| value / SPECFUN_BIG);
+                *p = p.map(|value| value / SPECFUN_BIG);
                 scale += i64::from(SPECFUN_BIG_LOG2);
             }
-        }
-        f(degree, p[1], scale.clamp(-4096, 4096) as i32);
+            f(n, p[1], scale.clamp(-4096, 4096) as i32);
+        });
     }
 }
 

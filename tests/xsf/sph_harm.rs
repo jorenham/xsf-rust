@@ -88,9 +88,8 @@ fn test_sph_harm_y_subnormal_projection() {
     // Arb gives P in units of MIN_SUBNORMAL as 0.60, and each projection as 0.424.
     // Projecting the rounded P would give one unit in both components.
     assert_eq!(xsf::sph_legendre_p(100, 80, theta).to_bits(), 1);
-    let scalar = xsf::sph_harm_y(100, 80, theta, phi);
     let all = xsf::sph_harm_y_all(100, 80, theta, phi);
-    for harmonic in [scalar, all[100][80]] {
+    for harmonic in [xsf::sph_harm_y(100, 80, theta, phi), all[100][80]] {
         assert_eq!([harmonic.re.to_bits(), harmonic.im.to_bits()], [0, 0]);
     }
 }
