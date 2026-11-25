@@ -236,17 +236,20 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
-/// - It needs `alpha, beta > -1` (positive denominators; `beta > -1` as `lam + 1 > c`, which keeps
-///   the digits of a small `beta + 1`), `n > 2` (at least one step), `n < 1e5` (to bound its
-///   cost), and that `series` isn't finite or is estimated to cancel by more than
-///   `HYP2F1_ETHRESH / EPSILON`.
-/// - A finite recurrence replaces `series` only if that isn't finite, or if they differ by more
-///   than `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
-/// - `tol` is the relative residual of the starting values in the recurrence for
-///   `G_{n - floor(n) + 2}` (at least `HYP2F1_ETHRESH`), since `hyp2f1` can lose accuracy for
-///   nearly degenerate parameters. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the
-///   recurrence is unstable (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond
-///   `1 / SQRT_EPSILON`).
+/// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
+///   `n < 1e5` (to bound its cost).
+/// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried.
+/// - Elsewhere, it is tried only if `series` isn't finite or is estimated to cancel by more than
+///   `HYP2F1_ETHRESH / EPSILON`, and `beta > -1` is checked as `lam + 1 > c`, which keeps the
+///   digits of a small `beta + 1`.
+/// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
+///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
+///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
+/// - `tol` is `HYP2F1_ETHRESH`, or off `-1 < x < 1` twice the relative residual of the starting
+///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
+///   accuracy for nearly degenerate parameters. Twice, so that `series` is then the less accurate
+///   one. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
+///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -255,12 +258,19 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     series: Z,
 ) -> Option<Z> {
     let (alpha, beta) = (c - 1.0, lam - c);
-    // The terms of the series add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about `|xi(x)|^n`,
-    // with `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of `(|x + 1| + |x - 1|) / 2`.
-    let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
-    let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
-    let cancels = !series.is_finite() || loss > (HYP2F1_ETHRESH / f64::EPSILON).ln();
-    if !(cancels && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && lam + 1.0 > c) {
+    let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
+    let tried = if segment {
+        beta > -1.0
+    } else {
+        // The terms of the series add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about
+        // `|xi(x)|^n`, with `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of
+        // `(|x + 1| + |x - 1|) / 2`.
+        let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
+        let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
+        let cancels = !series.is_finite() || loss > (HYP2F1_ETHRESH / f64::EPSILON).ln();
+        cancels && lam + 1.0 > c
+    };
+    if !(tried && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0) {
         return None;
     }
     let ab = lam - 1.0;
@@ -277,9 +287,13 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    let (p, q, r) = pqr(n - m + 2.0);
-    let residual = ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
-        / ((p * g1).norm() + (g0 * q).norm());
+    let residual = if segment {
+        0.0
+    } else {
+        let (p, q, r) = pqr(n - m + 2.0);
+        ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
+            / ((p * g1).norm() + (g0 * q).norm())
+    };
     // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
     let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
     let mut sols = [(g0, g1), (one, zero), (zero, one)];
@@ -295,12 +309,12 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
     let stable = growth * SQRT_EPSILON <= rec.norm();
     let tol = if stable && residual <= SQRT_EPSILON {
-        residual.max(HYP2F1_ETHRESH)
+        (2.0 * residual).max(HYP2F1_ETHRESH)
     } else {
         1.0
     };
     let better = !series.is_finite() || (rec - series).norm() > tol * growth;
-    (rec.is_finite() && better).then_some(rec)
+    (better && (segment || rec.is_finite())).then_some(rec)
 }
 
 ///////////////////////////////
