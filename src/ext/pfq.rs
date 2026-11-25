@@ -1071,6 +1071,16 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     if polynomial.is_some_and(Estimate::is_accurate) {
         return polynomial;
     }
+    if z == 1.0 && degree.is_finite() {
+        let arrays = a
+            .as_slice()
+            .try_into()
+            .ok()
+            .zip(b.as_slice().try_into().ok());
+        if let Some(estimate) = arrays.and_then(|(a, b)| hyp4f3_racah(a, b)) {
+            return Some(estimate);
+        }
+    }
     // the xsf functions are NaN where they are inaccurate
     let xsf = |y: f64| exact(y).filter(|_| !y.is_nan());
     let y = match (a.as_slice(), b.as_slice()) {
@@ -1116,6 +1126,89 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         _ => None,
     };
     polynomial.or_better(|| y)
+}
+
+// Use the coefficient identity DLMF 18.26.20 when the terminating Racah series loses accuracy.
+#[cold]
+fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
+    a.sort_by(f64::total_cmp);
+    b.sort_by(f64::total_cmp);
+    let [neg_n, neg_y, upper_a, upper_b] = a;
+    let [neg_size, lower_a, lower_b] = b;
+    let (n, y, size) = (-neg_n, -neg_y, -neg_size);
+    if !([n, y, size].into_iter().all(|x| x.fract() == 0.0)
+        && 1.0 <= y
+        && n < size
+        && size <= f64::from(PFQ_DD_MAXITER)
+        && upper_a > 0.0
+        && lower_a > 0.0)
+    {
+        return None;
+    }
+
+    // Reject any inexact parameter arithmetic. In particular, rounding a
+    // nearly balanced input into the Racah family would change the function.
+    let exact_add = |x, y| {
+        let (sum, err) = two_sum(x, y);
+        (err == 0.0 && sum.is_finite()).then_some(sum)
+    };
+    let evaluate = |an, ay, beta_delta_plus_one, gamma_plus_one| {
+        let beta = exact_add(an, size - n)?;
+        let gamma = exact_add(gamma_plus_one, -1.0)?;
+        let delta = exact_add(exact_add(beta_delta_plus_one, -beta)?, -1.0)?;
+        let g1 = exact_add(y, gamma_plus_one)?;
+        if !(delta > -1.0 && beta > exact_add(size, gamma)? && ay == exact_add(g1, delta)?) {
+            return None;
+        }
+        // These index differences are exact integers in the admitted range.
+        let gap = size - n - y;
+        let start = (n + y - size).max(0.0);
+        let remaining = n - start;
+        let f = [-y, exact_add(exact_add(beta, -gamma)?, -y)?];
+        let g = [y - size, g1];
+        let c = exact_add(-size, -delta)?;
+        // Normalize by the first convolution term. Reversing g's
+        // coefficient recurrence gives a terminating hypergeometric series.
+        let upper =
+            [start - y, exact_add(f[1], start)?, -remaining, exact_add(1.0 - remaining, -c)?];
+        let lower = [
+            exact_add(beta_delta_plus_one, start)?,
+            1.0 + gap.abs(),
+            exact_add(1.0 - remaining, -g1)?,
+        ];
+        let (sum, err, _) = series::pfq_sum::<Dd>(&upper, &lower, 1.0, PFQ_DD_MAXITER);
+
+        // Keep full double-double precision and use a symmetric exponent range.
+        let min = <Dd as SeriesReal>::MIN_POSITIVE;
+        let safe = min..=min.recip();
+        let scaled_rising = |a: &[f64], b: &[f64], count: f64| {
+            let checked = series::pfq_extreme(a, b);
+            let product = (0..count as u32).try_fold(Dd::ONE, |value, j| {
+                let value = value * series::pfq_ratio::<Dd>(a, b, f64::from(j), checked);
+                safe.contains(&value.hi.abs()).then_some(value)
+            })?;
+            Some(product.frexp())
+        };
+        if !sum.hi.is_normal() {
+            return None;
+        }
+        // At most 2n fixed-arity ratios plus the final scaled product.
+        let rel =
+            err / sum.hi.abs() + 32.0 * <Dd as SeriesReal>::EPSILON * (n + 1.0) + f64::EPSILON;
+        let (s, se) = sum.frexp();
+        let (f, fe) = scaled_rising(&f, &[beta_delta_plus_one], start)?;
+        let (g, ge) = scaled_rising(&g, &[c], remaining)?;
+        let (scale, e) = scaled_rising(&[-size, gamma_plus_one], &[c], n)?;
+        let m = (s * f * g / scale).hi;
+        let e = se + fe + ge - e;
+        let est = Estimate::scaled_certain(Scaled::new(m, e, rel)?)?;
+        est.is_accurate().then_some(est)
+    };
+    [(upper_a, upper_b), (upper_b, upper_a)]
+        .into_iter()
+        .find_map(|(an, ay)| {
+            evaluate(an, ay, lower_a, lower_b).or_else(|| evaluate(an, ay, lower_b, lower_a))
+        })
 }
 
 // The defining series (DLMF 16.2.1) for these parameters is sum (256z)^k/(4k)!.
@@ -1170,6 +1263,27 @@ mod tests {
         // `err / y` rounds to the float above `PFQ_TOL`
         let y = 0.012_571_498_510_638_38;
         assert!(Estimate::absolute((y, PFQ_TOL * y)).is_accurate());
+    }
+
+    #[test]
+    fn test_hyp4f3_racah() {
+        // Noncanceling interior modes from exact rational sums.
+        let a = [-18.0, 19.75, -23.0, 24.75];
+        let b = [-24.0, 27.25, 1.25];
+        let expected = -8.744_675_708_675_688e-6;
+        let value = hyppfq(a, b, 1.0).unwrap();
+        assert!((value / expected - 1.0).abs() < 1e-14);
+        assert_eq!(hyppfq([a[2], a[0], a[3], a[1]], [b[2], b[0], b[1]], 1.0), Some(value));
+
+        let value = hyppfq([-20.0, 21.75, -22.0, 23.75], b, 1.0).unwrap();
+        assert!((value / 2.514_243_963_935_837_5e-6 - 1.0).abs() < 1e-14);
+
+        // A true denominator pole occurs before termination.
+        assert_eq!(hyppfq(a, [-17.0, b[1], b[2]], 1.0), Some(f64::INFINITY));
+        // Private fallback decisions leave room for better generic answers.
+        assert!(hyp4f3_racah(a, [-18.0, b[1], b[2]]).is_none());
+        assert!(hyp4f3_racah(a, [b[0], b[1].next_up(), b[2]]).is_none());
+        assert!(hyp4f3_racah([-1.0, 8.0, -2.0, 3.0], [-4.0, 12.0, 1.0]).is_none());
     }
 
     #[test]
