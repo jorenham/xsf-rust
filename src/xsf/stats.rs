@@ -397,6 +397,11 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
     } else if nu == 2.0 {
         // (p - 1/2) sqrt(2 / (p (1 - p))), rearranged so that it doesn't overflow for tiny p
         (2.0 * p - 1.0) / (2.0 * p * (1.0 - p)).sqrt()
+    } else if nu > 1e3 && nu <= 1e9 && q >= nu.recip() {
+        // For W ~ Beta(nu/2, 1/2), P(W <= 1/2) <= 2/(nu + 1) < 2q by Markov.
+        // The inverse beta root is away from zero, so start Newton at Cornish-Fisher directly.
+        let t = stdtri_newton(nu, q, None);
+        if p < 0.5 { -t } else { t }
     } else {
         let a = 0.5 * nu;
         let y = 2.0 * q;
@@ -425,7 +430,8 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
             t = (y.powf(e) * c.powf(e)).powi(2);
         } else if nu > 1e3 || w > 0.5 || subnormal {
             // `1 - w` is inaccurate if w > 1/2, and `betaincinv` too for huge `a` or subnormal q
-            t = stdtri_newton(nu, q, t);
+            let start = if nu > 1e3 { None } else { Some(t) };
+            t = stdtri_newton(nu, q, start);
         }
         if p < 0.5 { -t } else { t }
     }
@@ -433,16 +439,17 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
 
 /// The `t > 0` with `stdtr(nu, -t) = q`, by Newton's method on `ln(stdtr)`
 ///
-/// It starts from `t`, or from the Cornish-Fisher expansion if `nu > 1e3` (and stops right away if
-/// that is already exact).
-fn stdtri_newton(nu: f64, q: f64, mut t: f64) -> f64 {
+/// It starts from `start` or from the Cornish-Fisher expansion.
+fn stdtri_newton(nu: f64, q: f64, start: Option<f64>) -> f64 {
     let a = 0.5 * nu;
     let subnormal = q < f64::MIN_POSITIVE;
-    let mut err = 1.0;
-    if nu > 1e3 {
-        (t, err) = stdtri_cornish_fisher(nu, ndtri(q));
-        t = -t;
-    }
+    let (mut t, mut err) = start.map_or_else(
+        || {
+            let (t, err) = stdtri_cornish_fisher(nu, ndtri(q));
+            (-t, err)
+        },
+        |t| (t, 1.0),
+    );
     let c = nu.sqrt() * crate::beta(a, 0.5);
     for _ in 0..20 {
         if err <= 4.0 * f64::EPSILON * t {
