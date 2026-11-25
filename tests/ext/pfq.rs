@@ -240,6 +240,48 @@ fn test_hyp3f2_conformal() {
 }
 
 #[test]
+fn test_hyp3f2_positive_integer_shift_at_one() {
+    let next_up = |x: f64| f64::from_bits(x.to_bits() + 1);
+    let next_down = |x: f64| f64::from_bits(x.to_bits() - 1);
+    // The beta-negative-binomial tail with n=10 and r=alpha=beta=3 gives 893/130.
+    for (a, b, expected) in [
+        ([1.0, 14.0, 14.0], [12.0, 20.0], 893.0 / 130.0),
+        ([1.0, 13.25, 14.25], [12.25, 20.0], 1284.0 / 245.0),
+        ([1.0, 14.0, 14.0], [12.0, next_up(17.0)], 6_062_537_959_921_817.0),
+        // Positive excess that rounds to zero in w-u-1-d.
+        ([1.0, next_down(2.0), 6.0], [4.0, 5.0], 5_404_319_552_844_596.0),
+        ([1.0, 3.25, 57.0], [2.0, 100.0], 4.605_543_910_743_371),
+        ([1.0, 2.0_f64.powi(1000), 3.0], [2.0, 2.0_f64.powi(1001)], 3.0),
+    ] {
+        for [i, j, k] in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+            let a = [a[i], a[j], a[k]];
+            for b in [b, [b[1], b[0]]] {
+                assert_hyp3f2(a, b, 1.0, expected);
+                let generic = hyppfq(a, b, 1.0).unwrap();
+                assert_eq!(generic, hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0));
+            }
+        }
+    }
+    for (a, b, z) in [
+        ([1.0, next_up(14.0), next_up(14.0)], [12.0, 20.0], 1.0),
+        // A difference that rounds to 4 but is not integral.
+        ([1.0, 0.75, 4.0], [2.0_f64.powi(-55), 10.0], 1.0),
+        ([1.0, 3.25, 58.0], [2.0, 100.0], 1.0),
+        ([1.0, 2.0_f64.powi(1022), 5.0], [4.0, 2.0_f64.powi(1023)], 1.0),
+        ([1.0, 14.0, 14.0], [12.0, 20.0], next_down(1.0)),
+    ] {
+        assert!(hyp3f2(a[0], a[1], a[2], b[0], b[1], z).is_nan());
+        assert_eq!(hyppfq(a, b, z), None);
+    }
+    assert!(hyp3f2(1.0, 14.0, 14.0, 12.0, 20.0, next_up(1.0)).is_nan());
+    assert!(hyppfq([1.0, 14.0, 14.0], [12.0, 20.0], next_up(1.0)).is_some_and(f64::is_nan));
+    for b in [[12.0, 17.0], [-2.0, 20.0]] {
+        assert_eq!(hyp3f2(1.0, 14.0, 14.0, b[0], b[1], 1.0), f64::INFINITY);
+        assert_eq!(hyppfq([1.0, 14.0, 14.0], b, 1.0), Some(f64::INFINITY));
+    }
+}
+
+#[test]
 fn test_hyp3f2_long_series() {
     // near z = 1, the terms cancel in `f64`, and the series in double-double takes more than
     // 2500 terms; Arb references
