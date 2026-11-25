@@ -527,7 +527,9 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     let polynomial = hyp2f1_poly_dd(-n, Dd::new(c) - a, c, z.re)?;
     let r = Dd::new(z.re) - 1.0;
     let certified_lip = z.im == 0.0 || {
-        // The beta integral bounds |P'| by n*x^(n-1); the power contributes |d P|/(x-1).
+        // For these ordinates, |1 - z*t| <= x on the vertical segment for 0 <= t <= 1.
+        // The beta integral (DLMF 15.6.1) then bounds |P'| by n*x^(n-1).
+        // The normalized power contributes |d P|/(x-1).
         let (p, _) = polynomial.to_f64();
         let shift = z.im.abs() * (n * z.re.powf(n - 1.0) + d.hi.abs() * p.abs() / r.hi);
         let limit = f64::EPSILON / 4.0 * p.abs() * phase.re.abs().min(phase.im.abs());
@@ -621,7 +623,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
         };
         if max_degree <= u64::MAX as f64 {
             // Unlike in xsf, retain the exact cut phase for certified tiny ordinates.
-            if z.im.abs() < f64::MIN_POSITIVE && z.re > 1.0 && z.re.is_finite() {
+            // The power term alone limits |Im z| to about eps² (Re z - 1).
+            if z.re > 1.0
+                && z.re.is_finite()
+                && z.im.abs() <= f64::EPSILON.powi(2) * (z.re - 1.0).min(1.0)
+            {
                 if let Some(value) = hyp2f1_euler_cut_lip(a, b, c, z) {
                     return value;
                 }

@@ -117,7 +117,7 @@ fn test_hyp2f1_c64_transform2_euler() {
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
-        for y in [0.0, f64::from_bits(1)] {
+        for y in [0.0, f64::from_bits(1), 1e-40] {
             for sign in [-1.0, 1.0] {
                 let actual = xsf::hyp2f1(a, b, 97.0, c64(2.0, sign * y));
                 np_assert_allclose!(
