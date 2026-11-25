@@ -472,6 +472,7 @@ fn test_scaled_bessel_negative_order_with_overflowing_unscaled_value() {
     let y = c64(-5.549_032_835_457_18e266, -6.173_774_157_890_21e266);
     let h1 = c64(1.099_492_663_209_403e267, 4.114_133_429_788_017e266);
     let h1_half = c64(1.471_675_240_340_433e267, 1.060_288_766_333_677_5e267);
+    let h1_half_unbalanced = c64(1.329_635_513_092_406e266, 1.979_841_787_818_416_7e267);
     for (actual, expected) in [
         (xsf::bessel_ye(-750.25, z), y),
         (xsf::bessel_ye(-750.25, z.conj()), y.conj()),
@@ -479,6 +480,8 @@ fn test_scaled_bessel_negative_order_with_overflowing_unscaled_value() {
         (xsf::hankel_2e(-750.25, z.conj()), h1.conj()),
         (xsf::hankel_1e(-750.5, z_half), h1_half),
         (xsf::hankel_2e(-750.5, z_half.conj()), h1_half.conj()),
+        (xsf::hankel_1e(-750.5, z), h1_half_unbalanced),
+        (xsf::hankel_2e(-750.5, z.conj()), h1_half_unbalanced.conj()),
     ] {
         np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-12);
     }

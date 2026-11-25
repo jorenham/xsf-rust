@@ -7,12 +7,12 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, LN_2, PI, TAU};
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, LN_PI, mul_exp, neg_if_odd};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, LN_PI, mul_exp, neg_if_odd, pow2};
 use crate::xsf::airy::{airy, airy_scaled};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_PI_2_DD, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_PI_2_DD, LOG2, two_sum};
 use crate::xsf::cephes::ikv_asymptotic_uniform_sums;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
@@ -700,9 +700,58 @@ fn scaled_bessel_from_k(v: f64, z: C64, hankel: bool) -> Option<C64> {
     } else {
         -k
     };
-    let value = if z.im < 0.0 { value } else { value.conj() };
     let (re, im) = (value.re.abs(), value.im.abs());
-    (re.min(im) >= re.max(im) / MAX_PROJECTION_RATIO).then_some(value)
+    let value = if re.min(im) >= re.max(im) / MAX_PROJECTION_RATIO {
+        value
+    } else if hankel && v < 0.0 && order.fract() == 0.5 {
+        half_integer_hankel_from_k(order, w)?
+    } else {
+        return None;
+    };
+    Some(if z.im < 0.0 { value } else { value.conj() })
+}
+
+// Unlike in xsf, use the exact half-integer K seed (DLMF 10.39.2) and
+// recurrence (DLMF 10.29.1) when the continued Debye result loses a projection.
+fn half_integer_hankel_from_k(order: f64, w: C64) -> Option<C64> {
+    const STEP: i32 = 400;
+    // Start at orders -1/2 and 1/2 with the 2/pi prefactor from the Hankel
+    // connection formula already applied. Leave exp(-w) until the end.
+    let seed = c64(FRAC_2_PI.sqrt(), 0.0) / w.sqrt();
+    let (mut previous, mut current) = (seed, seed);
+    let (mut previous_bound, mut bound) = (seed.norm(), seed.norm());
+    let inverse = 1.0 / w;
+    let inverse_norm = inverse.norm();
+    let mut shift = 0.0;
+    for n in 0..order as i32 {
+        let coefficient = f64::from(2 * n + 1);
+        (previous, current) = (current, (coefficient * inverse) * current + previous);
+        (previous_bound, bound) =
+            (bound, (coefficient * inverse_norm).mul_add(bound, previous_bound));
+        if bound > const { pow2(STEP) } {
+            let scale = const { pow2(-STEP) };
+            previous *= scale;
+            current *= scale;
+            previous_bound *= scale;
+            bound *= scale;
+            shift += f64::from(STEP);
+        }
+    }
+
+    // The two exp(-w) factors come from the K seed and the Hankel scaling.
+    // The remaining phase comes from the connection and order reflection.
+    let projected = rotate(current * C64::cis(-2.0 * w.im), 1.5 * order - 0.5);
+    // The norm majorant tracks perturbations from all recurrence steps, including
+    // two successive complex products in the projection and continuation.
+    let error = 32.0 * f64::EPSILON * order * bound;
+    if projected.re.abs().min(projected.im.abs()) < 1e9 * error {
+        return None;
+    }
+
+    let exponent = LOG2 * shift - 2.0 * w.re;
+    let value = projected.mul_exp(f64::from(exponent));
+    let range = 2.0 * f64::MIN_POSITIVE..=0.5 * f64::MAX;
+    (range.contains(&value.re.abs()) && range.contains(&value.im.abs())).then_some(value)
 }
 
 // Unlike in xsf, classify both components before evaluating the overflowing exponential.
