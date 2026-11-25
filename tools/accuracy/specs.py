@@ -6329,6 +6329,15 @@ for name, args in [
         timeout=60,
         note="none",
     )
+add(
+    "hyppfq#2f0",
+    "a1 a2 z",
+    r_hyp2f0,
+    D(*[U(-100, 0)] * 2, LU(1e-3, 10, -1), n=2000, call="hyppfq2"),
+    cpp=False,
+    timeout=60,
+    note="none",
+)
 for p, args in [
     (3, "a1 a2 a3 z"),
     (3, "a1 a2 a3 b z"),
