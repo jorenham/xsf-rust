@@ -114,6 +114,19 @@ fn test_hyp2f1_c64_transform2_euler() {
 }
 
 #[test]
+fn test_hyp2f1_c64_coincident_binomial() {
+    // Exact rational reference from (2 - i)^(-10).
+    for sign in [-1.0, 1.0] {
+        let actual = xsf::hyp2f1(10.0, 10.0, 10.0, c64(-1.0, sign));
+        np_assert_allclose!(
+            [actual.re, actual.im],
+            [-2.42688e-5, -sign * 3.190_784e-4],
+            rtol = 1e-14
+        );
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_inverse_near_integer_index() {
     // Arb references at the exact binary64 arguments.
     for (a, b, c, z, expected) in [
