@@ -9,7 +9,7 @@
 use core::f64::consts::SQRT_2;
 
 use super::{Status, jynb, try_zeroed};
-use crate::utils::neg_one_pow;
+use crate::utils::{neg_one_pow, pow2};
 use crate::xsf::cephes::polevl::polevl;
 
 /// The `cv0` polynomials in `q` (highest degree first), as `(m, kd, q_max, coefficients)`
@@ -373,11 +373,11 @@ fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     a0
 }
 
-/// The last term of `cvql`, as in DLMF 28.8.1 with `s = w` (`33_554_432 = 2^25`)
+/// The last term of `cvql`, as in DLMF 28.8.1 with `s = w`
 fn cvql_last_term(kd: i32, m: i32, q: f64) -> f64 {
     let w = 2.0 * f64::from(m) + if kd <= 2 { 1.0 } else { -1.0 };
     let w2 = w * w;
-    (((527.0 * w2 + 15617.0) * w2 + 69001.0) * w2 + 41607.0) * w / (33_554_432.0 * q.powf(2.5))
+    (((527.0 * w2 + 15617.0) * w2 + 69001.0) * w2 + 41607.0) * w / (pow2(25) * q.powf(2.5))
 }
 
 fn cvqm(m: i32, q: f64) -> f64 {
