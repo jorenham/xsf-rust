@@ -2487,6 +2487,32 @@ fn test_hyp2f1_f64_neg_int_c_x_1() {
 }
 
 #[test]
+fn test_hyp2f1_f64_polynomial_x_1() {
+    // unlike in xsf: the Chu-Vandermonde product (DLMF 15.4.24) at x = 1 for a non-integer c,
+    // where xsf loses most digits, and gives 1.3365133773992304e17 for the fifth, for which
+    // the Rust port gave NaN before (references: Arb)
+    let args = [
+        (-35.0, -30.83, -37.75, 1.015_046_708_249_615_6e-13),
+        (-35.0, -30.5, -37.75, -1.889_066_610_240_864e-13),
+        (-35.0, -28.3, -37.75, -2.423_744_082_535_354_7e-14),
+        (-34.0, -30.83, -36.25, 1.605_183_033_836_263_2e-11),
+        (-151.0, 102.4, 163.4, 3.857_040_397_885_821e-40),
+        (-64.0, 44.8, 145.4, 5.748_680_614_749_967e-9),
+        (-141.0, -48.1, -194.9, 1.296_718_313_473_943e-39),
+    ];
+    for (a, b, c, expected) in args {
+        let actual = [xsf::hyp2f1(a, b, c, 1.0), xsf::hyp2f1(b, a, c, 1.0)];
+        np_assert_allclose!(actual, [expected; 2], rtol = 1e-15);
+    }
+    // (also after a common parameter cancels)
+    let actual = xsf::hyppfq([-62.0, -35.0, -30.83], [-37.75, -62.0], 1.0);
+    np_assert_allclose!([actual.unwrap()], [args[0].3], rtol = 1e-15);
+    // (correctly rounded to a subnormal; reference: exact rational)
+    let actual = xsf::hyp2f1(-20.0, 29_389_293_564_442_344.0, 29_389_293_564_442_348.0, 1.0);
+    assert_eq!(actual, 1.864_490_772_489_121e-308);
+}
+
+#[test]
 fn test_hyp2f1_f64_x_gt_1() {
     // unlike in xsf: NaN where 2F1 is complex, in either order of a and b; xsf gives inf
     for (a, b, c, x) in [(32.000_000_000_000_01, 75.0, 97.0, 2.0), (32.0, 75.0, 97.0, 2.0)] {

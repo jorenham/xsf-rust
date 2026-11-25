@@ -1131,7 +1131,7 @@ pub(crate) fn hyp2f1_poly_dd(
     };
     let n = -p.hi;
     let y = if x == 1.0 {
-        chu_vandermonde(n, q, c)
+        chu_vandermonde(n, q, c, true)
     } else {
         let direct = || poly_dd(n, q, c, Dd::new(x), true);
         let pfaff = || {
@@ -1146,7 +1146,7 @@ pub(crate) fn hyp2f1_poly_dd(
         let reversal = || {
             let d = q - c + (1.0 - n);
             let y = no_pole(p, d).then(|| poly_dd(n, q, d, Dd::ONE - x, true))??;
-            let at_one = chu_vandermonde(n, q, c)?;
+            let at_one = chu_vandermonde(n, q, c, false)?;
             Scaled::new(at_one.m * y.m, at_one.e + y.e, at_one.err + y.err + MACHEP)
         };
         let methods: [&dyn Fn() -> Option<Scaled>; 3] = [&direct, &pfaff, &reversal];
@@ -1222,8 +1222,9 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd, scale_c: bool) -> Option<Scaled> {
 }
 
 /// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c` not an integer in
-/// `(-n, 0]`, in double-double
-fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
+/// `(-n, 0]`, in double-double. If `round_subnormal`, a subnormal value is rounded with its low
+/// word, so that `Scaled::to_f64` returns it without rounding the high word again.
+fn chu_vandermonde(n: f64, b: Dd, c: Dd, round_subnormal: bool) -> Option<Scaled> {
     let cb = c - b;
     // the product `t 2^e`, with the mantissas of the factors as in `poly_dd`, or `None` if a
     // numerator is 0
@@ -1236,8 +1237,14 @@ fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
             Some(rescale_exp(t.hi).map_or((t, e), |s| (t.ldexp(-s), e + s)))
         });
     match product {
-        // (an addition, a product, and a division per factor)
-        Some((t, e)) => Scaled::new(t.hi, e, MACHEP + 3.0 * n * DD_ROUNDING),
+        Some((t, e)) => {
+            let units = round_subnormal.then(|| t.ldexp(e + 1074).round_subnormal_units());
+            let m = units
+                .filter(|v| v.is_subnormal())
+                .map_or(t.hi, |v| ldexp_f64(v, -e));
+            // (an addition, a product, and a division per factor)
+            Scaled::new(m, e, MACHEP + 3.0 * n * DD_ROUNDING)
+        },
         None => Some(Scaled {
             m: 0.0,
             e: 0,

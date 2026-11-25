@@ -727,8 +727,21 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
-    // Unlike in xsf, use compensated parameter differences for Gauss summation at x = 1.
     if x == 1.0 {
+        // Unlike in xsf, use the double-double Chu-Vandermonde product to avoid cancellation in
+        // the terminating series.
+        //
+        // (also for c = a or c = b, for at most `HYP2F1_MAXITER` factors; not for a nonfinite
+        // parameter, where the product isn't finite, or a zero one, where `hyp2f1_impl` returns 1
+        // at once)
+        let short = |v: f64| is_nonpos_int(v) && v >= -(HYP2F1_MAXITER as f64);
+        let finite = [a, b, c].into_iter().all(f64::is_finite);
+        let eligible = finite && a != 0.0 && b != 0.0 && (short(a) || short(b));
+        let poly = eligible.then(|| hyp2f1_poly_dd(a, b, c, x));
+        if let Some(y) = poly.flatten() {
+            return y.to_f64().0;
+        }
+        // Unlike in xsf, use compensated parameter differences for Gauss summation.
         let divergent = || f64::INFINITY * gammasgn(a) * gammasgn(b) * gammasgn(c);
         if let Some(y) = hyp2f1_at_1(a, b, c, divergent, core::convert::identity) {
             return y;
