@@ -90,12 +90,8 @@ pub(super) fn estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> O
         None => pfq_real(&mut a, &mut b, z),
     };
     sum.or_better(|| {
-        // Retry an inaccurate finite reduced polynomial with the scaled evaluator
-        // on the unit interval.
-        if !(0.0..=1.0).contains(&z)
-            || !sum?.trusted()?.is_finite()
-            || !(1.0..=f64::from(PFQ_DD_MAXITER)).contains(&first_zero(&a))
-        {
+        // Retry an inaccurate reduced polynomial with the scaled evaluator.
+        if !(1.0..=f64::from(PFQ_DD_MAXITER)).contains(&first_zero(&a)) {
             return None;
         }
         let y = hyp2f1_poly_dd(a[0], a[1], b[0], z)?;

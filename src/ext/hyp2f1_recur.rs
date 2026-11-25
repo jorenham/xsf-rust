@@ -1104,8 +1104,8 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
 /// `F(a, b; c; x)` for finite `x != 0` and an integer `a` or `b = -n < 0`, with `c` not an integer
 /// in `(-n, 0]`: the polynomial (DLMF 15.2.4, or 15.2.5 for an integer `c <= -n`) in
 /// double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
-/// `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff transformation
-/// (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
+/// `F(-186, -26.75; -333; -9)`; if that is inaccurate, for `x < 1` its Pfaff transformation
+/// (DLMF 15.8.1), and then its reversal about 1 (DLMF 15.8.7); at `x = 1`, Chu-Vandermonde
 pub(crate) fn hyp2f1_poly_dd(
     a: impl Into<Dd>,
     b: impl Into<Dd>,
@@ -1119,9 +1119,9 @@ pub(crate) fn hyp2f1_poly_dd(
     // (`a >= b`, as in `hyp2f1_recur`, so the lower degree first)
     let (a, b) = if b.hi > a.hi { (b, a) } else { (a, b) };
     // (no factor of `(c)_n` is 0)
-    let no_pole = |p: Dd| p.hi >= c.hi || !(c.hi <= 0.0 && c.is_integer());
+    let no_pole = |p: Dd, c: Dd| p.hi >= c.hi || !(c.hi <= 0.0 && c.is_integer());
     let is_poly =
-        |p: Dd| p.is_integer() && no_pole(p) && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
+        |p: Dd| p.is_integer() && no_pole(p, c) && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     let (p, q) = if is_poly(a) {
         (a, b)
     } else if is_poly(b) {
@@ -1133,13 +1133,21 @@ pub(crate) fn hyp2f1_poly_dd(
     let y = if x == 1.0 {
         chu_vandermonde(n, q, c)
     } else {
-        let direct = poly_dd(n, q, c, Dd::new(x), true);
-        if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
-            direct
-        } else {
-            let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - Dd::ONE), true);
-            min_err(direct, pfaff.map(|y| y.with_l(ln_dd(Dd::ONE - x) * n)))
-        }
+        let direct = || poly_dd(n, q, c, Dd::new(x), true);
+        let pfaff = || {
+            let w = Dd::new(x) / (Dd::new(x) - Dd::ONE);
+            let y = (x < 1.0).then(|| poly_dd(n, c - q, c, w, true))??;
+            Some(y.with_l(ln_dd(Dd::ONE - x) * n))
+        };
+        // `F(-n, q; d; 1 - x)` times `F(-n, q; c; 1)`, with `1 - x` exact in double-double
+        let reversal = || {
+            let d = q - c + (1.0 - n);
+            let y = no_pole(p, d).then(|| poly_dd(n, q, d, Dd::ONE - x, true))??;
+            let at_one = chu_vandermonde(n, q, c)?;
+            Scaled::new(at_one.m * y.m, at_one.e + y.e, at_one.err + y.err + MACHEP)
+        };
+        let methods: [&dyn Fn() -> Option<Scaled>; 3] = [&direct, &pfaff, &reversal];
+        best_of(methods.into_iter().map(|method| method()))
     };
     // (not if its mantissa is NaN or infinite, which `Scaled::new` accepts)
     y.filter(|y| y.m.is_finite())

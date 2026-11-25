@@ -986,6 +986,17 @@ fn test_hyp2f1_f64_c_lt_0() {
 }
 
 #[test]
+fn test_hyp2f1_f64_polynomial_neg_int_c_above_1() {
+    // a polynomial whose terms cancel, for an integer c <= a (exact rational sums)
+    let actual = [
+        xsf::hyp2f1(-43.0, -22.5, -47.0, 1.023_180_005_600_207_6),
+        xsf::hyp2f1(-45.0, -35.157_074_913_997_75, -53.0, 1.000_000_000_003_527),
+    ];
+    let desired = [4.883_556_412_840_876e-19, -3.889_513_609_716_145e-24];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp2f1_f64_neg_int_c_minus_a_or_c_minus_b() {
     // unlike in xsf: by `hyp2f1_recur` if c - a or c - b is only near a negative integer and
     // -1 < c - a - b < 0, where the recurrence in `a` is estimated as accurate, but isn't. These

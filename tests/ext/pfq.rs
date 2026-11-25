@@ -124,11 +124,19 @@ fn test_hyp3f2_cancels_to_2f1() {
     let z = 1.0 - 2.0_f64.powi(-40);
     assert_hyp3f2([1.0, 7.0, 1.0], [7.0, 2.0], z, -(-z).ln_1p() / z);
     // Terminating Hahn polynomial, from the exact rational sum.
-    for (z, expected) in
-        [(1.0, 0.000_402_866_243_889_239_3), (1.0f64.next_down(), 0.000_402_866_243_889_197_8)]
-    {
+    for (z, expected) in [
+        (1.0, 0.000_402_866_243_889_239_3),
+        (1.0f64.next_down(), 0.000_402_866_243_889_197_8),
+        (1.0f64.next_up(), 0.000_402_866_243_889_322_3),
+    ] {
         assert_hyp3f2([-32.0, 36.25, -32.0], [4.0, -32.0], z, expected);
     }
+    // Other terminating reductions, from the exact rational sums.
+    assert_hyp3f2([-5.0, -60.0, 48.5], [-16.75, -5.0], 1.0, -9.020_867_640_595_778e23);
+    let z = 0.546_393_812_610_010_3;
+    assert_hyp3f2([-62.0, 51.25, -62.0], [-62.0, 33.75], z, -1.368_298_352_557_203e-25);
+    let z = 1.000_000_000_000_073_5;
+    assert_hyp3f2([20.75, -44.0, -44.0], [-44.0, 13.25], z, 1.277_819_349_241_632_3e-22);
     // complex, where `hyp2f1` is +inf
     assert!(hyp3f2(1.75, 3.0, 4.0, 2.0, 4.0, 2.0).is_nan());
     assert!(hyppfq([1.75, 3.0], [2.0], 2.0).is_some_and(f64::is_nan));
