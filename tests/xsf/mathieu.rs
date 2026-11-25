@@ -359,3 +359,36 @@ fn test_mathieu_ce_se_radians() {
         assert!(f.is_nan() && d.is_nan());
     }
 }
+
+#[test]
+fn test_mathieu_fourier_index() {
+    // Indexed 55-digit Fourier eigenvectors, checked at two truncation lengths.
+    let (y, yp) = xsf::mathieu_cem(34, 225.0, 17.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-0.310_224_323_123_159_56, -29.414_627_465_477_14],
+        rtol = 3e-13
+    );
+    let (y, yp) = xsf::mathieu_sem(47, 225.0, 17.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [0.008_682_560_282_414_987, 44.824_793_044_686_58],
+        rtol = 3e-13
+    );
+    let coeffs = xsf::mathieu_even_coef(34, 225.0).unwrap();
+    let x = 17.0f64.to_radians();
+    let from_coeffs = coeffs
+        .iter()
+        .enumerate()
+        .map(|(j, a)| a * (2.0 * j as f64 * x).cos())
+        .sum::<f64>();
+    xsref::np_assert_allclose!([from_coeffs], [-0.310_224_323_123_159_56], rtol = 3e-13);
+
+    // Bessel cross products using the indexed Fourier eigenvector.
+    let (y, yp) = xsf::mathieu_modsem2(47, 225.0, 0.27);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-185_326_598_601.070_37, 7_633_945_299_425.866],
+        rtol = 3e-13
+    );
+}

@@ -23,7 +23,7 @@ pub(crate) use hyperg::{
     cchg, chgm, chgm_neg_x_asymptotic, chgu, hyp1f1_neg_b_fallback, hyp1f1_small_b,
 };
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
-pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
+pub(crate) use mathieu::{coefficient_cv, cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
 pub(crate) use par_cyl::cpbdn;
 pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};

@@ -12,6 +12,8 @@ use super::{Status, jynb, try_zeroed};
 use crate::utils::neg_one_pow;
 use crate::xsf::cephes::polevl::polevl;
 
+const INDEXED_CV_Q_MAX: f64 = 768.0;
+
 /// The `cv0` polynomials in `q` (highest degree first), as `(m, kd, q_max, coefficients)`
 #[rustfmt::skip]
 const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
@@ -188,10 +190,26 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     }
     // Unlike in xsf, verify the index across the moderate transition.
     // Start the higher-order check below the observed wrong-index region.
-    if m <= 30 && (m <= 25 || q > 4.0 * f64::from(m)) && (1.0..=768.0).contains(&q) {
+    if m <= 30 && (m <= 25 || q > 4.0 * f64::from(m)) && (1.0..=INDEXED_CV_Q_MAX).contains(&q) {
         return indexed_cv(kd, m, q, a).unwrap_or(a);
     }
     a
+}
+
+// Unlike in xsf, verify the index before computing Fourier coefficients in the
+// bounded angular and modified Mathieu domains.
+pub(crate) fn coefficient_cv(kd: i32, m: i32, q: f64) -> f64 {
+    let high_transition = m > 30 && q > 3.0 * f64::from(m);
+    let a = if high_transition && q <= f64::from(m).powi(2) {
+        refine(kd, m, q, cvqm(m, q))
+    } else {
+        cva2(kd, m, q)
+    };
+    if high_transition || (m <= 30 && q > INDEXED_CV_Q_MAX) {
+        indexed_cv(kd, m, q, a).unwrap_or(a)
+    } else {
+        a
+    }
 }
 
 // Unlike in xsf, check the order of a moderate characteristic value against
@@ -809,7 +827,7 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, xr: f64, csf: &mut f64, csd: &mut f6
     let eps = 1.0e-14;
 
     let kd = kd(kf, m);
-    let a = cva2(kd, m, q);
+    let a = coefficient_cv(kd, m, q);
 
     let qm = qm(q);
 
@@ -1001,9 +1019,6 @@ pub(crate) fn mtu12(
     let eps = 1.0e-14;
     let mut nm = 0;
 
-    let kd = kd(kf, m);
-    let a = cva2(kd, m, q);
-
     let qm = qm(q);
 
     // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7).
@@ -1048,6 +1063,8 @@ pub(crate) fn mtu12(
         return Status::NoMemory;
     };
 
+    let kd = kd(kf, m);
+    let a = coefficient_cv(kd, m, q);
     fcoef(kd, m, q, a, &mut fg);
     let mut ic = m / 2 + 1;
     if kd == 4 {

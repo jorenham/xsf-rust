@@ -14,7 +14,7 @@ use core::f64::consts::FRAC_PI_2;
 use num_traits::ToPrimitive;
 
 use crate::utils::neg_one_pow;
-use crate::xsf::specfun::{Status, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
+use crate::xsf::specfun::{Status, coefficient_cv, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
 
 /* Mathieu functions */
 /* Characteristic values */
@@ -494,19 +494,14 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Option<([f64; 252], usize)> {
     }
     let km = km.to_usize().unwrap();
 
-    let cv = if KD == 1 || KD == 2 {
-        mathieu_a(m, q)
-    } else if KD == 3 || KD == 4 {
-        mathieu_b(m, q)
-    } else {
-        unreachable!()
-    };
+    let m = m.try_into().unwrap();
+    let cv = coefficient_cv(KD, m, q);
 
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
     // Unlike in SciPy (scipy/xsf#312), 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`
     // can be 251
     let mut fc = [f64::NAN; 252];
-    specfun_fcoef(KD, m.try_into().unwrap(), q, cv, &mut fc);
+    specfun_fcoef(KD, m, q, cv, &mut fc);
     if fc[0].is_nan() {
         // only `fc[..km]`, since `fcoef` zeroes `fc[km..251]`
         assert!(fc[..km].iter().all(|c| c.is_nan()), "expected all NaN");
