@@ -701,12 +701,33 @@ fn cyl_hankel_scaled_c64(v: f64, z: C64, m: i32) -> C64 {
         |kode| cyl_hankel_c64(v, z, kode, m),
         || {
             if sign * z.im < 0.0 {
-                scaled_bessel_from_k(v, z, true)
+                // Unlike in xsf, recover a failed damped Hankel value on the imaginary axis.
+                damped_hankel_on_imaginary_axis(v, z).or_else(|| scaled_bessel_from_k(v, z, true))
             } else {
                 scaled_hankel_overflow(v, z)
             }
         },
     )
+}
+
+// With 2 exp(-|Im z|) I_n rounded to zero (DLMF 10.4.4 and 10.27.8),
+// the remaining projection is a quarter turn of the scaled Y value.
+#[cold]
+fn damped_hankel_on_imaginary_axis(v: f64, z: C64) -> Option<C64> {
+    // 2 I_n K_n < 1/n. An order of at least two leaves the same
+    // factor-of-two margin as the single I_n in the scaled Y check.
+    if v.abs() < 2.0 {
+        return None;
+    }
+    let k = scaled_axis_k_when_i_rounds_to_zero(v, z)?;
+    Some(damped_hankel_axis_projection(v, z.im, 0.0, k))
+}
+
+fn damped_hankel_axis_projection(v: f64, y: f64, i: f64, k: f64) -> C64 {
+    let quadrant = v.rem_euclid(4.0) as u32;
+    let (re, im) = Quadrant::from_index(u64::from(quadrant)).rotate(neg_if_odd(quadrant, k), i);
+    let value = c64(re, im);
+    if y < 0.0 { value.conj() } else { value }
 }
 
 // Limit the relative error from cancellation in either projection.

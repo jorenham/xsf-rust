@@ -1453,6 +1453,32 @@ xsref::tests! {
 }
 
 #[test]
+fn test_hankel_scaled_integer_imaginary_axis() {
+    // Arb from the real I and K projections at the exact inputs.
+    for (v, re, im) in [
+        (999.0, -0.158_218_832_840_111_5, -0.0),
+        (1000.0, 0.0, 0.741_397_822_053_917_6),
+        (-1001.0, -3.477_291_343_434_034_7, -0.0),
+    ] {
+        for (actual, expected) in [
+            (xsf::hankel_2e(v, c64(0.0, 446.75)), c64(re, im)),
+            (xsf::hankel_1e(v, c64(-0.0, -446.75)), c64(re, -im)),
+        ] {
+            np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 5e-13);
+            for (part, reference) in [(actual.re, expected.re), (actual.im, expected.im)] {
+                if reference == 0.0 {
+                    assert_eq!(part.to_bits(), reference.to_bits());
+                }
+            }
+        }
+    }
+
+    // Arb rounds the real projection to 41 multiples of the least subnormal.
+    let re = xsf::hankel_2e(1000.0, c64(0.0, 580.0)).re;
+    assert!(re.is_nan() || re.to_bits() == 41);
+}
+
+#[test]
 fn test_hankel_positive_axis_overflow_recovery() {
     for (v, x, j, y) in [
         (10.0, 1e-30, 2.691_144_455_467_36e-310, -1.182_804_904_943_348_4e308),
