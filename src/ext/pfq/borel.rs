@@ -63,6 +63,46 @@ pub(super) fn hyp3f0_near_coincident(a: &[f64], b: &[f64], z: f64) -> Option<Est
     }
 }
 
+// The positive-shape 3F0 at -t is E[(1+tXY)^(-a)] for independent
+// unit-scale Gamma variables X and Y with shapes b and c, respectively.
+#[cold]
+pub(super) fn hyp3f0_gamma_product(upper: &[f64], lower: &[f64], z: f64) -> Option<Estimate> {
+    let [c, b, a] = super::descending(<[f64; 3]>::try_from(upper).ok()?);
+    let s = b + c;
+    // The density of 2 sqrt(XY) vanishes at zero for b >= 1. Keep its power and
+    // gamma factors well within binary64 range on the finite integration interval.
+    if !(lower.is_empty() && a > 0.0 && b >= 1.0 && s <= 64.0) {
+        return None;
+    }
+    let root = (-z).sqrt() / 2.0;
+    // U <= X+Y ~ Gamma(s), and E[exp((X+Y)/2)] = 2^s. At this endpoint
+    // Markov's inequality bounds the omitted probability by less than epsilon^2.
+    let end = 2.0 * core::f64::consts::LN_2 * (s + 106.0);
+    // U = 2 sqrt(XY) has density 2 (u/2)^(b+c-1) K_(b-c)(u)/(Gamma(b) Gamma(c)).
+    // root*u = sinh(w) resolves the scale of (1+(root*u)^2)^(-a).
+    let hi = (root * end).asinh();
+    // Allow for the rounded abscissa in the powers, the Bessel value and normalization.
+    let rounding = f64::EPSILON * (64.0 + 3.0 * s + (0.5 * s + a) * hi);
+    if rounding >= PFQ_TOL {
+        return None;
+    }
+    let f = |w: f64| {
+        let u = w.sinh() / root;
+        let k = if b == c {
+            crate::bessel_k0(u)
+        } else {
+            crate::bessel_k(c - b, u)
+        };
+        (u / 2.0).powf(s - 1.0) * k * w.cosh().powf(1.0 - 2.0 * a)
+    };
+    let (sum, error) = crate::ext::quadpack::quad(f, 0.0, hi, 0.0, PFQ_TOL / 4.0);
+    let norm = 2.0 / (root * crate::gamma(b) * crate::gamma(c));
+    let value = norm * sum;
+    let tail = f64::EPSILON.powi(2) * hi.cosh().powf(-2.0 * a);
+    let result = Estimate::absolute((value, norm * error + tail + rounding * value));
+    ((f64::MIN_POSITIVE..=1.0).contains(&value) && result.is_accurate()).then_some(result)
+}
+
 /// Cached evaluation of the Borel sum `x^a1 U(a1, a1 - a2 + 1, x)` for `2F0(a1, a2;; -1/x)`,
 /// with its finite-difference rounding sensitivity and pole proximity flag
 struct RawBorel {
