@@ -471,13 +471,12 @@ fn pfq_real(a: &mut [f64], b: &mut [f64], z: f64) -> Option<Estimate> {
         // complex
         Some(Estimate::exact(f64::NAN))
     } else if degree.is_infinite() && z == 1.0 {
-        // Unlike in xsf, sum small positive integer shifts at z=1 by a finite reduction.
         if let (&[1.0, u, v] | &[u, 1.0, v] | &[u, v, 1.0], &[n, w]) = (&*a, &*b) {
             for (n, w) in [(n, w), (w, n)] {
-                if let Some(y) =
+                if let Some(value) =
                     hyp3f2_shift_at_one(u, v, n, w).or_else(|| hyp3f2_shift_at_one(v, u, n, w))
                 {
-                    return Some(y);
+                    return Some(value);
                 }
             }
         }
@@ -493,34 +492,27 @@ fn pfq_real(a: &mut [f64], b: &mut [f64], z: f64) -> Option<Estimate> {
 
 /// A positive finite sum for `3F2(1,u,v; n,w; 1)` with a small integer shift `d = v - n > 0`.
 fn hyp3f2_shift_at_one(u: f64, v: f64, n: f64, w: f64) -> Option<Estimate> {
-    if u < f64::MIN_POSITIVE || n < f64::MIN_POSITIVE || w <= u {
-        return None;
-    }
-    let (d, d_lo) = two_sum(v, -n);
+    let (d, low) = two_sum(v, -n);
     // At most nine roundings per update; eight epsilons per term bound their accumulation.
     let err = 8.0 * f64::EPSILON * (d + 1.0);
-    if d_lo != 0.0 || d <= 0.0 || d.fract() != 0.0 || err > PFQ_TOL {
-        return None;
-    }
+    let degree =
+        (low == 0.0 && d > 0.0 && d.fract() == 0.0 && err <= PFQ_TOL).then_some(d as u32)?;
     let (gap, gap_lo) = two_sum(w, -u);
     // Subtract the integer first, exactly when it is close to the high part (Sterbenz's lemma).
     let gap_minus = |j| (gap - j) + gap_lo;
-    if gap_minus(d + 1.0) <= 0.0 {
-        return None;
-    }
+    (u >= f64::MIN_POSITIVE && n >= f64::MIN_POSITIVE && gap_minus(d + 1.0) > 0.0).then_some(())?;
 
     // Expand (n+k)_d/(n)_d in binom(k,j) and sum each moment by Gauss (DLMF 15.4.20).
     let mut term = (w - 1.0) / gap_minus(1.0);
     let mut sum = term;
-    for j in 0..d as u32 {
+    for j in 0..degree {
         let j = f64::from(j);
         let num = (d - j) * (u + j);
         let den = (n + j) * gap_minus(2.0 + j);
         let ratio = num / den;
         term *= ratio;
-        if !num.is_normal() || !den.is_normal() || !ratio.is_normal() || !term.is_normal() {
-            return None;
-        }
+        (num.is_normal() && den.is_normal() && ratio.is_normal() && term.is_normal())
+            .then_some(())?;
         sum += term;
     }
     sum.mul_add(err, sum)
