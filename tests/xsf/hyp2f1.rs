@@ -311,7 +311,7 @@ fn test_hyp2f1_c64_triangle_map() {
 }
 
 #[test]
-fn test_hyp2f1_c64_rounded_zero_balance() {
+fn test_hyp2f1_c64_rounded_integer_balance() {
     for (a, b, c, x, y, re, im) in [
         (
             8.000_000_000_000_002,
@@ -331,6 +331,9 @@ fn test_hyp2f1_c64_rounded_zero_balance() {
             2.159_228_790_004_916_6e22,
             4.605_886_830_369_123e19,
         ),
+        // Inside the unit disk, and with a rounded balance of -2.
+        (23.9, 13.35, 37.25, 0.99949, 0.0011, 20_550_478_649.543_236, 24_851_828_396.636_16),
+        (23.9, 13.35, 35.25, 0.99949, 0.0011, -15_283_485_606_553.012, 11_862_031_344_500.123),
     ] {
         for (a, b) in [(a, b), (b, a)] {
             for sign in [-1.0, 1.0] {

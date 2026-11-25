@@ -838,21 +838,14 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     Some(value)
 }
 
-fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64, z_abs: f64) -> C64 {
+fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if let Some(value) = hyp2f1_incomplete_beta(a, b, c, z) {
         return value;
     }
     let balance = c - a - b;
-    // Unlike in xsf, also take the limit when a + b - c rounds to a gamma pole.
-    // On or outside the unit disk the Maclaurin fallback cannot recover that pole.
-    // The radius bound keeps the limiting series coefficients rapidly decreasing.
-    let use_limit = (balance - balance.round()).abs() < HYP2F1_EPS
-        || (z_abs >= 1.0
-            && a + b == c
-            && (1.0..=32.0).contains(&a)
-            && (1.0..=32.0).contains(&b)
-            && (1.0 - z).norm_sqr() <= (0.5 / (a * b)).powi(2));
-    let (result, cancellation) = if use_limit {
+    // Unlike in xsf, also take the limit when c - a - b is within rounding of an integer.
+    let rounding = f64::EPSILON * a.abs().max(b.abs()).max(c.abs());
+    let (result, cancellation) = if (balance - balance.round()).abs() < HYP2F1_EPS.max(rounding) {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
@@ -1184,7 +1177,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {
-        return hyp2f1_near_one(a, b, c, z, z_abs);
+        return hyp2f1_near_one(a, b, c, z);
     }
     /* 1/z transformation (DLMF 15.8.2). */
     hyp2f1_inverse(a, b, c, z)
