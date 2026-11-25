@@ -954,7 +954,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
             j
         } else if let Some(j) = (v < LARGE_ORDER_MIN_V)
             .then(|| bessel_j_axis_wronskian(v, x, cy.im.abs()))
-            // a subnormal J has fewer bits than the relative accuracy of Y
+            // a subnormal J means a tiny x, where the J of AMOS is accurate
             .filter(|j| j.is_normal())
         {
             j
