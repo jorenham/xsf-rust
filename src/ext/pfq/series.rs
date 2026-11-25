@@ -232,7 +232,7 @@ fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
 
 /// `t_{n+1} / (z t_n)` for any parameters and `n`, as a mantissa and an `i64` exponent, so that
 /// no partial product over- or underflows
-fn pfq_frexp_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> (T, i64) {
+pub(super) fn pfq_frexp_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> (T, i64) {
     let product = |params: &[f64], init: (T, i64)| {
         let times = |(m, e): (T, i64), &v: &f64| {
             let (vm, ve) = (T::from_f64(v) + n).frexp();

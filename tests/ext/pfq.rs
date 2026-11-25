@@ -2060,3 +2060,16 @@ fn test_hyppfq_series_sum_above_1e154_rounding_below() {
     let expected = 1.494_655_400_472_756_6e154;
     assert!((y - expected).abs() <= 5e-14 * expected, "{y} != {expected}");
 }
+
+#[test]
+fn terminating_balanced_at_one() {
+    let a = [-15.0, 16.75, 17.75];
+    let b = [19.25, 1.25];
+    // Exact rational terminating sum, rounded to binary64.
+    let expected = -8.365_822_909_815_323e-8;
+    assert_eq!(xsf::hyppfq(a, b, 1.0), Some(expected));
+    assert_eq!(xsf::hyp3f2(a[2], a[0], a[1], b[1], b[0], 1.0), expected);
+    assert_eq!(xsf::hyppfq([-16.0, a[0], a[1], a[2]], [-16.0, b[0], b[1]], 1.0), Some(expected));
+    assert_eq!(xsf::hyppfq([-3.0, 3.0, 4.5], [2.0, 3.5], 1.0), Some(0.0));
+    assert_eq!(xsf::hyppfq([-3.0, 3.0, 4.5], [-1.0, 6.5], 1.0), Some(f64::INFINITY));
+}
