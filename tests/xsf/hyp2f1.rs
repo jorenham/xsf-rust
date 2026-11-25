@@ -311,7 +311,7 @@ fn test_hyp2f1_c64_triangle_map() {
 }
 
 #[test]
-fn test_hyp2f1_c64_rounded_zero_balance() {
+fn test_hyp2f1_c64_rounded_integer_balance() {
     for (a, b, c, x, y, re, im) in [
         (
             8.000_000_000_000_002,
@@ -331,6 +331,69 @@ fn test_hyp2f1_c64_rounded_zero_balance() {
             2.159_228_790_004_916_6e22,
             4.605_886_830_369_123e19,
         ),
+        // Inside the unit disk, and with a rounded balance of -2.
+        (23.9, 13.35, 37.25, 0.99949, 0.0011, 20_550_478_649.543_236, 24_851_828_396.636_16),
+        (23.9, 13.35, 35.25, 0.99949, 0.0011, -15_283_485_606_553.012, 11_862_031_344_500.123),
+        // Outside it, two ulps from a balance of 5.
+        (
+            -4.3,
+            3.44,
+            4.140_000_000_000_001,
+            1.02,
+            0.05,
+            0.009_737_815_581_243_74,
+            -0.001_776_337_350_623_636,
+        ),
+        // A balance of 1e-13, beyond the rounding of a + b.
+        (
+            1.3,
+            2.1,
+            3.400_000_000_000_1,
+            0.95,
+            0.1,
+            3.785_068_120_859_939_3,
+            2.306_708_495_240_381_6,
+        ),
+        // Gamma functions that overflow or underflow, also for an exact balance.
+        (
+            100.3,
+            80.4,
+            180.7,
+            0.999_999,
+            1e-7,
+            8.216_080_747_133_156e54,
+            2.119_177_392_195_293_8e53,
+        ),
+        (150.5, 60.25, 210.75, 0.9999, 1e-5, 4.019_727_082_272_486e54, 4.690_374_590_829_056e53),
+        (
+            181.719,
+            -17.3476,
+            162.3714,
+            0.998,
+            0.004,
+            3.770_952_191_815_918e-22,
+            -9.784_596_732_535_692e-23,
+        ),
+        // A rising factorial that overflows in one order of a and b.
+        (
+            -169.25,
+            173.5,
+            170.25,
+            1.0001,
+            1e-40,
+            1.879_389_312_714_306e-110,
+            -3.344_377_011_037_522e-148,
+        ),
+        // The Maclaurin series is closer than the limit.
+        (
+            -0.515_978_988_132_843_6,
+            13.328_394_588_502_42,
+            11.812_415_600_390_873,
+            0.952_516_937_091_452_1,
+            0.197_088_629_712_879_52,
+            0.251_208_055_225_539_1,
+            -0.388_357_387_394_512_25,
+        ),
     ] {
         for (a, b) in [(a, b), (b, a)] {
             for sign in [-1.0, 1.0] {
@@ -339,6 +402,19 @@ fn test_hyp2f1_c64_rounded_zero_balance() {
             }
         }
     }
+    // The limit cancels eight digits, more than a balance of 1e-7 leaves.
+    let actual = xsf::hyp2f1(40.0, 60.0, 112.000_000_1, c64(0.97, 0.0));
+    np_assert_allclose!([actual.re], [3.906_774_039_774_269e17], rtol = 3e-12);
+    // A term of the limit series vanishes before the series has converged.
+    let actual = xsf::hyp2f1(8.0, 8.0, 16.000_000_1, c64(0.967_797_599_699_437_9, 0.0));
+    np_assert_allclose!([actual.re], [6_343.004_188_994_46], rtol = 3e-12);
+    // The same, at an exact balance where the gamma ratio overflows.
+    let actual = xsf::hyp2f1(2.0, 170.0, 172.0, c64(0.989_486_905_267_847_8, 0.0));
+    np_assert_allclose!([actual.re], [2_842.713_082_597_145_3], rtol = 3e-12);
+    // A balance of 1e-12, which the limit is off by.
+    let actual = xsf::hyp2f1(8.000_000_000_001, 8.0, 16.0, c64(1.0001, 1e-6));
+    let desired = [205_297.257_891_800_95, 160_165.783_237_828_03];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 2e-11);
 }
 
 #[test]
