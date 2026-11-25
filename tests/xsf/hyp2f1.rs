@@ -263,6 +263,54 @@ fn test_hyp2f1_c64_inverse_near_integer_index() {
 }
 
 #[test]
+fn test_hyp2f1_c64_triangle_map() {
+    // Schwarz–Christoffel maps for thin triangles. Arb references at the binary64 inputs.
+    for (a, d, x, y, re, im) in [
+        (0.5, 0.01 / 180.0, 1.001, 0.001, 3.972_049_553_641_628, 1.175_344_862_076_758_1),
+        (0.375, 0.1 / 180.0, 1.05, 0.0, 1.915_689_474_120_120_7, 1.154_794_618_703_662),
+        (
+            0.375,
+            0.1 / 180.0,
+            1.05,
+            f64::from_bits(1),
+            1.915_689_474_120_120_7,
+            1.154_794_618_703_662,
+        ),
+        (
+            0.5,
+            1e-7,
+            0.875,
+            0.484_122_918_275_927_2,
+            1.195_306_715_757_189_3,
+            0.502_528_800_257_228_6,
+        ),
+        (0.125, 1.0 / 64.0, 0.9001, 0.001, 1.262_194_663_684_517_4, 0.001_165_653_720_072_697_2),
+    ] {
+        let b = 1.0 - d;
+        let c = 1.0 + a;
+        for (a, b) in [(a, b), (b, a)] {
+            for sign in [-1.0, 1.0] {
+                let value = xsf::hyp2f1(a, b, c, c64(x, sign * y));
+                np_assert_allclose!([value.re, value.im], [re, sign * im], rtol = 3e-15);
+            }
+        }
+    }
+
+    // A subnormal phase below the cut survives through the beta derivative.
+    for y in [-8.3695e-320, 8.3695e-320] {
+        let value = xsf::hyp2f1(
+            0.964_843_75,
+            1.0 - f64::EPSILON,
+            1.964_843_75,
+            c64(0.999_999_971_191_316_1, y),
+        );
+        assert!(
+            (value.im - 2.803_053_809_78e-312_f64.copysign(y)).abs() <= 2.0 * f64::from_bits(1)
+        );
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_rounded_zero_balance() {
     for (a, b, c, x, y, re, im) in [
         (
