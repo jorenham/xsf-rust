@@ -135,7 +135,7 @@ pub(super) fn reduce_diagonal_phase(x: f64, k: f64) -> (Quadrant, f64) {
     debug_assert!(x.is_finite() && x.abs() >= MIN_DIAGONAL_TAIL_ARG && (k == 1.0 || k == 2.0));
     let (mantissa, exponent) = decompose(x);
     // The exact distance from an axis is > 2^-117 quadrants (continued-fraction bound).
-    center_pi_4(quadrant_window(u128::from(mantissa).pow(2), 2 * exponent + k.log2() as i32))
+    center_pi_4(quadrant_window(u128::from(mantissa).pow(2), 2 * exponent + i32::from(k == 2.0)))
 }
 
 fn center_pi_4([quadrant, lo, mid, hi]: [u64; 4]) -> (Quadrant, f64) {

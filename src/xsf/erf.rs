@@ -76,7 +76,7 @@ pub(super) fn gaussian_tail(z: C64, k: f64) -> C64 {
 
     let (x_abs, y_abs) = (z.re.abs(), z.im.abs());
     // Unlike in xsf, try certifying overflow before evaluation in this wedge,
-    // where the exact Gaussian exponent exceeds MAX.
+    // where the exact Gaussian factor exceeds MAX.
     if y_abs >= 64.0 && x_abs <= y_abs * 0.5 {
         if let Some(result) = erfc_overflow(z, k) {
             return result;
