@@ -2089,3 +2089,36 @@ fn test_hyp2f1_f64_rounded_euler_exponent_on_cut() {
         }
     }
 }
+
+#[test]
+fn test_hyp2f1_c64_centered_population_polynomial() {
+    // Pearson, Olver and Porter, Table A.2 case 16, with an off-axis ordinate.
+    let z = c64(core::f64::consts::FRAC_1_SQRT_2, 0.01);
+    for (a, b) in [(-100.0, -200.0), (-200.0, -100.0)] {
+        let y = xsf::hyp2f1(a, b, -299.999_999_999, z);
+        np_assert_allclose!(
+            [y.re, y.im],
+            [-1.832_446_212_804_294_4e-32, -2.699_124_054_158_986e-31],
+            rtol = 1e-13
+        );
+    }
+
+    // Arb at both binary64 inputs around a near-integer population root.
+    for (x, expected) in [
+        (0.955_144_145_039_975_6, 4.465_417_203_032_561e-124),
+        (0.955_144_145_039_975_7, -1.856_100_292_981_34e-123),
+    ] {
+        let y = xsf::hyp2f1(-100.0, -200.0, -224.999_999_999_999_97, c64(x, -0.0));
+        assert!((y.re - expected).abs() < 1e-131);
+        assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_unresolved_population_polynomial() {
+    let z = c64(1.0, 1.0);
+    let y = xsf::hyp2f1(-1200.0, -2000.0, -3200.0, z);
+    // Arb finite sum. A future solution can return a finite result at this scale.
+    let expected = c64(-1.982_714_984_309_758e-98, 2.089_452_355_842_588e-98);
+    assert!(y.is_nan() || (y - expected).norm() <= expected.norm());
+}
