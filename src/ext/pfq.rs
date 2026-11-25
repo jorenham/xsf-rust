@@ -453,8 +453,8 @@ fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
     (!uncertain).then_some(excess <= 0.0)
 }
 
-// Unlike in xsf, use the Pfaff–Saalschütz product for a terminating balanced
-// 3F2 at one (DLMF 16.4.3) if the defining series loses accuracy.
+// Use the Pfaff–Saalschütz product for a terminating balanced 3F2 at one
+// (DLMF 16.4.3) if the defining series loses accuracy.
 fn pfq_saalschutz(a: &[f64], b: &[f64], n: f64) -> Option<Estimate> {
     let [c, d] = *b else { return None };
     let [_, _, _] = *a else { return None };
