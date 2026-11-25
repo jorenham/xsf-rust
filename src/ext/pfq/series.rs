@@ -486,7 +486,12 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
     mut terms: impl Iterator<Item = T>,
     tol: f64,
 ) -> SeriesSum<T> {
-    let settled = pfq_settled(a, b);
+    // the first term at which a tail bound can end the series, if it converges (p <= q + 1)
+    let settled = if a.len() <= b.len() + 1 {
+        pfq_settled(a, b)
+    } else {
+        f64::INFINITY
+    };
     // the degree of a polynomial, else infinity
     let degree = first_zero(a);
     let (mut sum, mut comp) = (T::from_f64(1.0), T::from_f64(0.0));
@@ -497,8 +502,6 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
     // the sum of |t_k|, in units of `unit`
     let mut abs1 = 1.0;
     let ratio_roundings = pfq_ratio_roundings(a, b);
-    // whether the series converges (p <= q + 1), so that a bound on its tail can end it
-    let converges = a.len() <= b.len() + 1;
     // lower bound on `pfq_ratio_bound`: for p = q + 1 each of its paired ratios is at least 1
     let rho_min = if a.len() == b.len() + 1 { z.abs() } else { 0.0 };
     // the rounding error, and the root of the sum of (s - s_n)^2 = (d - d_n)^2
@@ -554,7 +557,7 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
         let tail = |rho: f64| t.abs() * rho / (1.0 - rho);
         let small = tol * s.abs();
         // (the cheap lower bound on the tail is tested before its costly upper bound)
-        if converges && n >= settled && t.abs() <= small && tail(rho_min) <= small {
+        if n >= settled && t.abs() <= small && tail(rho_min) <= small {
             let rho = pfq_ratio_bound(a, b, z, n + 1.0);
             let tail = tail(rho);
             if rho < 1.0 && tail <= small {
