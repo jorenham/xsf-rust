@@ -42,7 +42,7 @@
 //! The C++ generator classes are functions that return `FnMut` closures here. `set_error` is a
 //! no-op in our build of xsf, so the calls to it are omitted.
 
-use core::f64::consts::{FRAC_1_PI, PI};
+use core::f64::consts::{FRAC_1_PI, FRAC_PI_4, PI};
 
 use crate::ext::{hyp2f1_poly_dd, ln_dd};
 use crate::utils::{is_nonpos_int, neg_one_pow};
@@ -524,7 +524,7 @@ fn hyp2f1_equal_integer_recovery(n: f64, z: C64) -> Option<C64> {
     if !z.re.is_finite() || !z.im.is_normal() {
         return None;
     }
-    // The component separation below is impossible at n >= 256.
+    // Limit the integer power to at most 255 factors.
     if !(2.0..256.0).contains(&n) || n != n.trunc() {
         return None;
     }
@@ -538,8 +538,18 @@ fn hyp2f1_equal_integer_recovery(n: f64, z: C64) -> Option<C64> {
     let norm_sqr = denominator.norm_sqr();
     // This separation limits amplification of the O(n eps) power error to 256/n.
     // With the squared norm and division, the relative component error is below 2^-39.
-    (norm_sqr.is_finite() && re.min(im) > (n / 256.0) * re.max(im))
-        .then(|| denominator.conj() / norm_sqr)
+    // Near either imaginary semiaxis the power is within π/4 of a multiple of π/2.
+    // The small component scales with the deviation from the axis.
+    let near_axis = n * base.re.abs() <= FRAC_PI_4 * base.im.abs();
+    (norm_sqr.is_finite() && (near_axis || re.min(im) > (n / 256.0) * re.max(im))).then(|| {
+        let value = denominator.conj() / norm_sqr;
+        // Canonicalize the structural zero of a purely imaginary base.
+        if base.re == 0.0 {
+            value + C64::ZERO
+        } else {
+            value
+        }
+    })
 }
 
 #[cold]
