@@ -461,7 +461,35 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
             return sum;
         }
     }
-    series_eval(lopez_temme_series_generator(a, b, c, z))
+    let generate = || lopez_temme_series_generator(a, b, c, z);
+    if a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite() {
+        let mut terms = generate();
+        // Unlike in xsf, bound both tails using decreasing absolute beta moments.
+        // For odd moments, reflection gives a beta-weight difference of fixed sign.
+        let w2 = (z / (z - 2.0)).norm_sqr();
+        let upper = a.max(1.0);
+        let mut sum = C64::ZERO;
+        for n in (0..HYP2F1_MAXITER - 1).step_by(2) {
+            let even = terms();
+            let odd = terms();
+            sum += even;
+            sum += odd;
+            let last = even.norm() + odd.norm();
+            let tol = sum.norm() * HYP2F1_EPS;
+            if !last.is_finite() || !tol.is_finite() {
+                break;
+            }
+            if last < tol {
+                let n = n as f64;
+                let ratio = w2 * ((upper + n) / (n + 1.0)) * ((upper + n + 1.0) / (n + 2.0));
+                if last * ratio < tol * (1.0 - ratio) {
+                    return sum;
+                }
+            }
+        }
+    }
+    // Unlike in xsf, restart with the single-term rule if the paired sum fails.
+    series_eval(generate())
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
