@@ -854,180 +854,6 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
 #[expect(clippy::cast_possible_wrap, reason = "the i32 bit width fits i32")]
 const LQ_LARGE_X: f64 = utils::pow2(f64::MAX_EXP - (i32::BITS as i32 + 1) - SPECFUN_BIG_LOG2);
 
-fn lq_scaled_abs(z: C64, max_part: f64) -> (DoubleDouble, DoubleDouble, i32) {
-    let (_, exponent) = frexp_f64(max_part);
-    let x = DoubleDouble::new(ldexp_f64(z.re.abs(), -exponent));
-    let y = DoubleDouble::new(ldexp_f64(z.im.abs(), -exponent));
-    (x, y, exponent)
-}
-
-// For very large |z|, use the leading terms of Q_0' and Q_1 in 1/z²
-// from the exterior Q series (DLMF 14.3.7 and 14.3.10, continued as in §14.21).
-#[cold]
-fn lq_extreme_complex_low(z: C64) -> Option<(C64, C64)> {
-    let m = z.re.abs().max(z.im.abs());
-    if m < LQ_LARGE_X || !z.is_finite() {
-        return None;
-    }
-    Some(lq_extreme_complex_low_scaled(z, m, false))
-}
-
-#[inline]
-fn lq_extreme_complex_low_scaled(z: C64, m: f64, double: bool) -> (C64, C64) {
-    let (x, y, exponent) = lq_scaled_abs(z, m);
-    let (re, im) = lq_negative_inverse_square(x, y);
-    let min_subnormal_exp = f64::MIN_EXP - 53;
-    let scale = -min_subnormal_exp - 2 * exponent + i32::from(double);
-    let restore =
-        |value: DoubleDouble, sign: f64| value.ldexp(scale).round_subnormal_units().copysign(sign);
-    let im_sign = z.re.signum() * z.im.signum();
-    // At equality the real leading parts vanish. The first corrections give Q_0' > 0
-    // and Q_1 < 0 in their real components, both rounding to zero.
-    let re_sign = if z.im.abs() >= z.re.abs() { 1.0 } else { -1.0 };
-    let q1 = c64(restore(re / 3.0, -re_sign), restore(im / 3.0, -im_sign));
-    let im = lq_round_skew_projection(z, x.hi.min(y.hi), im.ldexp(scale), 1);
-    let re = if double && z.re.abs() == const { utils::pow2(538) } && z.im.abs() < 1.0 {
-        // Unlike in xsf, use the first correction to round this order-two derivative
-        // above half a minsubnormal in magnitude.
-        -f64::from_bits(1)
-    } else {
-        restore(re, re_sign)
-    };
-    (q1, c64(re, im.copysign(im_sign)))
-}
-
-#[inline]
-fn lq_negative_inverse_square(x: DoubleDouble, y: DoubleDouble) -> (DoubleDouble, DoubleDouble) {
-    let norm = x * x + y * y;
-    let norm = norm * norm;
-    ((y - x) * (y + x) / norm, (x * y) * 2.0 / norm)
-}
-
-// Unlike in xsf, round a skewed imaginary projection down at its axis midpoint.
-// At such a midpoint b² dominates the other denominator corrections.
-fn lq_round_skew_projection(
-    z: C64,
-    normalized_minor: f64,
-    units: DoubleDouble,
-    odd_divisor: u64,
-) -> f64 {
-    if normalized_minor <= const { utils::pow2(-54) } && units.hi.fract() == 0.5 {
-        let (x, y) = (z.re.abs(), z.im.abs());
-        if lq_axis_ratio_is_dyadic(x.max(y), x.min(y), 3, odd_divisor) {
-            return units.hi.floor() * f64::from_bits(1);
-        }
-    }
-    units.round_subnormal_units()
-}
-
-// b/(odd_divisor*a^power) is dyadic when the odd denominator divides b's significand.
-fn lq_axis_ratio_is_dyadic(major: f64, minor: f64, power: u32, odd_divisor: u64) -> bool {
-    let (a, _, _) = num_traits::Float::integer_decode(major);
-    let (b, _, _) = num_traits::Float::integer_decode(minor);
-    let odd = a >> a.trailing_zeros();
-    odd.checked_pow(power)
-        .and_then(|denominator| denominator.checked_mul(odd_divisor))
-        .is_some_and(|denominator| b % denominator == 0)
-}
-
-// Unlike in xsf, restore the two exterior reciprocal magnitudes before assigning signs.
-fn lq_extreme_complex_reciprocal(z: C64, double: bool) -> C64 {
-    let (abs_re, abs_im) = (z.re.abs(), z.im.abs());
-    let (x, y, exponent) = lq_scaled_abs(z, abs_re.max(abs_im));
-    let norm = x * x + y * y;
-    let cutoff = if double { 3.0 } else { 1.5 };
-    let restore = |value: DoubleDouble, major, minor: f64, imaginary| {
-        let units = (value / norm).ldexp(53 - f64::MIN_EXP - exponent + i32::from(double));
-        // At this skew, a dyadic quotient fits exactly in the high word.
-        if 0.0 < value.hi
-            && value.hi <= const { utils::pow2(-54) }
-            && units.hi.fract() == 0.5
-            && lq_axis_ratio_is_dyadic(major, minor, 2, 1)
-        {
-            // The first omitted term moves an imaginary midpoint up for minor² < 3/2
-            // at order one and minor² < 3 at order two.
-            let rounded = if imaginary && minor.mul_add(minor, -cutoff) < 0.0 {
-                units.hi.ceil()
-            } else {
-                units.hi.floor()
-            };
-            return rounded * f64::from_bits(1);
-        }
-        units.round_subnormal_units()
-    };
-    c64(restore(x, abs_im, abs_re, false), restore(y, abs_re, abs_im, true))
-}
-
-// The exterior leading term for Q_0^1 is -sign(Re z)/z.
-fn lq_extreme_complex_order_one(z: C64, dq0: C64) -> (C64, C64) {
-    let magnitude = lq_extreme_complex_reciprocal(z, false);
-    let side = z.re.signum();
-    let im = magnitude.im.copysign(side * z.im.signum());
-    let mut derivative = dq0 * -side;
-    // On the imaginary axis, the sign of Re(z) determines the square-root lip.
-    // Keep positive zero in the orthogonal components as in lqmn_large.
-    let value = if z.re == 0.0 {
-        derivative.im = 0.0;
-        c64(0.0, im)
-    } else {
-        c64(-magnitude.re, im)
-    };
-    (value, derivative)
-}
-
-// Unlike in xsf, use the exterior leading terms -(2/3) sign(Re z)/z²
-// and (4/3) sign(Re z)/z³, resolving the derivative's underflow signs.
-fn lq_extreme_complex_degree_one_order_one(z: C64) -> (C64, C64) {
-    let (x, y, exponent) = lq_scaled_abs(z, z.re.abs().max(z.im.abs()));
-    let (re, im) = lq_negative_inverse_square(x, y);
-    let scale = 53 - f64::MIN_EXP - 2 * exponent + 1;
-    let side = z.re.signum();
-    let re_sign = if z.im.abs() >= z.re.abs() {
-        side
-    } else {
-        -side
-    };
-    let re_units = (re / 3.0).ldexp(scale);
-    let re = re_units.round_subnormal_units().copysign(re_sign);
-    let im = lq_round_skew_projection(z, x.hi.min(y.hi), (im / 3.0).ldexp(scale), 3).copysign(z.im);
-    let (cube_re, cube_im) = lq_inverse_cube_signs(x, y);
-    let der_re = if z.re == 0.0 {
-        0.0
-    } else {
-        0.0_f64.copysign(cube_re)
-    };
-    let der_im = 0.0_f64.copysign(cube_im * side * z.im.signum());
-    (c64(re, im), c64(der_re, der_im))
-}
-
-fn lq_inverse_cube_signs(x: DoubleDouble, y: DoubleDouble) -> (f64, f64) {
-    let (x2, y2) = (x * x, y * y);
-    ((x2 - y2 * 3.0).hi.signum(), (y2 - x2 * 3.0).hi.signum())
-}
-
-// Unlike in xsf, use the underflow signs of 2/(15z³) and -2/(5z⁴)
-// from the exterior Q series (DLMF 14.3.7 and 14.3.10).
-fn lq_extreme_complex_degree_two(z: C64) -> (C64, C64) {
-    if z.re == 0.0 {
-        return (c64(0.0, 0.0_f64.copysign(z.im)), c64(-0.0, 0.0));
-    }
-    let (x, y, _) = lq_scaled_abs(z, z.re.abs().max(z.im.abs()));
-    let (cube_re, cube_im) = lq_inverse_cube_signs(x, y);
-    let side = z.re.signum();
-    let lip = z.im.signum();
-    let (major, minor) = (x.hi.max(y.hi), x.hi.min(y.hi));
-    // Factoring the real quartic leaves major² - 2*major*minor - minor².
-    // Near its zero, the subtraction major - 2*minor is exact by Sterbenz.
-    let quartic =
-        DoubleDouble::new(major) * (major - 2.0 * minor) - DoubleDouble::new(minor) * minor;
-    // At equal magnitudes the leading imaginary part vanishes and -4/(7z⁶) gives its sign.
-    let diagonal_sign = if z.re.abs() > z.im.abs() { 1.0 } else { -1.0 };
-    (
-        c64(0.0_f64.copysign(cube_re * side), 0.0_f64.copysign(cube_im * lip)),
-        c64(0.0_f64.copysign(-quartic.hi), 0.0_f64.copysign(diagonal_sign * side * lip)),
-    )
-}
-
 #[derive(Clone, Copy)]
 struct LqNearExterior {
     square: C64,
@@ -1082,6 +908,13 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             cqn[k] = c64(SPECFUN_INF, 0.0);
             cqd[k] = c64(SPECFUN_INF, 0.0);
         }
+        return;
+    }
+
+    // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
+    if lq_is_extreme(z) {
+        let extents = [1, cqn.extents[0]];
+        lqmn_extreme_c64(z, Mdspan::new(cqn.data, extents), Mdspan::new(cqd.data, extents));
         return;
     }
 
@@ -1184,14 +1017,6 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             if dq_linear.is_finite() && (dq_linear != 0.0 || *small_dq != 0.0) {
                 *small_dq = dq_linear;
             }
-        }
-    }
-    // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
-    if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
-        (cqn[1], cqd[0]) = (q1, derivative);
-        // Unlike in xsf, restore the underflow signs for Q₂ and Q₂′.
-        if n >= 2 && !z.is_real() {
-            (cqn[2], cqd[2]) = lq_extreme_complex_degree_two(z);
         }
     }
 }
@@ -1297,13 +1122,21 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, km: i32) {
     }
 }
 
-// Use the leading term in 1/x (DLMF 14.3.7 and 14.3.10). Keep its exponent
-// separate because raising the order can bring an underflowed value back into range.
-fn lqmn_extreme_real<T>(
-    x: f64,
+/// Whether `lqmn` and the complex `lqn` use their leading terms at `z`
+fn lq_is_extreme(z: C64) -> bool {
+    z.is_finite() && z.re.abs().max(z.im.abs()) >= LQ_LARGE_X
+}
+
+// Use the leading term in 1/z (DLMF 14.3.7 and 14.3.10), with the exterior branch
+// sqrt(z^2 - 1) ~ sign(Re z) z. Its relative error is O((n + m)^2 / z^2).
+//
+// Keep the exponent of each part separate, because raising the order can bring an underflowed
+// part back into range, also one far below the other part.
+fn lqmn_extreme<T>(
+    z: C64,
     mut qm: Mdspan<'_, T, 2>,
     mut qd: Mdspan<'_, T, 2>,
-    output: impl Fn(f64, f64) -> (T, T),
+    output: impl Fn(C64, C64) -> (T, T),
 ) {
     #[expect(
         clippy::cast_possible_wrap,
@@ -1311,23 +1144,50 @@ fn lqmn_extreme_real<T>(
     )]
     const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
 
-    let (xm, xe) = frexp_f64(x);
-    let xe = i64::from(xe);
-    let inv = DoubleDouble::ONE / xm;
-    let (mut seed, e) = inv.frexp();
-    let mut seed_e = i64::from(e) - xe;
-    let order_sign = -x.signum();
-    // A value mantissa is normalized; a derivative multiplies two such mantissas.
-    // Their magnitudes lie between 1/4 and 1.
-    let scaled = |a: DoubleDouble, e: i64| {
+    // `m 2^e` as `(m, e)`, with `m` zero or normalized
+    type Part = (DoubleDouble, i64);
+    let norm = |(m, e): Part| {
+        if m.hi == 0.0 {
+            return (m, e);
+        }
+        let (m, k) = m.frexp();
+        (m, e + i64::from(k))
+    };
+    let mul = |a: Part, b: Part| norm((a.0 * b.0, a.1 + b.1));
+    let div = |a: Part, b: Part| norm((a.0 / b.0, a.1 - b.1));
+    let add = |a: Part, b: Part| {
+        if a.0.hi == 0.0 {
+            return b;
+        }
+        if b.0.hi == 0.0 {
+            return a;
+        }
+        let e = a.1.max(b.1);
+        let align = |(m, k): Part| m.ldexp((k - e).max(i64::from(i32::MIN)) as i32);
+        norm((align(a) + align(b), e))
+    };
+    let neg = |(m, e): Part| (-m, e);
+    let cmul = |a: [Part; 2], b: [Part; 2]| {
+        [add(mul(a[0], b[0]), neg(mul(a[1], b[1]))), add(mul(a[0], b[1]), mul(a[1], b[0]))]
+    };
+    let scale = |a: [Part; 2], f: f64| a.map(|(m, e)| norm((m * f, e)));
+
+    let (x, y) = (norm((DoubleDouble::new(z.re), 0)), norm((DoubleDouble::new(z.im), 0)));
+    // The separate exponents keep |z|^2 in range.
+    let abs2 = add(mul(x, x), mul(y, y));
+    let inv = [div(x, abs2), neg(div(y, abs2))];
+    let mut seed = inv;
+    let order_sign = -z.re.signum();
+    // Normalized parts are normal above `MIN_EXP`.
+    let scaled = |(a, e): Part| {
         if e > i64::from(f64::MIN_EXP) {
             return ldexp_f64(a.hi, e.min(i64::from(i32::MAX)) as i32);
         }
         if e < i64::from(MIN_SUB_EXP - 1) {
             return 0.0_f64.copysign(a.hi);
         }
-        // Round in units of the least subnormal. At an exact midpoint
-        // the first omitted term increases the magnitude.
+        // Round in units of the least subnormal. At an exact midpoint of the leading term, round
+        // away from zero, as the first omitted term does for real z.
         let units = ldexp_f64(a.hi, (e - i64::from(MIN_SUB_EXP)) as i32);
         let rounded = if units.fract().abs() == 0.5
             && a.lo != 0.0
@@ -1339,19 +1199,29 @@ fn lqmn_extreme_real<T>(
         };
         ldexp_f64(rounded, MIN_SUB_EXP)
     };
+    let scaled = |a: [Part; 2]| c64(scaled(a[0]), scaled(a[1]));
     for n in 0..int(qm.extent(1)) {
         let next = f64::from(n) + 1.0;
-        let (slope, e) = (inv * -next).frexp();
-        let slope_e = i64::from(e) - xe;
-        let (mut value, mut exp) = (seed, seed_e);
+        let slope = scale(inv, -next);
+        let mut value = seed;
         for m in 0..int(qm.extent(0)) {
-            (qm[(m, n)], qd[(m, n)]) =
-                output(scaled(value, exp), scaled(value * slope, exp + slope_e));
-            let (v, e) = (value * (order_sign * (next + f64::from(m)))).frexp();
-            (value, exp) = (v, exp + i64::from(e));
+            (qm[(m, n)], qd[(m, n)]) = output(scaled(value), scaled(cmul(value, slope)));
+            value = scale(value, order_sign * (next + f64::from(m)));
         }
-        let (v, e) = (seed * -slope / (2.0 * next + 1.0)).frexp();
-        (seed, seed_e) = (v, seed_e + slope_e + i64::from(e));
+        seed = cmul(seed, slope).map(|(m, e)| norm((-m / (2.0 * next + 1.0), e)));
+    }
+}
+
+/// `lqmn_extreme` for complex `z`, where on the real axis the imaginary parts are zeros on the
+/// side of `Im z`
+fn lqmn_extreme_c64(z: C64, cqm: Mdspan<'_, C64, 2>, cqd: Mdspan<'_, C64, 2>) {
+    if z.is_real() {
+        // The lateral imaginary signs come from Q' and Q'', respectively.
+        // In the leading term, Q'' has the same sign as Q.
+        let lateral = |value, slope| c64(value, z.im * 1.0_f64.copysign(slope));
+        lqmn_extreme(z, cqm, cqd, |q, d| (lateral(q.re, d.re), lateral(d.re, q.re)));
+    } else {
+        lqmn_extreme(z, cqm, cqd, |q, d| (q, d));
     }
 }
 
@@ -1380,8 +1250,8 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
         return;
     }
     // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
-    if x.abs() >= LQ_LARGE_X && x.is_finite() {
-        lqmn_extreme_real(x, qm, qd, |q, d| (q, d));
+    if lq_is_extreme(c64(x, 0.0)) {
+        lqmn_extreme(c64(x, 0.0), qm, qd, |q, d| (q.re, d.re));
         return;
     }
 
@@ -1470,12 +1340,9 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         return;
     }
 
-    // Unlike in xsf, keep the real-axis leading terms when z^2 would overflow.
-    if z.is_real() && z.re.is_finite() && z.re.abs() >= const { utils::pow2(f64::MAX_EXP / 2) } {
-        // The lateral imaginary signs come from Q′ and Q″, respectively.
-        // In the leading term, Q″ has the same sign as Q.
-        let lateral = |value, slope| c64(value, z.im * 1.0_f64.copysign(slope));
-        lqmn_extreme_real(z.re, cqm, cqd, |q, d| (lateral(q, d), lateral(d, q)));
+    // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
+    if lq_is_extreme(z) {
+        lqmn_extreme_c64(z, cqm, cqd);
         return;
     }
 
@@ -1597,58 +1464,6 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     // of the seeds of the order recurrence can be subnormal, while those of the orders it raises
     // back into range are not
     lq_lift_im(lqmn_c64, z, m + n, &mut cqm, &mut cqd);
-    // Unlike in xsf, use scaled leading terms for Q_1 and Q_0' at extreme z.
-    if let Some((q1, derivative)) = lq_extreme_complex_low(z) {
-        (cqm[(0, 1)], cqd[(0, 0)]) = (q1, derivative);
-        // Unlike in xsf, restore the underflow signs for Q₂ and Q₂′.
-        if n >= 2 && !z.is_real() {
-            let (q, dq) = lq_extreme_complex_degree_two(z);
-            (cqm[(0, 2)], cqd[(0, 2)]) = (q, dq);
-            // Unlike in xsf, restore the signs of the underflowed associated values.
-            // The exterior Q series (DLMF 14.3.7 and 14.3.10) gives the leading
-            // coefficient magnitude (m+2)!/15. Even 75!/(15*|z|³) is below half
-            // a minsubnormal at this cutoff.
-            // The positive (m²+12)/14 correction coefficient preserves the diagonal tie sign.
-            let scale = -z.re.signum();
-            let odd = if z.re == 0.0 {
-                (c64(0.0, q.im * scale), c64(dq.re * scale, 0.0))
-            } else {
-                (q * scale, dq * scale)
-            };
-            for order in 1..=m.min(73) {
-                (cqm[(order, 2)], cqd[(order, 2)]) = if order % 2 == 0 { (q, dq) } else { odd };
-            }
-        }
-        // Unlike in xsf, use scaled leading terms for Q_0^1 and its derivative too.
-        (cqm[(1, 0)], cqd[(1, 0)]) = lq_extreme_complex_order_one(z, derivative);
-        // Unlike in xsf, recover the degree-one order-one slot from its leading terms.
-        if !z.is_real() {
-            (cqm[(1, 1)], cqd[(1, 1)]) = lq_extreme_complex_degree_one_order_one(z);
-        }
-        // Unlike in xsf, apply the order-two factor before rounding.
-        if m >= 2 && !z.is_real() {
-            let value = lq_extreme_complex_reciprocal(z, true);
-            cqm[(2, 0)] = c64(value.re.copysign(z.re), value.im.copysign(-z.im));
-            let mut derivative =
-                lq_extreme_complex_low_scaled(z, z.re.abs().max(z.im.abs()), true).1;
-            // Unlike in xsf, use the doubled inverse square for Q₁² and the
-            // already computed cubic signs for its underflowed derivative.
-            let slope = cqd[(1, 1)] * -z.re.signum();
-            let y = z.im.abs();
-            let (q12, dq12) = if z.re == 0.0 {
-                derivative.im = 0.0;
-                (c64(-derivative.re, 0.0), c64(0.0, slope.im))
-            } else if z.re.abs() == const { utils::pow2(538) } && y < 1.0 && y * y > 1.0 / 3.0 {
-                // Between 1/sqrt(3) and 1, the Q₁² real midpoint rounds to zero
-                // while the existing (Q₀²)′ midpoint rounds away from zero.
-                (c64(0.0, -derivative.im), slope)
-            } else {
-                (-derivative, slope)
-            };
-            cqd[(2, 0)] = derivative;
-            (cqm[(2, 1)], cqd[(2, 1)]) = (q12, dq12);
-        }
-    }
 }
 
 // Rust API
