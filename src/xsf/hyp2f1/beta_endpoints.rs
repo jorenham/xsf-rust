@@ -1,4 +1,4 @@
-use super::power::{ldexp_sat, one_minus_z_pow};
+use super::power::{ScaledC64, ldexp_sat, one_minus_z_pow};
 use crate::ext::{Scaled, fold_exp, mul_gamma_ratio};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
@@ -61,7 +61,7 @@ fn contour(a: f64, p: f64, c: f64, z: C64) -> Option<C64> {
     let right_mean = endpoint_mean(right, p1)?;
     let numerator = mul_gamma_ratio([c, p1], [], || Scaled::new(1.0, 0, 0.0))?;
     let shared = (p1, numerator);
-    let left = scale_endpoint(left, left_mean, shared, (C64::ONE, 0.0))?;
+    let left = scale_endpoint(left, left_mean, shared, ScaledC64::ONE)?;
     let right = scale_endpoint(right, right_mean, shared, one_minus_z_pow(z, p))?;
     let value = left.value + right.value;
     let error =
@@ -119,22 +119,22 @@ fn scale_endpoint(
     (shape, other_shape, q): (Dd, Dd, C64),
     mean: Estimate,
     (p1, numerator): (Dd, Scaled),
-    (power, exponent): (C64, f64),
+    power: ScaledC64,
 ) -> Option<Estimate> {
     let beta = fold_exp(mul_gamma_ratio([], [other_shape, p1 + shape], || Some(numerator))?);
-    let scale = q.powf(shape.hi) * q.powf(shape.lo) * power * beta.m;
+    let scale = q.powf(shape.hi) * q.powf(shape.lo) * power.mantissa * beta.m;
     let scale_abs = scale.norm();
     if !scale_abs.is_normal() {
         return None;
     }
-    let value = scale * mean.value;
+    let mantissa = scale * mean.value;
     let error = scale_abs * (mean.abs_error + beta.err * mean.value.norm());
-    if !(value.is_finite() && error.is_finite()) {
+    if !(mantissa.is_finite() && error.is_finite()) {
         return None;
     }
-    let exponent = exponent + f64::from(beta.e);
+    let exponent = power.exponent + f64::from(beta.e);
     Some(Estimate {
-        value: c64(ldexp_sat(value.re, exponent), ldexp_sat(value.im, exponent)),
+        value: ScaledC64 { mantissa, exponent }.to_c64(),
         abs_error: ldexp_sat(error, exponent).max(f64::MIN_POSITIVE),
     })
 }

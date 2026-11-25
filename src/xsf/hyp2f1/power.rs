@@ -31,22 +31,24 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
     // Unlike in xsf, a half power is a square root, which keeps a component that vanishes on
     // the cut.
     let half = p - p.round();
-    let (power, exponent) = if half.abs() == 0.5 {
-        let (power, exponent) = one_minus_z_pow(axis, p.round());
+    let scaled = if half.abs() == 0.5 {
+        let power = one_minus_z_pow(axis, p.round());
         let root = c64(1.0 - axis.re, -axis.im).sqrt();
-        (power * if half > 0.0 { root } else { 1.0 / root }, exponent)
+        let mantissa = power.mantissa * if half > 0.0 { root } else { 1.0 / root };
+        ScaledC64 { mantissa, ..power }
     } else {
         one_minus_z_pow(axis, p)
     };
+    let ScaledC64 { mantissa, exponent } = scaled;
     // The squarings lose about |p| 2^-104 of the power, or |p z| 2^-53 where 1-z rounds to 1.
     // Unlike in xsf, beyond the accepted error only a real or imaginary power, or an
     // underflow, is certain: the rest is NaN.
     let error = p.abs() * pow2(-104).min(axis.l1_norm() * pow2(-53));
-    let certain = power.re == 0.0 || power.im == 0.0 || exponent + 2.0 * error < -1075.0;
+    let certain = mantissa.re == 0.0 || mantissa.im == 0.0 || exponent + 2.0 * error < -1075.0;
     if error > HYP2F1_RECUR_TOL && !certain {
         return C64::NAN;
     }
-    let mut value = c64(ldexp_sat(power.re, exponent), ldexp_sat(power.im, exponent));
+    let mut value = scaled.to_c64();
     // The linear term only reaches a component that vanishes on the axis.
     if let Some((num, den)) = tilt {
         let linear = |component: f64| {
@@ -54,10 +56,10 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
             ldexp_sat(p * component * num / den, exponent + f64::from(ep + en - ed))
         };
         // (a zero stays positive)
-        if power.im == 0.0 {
-            value.im = linear(power.re) + 0.0;
-        } else if power.re == 0.0 {
-            value.re = 0.0 - linear(power.im);
+        if mantissa.im == 0.0 {
+            value.im = linear(mantissa.re) + 0.0;
+        } else if mantissa.re == 0.0 {
+            value.re = 0.0 - linear(mantissa.im);
         }
     }
     value
@@ -68,8 +70,27 @@ pub(super) fn ldexp_sat(m: f64, e: f64) -> f64 {
     ldexp_f64(m, e.clamp(-4096.0, 4096.0) as i32)
 }
 
-// (1-z)^p as a complex mantissa and a binary exponent, for finite z != 1.
-pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, f64) {
+// mantissa 2^exponent, where the exponent can exceed i32.
+#[derive(Clone, Copy)]
+pub(super) struct ScaledC64 {
+    pub(super) mantissa: C64,
+    pub(super) exponent: f64,
+}
+
+impl ScaledC64 {
+    pub(super) const ONE: Self = Self {
+        mantissa: C64::ONE,
+        exponent: 0.0,
+    };
+
+    pub(super) fn to_c64(self) -> C64 {
+        let Self { mantissa, exponent } = self;
+        c64(ldexp_sat(mantissa.re, exponent), ldexp_sat(mantissa.im, exponent))
+    }
+}
+
+// (1-z)^p, for finite z != 1.
+pub(super) fn one_minus_z_pow(z: C64, p: f64) -> ScaledC64 {
     // Exponentiation by squaring with double-double components and a separate scale.
     let n = p.round();
     let real = Dd::ONE - z.re;
@@ -103,5 +124,6 @@ pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, f64) {
         power
     };
     // The remaining exponent is small and barely amplifies rounding in 1-z.
-    (c64(real.hi, imag.hi) * w.powf(p - n), exponent)
+    let mantissa = c64(real.hi, imag.hi) * w.powf(p - n);
+    ScaledC64 { mantissa, exponent }
 }
