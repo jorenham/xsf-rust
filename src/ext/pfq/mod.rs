@@ -1016,9 +1016,9 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 }
             })
         },
-        _ if z < 0.0 => {
-            borel::pfq_borel(&a, &b, z).or_better(|| borel::hyp3f0_near_coincident(&a, &b, z))
-        },
+        _ if z < 0.0 => borel::pfq_borel(&a, &b, z)
+            .or_better(|| borel::hyp3f0_near_coincident(&a, &b, z))
+            .or_better(|| borel::hyp3f0_gamma_product(&a, &b, z)),
         _ => None,
     };
     polynomial.or_better(|| y)
