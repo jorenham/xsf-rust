@@ -934,6 +934,74 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     result
 }
 
+// Unlike in xsf, raise the Ferrers order for F(1/2,1/2;1/2-n;z) (DLMF 14.3.1,
+// 14.10.1). This avoids cancellation in the Euler-transformed polynomial.
+fn hyp2f1_ferrers(n: u64, z: C64) -> C64 {
+    let y = z.im;
+    let tiny = f64::MIN_POSITIVE.sqrt() * (1.0 - z.re).abs().min(1.0);
+    let tiny_phase = y != 0.0 && y.abs() < tiny;
+    let z = if tiny_phase {
+        c64(z.re, 0.0_f64.copysign(y))
+    } else {
+        z
+    };
+    let w = 1.0 - z;
+    let ratio = z / w;
+    let mut previous = 1.0 / w.sqrt();
+    let n_f = n as f64;
+    // Sum the differences when successive values can be nearly equal. On the real
+    // axis below the equator this also preserves the difference needed for F'_n.
+    let (mut value, diff) =
+        if (1.0 - ratio).norm_sqr() >= 0.25 || (tiny_phase && (1.0 - 2.0 * z.re) * n_f > 1.0) {
+            let mut diff = -ratio * previous;
+            let mut value = previous;
+            let mut comp = C64::ZERO;
+            tools::kahan_step(&mut value, &mut comp, diff);
+            for j in 1..n {
+                let k = (2.0 * j as f64).powi(2);
+                diff = ratio * (previous / (k - 1.0) - diff);
+                previous = value;
+                tools::kahan_step(&mut value, &mut comp, diff);
+            }
+            (value, diff)
+        } else {
+            // At the equator F_n vanishes for odd n. Form 1-r from 1-2z to retain
+            // the distance to the root.
+            let linear = (1.0 - 2.0 * z) / w;
+            let mut value = linear * previous;
+            for j in 1..n {
+                let k = (2.0 * j as f64).powi(2);
+                let next = linear * value + ratio * (previous + previous / (k - 1.0));
+                (previous, value) = (value, next);
+            }
+            (value, value - previous)
+        };
+    if tiny_phase {
+        // z F'_n = -(n+1/2)(F_(n+1)-F_n). Use the next difference divided by z
+        // before scaling by Im(z), so even a subnormal ordinate retains its phase.
+        let h = diff - previous / ((2.0 * n_f).powi(2) - 1.0);
+        let factor = (n_f + 0.5) / w.re;
+        let component = if z.re > 1.0 { -h.im } else { h.re };
+        let derivative = factor * component;
+        let offset = if derivative.is_infinite() {
+            (y * component) * factor
+        } else {
+            y * derivative
+        };
+        if z.re > 1.0 {
+            value.re = offset;
+        } else {
+            value.im = offset;
+            // At the odd equatorial root the leading real part is quadratic.
+            // The hypergeometric ODE gives F''(1/2) = (4n+2) F'(1/2).
+            if z.re == 0.5 && n % 2 == 1 {
+                value.re = -((2.0 * n_f + 1.0) * y) * offset;
+            }
+        }
+    }
+    value
+}
+
 fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
@@ -1006,6 +1074,17 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if c_minus_a_neg_int || c_minus_b_neg_int {
         let (terminating, other) = if c_minus_b_neg_int { (b, a) } else { (a, b) };
         let max_degree = (c - terminating).abs();
+        if a == 0.5
+            && b == 0.5
+            && c.fract() == -0.5
+            && (2.0..=(HYP2F1_MAX_FIXED_TERMS - 2) as f64).contains(&max_degree)
+            && z.is_finite()
+        {
+            let value = hyp2f1_ferrers(max_degree as u64, z);
+            if value.is_finite() {
+                return value;
+            }
+        }
         if max_degree <= u64::MAX as f64 {
             // Unlike in xsf, retain the exact cut phase for certified tiny ordinates.
             // The power term alone limits |Im z| to about eps² (Re z - 1).
