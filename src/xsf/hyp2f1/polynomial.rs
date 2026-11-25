@@ -1,4 +1,4 @@
-use super::hypergeometric_series_generator;
+use super::{HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
 use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
@@ -29,13 +29,33 @@ impl Estimate {
     }
 }
 
-pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
+/// The series terminated by the negative integer `a` or `b`, or NaN if it is too long, and
+/// whether it is finite with any estimated error below its magnitude.
+pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> (C64, bool) {
+    let neg_int = |p: f64| p == p.trunc() && p < 0.0;
+    let degree = match (neg_int(a), neg_int(b)) {
+        (true, true) => -a.max(b),
+        (true, false) => -a,
+        _ => -b,
+    };
+    // Unlike in xsf, cap the number of terms in the finite series.
+    let (value, error) = if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
+        evaluate(a, b, c, z, degree as u64)
+    } else {
+        (C64::NAN, 0.0)
+    };
+    let resolved = value.is_finite() && error < value.re.abs().max(value.im.abs());
+    (value, resolved)
+}
+
+// The polynomial and the estimated absolute error of a plain origin sum (zero for other forms).
+fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> (C64, f64) {
     let other = if a == -(n as f64) { b } else { a };
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
     if other == 1.0 && c == 2.0 && z.is_finite() {
         let mean = uniform_beta_binomial(n + 1, z);
         if mean.is_finite() {
-            return mean;
+            return (mean, 0.0);
         }
     }
     // Unlike in xsf, use the double-double polynomial on the real axis (at z = 1 the
@@ -43,14 +63,11 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     // series if it lies within an open subnormal rounding of it.
     if z.is_real() {
         match hyp2f1_poly_dd(a, b, c, z.re).and_then(dd_candidate) {
-            Some((y, None)) => return c64(y, 0.0),
+            Some((y, None)) => return (c64(y, 0.0), 0.0),
             Some((y, Some([lo, hi]))) => {
-                let value = series(a, b, c, z, n, other);
-                return if (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0 {
-                    value
-                } else {
-                    c64(y, 0.0)
-                };
+                let (value, _) = series(a, b, c, z, n, other);
+                let inside = (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0;
+                return (if inside { value } else { c64(y, 0.0) }, 0.0);
             },
             None => {},
         }
@@ -58,22 +75,23 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     series(a, b, c, z, n, other)
 }
 
-// The series, with `other` the upper parameter that is not `-n`.
-fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> C64 {
+// The series as in `evaluate`, with `other` the upper parameter that is not `-n`.
+fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> (C64, f64) {
     // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
     let positive_beta = other > 0.0 && other < c && c.is_finite();
     let finite_population = other < 0.0
         && other == other.trunc()
         && n as f64 - 1.0 < -c
         && (-other).max(-c) <= pow2(53);
-    let value = if (finite_population || positive_beta)
+    let (value, error) = if (finite_population || positive_beta)
         && (z.re > 0.0 || z.im != 0.0)
         // Headroom for the squared ordinate in the centered recurrence.
         && z.re.abs().max(z.im.abs()) <= pow2(256)
     {
-        population(a, b, c, n, z)
+        (population(a, b, c, n, z), 0.0)
     } else {
-        series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, n + 1)
+        let sum = estimated_sum(a, b, c, n, z);
+        (sum.value, sum.abs_roundoff)
     };
     // Unlike in xsf, recover a finite linear result when forming its
     // coefficient overflows for a subnormal denominator.
@@ -90,11 +108,11 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> C64 {
             };
             let candidate = c64((linear(z.re) + 1.0).hi, 0.0 + linear(z.im).hi);
             if candidate.is_finite() {
-                return candidate;
+                return (candidate, 0.0);
             }
         }
     }
-    value
+    (value, error)
 }
 
 // Mean of 1, w, ..., w^(count-1), with w = 1-z.

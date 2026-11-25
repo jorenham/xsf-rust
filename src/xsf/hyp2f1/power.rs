@@ -79,8 +79,34 @@ impl ScaledC64 {
     }
 }
 
+impl core::ops::Mul for ScaledC64 {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self {
+            mantissa: self.mantissa * rhs.mantissa,
+            exponent: self.exponent + rhs.exponent,
+        }
+    }
+}
+
+impl core::ops::Mul<C64> for ScaledC64 {
+    type Output = Self;
+
+    // Scale the factor by its larger component, which then stays in range until the final
+    // scaling.
+    fn mul(self, rhs: C64) -> Self {
+        let (_, shift) = frexp_f64(rhs.re.abs().max(rhs.im.abs()));
+        let [re, im] = [rhs.re, rhs.im].map(|v| ldexp_f64(v, -shift));
+        self * Self {
+            mantissa: c64(re, im),
+            exponent: f64::from(shift),
+        }
+    }
+}
+
 // (1-z)^p, for finite z != 1.
-fn one_minus_z_pow_sqrt(z: C64, p: f64) -> ScaledC64 {
+pub(super) fn one_minus_z_pow_sqrt(z: C64, p: f64) -> ScaledC64 {
     // Unlike in xsf, a half power is a square root, which keeps a component that vanishes on
     // the cut.
     let half = p - p.round();
@@ -94,8 +120,15 @@ fn one_minus_z_pow_sqrt(z: C64, p: f64) -> ScaledC64 {
     }
 }
 
-// (1-z)^p, for finite z != 1.
+// (1-z)^p, for finite z != 1, or NaN for a nonfinite p.
 pub(super) fn one_minus_z_pow(z: C64, p: f64) -> ScaledC64 {
+    // (halving a nonfinite degree never reaches zero)
+    if !p.is_finite() {
+        return ScaledC64 {
+            mantissa: C64::NAN,
+            exponent: 0.0,
+        };
+    }
     // Exponentiation by squaring with double-double components and a separate scale.
     let n = p.round();
     let real = Dd::ONE - z.re;
