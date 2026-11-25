@@ -275,6 +275,29 @@ fn test_hyp3f2_double_double() {
 }
 
 #[test]
+fn test_hyp3f2_positive_at_one() {
+    // Olkin–Liu covariance, equation (29) in DOI 10.1007/s40300-023-00247-2.
+    // The first two references use Arb beta-integral enclosures. The third uses
+    // exact partial fractions of the rational terms.
+    for (a, b, expected) in [
+        ([8.99, 5.99, 18.99], [19.99; 2], 81.483_515_180_762_43),
+        ([1.55, 1.85, 1.95], [2.95; 2], 5.450_521_949_524_635),
+        ([4.0, 4.0, 9.0], [10.0; 2], 13.491_924_519_086_487),
+    ] {
+        assert_hyp3f2(a, b, 1.0, expected);
+        assert_eq!(hyppfq(a, b, 1.0), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0)));
+    }
+
+    // Cancel (1.5)_k/(0.5)_k = 1 + 2k and apply Gauss's sum to both parts.
+    assert_hyp3f2([1.5, 2.5, 3.5], [0.5, 8.5], 1.0, 855_855.0 * PI / 32_768.0);
+    // A tiny positive excess makes the tail bound too wide to certify.
+    let a = [3.224_388_537_437_811, 10.385_285_271_587_83, 6.986_213_275_602_182];
+    let b = [2.652_215_882_748_146, 17.943_671_203_742_323];
+    assert!(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0).is_nan());
+    assert_eq!(hyppfq(a, b, 1.0), None);
+}
+
+#[test]
 fn test_hyp3f2_thomae_at_one() {
     // Independent beta-negative-binomial mass and survival evaluated in Arb.
     for a in [[1.0, 2.25, 2.75], [2.75, 1.0, 2.25], [2.25, 2.75, 1.0]] {
@@ -363,8 +386,12 @@ fn test_hyp3f2_positive_integer_shift_at_one() {
             }
         }
     }
+    // The integer-shift identity does not apply here. Arb beta-integral reference.
+    let a = [1.0, 11.5, next_up(14.0)];
+    let b = [12.0, 20.0];
+    assert_hyp3f2(a, b, 1.0, 3.410_937_780_168_550_5);
+    assert_eq!(hyppfq(a, b, 1.0), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0)));
     for (a, b, z) in [
-        ([1.0, 11.5, next_up(14.0)], [12.0, 20.0], 1.0),
         // A difference that rounds to 4 but is not integral.
         ([1.0, 0.75, 4.0], [2.0_f64.powi(-55), 10.0], 1.0),
         ([1.0, 3.25, 58.0], [2.0, 100.0], 1.0),
@@ -527,8 +554,7 @@ fn test_hyp3f2_recurrence() {
 
 #[test]
 fn test_hyp3f2_nan() {
-    // z = 1, and too close to it
-    assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0).is_nan());
+    // Too close to z = 1.
     assert!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8).is_nan());
     // a huge negative parameter
     assert!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9).is_nan());
