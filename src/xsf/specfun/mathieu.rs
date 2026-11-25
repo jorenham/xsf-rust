@@ -218,14 +218,18 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
         };
     let q2 = q * q;
     let first_edge2 = if kd == 1 { 2.0 * q2 } else { q2 };
-    // The number of characteristic values below `x`: the negative pivots of the matrix minus `x`
-    let count = |x: f64| {
+    // Whether more than `index` characteristic values lie below `x`: the negative pivots of the
+    // matrix minus `x`, counted until they exceed `index`
+    let above = |x: f64| {
         let signed_pivot = |p: f64| if p == 0.0 { -1e-100 } else { p };
         let mut pivot = signed_pivot(first_diag - x);
         let mut neg = i32::from(pivot < 0.0);
         pivot = signed_pivot(square(1) - x - first_edge2 / pivot);
         neg += i32::from(pivot < 0.0);
         for j in 2.. {
+            if neg > index {
+                return true;
+            }
             let diag = square(j) - x;
             // Since the diagonal increases, `diag > 2q` and a last pivot `> q` imply that every
             // later pivot is `> diag - q > q`. This also stops at a NaN.
@@ -235,16 +239,16 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
             pivot = signed_pivot(diag - q2 / pivot);
             neg += i32::from(pivot < 0.0);
         }
-        neg
+        neg > index
     };
     let m2 = square(i64::from(index));
     let tol = 64.0 * f64::EPSILON * (m2 + 2.0 * q);
     // The potential has operator norm at most 2q.
     let (mut lo, mut hi) = (m2 - 2.0 * q, m2 + 2.0 * q);
     if a.is_finite() {
-        if count(a + tol) <= index {
+        if !above(a + tol) {
             lo = lo.max(a + tol);
-        } else if count(a - tol) > index {
+        } else if above(a - tol) {
             hi = hi.min(a - tol);
         } else {
             return a;
@@ -255,7 +259,7 @@ fn indexed_cv(kd: i32, m: i32, q: f64, a: f64) -> f64 {
         if mid == lo || mid == hi {
             return mid;
         }
-        if count(mid) > index {
+        if above(mid) {
             hi = mid;
         } else {
             lo = mid;
