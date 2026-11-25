@@ -546,11 +546,6 @@ pub(super) fn pfq_sum_terms<T: SeriesReal>(
         (sum, comp) = T::add_compensated(sum, comp, term);
         let (s, d) = T::sum_and_delta(sum, comp);
         if !s.is_finite() {
-            if !comp.to_f64().is_finite() {
-                // (the rounding error is not finite if the sum overflowed, or for a term of size
-                // `f64::MAX`)
-                comp = T::from_f64(0.0);
-            }
             break;
         }
         // geometric bound on the remaining terms for a bound `rho` on their ratios
@@ -861,11 +856,10 @@ mod tests {
         assert!(
             sum.value.is_infinite() && sum.error == f64::INFINITY && sum.tail_norm == f64::INFINITY
         );
-        // the rounding error of adding a term of size `f64::MAX` is not finite, unlike the sum
-        let a = f64::from_bits(0x7FCD_F1CA_1591_DAA6);
-        let terms = [a, -f64::MAX, 1.0].into_iter();
+        // a term of size `f64::MAX` is compensated too, although `two_sum` overflows for it
+        let terms = [4.205547168771453e307, -f64::MAX, 1.0].into_iter();
         let sum = pfq_sum_terms::<f64>(&[-3.0], &[], 1.0, 4, terms, 1e-13);
-        assert!(sum.value == a - f64::MAX && sum.error == f64::INFINITY, "{}", sum.value);
+        assert!(sum.value == -1.3771384179851705e308 && sum.error < 2e294, "{}", sum.error);
     }
 
     #[test]

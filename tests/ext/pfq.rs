@@ -860,6 +860,9 @@ fn test_hyp1f2_series() {
     ] {
         assert_hyp1f2(a, b, z, expected);
     }
+    // the second term is -f64::MAX; the result is that of the compensated sum, 1 ulp from Arb's
+    let (b, expected) = (9.271_141_077_113_336e-308, -1.078_615_880_917_389_3e308);
+    assert_eq!(hyp1f2(-1.999_999_999_999_999_8, b, -0.6, 2.0), expected);
 }
 
 #[test]

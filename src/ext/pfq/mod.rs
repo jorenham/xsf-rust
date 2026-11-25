@@ -200,6 +200,20 @@ trait SeriesReal: Real + Add<f64, Output = Self> {
     fn abs_up(self) -> f64;
 }
 
+/// `comp` with the rounding error of `next = sum + term` where `two_sum` overflows: for a `term`
+/// of size `f64::MAX`, from the exact difference of `next` and the larger of `sum` and `term`,
+/// and zero for an infinite `next`
+#[cold]
+fn overflowed_comp(sum: f64, comp: f64, term: f64, next: f64) -> f64 {
+    if !next.is_finite() {
+        0.0
+    } else if sum.abs() >= term.abs() {
+        comp + ((sum - next) + term)
+    } else {
+        comp + ((term - next) + sum)
+    }
+}
+
 impl SeriesReal for f64 {
     const EPSILON: f64 = f64::EPSILON;
     const MIN_POSITIVE: f64 = f64::MIN_POSITIVE;
@@ -215,7 +229,12 @@ impl SeriesReal for f64 {
     #[inline]
     fn add_compensated(sum: Self, comp: Self, term: Self) -> (Self, Self) {
         let (next, delta) = two_sum(sum, term);
-        (next, comp + delta)
+        // (not a number if `two_sum` overflowed)
+        if delta.is_nan() {
+            (next, overflowed_comp(sum, comp, term, next))
+        } else {
+            (next, comp + delta)
+        }
     }
 
     #[inline]
