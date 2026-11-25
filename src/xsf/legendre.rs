@@ -296,19 +296,30 @@ fn assoc_legendre_p_for_each_m_abs_m<const NORM: bool, T: Num>(
     m: i32,
     z: T,
     branch_cut: i32,
-    res: &mut [T; 2],
-    f: impl FnMut(i32, &[T; 2]),
+    scaled: bool,
+    mut f: impl FnMut(i32, T, i64),
 ) {
-    let m_signbit = m < 0;
-
-    assoc_legendre_p_initializer_m_abs_m::<NORM, T>(m_signbit, z, branch_cut, res);
-
-    let re_m_abs_m =
-        |m, res: &mut _| assoc_legendre_p_recurrence_m_abs_m::<NORM, T>(z, branch_cut, m, res);
-    if m >= 0 {
-        forward_recur(0, m.wrapping_add(1), re_m_abs_m, res, f);
+    let mut diagonal = [T::from(0.0); 2];
+    assoc_legendre_p_initializer_m_abs_m::<NORM, T>(m < 0, z, branch_cut, &mut diagonal);
+    let recurrence =
+        |j, c: &mut _| assoc_legendre_p_recurrence_m_abs_m::<NORM, T>(z, branch_cut, j, c);
+    if scaled {
+        // Unlike in xsf, lift the pair before the normalized diagonal seed underflows.
+        let mut exponent = 0;
+        legendre_recur_pair(0, m, diagonal, recurrence, |j, pair| {
+            if pair[0].abs().max(pair[1].abs()) < 1.0 / SPECFUN_BIG {
+                *pair = pair.map(|v| v * SPECFUN_BIG);
+                exponent -= i64::from(SPECFUN_BIG_LOG2);
+            }
+            f(j, pair[1], exponent);
+        });
     } else {
-        backward_recur(0, m.wrapping_sub(1), re_m_abs_m, res, f);
+        let emit = |j, p: &[T; 2]| f(j, p[1], 0);
+        if m >= 0 {
+            forward_recur(0, m.wrapping_add(1), recurrence, &mut diagonal, emit);
+        } else {
+            backward_recur(0, m.wrapping_sub(1), recurrence, &mut diagonal, emit);
+        }
     }
 }
 
@@ -367,164 +378,89 @@ fn assoc_legendre_p_pm1<const NORM: bool, T: Num>(n: i32, m: i32, z: T, res: &mu
     }
 }
 
-/// Compute the associated Legendre polynomial of degree n and order m.
-///
-/// This is the overload that starts from the given `res_m_abs_m`.
-///
-/// - `n`: degree of the polynomial
-/// - `m`: order of the polynomial
-/// - `type`: specifies the branch cut of the polynomial, either 1, 2, or 3
-/// - `z`: argument of the polynomial, either real or complex
-/// - `callback`: a function to be called as `callback(j, m, type, z, p, p_prev, args...)` for
-///   `0 <= j <= n`
-/// - `args`: arguments to forward to the callback
-///
-/// Returns the value of the polynomial
+// Visit the degree recurrence starting from the diagonal value and its scale.
 fn assoc_legendre_p_for_each_n_from<const NORM: bool, T: Num>(
     n: i32,
     m: i32,
     z: T,
-    _branch_cut: i32,
-    res_m_abs_m: T,
-    res: &mut [T; 2],
-    mut f: impl FnMut(i32, &[T; 2]),
+    diagonal: (T, i64),
+    mut f: impl FnMut(i32, T),
 ) {
-    res[0] = T::from(0.0);
-    res[1] = T::from(0.0);
-
     let m_abs = m.wrapping_abs();
+    let mut p = [T::from(0.0); 2];
+    for j in 0..m_abs.min(n.saturating_add(1)) {
+        f(j, p[1]);
+    }
     if m_abs > n {
-        for j in 0..=n {
-            f(j, res);
+        return;
+    }
+    if z.real().abs() == 1.0 && z.imag() == 0.0 {
+        for j in m_abs..=n {
+            assoc_legendre_p_pm1::<NORM, T>(j, m, z, &mut p[1]);
+            f(j, p[1]);
         }
+        return;
+    }
+
+    let (diagonal, mut exponent) = diagonal;
+    assoc_legendre_p_initializer_n::<NORM, T>(m, z, diagonal, &mut p);
+    let recurrence = |j, c: &mut _| assoc_legendre_p_recurrence_n::<NORM, T>(m, z, j, c);
+    if exponent == 0 {
+        forward_recur(m_abs, n.wrapping_add(1), recurrence, &mut p, |j, p| f(j, p[1]));
     } else {
-        for j in 0..m_abs {
-            f(j, res);
-        }
-
-        if z.real().abs() == 1.0 && z.imag() == 0.0 {
-            for j in m_abs..=n {
-                forward_recur_shift_left(res);
-                assoc_legendre_p_pm1::<NORM, T>(j, m, z, &mut res[1]);
-
-                f(j, res);
+        // Unlike in xsf, retain the scale as the degree recurrence grows (DLMF 14.10.3).
+        legendre_recur_pair(m_abs, n, p, recurrence, |j, pair| {
+            if exponent < 0 && pair[0].abs().max(pair[1].abs()) > SPECFUN_BIG {
+                *pair = pair.map(|v| v / SPECFUN_BIG);
+                exponent += i64::from(SPECFUN_BIG_LOG2);
             }
-        } else {
-            assoc_legendre_p_initializer_n::<NORM, T>(m, z, res_m_abs_m, res);
-
-            let re_n = |n, res: &mut _| assoc_legendre_p_recurrence_n::<NORM, T>(m, z, n, res);
-            forward_recur(m_abs, n.wrapping_add(1), re_n, res, f);
-        }
+            f(j, pair[1].ldexp(exponent.max(-4096) as i32));
+        });
     }
 }
 
-fn assoc_legendre_p_for_each_n<const NORM: bool, T: Num>(
-    n: i32,
-    m: i32,
-    z: T,
-    branch_cut: i32,
-    res: &mut [T; 2],
-    f: impl FnMut(i32, &[T; 2]),
-) {
-    assoc_legendre_p_for_each_m_abs_m::<NORM, T>(m, z, branch_cut, res, |_, _| {});
-
-    let res_m_abs_m = res[1];
-    assoc_legendre_p_for_each_n_from::<NORM, T>(n, m, z, branch_cut, res_m_abs_m, res, f);
-}
-
-fn assoc_legendre_p_for_each_n_m<const NORM: bool, T: Num>(
-    n: i32,
-    m: i32,
-    z: T,
-    branch_cut: i32,
-    res: &mut [T; 2],
-    mut f: impl FnMut(i32, i32, &[T; 2]),
-) {
-    let mut res_m_abs_m = [T::from(0.0); 2];
-    assoc_legendre_p_for_each_m_abs_m::<NORM, T>(
-        m,
-        z,
-        branch_cut,
-        &mut res_m_abs_m,
-        |m, res_m_abs_m| {
-            res[0] = res_m_abs_m[1];
-
-            assoc_legendre_p_for_each_n_from::<NORM, T>(
-                n,
-                m,
-                z,
-                branch_cut,
-                res_m_abs_m[1],
-                res,
-                |n, res_n| {
-                    f(n, m, res_n);
-                },
-            );
-        },
-    );
-    assoc_legendre_p_for_each_m_abs_m::<NORM, T>(
-        m.wrapping_neg(),
-        z,
-        branch_cut,
-        &mut res_m_abs_m,
-        |m, res_m_abs_m| {
-            res[0] = res_m_abs_m[1];
-
-            assoc_legendre_p_for_each_n_from::<NORM, T>(
-                n,
-                m,
-                z,
-                branch_cut,
-                res_m_abs_m[1],
-                res,
-                |n, res_n| {
-                    f(n, m, res_n);
-                },
-            );
-        },
-    );
+fn assoc_legendre_scale_diagonal<const NORM: bool, T: Num>(m: i32, z: T, branch_cut: i32) -> bool {
+    let order = m.unsigned_abs();
+    if !NORM || T::COMPLEX || branch_cut != 2 || m == i32::MIN || order < 32 || z.abs() >= 1.0 {
+        return false;
+    }
+    // For binary64 |z| < 1, 1 - z² is at least 2^-52, so orders below 32 are safe.
+    // Scale before the factor (1 - z²)^(|m|/2) reaches the subnormal range.
+    let x = z.real();
+    f64::from(order) * (1.0 - x * x).log2() < -2000.0
 }
 
 /// Compute the associated Legendre polynomial of degree n and order m.
-///
-/// - `n`: degree of the polynomial
-/// - `m`: order of the polynomial
-/// - `type`: specifies the branch cut of the polynomial, either 1, 2, or 3
-/// - `z`: argument of the polynomial, either real or complex
-///
-/// Returns the value of the polynomial
 fn assoc_legendre_p_t<const NORM: bool, T: Num>(n: i32, m: i32, z: T, branch_cut: i32) -> T {
-    let mut res_n = [T::from(0.0); 2];
-    assoc_legendre_p_for_each_n::<NORM, T>(n, m, z, branch_cut, &mut res_n, |_, _| {});
-
-    res_n[1]
+    let mut diagonal = (T::from(0.0), 0);
+    let scale = assoc_legendre_scale_diagonal::<NORM, T>(m, z, branch_cut);
+    assoc_legendre_p_for_each_m_abs_m::<NORM, T>(m, z, branch_cut, scale, |_, v, e| {
+        diagonal = (v, e);
+    });
+    let mut value = T::from(0.0);
+    assoc_legendre_p_for_each_n_from::<NORM, T>(n, m, z, diagonal, |_, v| value = v);
+    value
 }
 
 /// Compute all associated Legendre polynomials of degree j and order i, where 0 <= j <= n and
 /// -m <= i <= m.
-///
-/// - `type`: specifies the branch cut of the polynomial, either 1, 2, or 3
-/// - `z`: argument of the polynomial, either real or complex
-/// - `res`: a view into the output with element type T and extents (2 * m + 1, n + 1)
-///
-/// Returns the value of the polynomial
 fn assoc_legendre_p_all_t<const NORM: bool, T: Num>(
     z: T,
     branch_cut: i32,
     mut res: Mdspan<'_, T, 2>,
 ) {
     let n = int(res.extent(0)) - 1;
-    let m = (int(res.extent(1)) - 1) / 2;
-
-    let mut p = [T::from(0.0); 2];
     let extent1 = int(res.extent(1));
-    assoc_legendre_p_for_each_n_m::<NORM, T>(n, m, z, branch_cut, &mut p, |n, m, res_n_m| {
-        if m >= 0 {
-            res[(n, m)] = res_n_m[1];
-        } else {
-            res[(n, m + extent1)] = res_n_m[1];
-        }
-    });
+    let m = (extent1 - 1) / 2;
+    let scale = assoc_legendre_scale_diagonal::<NORM, T>(m.min(n), z, branch_cut);
+    for order in [m, m.wrapping_neg()] {
+        assoc_legendre_p_for_each_m_abs_m::<NORM, T>(order, z, branch_cut, scale, |m, v, e| {
+            let column = if m >= 0 { m } else { m + extent1 };
+            assoc_legendre_p_for_each_n_from::<NORM, T>(n, m, z, (v, e), |n, v| {
+                res[(n, column)] = v;
+            });
+        });
+    }
 }
 
 fn sph_legendre_p_initializer_m_abs_m<T: Num>(m_signbit: bool, theta_sin: T, res: &mut [T; 2]) {
@@ -577,7 +513,7 @@ fn sph_legendre_p_for_each_m_abs_m<T: Num>(m: i32, theta: T, mut f: impl FnMut(i
     let coefficients = |j, c: &mut _| sph_legendre_p_recurrence_m_abs_m(theta_sin, j, c);
     if let Some(exponent) = sine_exponent {
         let mut scales = [0, exponent];
-        sph_recur(0, m, res, coefficients, |j, p| {
+        legendre_recur_pair(0, m, res, coefficients, |j, p| {
             if j.unsigned_abs() >= 2 {
                 let mut scale = scales[0] + 2 * exponent;
                 if p[1].abs() < 1.0 / SPECFUN_BIG {
@@ -598,8 +534,8 @@ fn sph_legendre_p_for_each_m_abs_m<T: Num>(m: i32, theta: T, mut f: impl FnMut(i
     }
 }
 
-// Unlike in xsf, let the spherical recurrence carry its scale between steps.
-fn sph_recur<T: Num>(
+// Unlike in xsf, let a Legendre recurrence carry its scale between steps.
+fn legendre_recur_pair<T: Num>(
     first: i32,
     last: i32,
     mut p: [T; 2],
@@ -674,7 +610,7 @@ fn sph_legendre_p_for_each_n_from<T: Num>(
         forward_recur(m_abs, n.wrapping_add(1), recurrence, &mut p, |n, p| f(n, p[1], 0));
     } else {
         // Unlike in xsf, rescale the degree recurrence (DLMF 14.10.3) as its mantissas grow.
-        sph_recur(m_abs, n, p, recurrence, |n, p| {
+        legendre_recur_pair(m_abs, n, p, recurrence, |n, p| {
             if p[0].abs().max(p[1].abs()) > SPECFUN_BIG {
                 *p = p.map(|value| value / SPECFUN_BIG);
                 scale += i64::from(SPECFUN_BIG_LOG2);
