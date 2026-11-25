@@ -653,15 +653,10 @@ fn positive_beta_real_polynomial(n: u64, b: f64, c: f64, x: f64) -> Option<(C64,
         // Rescale the two moments together, independently of the normalizer.
         // Each holds at least min(b,h)/(c+j) of their total.
         let peak = r.hi.max(d.hi);
-        let shift = if peak > MAX {
-            -512
-        } else if peak < MIN {
-            512
-        } else {
-            0
-        };
-        if shift != 0 {
-            (r, d) = (r.mul_pwr2(pow2(shift)), d.mul_pwr2(pow2(shift)));
+        if !(MIN..=MAX).contains(&peak) {
+            let shift = if peak > MAX { -512 } else { 512 };
+            let factor = pow2(shift);
+            (r, d) = (r.mul_pwr2(factor), d.mul_pwr2(factor));
             scale -= shift;
         }
         if divisor.hi > MAX {
@@ -675,29 +670,17 @@ fn positive_beta_real_polynomial(n: u64, b: f64, c: f64, x: f64) -> Option<(C64,
     let exponent = scale + e - divisor_exp;
     // Positive sums propagate the largest relative input error without cancellation.
     let relative = (64.0 * n as f64 + 32.0) * pow2(-100);
-    let value = ldexp_f64(quotient.hi, exponent);
-    let (value, midpoint_distance, uncertainty) = if value <= f64::MIN_POSITIVE {
-        // Use a fixed spacing of one minimum subnormal at the normal boundary.
-        let units = quotient.ldexp(exponent + 1074);
-        let fractional = (units - units.hi.round()).hi.abs();
-        (
-            units.round_subnormal_units(),
-            (fractional - 0.5).abs(),
-            units.hi * relative + 4.0 * f64::EPSILON,
-        )
-    } else {
-        // A binade's lower boundary has half the spacing on its lower side.
-        let (mantissa, binade) = frexp_f64(quotient.hi);
-        let narrower = i32::from(mantissa == 0.5 && quotient.lo < 0.0);
-        let half_spacing = pow2(binade - 54 - narrower);
-        (value, half_spacing - quotient.lo.abs(), quotient.hi * relative)
-    };
-    if midpoint_distance <= uncertainty {
-        return None;
-    }
-    value
-        .is_finite()
-        .then_some((c64(value, 0.0), value.abs() * relative))
+    // Widen the estimate before projecting its endpoints to allow for DD rounding.
+    let radius = 2.0 * quotient.hi * relative;
+    let [lower, upper] = [quotient - radius, quotient + radius].map(|v| {
+        let value = ldexp_f64(v.hi, exponent);
+        if value <= f64::MIN_POSITIVE {
+            v.ldexp(exponent + 1074).round_subnormal_units()
+        } else {
+            value
+        }
+    });
+    (lower == upper && lower.is_finite()).then_some((c64(lower, 0.0), lower * relative))
 }
 
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
@@ -725,13 +708,7 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     }
 
     let other = if a == -(n as f64) { b } else { a };
-    let real_beta = if c > 0.0 && z.is_real() && (0.0..=1.0).contains(&z.re) {
-        positive_beta_real_polynomial(n, other, c, z.re)
-    } else {
-        None
-    };
-    let (centered, rounding) =
-        real_beta.unwrap_or_else(|| centered_terminating_polynomial(n, other, c, z));
+    let (centered, rounding) = centered_terminating_polynomial(n, other, c, z);
     if !centered.is_finite() {
         return origin;
     }
@@ -775,6 +752,11 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
 fn centered_terminating_polynomial(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
     let positive_beta = c > 0.0;
+    if positive_beta && z.is_real() && (0.0..=1.0).contains(&z.re) {
+        if let Some(result) = positive_beta_real_polynomial(n, b, c, z.re) {
+            return result;
+        }
+    }
     // The beta-binomial coefficients have leading term (b)_n / (c)_n.
     let product = |p: f64| {
         let shift = if p > pow2(384) { frexp_f64(p).1 } else { 0 };
