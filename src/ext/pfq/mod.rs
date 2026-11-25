@@ -927,10 +927,9 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         return exact(y);
     }
     // a polynomial is short enough for double-double
-    let polynomial = degree.is_finite().then(|| {
-        let (y, err, _) = series::pfq_sum::<Dd>(&a, &b, z, PFQ_DD_MAXITER);
-        Estimate::absolute((f64::from(y), err))
-    });
+    let polynomial = degree
+        .is_finite()
+        .then(|| Estimate::from(series::pfq_sum::<Dd>(&a, &b, z, PFQ_DD_MAXITER)));
     if polynomial.is_some_and(Estimate::is_accurate) {
         return polynomial;
     }
@@ -1061,7 +1060,7 @@ fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
             1.0 + gap.abs(),
             exact_add(1.0 - remaining, -g1)?,
         ];
-        let (sum, err, _) = series::pfq_sum::<Dd>(&upper, &lower, 1.0, PFQ_DD_MAXITER);
+        let sum = series::pfq_sum::<Dd>(&upper, &lower, 1.0, PFQ_DD_MAXITER);
 
         // Keep full double-double precision and use a symmetric exponent range.
         let min = <Dd as SeriesReal>::MIN_POSITIVE;
@@ -1074,13 +1073,14 @@ fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
             })?;
             Some(product.frexp())
         };
-        if !sum.hi.is_normal() {
+        if !sum.value.hi.is_normal() {
             return None;
         }
         // At most 2n fixed-arity ratios plus the final scaled product.
-        let rel =
-            err / sum.hi.abs() + 32.0 * <Dd as SeriesReal>::EPSILON * (n + 1.0) + f64::EPSILON;
-        let (s, se) = sum.frexp();
+        let rel = sum.error / sum.value.hi.abs()
+            + 32.0 * <Dd as SeriesReal>::EPSILON * (n + 1.0)
+            + f64::EPSILON;
+        let (s, se) = sum.value.frexp();
         let (f, fe) = scaled_rising(&f, &[beta_delta_plus_one], start)?;
         let (g, ge) = scaled_rising(&g, &[c], remaining)?;
         let (scale, e) = scaled_rising(&[-size, gamma_plus_one], &[c], n)?;

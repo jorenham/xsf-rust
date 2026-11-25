@@ -147,9 +147,9 @@ fn recurrence_start(
     });
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
-    let (y, err, _) = pfq_sum_terms(&a, &b, z, limit, terms, Dd::EPSILON);
-    let accurate = Estimate::absolute((y.hi, err)).is_accurate();
-    accurate.then_some((y, err))
+    let sum = pfq_sum_terms(&a, &b, z, limit, terms, Dd::EPSILON);
+    let seed = (sum.value, sum.error);
+    Estimate::from(sum).is_accurate().then_some(seed)
 }
 
 #[derive(Clone, Copy)]
