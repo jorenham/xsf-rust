@@ -7,6 +7,20 @@ xsref::tests! {
 }
 
 #[test]
+fn test_hyp2f1_symmetric_real() {
+    // Arb at the two ends of the transformed parameter range.
+    for (h, expected) in [(0.5, 1.372_880_500_618_350_2), (32.0, 105_012_102.535_169_36)] {
+        let actual = xsf::hyp2f1(h, h, 2.0 * h, 0.75);
+        np_assert_allclose!([actual], [expected], rtol = 8e-15);
+        for y in [0.0, -0.0] {
+            let complex = xsf::hyp2f1(h, h, 2.0 * h, c64(0.75, y));
+            assert_eq!(complex.re, actual);
+            assert_eq!(complex.im.to_bits(), 0.0_f64.to_bits());
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_unit_exponent_reciprocal() {
     for (a, b, c) in [
         (1.0, 1.0, 1.0),
