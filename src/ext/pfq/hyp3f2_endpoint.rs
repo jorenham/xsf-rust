@@ -35,17 +35,25 @@ impl Bounds {
         Self { lo: x, hi: x }
     }
 
+    fn outward(lo: f64, hi: f64) -> Self {
+        Self {
+            lo: -up(-lo),
+            hi: up(hi),
+        }
+    }
+
+    fn is_zero(self) -> bool {
+        self.lo == 0.0 && self.hi == 0.0
+    }
+
     fn add(self, other: Self) -> Self {
-        if self.abs() == 0.0 {
+        if self.is_zero() {
             return other;
         }
-        if other.abs() == 0.0 {
+        if other.is_zero() {
             return self;
         }
-        Self {
-            lo: -up(-(self.lo + other.lo)),
-            hi: up(self.hi + other.hi),
-        }
+        Self::outward(self.lo + other.lo, self.hi + other.hi)
     }
 
     fn neg(self) -> Self {
@@ -56,7 +64,7 @@ impl Bounds {
     }
 
     fn scale_add(self, vector: Self, factor: f64) -> Self {
-        if vector.abs() == 0.0 || factor == 0.0 {
+        if vector.is_zero() || factor == 0.0 {
             return self;
         }
         let (lo, hi) = if factor > 0.0 {
@@ -64,10 +72,7 @@ impl Bounds {
         } else {
             (vector.hi, vector.lo)
         };
-        Self {
-            lo: -up(-lo.mul_add(factor, self.lo)),
-            hi: up(hi.mul_add(factor, self.hi)),
-        }
+        Self::outward(lo.mul_add(factor, self.lo), hi.mul_add(factor, self.hi))
     }
 
     fn abs(self) -> f64 {
@@ -79,15 +84,13 @@ impl Bounds {
     }
 }
 
-type Polynomial = [Bounds; ORDER + 4];
-
-fn multiply(poly: &mut Polynomial, degree: usize, factor: f64) {
+fn multiply(poly: &mut [Bounds], degree: usize, factor: f64) {
     for j in (1..=degree + 1).rev() {
         poly[j] = poly[j].scale_add(poly[j - 1], factor);
     }
 }
 
-fn product(factors: impl IntoIterator<Item = f64>) -> Polynomial {
+fn product(factors: impl IntoIterator<Item = f64>) -> [Bounds; ORDER + 4] {
     let mut poly = [Bounds::ZERO; ORDER + 4];
     poly[0] = Bounds::ONE;
     for (degree, factor) in factors.into_iter().enumerate() {
@@ -99,27 +102,23 @@ fn product(factors: impl IntoIterator<Item = f64>) -> Polynomial {
 fn correction_polynomial(a: [f64; 3], b: [f64; 2], excess: f64) -> (Bounds, f64) {
     // With x=1/n and term ratio A(x)/B(x), the residual of F(n)=P(x)/x is
     // 1-F(n)+A(x)/B(x)*F(n+1) = R(x)/(x*B(x)*(1+x)^(ORDER-1)).
-    let den = product(b.into_iter().chain([1.0; ORDER]));
-    let mut upper = product(a);
+    let mut den = product(b);
+    let upper = product(a);
     let mut residual = [Bounds::ZERO; 2 * ORDER + 3];
-    residual[..ORDER + 3].copy_from_slice(&den[..ORDER + 3]);
+    residual[..3].copy_from_slice(&den[..3]);
     let mut p = [0.0; ORDER + 1];
-    // Store coefficients of R(x)/x. The divided basis for p[j] has constant
-    // coefficient excess+j. Choose coefficients from the interval midpoints, then
-    // bound the actual residual instead of requiring exact coefficient cancellation.
-    let mut basis = [[Bounds::ZERO; ORDER + 3]; ORDER + 1];
-    for j in (0..=ORDER).rev() {
-        for k in 1..=ORDER + 3 {
-            basis[j][k - 1] = den[k].add(upper[k].neg());
-        }
-        if j > 0 {
-            multiply(&mut upper, ORDER + 3 - j, 1.0);
-        }
-    }
+    // At step j, store R(x)/x divided by the remaining factor (1+x)^(ORDER-j).
+    // Its divided basis is (den - upper)/x and has constant excess+j.
     for (j, coefficient) in p.iter_mut().enumerate() {
         *coefficient = residual[j].mid() / (excess + j as f64);
-        for (value, base) in residual[j..].iter_mut().zip(basis[j]) {
-            *value = value.scale_add(base, -*coefficient);
+        let degree = (j + 2).max(3);
+        for k in 1..=degree {
+            let basis = den[k].add(upper[k].neg());
+            residual[j + k - 1] = residual[j + k - 1].scale_add(basis, -*coefficient);
+        }
+        if j < ORDER {
+            multiply(&mut den, j + 2, 1.0);
+            multiply(&mut residual, j + degree - 1, 1.0);
         }
     }
     let poly = p
@@ -137,18 +136,18 @@ fn correction_polynomial(a: [f64; 3], b: [f64; 2], excess: f64) -> (Bounds, f64)
 // the relative rounding factors. A reported term t_k differs from its exact value by at most
 // |t_k|*11k*u/(1-11N*u). The weighted sum accounts for the different errors of the terms.
 fn prefix(a: [f64; 3], b: [f64; 2]) -> (f64, f64, f64) {
-    let (mut t, mut s, mut weighted) = (1.0, 1.0, 0.0);
-    let next =
-        |t, k| t * (((a[0] + k) * (a[1] + k) * (a[2] + k)) / ((k + 1.0) * (b[0] + k) * (b[1] + k)));
-    for j in 1..N {
-        t = next(t, f64::from(j - 1));
-        s += t;
-        weighted = t.mul_add(f64::from(j), weighted);
+    let (mut term, mut sum, mut weighted) = (1.0_f64, 0.0, 0.0);
+    for k in 0..N {
+        let k = f64::from(k);
+        sum += term;
+        weighted = term.mul_add(k, weighted);
+        let num = (a[0] + k) * (a[1] + k) * (a[2] + k);
+        let den = (k + 1.0) * (b[0] + k) * (b[1] + k);
+        term *= num / den;
     }
-    t = next(t, f64::from(N - 1));
-    let numerator = next_up_nonneg(weighted.mul_add(11.0 * U, s * (f64::from(N) * U)));
+    let numerator = next_up_nonneg(weighted.mul_add(11.0 * U, sum * (f64::from(N) * U)));
     let sum_error = next_up_nonneg(numerator / (1.0 - f64::from(12 * N + 3) * U));
-    (s, t, sum_error)
+    (sum, term, sum_error)
 }
 
 #[cold]
