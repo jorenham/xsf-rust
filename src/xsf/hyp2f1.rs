@@ -627,6 +627,79 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
         .then_some(value)
 }
 
+// Unlike in xsf, advance the two positive beta moments on the real interval.
+fn positive_beta_real_polynomial(n: u64, b: f64, c: f64, x: f64) -> Option<(C64, f64)> {
+    // Keep the products and their double-word residuals away from either exponent limit.
+    const MIN: f64 = pow2(-192);
+    const MAX: f64 = pow2(384);
+    let h = Dd::new(c) - b;
+    if h.hi < MIN || b < MIN || c > pow2(256) {
+        return None;
+    }
+    let w = Dd::ONE - x;
+    let mut r = h;
+    let b = Dd::new(b);
+    let mut d = b;
+    let c = Dd::new(c);
+    let mut divisor = c;
+    let mut scale = 0;
+    for j in 1..n {
+        let j = j as f64;
+        let dw = d * w;
+        let sum = r + dw;
+        (r, d) = (h * sum + r * j, b * sum + dw * j);
+        divisor = divisor * (c + j);
+
+        // Rescale the two moments together, independently of the normalizer.
+        // Each holds at least min(b,h)/(c+j) of their total.
+        let peak = r.hi.max(d.hi);
+        let shift = if peak > MAX {
+            -512
+        } else if peak < MIN {
+            512
+        } else {
+            0
+        };
+        if shift != 0 {
+            (r, d) = (r.mul_pwr2(pow2(shift)), d.mul_pwr2(pow2(shift)));
+            scale -= shift;
+        }
+        if divisor.hi > MAX {
+            divisor = divisor.mul_pwr2(pow2(-512));
+            scale -= 512;
+        }
+    }
+    let (m, e) = (r + w * d).frexp();
+    let (divisor, divisor_exp) = divisor.frexp();
+    let quotient = m / divisor;
+    let exponent = scale + e - divisor_exp;
+    // Positive sums propagate the largest relative input error without cancellation.
+    let relative = (64.0 * n as f64 + 32.0) * pow2(-100);
+    let value = ldexp_f64(quotient.hi, exponent);
+    let (value, midpoint_distance, uncertainty) = if value <= f64::MIN_POSITIVE {
+        // Use a fixed spacing of one minimum subnormal at the normal boundary.
+        let units = quotient.ldexp(exponent + 1074);
+        let fractional = (units - units.hi.round()).hi.abs();
+        (
+            units.round_subnormal_units(),
+            (fractional - 0.5).abs(),
+            units.hi * relative + 4.0 * f64::EPSILON,
+        )
+    } else {
+        // A binade's lower boundary has half the spacing on its lower side.
+        let (mantissa, binade) = frexp_f64(quotient.hi);
+        let narrower = i32::from(mantissa == 0.5 && quotient.lo < 0.0);
+        let half_spacing = pow2(binade - 54 - narrower);
+        (value, half_spacing - quotient.lo.abs(), quotient.hi * relative)
+    };
+    if midpoint_distance <= uncertainty {
+        return None;
+    }
+    value
+        .is_finite()
+        .then_some((c64(value, 0.0), value.abs() * relative))
+}
+
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
 #[cold]
 fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
@@ -652,7 +725,13 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     }
 
     let other = if a == -(n as f64) { b } else { a };
-    let (centered, rounding) = centered_terminating_polynomial(n, other, c, z);
+    let real_beta = if c > 0.0 && z.is_real() && (0.0..=1.0).contains(&z.re) {
+        positive_beta_real_polynomial(n, other, c, z.re)
+    } else {
+        None
+    };
+    let (centered, rounding) =
+        real_beta.unwrap_or_else(|| centered_terminating_polynomial(n, other, c, z));
     if !centered.is_finite() {
         return origin;
     }

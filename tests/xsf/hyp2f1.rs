@@ -2212,6 +2212,27 @@ fn test_hyp2f1_c64_beta_binomial_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_real_beta_binomial_projection() {
+    // This endpoint is exactly halfway between two normal floats.
+    let midpoint = xsf::hyp2f1(-30.0, 1.5, 3.0, c64(1.0, 0.0));
+    assert_eq!(midpoint.re, 0.012_615_460_793_392_621);
+
+    // At z = 1 the polynomial equals the ratio (c-b)_n / (c)_n.
+    let endpoint = xsf::hyp2f1(-1000.0, 49.99, 50.0, c64(1.0, 0.0));
+    np_assert_allclose!([endpoint.re], [1.963_950_023_010_045e-90], rtol = 1e-14);
+    assert_eq!(endpoint.im.to_bits(), 0);
+
+    // Adjacent lower parameters straddle 1.5 times the smallest subnormal.
+    let c = 1_188.019_841_343_689_2_f64;
+    let next_c = f64::from_bits(c.to_bits() + 1);
+    for (c, units) in [(c, 2), (next_c, 1)] {
+        let value = xsf::hyp2f1(-300.0, c - 1.0, c, c64(1.0, 0.0));
+        assert_eq!(value.re.to_bits(), units);
+        assert_eq!(value.im.to_bits(), 0);
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_negative_lower_parameter() {
     // Pearson et al., Table A.2, case 19, and nearby complex arguments (Arb).
     let expected_re = -3.852_027_081_523_918_5e32;
