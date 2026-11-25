@@ -885,6 +885,26 @@ fn test_hyp1f2_asymptotic() {
 }
 
 #[test]
+fn test_hyp1f2_double_double_algebraic() {
+    // Arb at the exact binary64 inputs.
+    for (a, b, z, expected) in [
+        (
+            50.312_122_552_398_18,
+            [67.617_385_311_927_52, 78.921_225_873_730_28],
+            -2_905.292_190_604_559_4,
+            6.009_573_714_108_757e-14,
+        ),
+        (38.5, [40.0, 77.0], -1_577.272_481_893_131_3, 8.250_156_041_970_268e-11),
+    ] {
+        for [b1, b2] in [b, [b[1], b[0]]] {
+            let actual = hyppfq([a], [b1, b2], z).unwrap();
+            assert!((actual / expected - 1.0).abs() < 1e-13);
+            assert_eq!(actual, hyp1f2(a, b1, b2, z));
+        }
+    }
+}
+
+#[test]
 fn test_hyp1f2_exact_square() {
     // Square reduction at exact parameters (Arb).
     for (b1, b2) in [(51.0, 101.0), (101.0, 51.0)] {

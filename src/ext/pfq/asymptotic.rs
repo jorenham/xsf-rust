@@ -1,5 +1,6 @@
 //! Asymptotic, algebraic, exponential, and analytic-continuation expansions for `pFq`.
 
+use core::cell::OnceCell;
 use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::ControlFlow;
@@ -433,7 +434,7 @@ fn pfq_alg_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, 
     }
 }
 
-/// `pfq_alg_series` for `p >= q` in double-double, with the exact parameters, and an infinite
+/// `pfq_alg_series` in double-double, with the exact parameters, and an infinite
 /// error if no term bounds the rest
 ///
 /// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
@@ -468,6 +469,17 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         let bound = |n: f64| scratch.ratio_bound(&up, &low, recip_up(z), n);
         let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
         convergent_sum(terms, settled, Dd::EPSILON, step_roundings, bound)
+    } else if up.len() == low.len() + 2 {
+        // For 1F2 there are two unpaired factors. Use the same remainder and regrowth
+        // estimates as the binary64 algebraic sum, and include each term's generation error.
+        let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
+        let mut scratch = BoundScratch::new(up.len(), low.len());
+        let bound = |n| scratch.regrowth_bound(&up, &low, recip_up(z), n);
+        let terms = terms.zip((0_u32..).map(f64::from)).map(|(term, n)| {
+            let err = next_up_nonneg((2.0 * step_roundings * Dd::EPSILON * n) * term.abs_up());
+            (term, err)
+        });
+        asymptotic_sum(terms, settled, z.abs().sqrt(), bound)
     } else {
         // Where its factors are positive, each paired one of a term ratio is monotone with the limit
         // 1, and the unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear
@@ -579,7 +591,7 @@ pub(super) enum Alg {
     Value,
     /// A bound on its size
     Sizes,
-    /// Its value for `p >= q`, with its series and its factor in double-double
+    /// Its value, with its series and its factor in double-double
     Dd,
 }
 
@@ -933,7 +945,12 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64, cache: LogGammaCache<'_>) -> Option<Sca
 /// `z < 0` and `p = q`. The size of the other part is added to the error, for `z > 0` as the
 /// sizes of the terms of the algebraic part. For `z < 0` and `p < q`, it is the sum of both
 /// parts.
-pub(super) fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+pub(super) fn pfq_asymptotic(
+    a: &[f64],
+    b: &[f64],
+    z: f64,
+    exp_cache: Option<&OnceCell<Option<Scaled>>>,
+) -> Option<Estimate> {
     let kappa = b.len() + 1 - a.len();
     // A 2F2 evaluation reuses the same Gamma arguments across the algebraic and exponential terms.
     let mut log_gamma;
@@ -945,7 +962,11 @@ pub(super) fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     };
     let mode = if z > 0.0 { Alg::Sizes } else { Alg::Value };
     let alg = pfq_alg_with_cache(a, b, z, mode, cache)?;
-    let exp = pfq_exp(a, b, z, cache)?;
+    let mut exponential = || pfq_exp(a, b, z, cache);
+    let exp = match exp_cache {
+        Some(cell) => *cell.get_or_init(exponential),
+        None => exponential(),
+    }?;
     if z > 0.0 {
         // distinguish an empty algebraic part (zero error) from a failed `add_exp`
         let other = if alg.is_empty() {
@@ -966,6 +987,21 @@ pub(super) fn pfq_asymptotic(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
 /// The sum of the terms of `pfq_alg` in double-double, for `p >= q`
 pub(super) fn pfq_alg_dd(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     add_exp_dd(pfq_alg(a, b, z, Alg::Dd)?)
+}
+
+/// 1F2 for negative z, retrying the algebraic terms in double-double.
+pub(super) fn hyp1f2_asymptotic_dd(
+    a: f64,
+    b: &[f64; 2],
+    z: f64,
+    exp: &OnceCell<Option<Scaled>>,
+) -> Option<Estimate> {
+    if z >= 0.0 || exp.get().is_some_and(Option::is_none) || is_pole(&Dd::new(a)) {
+        return None;
+    }
+    let alg = pfq_alg(&[a], b, z, Alg::Dd)?.into_iter().next()?;
+    let exp = (*exp.get_or_init(|| pfq_exp(&[a], b, z, &mut [])))?;
+    Estimate::scaled_certain(add_exp_dd([alg, exp])?)
 }
 
 /// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` in double-double, where
@@ -1028,7 +1064,7 @@ mod tests {
         // expansion is accurate or `None` (Arb reference)
         let c = 1.0 + pow2(-10);
         let (b, z) = ([c, c, 11.25], 21.25);
-        let accurate = |a: &[f64; 3]| pfq_asymptotic(a, &b, z).and_then(Estimate::accurate);
+        let accurate = |a: &[f64; 3]| pfq_asymptotic(a, &b, z, None).and_then(Estimate::accurate);
         assert_eq!(accurate(&[1.0, 1.0, 10.5]), None);
         let near = accurate(&[1.0, 1.0 + pow2(-20), 10.5]);
         let expected = 739_413_030.005_544_4;
@@ -1047,7 +1083,7 @@ mod tests {
         // changes much with a_i: accurate or `None` (Arb reference)
         let t = -pow2(-40);
         let (root, root_2) = (f64::EPSILON.sqrt(), (2.0 * f64::EPSILON).sqrt());
-        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2], 30.0)
+        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2], 30.0, None)
             .and_then(Estimate::accurate);
         let expected = -816_436.169_307_593_7_f64;
         assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
