@@ -246,10 +246,7 @@ fn rescale_exp(x: f64) -> Option<i32> {
     let x = x.abs();
     // For positive finite values the bit order matches the numerical order.
     let bits = x.to_bits();
-    if (MIN..=MAX).contains(&bits) {
-        return None;
-    }
-    (x != 0.0 && x.is_finite()).then(|| x.log2().round() as i32)
+    (!(MIN..=MAX).contains(&bits) && x != 0.0 && x.is_finite()).then(|| x.log2().round() as i32)
 }
 
 /// `t 2^e`, with `t` scaled to about 1 if `|t|` is outside `[2^-500, 2^500]`
