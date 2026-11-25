@@ -549,23 +549,63 @@ fn sph_legendre_p_recurrence_m_abs_m<T: Num>(theta_sin: T, m: i32, res: &mut [T;
     res[1] = T::from(0.0);
 }
 
-fn sph_legendre_p_for_each_m_abs_m<T: Num>(
-    m: i32,
-    theta: T,
-    res: &mut [T; 2],
-    f: impl FnMut(i32, &[T; 2]),
-) {
+fn sph_legendre_p_for_each_m_abs_m<T: Num>(m: i32, theta: T, mut f: impl FnMut(i32, T, i64)) {
     let m_signbit = m < 0;
-
     let theta_sin = theta.sin();
+    let mut res = [T::from(0.0); 2];
 
-    sph_legendre_p_initializer_m_abs_m(m_signbit, theta_sin, res);
+    // Unlike in xsf, keep the scale of small real diagonal seeds through the degree recurrence.
+    // The normalized diagonal (DLMF 14.7.10 and 14.30.1) has magnitude at least
+    // |sin(theta)|^|m| / sqrt(4 pi).
+    if !T::COMPLEX && m != i32::MIN && m != 0 {
+        let sin = theta_sin.real();
+        // For a subnormal sine the exponent field is zero, which also takes this path.
+        let exponent = i64::from(((sin.to_bits() >> 52) & 0x7ff) as u16) - 1023;
+        let order = m.unsigned_abs();
+        if exponent * i64::from(order) < -i64::from(SPECFUN_BIG_LOG2)
+            && sin != 0.0
+            && sin.abs().log2() * f64::from(order) < -f64::from(SPECFUN_BIG_LOG2)
+        {
+            let (mantissa, exponent) = frexp_f64(sin);
+            sph_legendre_p_scaled_diagonal(m, T::from(mantissa), exponent, f);
+            return;
+        }
+    }
 
+    sph_legendre_p_initializer_m_abs_m(m_signbit, theta_sin, &mut res);
     let re_m_abs_m = |m, res: &mut _| sph_legendre_p_recurrence_m_abs_m(theta_sin, m, res);
+    let f = |m, res: &[T; 2]| f(m, res[1], 0);
     if m >= 0 {
-        forward_recur(0, m.wrapping_add(1), re_m_abs_m, res, f);
+        forward_recur(0, m.wrapping_add(1), re_m_abs_m, &mut res, f);
     } else {
-        backward_recur(0, m.wrapping_sub(1), re_m_abs_m, res, f);
+        backward_recur(0, m.wrapping_sub(1), re_m_abs_m, &mut res, f);
+    }
+}
+
+#[cold]
+fn sph_legendre_p_scaled_diagonal<T: Num>(
+    m: i32,
+    mantissa: T,
+    exponent: i32,
+    mut f: impl FnMut(i32, T, i64),
+) {
+    let mut res = [T::from(0.0); 2];
+    sph_legendre_p_initializer_m_abs_m(m < 0, mantissa, &mut res);
+    let mut scales = [0, i64::from(exponent)];
+    f(0, res[0], scales[0]);
+    f(m.signum(), res[1], scales[1]);
+    for order in 2..=m.abs() {
+        let mut coefficients = [T::from(0.0); 2];
+        sph_legendre_p_recurrence_m_abs_m(mantissa, order, &mut coefficients);
+        let mut next = dot(&coefficients, &res);
+        let mut scale = scales[0] + 2 * i64::from(exponent);
+        if next.abs() < 1.0 / SPECFUN_BIG {
+            next = next * SPECFUN_BIG;
+            scale -= i64::from(SPECFUN_BIG_LOG2);
+        }
+        res = [res[1], next];
+        scales = [scales[1], scale];
+        f(order * m.signum(), next, scale);
     }
 }
 
@@ -586,102 +626,107 @@ fn sph_legendre_p_recurrence_n<T: Num>(m: i32, theta_cos: T, n: i32, res: &mut [
     res[1] = fac1 * theta_cos;
 }
 
-/// Compute the spherical Legendre polynomial of degree n and order m.
-///
-/// This is the overload that starts from the given `res_m_abs_m`.
-///
-/// - `n`: degree of the polynomial
-/// - `m`: order of the polynomial
-/// - `theta`: z = cos(theta) argument of the polynomial, either real or complex
-/// - `callback`: a function to be called as `callback(j, m, type, z, p, p_prev, args...)` for
-///   `0 <= j <= n`
-/// - `args`: arguments to forward to the callback
-///
-/// Returns the value of the polynomial
+// Send each mantissa and its scale to the consumer so the harmonic phase can be
+// applied before rounding.
 fn sph_legendre_p_for_each_n_from<T: Num>(
     n: i32,
     m: i32,
     theta: T,
-    res_m_abs_m: T,
-    res: &mut [T; 2],
-    mut f: impl FnMut(i32, &[T; 2]),
+    diagonal: (T, i64),
+    mut f: impl FnMut(i32, T, i32),
 ) {
-    res[0] = T::from(0.0);
-    res[1] = T::from(0.0);
-
     let m_abs = m.wrapping_abs();
+    for j in 0..m_abs.min(n.saturating_add(1)) {
+        f(j, T::from(0.0), 0);
+    }
     if m_abs > n {
-        for j in 0..=n {
-            f(j, res);
-        }
+        return;
+    }
+
+    let theta_cos = theta.cos();
+    let (diagonal, scale) = diagonal;
+    let unscaled = if scale == 0 {
+        diagonal
     } else {
-        for j in 0..m_abs {
-            f(j, res);
-        }
-
-        let theta_cos = theta.cos();
-
-        sph_legendre_p_initializer_n(m, theta_cos, res_m_abs_m, res);
-
+        diagonal.ldexp(scale.clamp(-4096, 4096) as i32)
+    };
+    let mut p = [T::from(0.0); 2];
+    if scale == 0 || unscaled.abs() >= 1.0 / SPECFUN_BIG {
+        sph_legendre_p_initializer_n(m, theta_cos, unscaled, &mut p);
         let re_n = |n, res: &mut _| sph_legendre_p_recurrence_n(m, theta_cos, n, res);
-        forward_recur(m_abs, n.wrapping_add(1), re_n, res, f);
+        forward_recur(m_abs, n.wrapping_add(1), re_n, &mut p, |n, p| f(n, p[1], 0));
+    } else {
+        sph_legendre_p_initializer_n(m, theta_cos, diagonal, &mut p);
+        sph_legendre_p_scaled_degrees(n, m, theta_cos, p, scale, f);
     }
 }
 
-fn sph_legendre_p_for_each_n<T: Num>(
+// Unlike in xsf, rescale the degree recurrence (DLMF 14.10.3) as its mantissas grow.
+#[cold]
+fn sph_legendre_p_scaled_degrees<T: Num>(
     n: i32,
     m: i32,
-    theta: T,
-    res: &mut [T; 2],
-    f: impl FnMut(i32, &[T; 2]),
+    theta_cos: T,
+    mut p: [T; 2],
+    mut scale: i64,
+    mut f: impl FnMut(i32, T, i32),
 ) {
-    sph_legendre_p_for_each_m_abs_m(m, theta, res, |_, _| {});
-
-    let res_m_abs_m = res[1];
-    sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m, res, f);
+    let start = m.abs();
+    f(start, p[0], scale.clamp(-4096, 4096) as i32);
+    if n == start {
+        return;
+    }
+    for degree in start + 1..=n {
+        if degree != start + 1 {
+            let mut coefficients = [T::from(0.0); 2];
+            sph_legendre_p_recurrence_n(m, theta_cos, degree, &mut coefficients);
+            p = [p[1], dot(&coefficients, &p)];
+            if p[0].abs().max(p[1].abs()) > SPECFUN_BIG {
+                p = p.map(|value| value / SPECFUN_BIG);
+                scale += i64::from(SPECFUN_BIG_LOG2);
+            }
+        }
+        f(degree, p[1], scale.clamp(-4096, 4096) as i32);
+    }
 }
 
 pub(crate) fn sph_legendre_p_for_each_n_m<T: Num>(
     n: i32,
     m: i32,
     theta: T,
-    res: &mut [T; 2],
-    mut f: impl FnMut(i32, i32, &[T; 2]),
+    mut f: impl FnMut(i32, i32, T, i32),
 ) {
-    let mut res_m_abs_m = [T::from(0.0); 2];
-    sph_legendre_p_for_each_m_abs_m(m, theta, &mut res_m_abs_m, |m, res_m_abs_m| {
-        res[0] = res_m_abs_m[1];
-
-        sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m[1], res, |n, res_n| {
-            f(n, m, res_n);
+    for order in [m, m.wrapping_neg()] {
+        sph_legendre_p_for_each_m_abs_m(order, theta, |m, p, scale| {
+            sph_legendre_p_for_each_n_from(n, m, theta, (p, scale), |n, p, scale| {
+                f(n, m, p, scale);
+            });
         });
-    });
-    sph_legendre_p_for_each_m_abs_m(m.wrapping_neg(), theta, &mut res_m_abs_m, |m, res_m_abs_m| {
-        res[0] = res_m_abs_m[1];
-
-        sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m[1], res, |n, res_n| {
-            f(n, m, res_n);
-        });
-    });
+    }
 }
 
-pub(crate) fn sph_legendre_p_t<T: Num>(n: i32, m: i32, theta: T) -> T {
-    let mut res_n = [T::from(0.0); 2];
-    sph_legendre_p_for_each_n(n, m, theta, &mut res_n, |_, _| {});
+pub(crate) fn sph_legendre_p_scaled<T: Num>(n: i32, m: i32, theta: T) -> (T, i32) {
+    let mut diagonal = (T::from(0.0), 0);
+    sph_legendre_p_for_each_m_abs_m(m, theta, |_, p, scale| diagonal = (p, scale));
+    let mut result = (T::from(0.0), 0);
+    sph_legendre_p_for_each_n_from(n, m, theta, diagonal, |_, p, scale| result = (p, scale));
+    result
+}
 
-    res_n[1]
+fn sph_legendre_p_t<T: Num>(n: i32, m: i32, theta: T) -> T {
+    let (p, scale) = sph_legendre_p_scaled(n, m, theta);
+    if scale == 0 { p } else { p.ldexp(scale) }
 }
 
 fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
     let n_max = int(res.extent(0)) - 1;
     let m_max = (int(res.extent(1)) - 1) / 2;
-
-    let mut res_n_m = [T::from(0.0); 2];
-    sph_legendre_p_for_each_n_m(n_max, m_max, theta, &mut res_n_m, |n, m, res_n_m| {
+    sph_legendre_p_for_each_n_m(n_max, m_max, theta, |n, m, p, scale| {
+        let value = if scale == 0 { p } else { p.ldexp(scale) };
         if m >= 0 {
-            res[(n, m)] = res_n_m[1];
+            res[(n, m)] = value;
         } else {
-            res[(n, m + 2 * m_max + 1)] = res_n_m[1];
+            res[(n, m + 2 * m_max + 1)] = value;
         }
     });
 }

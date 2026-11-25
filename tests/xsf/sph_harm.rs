@@ -71,6 +71,31 @@ fn test_sph_harm_y_basic() {
 }
 
 #[test]
+fn test_sph_harm_y_scaled_diagonal() {
+    // Arb evaluated at the exact binary64 angles.
+    let actual = xsf::sph_harm_y(2400, 850, 0.4, 1.2);
+    xsref::np_assert_allclose!(
+        [actual.re, actual.im],
+        [-0.408_905_152_969_318_84, 0.662_200_443_587_074_7],
+        rtol = 1e-12
+    );
+}
+
+#[test]
+fn test_sph_harm_y_subnormal_projection() {
+    let theta = f64::from_bits(0x3f10_3ba3_f94e_ae3b);
+    let phi = f64::from_bits(0x3f84_1b2f_769c_f0e0);
+    // Arb gives P in units of MIN_SUBNORMAL as 0.60, and each projection as 0.424.
+    // Projecting the rounded P would give one unit in both components.
+    assert_eq!(xsf::sph_legendre_p(100, 80, theta).to_bits(), 1);
+    let scalar = xsf::sph_harm_y(100, 80, theta, phi);
+    let all = xsf::sph_harm_y_all(100, 80, theta, phi);
+    for harmonic in [scalar, all[100][80]] {
+        assert_eq!([harmonic.re.to_bits(), harmonic.im.to_bits()], [0, 0]);
+    }
+}
+
+#[test]
 fn test_sph_harm_y_all_basic() {
     let y_all = xsf::sph_harm_y_all(1, 1, PI / 2.0, 0.0);
 
