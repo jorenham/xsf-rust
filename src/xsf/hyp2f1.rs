@@ -651,12 +651,12 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
         return origin;
     }
 
-    let k = if c > 0.0 { -a.max(b) } else { -a.min(b) };
-    let (centered, rounding) = centered_terminating_polynomial(n, k, -c, z);
+    let other = if a == -(n as f64) { b } else { a };
+    let (centered, rounding) = centered_terminating_polynomial(n, other, c, z);
+    if !centered.is_finite() {
+        return origin;
+    }
     if c > 0.0 {
-        if !centered.is_finite() {
-            return origin;
-        }
         let select = |old: f64, new: f64, uncertainty: f64| {
             let limit = uncertainty + f64::EPSILON * new.abs() + f64::from_bits(1);
             if (old.is_finite() && (old - new).abs() > 4.0 * limit)
@@ -685,7 +685,7 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let magnitude = centered.re.abs().max(centered.im.abs());
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
     let limit = if origin_finite { error } else { magnitude };
-    if centered.is_finite() && rounding + f64::EPSILON * magnitude < limit {
+    if rounding + f64::EPSILON * magnitude < limit {
         centered
     } else {
         origin
@@ -693,16 +693,15 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
 }
 
 /// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
-fn centered_terminating_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C64, f64) {
+fn centered_terminating_polynomial(n: u64, b: f64, c: f64, z: C64) -> (C64, f64) {
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
-    let positive_beta = population < 0.0;
-    // For k = -b and population = -c the coefficients are beta-binomial probabilities.
-    // Their leading coefficient is the ratio of rising products (b)_n / (c)_n.
+    let positive_beta = c > 0.0;
+    // The beta-binomial coefficients have leading term (b)_n / (c)_n.
     let product = |p: f64| {
-        let shift = if p < -pow2(384) { frexp_f64(p).1 } else { 0 };
+        let shift = if p > pow2(384) { frexp_f64(p).1 } else { 0 };
         (0..n).fold((Dd::ONE, 0), |(product, scale), j| {
             let factor = if positive_beta {
-                (Dd::new(-p) + j as f64).ldexp(-shift)
+                (Dd::new(p) + j as f64).ldexp(-shift)
             } else {
                 // The integral falling-factor offset j is exact; p - j is exact when p is integral.
                 Dd::new(p - j as f64)
@@ -719,8 +718,8 @@ fn centered_terminating_polynomial(n: u64, k: f64, population: f64, z: C64) -> (
             }
         })
     };
-    let (num, num_scale) = product(k);
-    let (den, den_scale) = product(population);
+    let (num, num_scale) = product(b.abs());
+    let (den, den_scale) = product(c.abs());
     let (leading, mut scale) = (num / den, num_scale - den_scale);
     let t = Dd::ONE - z.re;
     let square = Dd::new(z.im) * z.im;
@@ -728,7 +727,8 @@ fn centered_terminating_polynomial(n: u64, k: f64, population: f64, z: C64) -> (
     let mut coefficient = Dd::ONE;
     let (mut re, mut im) = (Dd::ONE, Dd::ZERO);
     let mut mass = 1.0;
-    let excess = (Dd::new(population) - k) - n as f64;
+    let h = Dd::new(c) - b;
+    let excess = -h - n as f64;
     // Use one quotient correction when the real centered sum cannot cancel.
     let nonnegative = z.is_real() && z.re <= 1.0 && (positive_beta || excess >= -1.0);
     let divide = |numerator: Dd, denominator: Dd| {
@@ -743,32 +743,29 @@ fn centered_terminating_polynomial(n: u64, k: f64, population: f64, z: C64) -> (
         }
         numerator / denominator
     };
-    let mut coefficient_exp = 0;
-
+    // Small beta-binomial weights can grow back to normal, so retain their own scale.
+    let mut coefficient_scale = scale;
     for j in (1..=n).rev() {
         let j = j as f64;
-        let (upper, lower) = if positive_beta {
-            ((Dd::new(k) - population) + (n as f64 - j), Dd::new(-k) + (j - 1.0))
-        } else {
-            (excess + j, Dd::new(k - j + 1.0))
-        };
+        let remaining = n as f64 - j;
         let term = if positive_beta {
-            // Preserve small intermediate probabilities when later coefficients grow again.
-            let (u, ue) = upper.frexp();
-            let (l, le) = lower.frexp();
-            let (m, e) = divide(coefficient * u * j, l * (n as f64 - j + 1.0)).frexp();
+            let (u, ue) = (h + remaining).frexp();
+            let (l, le) = (Dd::new(b) + (j - 1.0)).frexp();
+            let (m, e) = divide(coefficient * u * j, l * (remaining + 1.0)).frexp();
             coefficient = m;
-            coefficient_exp += e + ue - le;
-            if coefficient_exp > 384 {
-                re = re.ldexp(-coefficient_exp);
-                im = im.ldexp(-coefficient_exp);
-                mass = ldexp_f64(mass, -coefficient_exp);
-                scale += coefficient_exp;
-                coefficient_exp = 0;
+            coefficient_scale += e + ue - le;
+            let delta = coefficient_scale - scale;
+            if delta > 384 {
+                [re, im] = [re, im].map(|v| v.ldexp(-delta));
+                mass = ldexp_f64(mass, -delta);
+                scale = coefficient_scale;
+                coefficient
+            } else {
+                coefficient.ldexp(delta)
             }
-            coefficient.ldexp(coefficient_exp)
         } else {
-            coefficient = divide(coefficient * upper * j, lower * (n as f64 - j + 1.0));
+            coefficient =
+                divide(coefficient * (excess + j) * j, Dd::new(-b - j + 1.0) * (remaining + 1.0));
             coefficient
         };
         // Carry Im(P) divided by Im(t) so even a subnormal ordinate survives Horner.
@@ -778,9 +775,7 @@ fn centered_terminating_polynomial(n: u64, k: f64, population: f64, z: C64) -> (
         if size != 0.0 && !(pow2(-384)..=pow2(384)).contains(&size) {
             let (_, shift) = frexp_f64(size);
             [re, im] = [re, im].map(|v| v.ldexp(-shift));
-            if positive_beta {
-                coefficient_exp -= shift;
-            } else {
+            if !positive_beta {
                 coefficient = coefficient.ldexp(-shift);
             }
             mass = ldexp_f64(mass, -shift);
