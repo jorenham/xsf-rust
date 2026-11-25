@@ -139,7 +139,8 @@ fn scale_endpoint(
     })
 }
 
-fn one_minus_z_pow(z: C64, p: f64) -> (C64, i64) {
+// (1-z)^p as a complex mantissa and a binary exponent, for finite z != 1.
+pub(super) fn one_minus_z_pow(z: C64, p: f64) -> (C64, i64) {
     // Exponentiation by squaring with double-double components and a separate scale.
     // A nonintegral binary64 exponent needs at most 53 bits in its integral part.
     let n = p.round();
@@ -153,16 +154,25 @@ fn one_minus_z_pow(z: C64, p: f64) -> (C64, i64) {
         normalize(a * c - b * d, a * d + b * c, i + j)
     };
     let mut base = normalize(real, Dd::new(w.im), 0);
-    let mut value = (Dd::ONE, Dd::ZERO, 0);
-    let mut degree = n as u64;
-    while degree > 1 {
+    let mut value = None;
+    let mut degree = n.abs() as u64;
+    while degree != 0 {
         if degree & 1 == 1 {
-            value = multiply(value, base);
+            value = Some(value.map_or(base, |value| multiply(value, base)));
         }
-        base = multiply(base, base);
         degree >>= 1;
+        if degree != 0 {
+            base = multiply(base, base);
+        }
     }
-    let (real, imag, exponent) = multiply(value, base);
+    let power = value.unwrap_or((Dd::ONE, Dd::ZERO, 0));
+    let (real, imag, exponent) = if n < 0.0 {
+        let (re, im, exponent) = power;
+        let norm = re * re + im * im;
+        (re / norm, -im / norm, -exponent)
+    } else {
+        power
+    };
     // The remaining exponent is small and barely amplifies rounding in 1-z.
     (c64(real.hi, imag.hi) * w.powf(p - n), exponent)
 }

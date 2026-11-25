@@ -220,6 +220,67 @@ fn test_hyp2f1_c64_coincident_binomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_binomial() {
+    // F(a, b; a; z) = (1 - z)^(-b) (DLMF 15.4.6), Arb references.
+    for (a, b, z, expected) in [
+        // Pearson, Olver and Porter case 13 continued off the real axis.
+        (
+            500.0,
+            -500.0,
+            c64(0.75, 0.01),
+            c64(5.814_852_388_330_934e-302, -1.264_531_485_912_276_4e-301),
+        ),
+        // A large degree with a representable power.
+        (2.5, -5e5, c64(1e-3, 1e-3), c64(-3.927_742_331_616_963e-218, 5.946_959_811_064_571e-218)),
+        (2.5, 5e5, c64(1e-3, 1e-3), c64(-7.732_767_069_881_334e216, -1.170_811_400_298_151_8e217)),
+        // Outside the unit disk, for equal and nonintegral parameters.
+        (2.5, 2.5, c64(0.83, -1.11), c64(-0.687_674_549_201_301_9, 0.295_186_369_637_935_7)),
+        (0.5, 0.5, c64(0.39, 1.12), c64(0.761_295_329_201_635_7, 0.452_252_310_326_859_64)),
+        (
+            300.0,
+            299.0,
+            c64(-2.18, 2.83),
+            c64(-6.230_327_053_389_383e-189, -4.947_746_322_762_214e-189),
+        ),
+        (1.5, 2.25, c64(1e10, -1e10), c64(8.055_272_254_422_263e-24, 1.205_556_687_874_377_5e-23)),
+        // At a pole of c, where b terminates the series first.
+        (-5.0, -2.0, c64(0.3, 0.2), c64(0.45, -0.28)),
+    ] {
+        for (a, b, c) in [(a, b, a), (b, a, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 3e-15
+                );
+            }
+        }
+    }
+    // Both lips of the cut, also for a tiny ordinate.
+    for y in [0.0, 1e-300] {
+        for sign in [-1.0, 1.0] {
+            let actual = xsf::hyp2f1(1.5, 0.25, 1.5, c64(3.0, sign * y));
+            let expected = 0.594_603_557_501_360_5;
+            np_assert_allclose!([actual.re, actual.im], [expected, sign * expected], rtol = 3e-15);
+        }
+    }
+    // The power amplifies the smallest subnormal ordinate to a normal component.
+    let actual = xsf::hyp2f1(1.0, -512.0, 1.0, c64(-0.5, f64::from_bits(1)));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [1.441_201_271_173_911e90, -2.430_457_299_045_594e-231],
+        rtol = 3e-15
+    );
+    // The power overflows and underflows.
+    assert_eq!(
+        xsf::hyp2f1(1.0, -3000.0, 1.0, c64(3.0, 1.0)),
+        c64(f64::NEG_INFINITY, f64::INFINITY)
+    );
+    assert_eq!(xsf::hyp2f1(1.0, 3000.0, 1.0, c64(3.0, 1.0)), c64(0.0, 0.0));
+}
+
+#[test]
 fn test_hyp2f1_c64_inverse_near_integer_index() {
     // Arb references at the exact binary64 arguments.
     for (a, b, c, z, expected) in [

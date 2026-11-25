@@ -538,7 +538,7 @@ fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// `(1 - x)^m`, by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round
-pub(crate) fn pow_1mx(x: f64, m: f64) -> f64 {
+fn pow_1mx(x: f64, m: f64) -> f64 {
     // (for a tiny x by its series, as `ln_dd` is accurate only to about 2^-106 absolute)
     let ln_1mx = if x.abs() < pow2(-27) {
         let x = Dd::new(x);

@@ -45,12 +45,12 @@
 mod beta_endpoints;
 mod polynomial;
 
-use core::f64::consts::{FRAC_1_PI, FRAC_PI_4, PI};
+use core::f64::consts::{FRAC_1_PI, PI};
 
 use crate::ext::{hyp2f1_poly_dd, ln_dd};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
@@ -546,49 +546,11 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C6
         let series_generator2 =
             hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
         result += prefactor * series_eval(series_generator2);
-        if n == 0.0 && a == b && result.re.is_nan() && result.im.is_nan() {
-            // Unlike in xsf, recover (1 - z)^(-a) at the coincident pole (DLMF 15.4.6).
-            return hyp2f1_equal_integer_recovery(a, z).unwrap_or(result);
-        }
         return result;
     }
     let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
     result += prefactor * series_eval(series_generator2);
     result
-}
-
-#[cold]
-#[inline(never)]
-fn hyp2f1_equal_integer_recovery(n: f64, z: C64) -> Option<C64> {
-    if !z.re.is_finite() || !z.im.is_normal() {
-        return None;
-    }
-    // Limit the integer power to at most 255 factors.
-    if !(2.0..256.0).contains(&n) || n != n.trunc() {
-        return None;
-    }
-    let base = 1.0 - z;
-    if base.re.abs().max(base.im.abs()) < 1.0 {
-        return None;
-    }
-    let denominator = base.powi(n as i32);
-    let re = denominator.re.abs();
-    let im = denominator.im.abs();
-    let norm_sqr = denominator.norm_sqr();
-    // This separation limits amplification of the O(n eps) power error to 256/n.
-    // With the squared norm and division, the relative component error is below 2^-39.
-    // Near either imaginary semiaxis the power is within π/4 of a multiple of π/2.
-    // The small component scales with the deviation from the axis.
-    let near_axis = n * base.re.abs() <= FRAC_PI_4 * base.im.abs();
-    (norm_sqr.is_finite() && (near_axis || re.min(im) > (n / 256.0) * re.max(im))).then(|| {
-        let value = denominator.conj() / norm_sqr;
-        // Canonicalize the structural zero of a purely imaginary base.
-        if base.re == 0.0 {
-            value + C64::ZERO
-        } else {
-            value
-        }
-    })
 }
 
 #[cold]
@@ -898,27 +860,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 return result;
             }
         }
-        let result = hyp2f1_transform2_limiting_case(a, b, c, m, z);
-        if result.re.is_nan()
-            && result.im.is_nan()
-            && ((a == c && b == 1.0) || (b == c && a == 1.0))
-            && z.re.is_finite()
-            && z.im.is_normal()
-        {
-            // Unlike in xsf, recover the unit-exponent case 2F1(a, 1; a; z) = 1/(1 - z)
-            // (DLMF 15.4.6).
-            if z.re == 1.0 {
-                return c64(0.0, 1.0 / z.im);
-            }
-            let reciprocal = 1.0 / (1.0 - z);
-            // Stay clear of subnormal rounding in the mixed-component quotient.
-            if reciprocal.is_finite()
-                && reciprocal.re.abs().min(reciprocal.im.abs()) >= 2.0 * f64::MIN_POSITIVE
-            {
-                return reciprocal;
-            }
-        }
-        return result;
+        return hyp2f1_transform2_limiting_case(a, b, c, m, z);
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
     let (result, cancellation) = series_eval_cancellation(series_generator);
@@ -1003,6 +945,40 @@ fn hyp2f1_ferrers(n: u64, z: C64) -> C64 {
     value
 }
 
+// (1-z)^p, on the lip of the cut that the sign of a zero Im z selects.
+fn pow_1mz(z: C64, p: f64) -> C64 {
+    let w = 1.0 - z;
+    if w == C64::ZERO {
+        return c64(0.0_f64.powf(p), 0.0);
+    }
+    // The scaled power needs a finite base, and a binary exponent that fits in i64.
+    if !(z.is_finite() && p.abs() < pow2(52)) {
+        return w.powf(p);
+    }
+    // Where (Im z / (1 - Re z))^2 underflows, the power is linear in Im z:
+    // (1-z)^p = (1-x)^p (1 - i p y / (1-x)), on the lip of the sign of y if x > 1.
+    let y = z.im;
+    let tiny_phase = y.abs() < f64::MIN_POSITIVE.sqrt() * w.re.abs();
+    let z = if tiny_phase {
+        c64(z.re, 0.0_f64.copysign(y))
+    } else {
+        z
+    };
+    let (power, exponent) = beta_endpoints::one_minus_z_pow(z, p);
+    // Any |e| > 4096 under- or overflows, also for the linear term.
+    let scale = |m: f64, e: i64| ldexp_f64(m, e.clamp(-4096, 4096) as i32);
+    // A nonzero imaginary part on the cut exceeds the linear term by 2^458.
+    let im = if tiny_phase && power.im == 0.0 {
+        let (y, ey) = frexp_f64(y);
+        let (x, ex) = frexp_f64(w.re);
+        // (a zero stays positive)
+        scale(-p * power.re * y / x, exponent + i64::from(ey - ex)) + 0.0
+    } else {
+        scale(power.im, exponent)
+    };
+    c64(scale(power.re, exponent), im)
+}
+
 fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
@@ -1034,6 +1010,14 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
      * non-positive integers. See [3] for a treatment of degenerate cases. */
     if c_non_pos_int && !((a_neg_int && c <= a && a < 0.0) || (b_neg_int && c <= b && b < 0.0)) {
         return C64::INFINITY;
+    }
+    // Unlike in xsf, cancel a finite common upper and lower parameter:
+    // F(a,b;a;z) = (1-z)^(-b) (DLMF 15.4.6).
+    // At a pole of c, the other upper parameter has to terminate the series first.
+    for (common, other, terminates) in [(a, b, b_neg_int), (b, a, a_neg_int)] {
+        if common == c && c.is_finite() && (!c_non_pos_int || (terminates && c <= other)) {
+            return pow_1mz(z, -other);
+        }
     }
     /* Reduces to a polynomial when a or b is a negative integer.
      * If a and b are both negative integers, we take care to terminate
