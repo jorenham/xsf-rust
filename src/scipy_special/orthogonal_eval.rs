@@ -176,7 +176,12 @@ mod sealed {
         fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
             // Unlike in xsf, use `2F1(-n, n; 1/2; (1 - x) / 2) = cos(n acos(x))` (DLMF 15.4.12)
             // beyond the degrees of the recurrence, where the series cancels catastrophically.
-            if b == n && c == 0.5 && n >= super::MAX_RECURRENCE_DEGREE {
+            // At `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20).
+            if b == n
+                && c == 0.5
+                && n >= super::MAX_RECURRENCE_DEGREE
+                && self != Self::new(-1.0, 0.0)
+            {
                 // `acos(x) = -2i ln(sqrt((1 + x) / 2) + i sqrt((1 - x) / 2))`, without `1 - x^2`
                 let i = Self::i();
                 let w = ((self + 1.0) * 0.5).sqrt() + i * ((1.0 - self) * 0.5).sqrt();
@@ -252,8 +257,9 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 /// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried.
 /// - Elsewhere, it is tried only if `series` isn't finite or is estimated to cancel by more than
 ///   `HYP2F1_ETHRESH / EPSILON`, and if `x != -1`. There, `alpha, beta > -1` is checked as
-///   `c, lam + 1 - c > -EPSILON`, which keeps the digits of a small `beta + 1` and admits the
-///   rounding of `c` and `lam` (the recurrence is continuous in `alpha` and `beta`).
+///   `c, lam + 1 - c > -4 EPSILON`, which keeps the digits of a small `beta + 1` and admits the
+///   rounding of `c` and `lam`, and `alpha, beta` a few ulps below -1 (the recurrence is
+///   continuous in `alpha` and `beta`).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
 ///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
 ///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
@@ -283,7 +289,8 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
         let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
         let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
         let cancels = !series.is_finite() || loss > ln_tol;
-        let positive = c > -f64::EPSILON && lam + 1.0 - c > -f64::EPSILON;
+        let slack = 4.0 * f64::EPSILON;
+        let positive = c > -slack && lam + 1.0 - c > -slack;
         // at `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20)
         cancels && xp1 > 0.0 && positive
     };
@@ -727,14 +734,6 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         // of the NaN of the Gamma ratio below (inf / inf).
         if n == 0.0 && alpha == 0.0 && !self.is_nan() {
             return Self::ZERO;
-        }
-
-        // Unlike in xsf, for complex x shift `-1 < alpha < -1/2` (`c < 0`) up by one (DLMF 18.9.7),
-        // since neither the series nor the degree recurrence is accurate there for large degrees.
-        if self.as_f64().is_none() && n > 2.0 && -1.0 < alpha && alpha < -0.5 {
-            let a1 = alpha + 1.0;
-            let d = self.clone().eval_gegenbauer(n, a1) - self.eval_gegenbauer(n - 2.0, a1);
-            return d * (alpha / (n + alpha));
         }
 
         let alpha2 = 2.0 * alpha;

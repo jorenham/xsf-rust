@@ -1037,6 +1037,23 @@ fn test_eval_real_degree_edge_cases() {
         c64(-0.000_750_436_409_148_204, -0.000_723_438_634_106_564_5),
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-14);
+    let actual = [
+        eval_gegenbauer(100.5, -0.500_000_000_000_000_1, c64(1.0, 0.0)),
+        eval_gegenbauer(2.5, -0.500_000_000_000_000_1, c64(-1.0, 0.0)),
+        eval_gegenbauer(2.5, -0.999_999_999_999_999_9, c64(-1.25, 0.005)),
+    ];
+    let expected = [
+        c64(2.220_501_561_789_355_7e-20, 0.0),
+        c64(-0.169_765_272_631_355_05, 0.0),
+        c64(-1.831_787_617_468_887e-18, -5.755_828_128_849_5e-17),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-13);
+    // `cos(pi n) = 0` for half-integer `n`
+    let actual = [
+        eval_chebyshev_t(100_000.5, c64(-1.0, 0.0)),
+        eval_chebyshev_t(2.0_f64.powi(50) + 0.5, c64(-1.0, 0.0)),
+    ];
+    assert_eq!(actual, [c64(0.0, 0.0); 2]);
 }
 
 #[test]
