@@ -236,13 +236,13 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
-/// - It needs positive denominators, `n > 2` (at least one step), and `n < 1e5` (to bound its
-///   cost). For larger `n`, it is NaN if `series` is estimated to have no correct digits left.
-/// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried, with `alpha, beta > -1`
-///   for positive denominators.
+/// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
+///   `n < 1e5` (to bound its cost).
+/// - For real `-1 < x < 1`, where `G_n` oscillates, it is always tried.
 /// - Elsewhere, it is tried only if `series` isn't finite or is estimated to cancel by more than
-///   `HYP2F1_ETHRESH / EPSILON`, if `x != -1`, and if the denominators of the first step are
-///   positive (and so those of the later ones).
+///   `HYP2F1_ETHRESH / EPSILON`, and if `x != -1`. There, `alpha, beta > -1` is checked as
+///   `c, lam + 1 - c > -EPSILON`, which keeps the digits of a small `beta + 1` and admits the
+///   rounding of `c` and `lam` (the recurrence is continuous in `alpha` and `beta`).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
 ///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
 ///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
@@ -262,25 +262,22 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     // `n - j` is exact for integer `0 <= j <= n`
     let m = n.floor();
     let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
-    let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
-    // A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)`: the terms of the series
-    // add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about `|xi(x)|^n`, with
-    // `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of `(|x + 1| + |x - 1|) / 2`.
-    let loss = || n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
     let tried = if segment {
         c > 0.0 && beta > -1.0
     } else {
-        let v = n - m + 2.0;
-        let cancels = !series.is_finite() || loss() > (HYP2F1_ETHRESH / f64::EPSILON).ln();
+        // A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)`: the terms of the
+        // series add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about `|xi(x)|^n`, with
+        // `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of `(|x + 1| + |x - 1|) / 2`.
+        let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
+        let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
+        let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
+        let cancels = !series.is_finite() || loss > ln_tol;
+        let positive = c > -f64::EPSILON && lam + 1.0 - c > -f64::EPSILON;
         // at `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20)
-        cancels && xp1 > 0.0 && v + alpha > 0.0 && v + ab > 0.0 && 2.0 * v + ab > 2.0
+        cancels && xp1 > 0.0 && positive
     };
-    if !(tried && n > 2.0 && n.fract() != 0.0) {
+    if !(tried && n > 2.0 && n < 1e5 && n.fract() != 0.0) {
         return None;
-    }
-    if n >= 1e5 {
-        // Unlike in xsf, NaN if the series has no correct digits left
-        return (loss() > -f64::EPSILON.ln()).then_some(Z::ZERO * f64::NAN);
     }
     // `G_v = (p G_{v-1} - q G_{v-2}) / r`
     let pqr = |v: f64| {
