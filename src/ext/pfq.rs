@@ -988,12 +988,13 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         return polynomial;
     }
     if z == 1.0 && degree.is_finite() {
-        let racah = match (a.as_slice().try_into(), b.as_slice().try_into()) {
-            (Ok(a), Ok(b)) => hyp4f3_racah(a, b),
-            _ => None,
-        };
-        if racah.is_some() {
-            return racah;
+        let arrays = a
+            .as_slice()
+            .try_into()
+            .ok()
+            .zip(b.as_slice().try_into().ok());
+        if let Some(estimate) = arrays.and_then(|(a, b)| hyp4f3_racah(a, b)) {
+            return Some(estimate);
         }
     }
     // the xsf functions are NaN where they are inaccurate
@@ -1043,60 +1044,66 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     polynomial.or_better(|| y)
 }
 
-// Unlike in xsf, use the coefficient identity DLMF 18.26.20 when the
-// terminating Racah series loses too many digits.
+// Use the coefficient identity DLMF 18.26.20 when the terminating Racah series loses accuracy.
 #[cold]
 fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
     a.sort_by(f64::total_cmp);
     b.sort_by(f64::total_cmp);
-    let (n, y, size) = (-a[0], -a[1], -b[0]);
+    let [neg_n, neg_y, upper_a, upper_b] = a;
+    let [neg_size, lower_a, lower_b] = b;
+    let (n, y, size) = (-neg_n, -neg_y, -neg_size);
     if !([n, y, size].into_iter().all(|x| x.fract() == 0.0)
         && 1.0 <= y
         && n < size
         && size <= f64::from(PFQ_DD_MAXITER)
-        && a[2] > 0.0
-        && b[1] > 0.0)
+        && upper_a > 0.0
+        && lower_a > 0.0)
     {
         return None;
     }
 
     // Reject any inexact parameter arithmetic. In particular, rounding a
     // nearly balanced input into the Racah family would change the function.
-    let add = |x, y| {
+    let exact_add = |x, y| {
         let (sum, err) = two_sum(x, y);
         (err == 0.0 && sum.is_finite()).then_some(sum)
     };
-    let evaluate = |an, ay, big, small| {
-        let beta = add(an, size - n)?;
-        let gamma = add(small, -1.0)?;
-        let delta = add(add(big, -beta)?, -1.0)?;
-        if !(delta > -1.0 && beta > add(size, gamma)? && ay == add(add(y, small)?, delta)?) {
+    let evaluate = |an, ay, beta_delta_plus_one, gamma_plus_one| {
+        let beta = exact_add(an, size - n)?;
+        let gamma = exact_add(gamma_plus_one, -1.0)?;
+        let delta = exact_add(exact_add(beta_delta_plus_one, -beta)?, -1.0)?;
+        let g1 = exact_add(y, gamma_plus_one)?;
+        if !(delta > -1.0 && beta > exact_add(size, gamma)? && ay == exact_add(g1, delta)?) {
             return None;
         }
+        // These index differences are exact integers in the admitted range.
+        let gap = size - n - y;
         let start = (n + y - size).max(0.0);
-        let f = [-y, add(add(beta, -gamma)?, -y)?];
-        let g = [y - size, add(y, small)?];
-        let c = [add(-size, -delta)?];
+        let remaining = n - start;
+        let f = [-y, exact_add(exact_add(beta, -gamma)?, -y)?];
+        let g = [y - size, g1];
+        let c = exact_add(-size, -delta)?;
         // Normalize by the first convolution term. Reversing g's
         // coefficient recurrence gives a terminating hypergeometric series.
-        let upper = [start - y, add(f[1], start)?, start - n, add(1.0 + start - n, -c[0])?];
-        let lower =
-            [add(big, start)?, 1.0 + (size - n - y).max(start), add(1.0 + start - n, -g[1])?];
+        let upper =
+            [start - y, exact_add(f[1], start)?, -remaining, exact_add(1.0 - remaining, -c)?];
+        let lower = [
+            exact_add(beta_delta_plus_one, start)?,
+            1.0 + gap.abs(),
+            exact_add(1.0 - remaining, -g1)?,
+        ];
         let (sum, err, _) = series::pfq_sum::<Dd>(&upper, &lower, 1.0, PFQ_DD_MAXITER);
 
         // Keep full double-double precision and use a symmetric exponent range.
         let min = <Dd as SeriesReal>::MIN_POSITIVE;
         let safe = min..=min.recip();
-        let rising = |a: &[f64], b: &[f64], count: f64| -> Option<Dd> {
-            let mut value = Dd::ONE;
+        let scaled_rising = |a: &[f64], b: &[f64], count: f64| {
             let checked = series::pfq_extreme(a, b);
-            for j in 0..count as u32 {
-                value = value * series::pfq_ratio::<Dd>(a, b, f64::from(j), checked);
-                if !safe.contains(&value.hi.abs()) {
-                    return None;
-                }
-            }
-            Some(value)
+            let product = (0..count as u32).try_fold(Dd::ONE, |value, j| {
+                let value = value * series::pfq_ratio::<Dd>(a, b, f64::from(j), checked);
+                safe.contains(&value.hi.abs()).then_some(value)
+            })?;
+            Some(product.frexp())
         };
         if !sum.hi.is_normal() {
             return None;
@@ -1105,17 +1112,19 @@ fn hyp4f3_racah(mut a: [f64; 4], mut b: [f64; 3]) -> Option<Estimate> {
         let rel =
             err / sum.hi.abs() + 32.0 * <Dd as SeriesReal>::EPSILON * (n + 1.0) + f64::EPSILON;
         let (s, se) = sum.frexp();
-        let (f, fe) = rising(&f, &[big], start)?.frexp();
-        let (g, ge) = rising(&g, &c, n - start)?.frexp();
-        let (scale, e) = rising(&[-size, small], &c, n)?.frexp();
+        let (f, fe) = scaled_rising(&f, &[beta_delta_plus_one], start)?;
+        let (g, ge) = scaled_rising(&g, &[c], remaining)?;
+        let (scale, e) = scaled_rising(&[-size, gamma_plus_one], &[c], n)?;
         let m = (s * f * g / scale).hi;
         let e = se + fe + ge - e;
         let est = Estimate::scaled_certain(Scaled::new(m, e, rel)?)?;
         est.is_accurate().then_some(est)
     };
-    [(a[2], a[3]), (a[3], a[2])]
+    [(upper_a, upper_b), (upper_b, upper_a)]
         .into_iter()
-        .find_map(|(an, ay)| evaluate(an, ay, b[1], b[2]).or_else(|| evaluate(an, ay, b[2], b[1])))
+        .find_map(|(an, ay)| {
+            evaluate(an, ay, lower_a, lower_b).or_else(|| evaluate(an, ay, lower_b, lower_a))
+        })
 }
 
 // The defining series (DLMF 16.2.1) for these parameters is sum (256z)^k/(4k)!.
