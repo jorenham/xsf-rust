@@ -589,29 +589,45 @@ fn hyp2f1_euler_cut_lip(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
         .then_some(value)
 }
 
-/// Compare two finite sums by their estimated absolute rounding errors.
+/// Compare the origin and centered sums by their estimated absolute rounding errors.
 #[cold]
 fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let mut terms = hypergeometric_series_generator(a, b, c, z);
     let mut mass = 0.0;
-    let origin = series_eval_finite(
+    let origin = series_eval_fixed_length(
         || {
             let term = terms();
             mass += term.l1_norm();
             term
         },
+        C64::ZERO,
         n + 1,
     );
     let error = (6.0 * n as f64 + 8.0) * f64::EPSILON * mass;
+    let origin_finite = origin.is_finite();
     // Keep the origin sum when the estimate leaves at least half the significand.
-    if origin.is_finite() && error <= pow2(-26) * origin.re.abs().max(origin.im.abs()) {
+    if origin_finite && error <= pow2(-26) * origin.re.abs().max(origin.im.abs()) {
         return origin;
     }
+
+    let (centered, rounding) = centered_population_polynomial(n, -a.min(b), -c, z);
+    let magnitude = centered.re.abs().max(centered.im.abs());
+    // Replace a nonfinite origin result only when the centered estimate resolves a component.
+    let limit = if origin_finite { error } else { magnitude };
+    if centered.is_finite() && rounding + f64::EPSILON * magnitude < limit {
+        centered
+    } else {
+        origin
+    }
+}
+
+/// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
+fn centered_population_polynomial(n: u64, k: f64, population: f64, z: C64) -> (C64, f64) {
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
-    let (k, population) = (-a.min(b), -c);
     let falling = |p| {
         (0..n).fold((Dd::ONE, 0), |(product, scale), j| {
-            let product = product * (Dd::new(p) - j as f64);
+            // The factors p - j are exact because j is integral and 0 < p - j <= p <= 2^53.
+            let product = product * Dd::new(p - j as f64);
             if product.hi > pow2(384) {
                 (product.ldexp(-512), scale + 512)
             } else {
@@ -623,7 +639,6 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let (den, den_scale) = falling(population);
     let (leading, mut scale) = (num / den, num_scale - den_scale);
     let t = Dd::ONE - z.re;
-    let (u, e) = Dd::new(-z.im).frexp();
     let square = Dd::new(z.im) * z.im;
     let radius = t.hi.hypot(z.im);
     let mut coefficient = Dd::ONE;
@@ -649,27 +664,19 @@ fn population_polynomial(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
         let v = v * leading;
         let x = ldexp_f64(v.hi, scale);
         if x.abs() < f64::MIN_POSITIVE {
-            v.ldexp(scale + 1074).round_subnormal_units().copysign(v.hi)
+            v.ldexp(scale + 1074).round_subnormal_units()
         } else {
             x
         }
     };
-    let imag = if z.im == 0.0 {
+    let imag = if z.is_real() {
         0.0
     } else {
+        let (u, e) = Dd::new(-z.im).frexp();
         round(im * u, scale + e)
     };
-    let result = c64(round(re, scale), imag);
     let rounding = ldexp_f64(mass * leading.hi * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
-    let magnitude = result.re.abs().max(result.im.abs());
-    let centered_error = rounding + f64::EPSILON * magnitude;
-    // Replace a nonfinite origin result only when the centered estimate resolves a component.
-    let limit = if origin.is_finite() { error } else { magnitude };
-    if result.is_finite() && centered_error < limit {
-        result
-    } else {
-        origin
-    }
+    (c64(round(re, scale), imag), rounding)
 }
 
 fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
