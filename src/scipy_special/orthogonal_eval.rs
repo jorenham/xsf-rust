@@ -286,21 +286,17 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     series: Z,
 ) -> Option<Z> {
     let (alpha, beta, ab) = (c - 1.0, lam - c, lam - 1.0);
-    // `n - j` is exact for integer `0 <= j <= n`
-    let m = n.floor();
     let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
-    let tried = if segment {
+    let eligible = if segment {
         c > 0.0 && beta > -1.0
     } else {
         let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
         let cancels = !series.is_finite() || series_loss(x, n) > ln_tol;
-        let xp1 = (x + 1.0).norm();
         let slack = 4.0 * f64::EPSILON;
-        let positive = c > -slack && lam + 1.0 - c > -slack;
-        // at `x = -1`, `hyp2f1` sums the series exactly (DLMF 15.4.20)
-        cancels && xp1 > 0.0 && positive
+        // at `x = -1`, `hyp2f1` uses Gauss's sum (DLMF 15.4.20)
+        cancels && (x + 1.0).norm() > 0.0 && c > -slack && lam + 1.0 - c > -slack
     };
-    if !(tried && n > 2.0 && n < MAX_RECURRENCE_DEGREE && n.fract() != 0.0) {
+    if !(eligible && n > 2.0 && n < MAX_RECURRENCE_DEGREE && n.fract() != 0.0) {
         return None;
     }
     // `G_v = (p G_{v-1} - q G_{v-2}) / r`
@@ -313,30 +309,26 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     };
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
+    // `n - j` is exact for integer `0 <= j <= n`
+    let m = n.floor();
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    if !(segment || g0.is_finite() && g1.is_finite()) {
-        return None;
-    }
     let (residual, rounding) = if segment {
         (0.0, 0.0)
-    } else {
+    } else if g0.is_finite() && g1.is_finite() {
         let (p, q, r) = pqr(n - m + 2.0);
         let residual = ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
             / ((p * g1).norm() + (g0 * q).norm());
         (residual, m * f64::EPSILON)
+    } else {
+        return None;
     };
     // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
     let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
-    let mut sols = [(g0, g1), (one, zero), (zero, one)];
-    let mut j = m - 2.0;
-    while j >= 0.0 {
-        let (p, q, r) = pqr(n - j);
-        for (g0, g1) in &mut sols {
-            (*g0, *g1) = (*g1, (p * *g1 - *g0 * q) / r);
-        }
-        j -= 1.0;
-    }
-    let [(_, rec), (_, rec10), (_, rec01)] = sols;
+    let start = [(g0, g1), (one, zero), (zero, one)];
+    let [(_, rec), (_, rec10), (_, rec01)] = (0..m as u32 - 1).rev().fold(start, |sols, j| {
+        let (p, q, r) = pqr(n - f64::from(j));
+        sols.map(|(g0, g1)| (g1, (p * g1 - g0 * q) / r))
+    });
     let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
     let stable = growth * SQRT_EPSILON <= rec.norm();
     let tol = if stable && residual <= SQRT_EPSILON {
@@ -772,8 +764,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         };
 
         // Unlike in xsf, scale a finite 2F1 by 2 alpha first for subnormal prefactors.
-        if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE && g.is_finite()
-        {
+        if n > 0.0 && alpha2 != 0.0 && alpha < 0.25 && d.abs() < f64::MIN_POSITIVE {
             let inv_beta = 1.0 / (b * crate::beta(alpha2 + 1.0, n));
             let y = g.clone() * alpha2 * (inv_beta / n);
             if inv_beta.is_normal() && y.is_finite() {

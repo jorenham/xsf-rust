@@ -996,31 +996,32 @@ fn test_eval_real_degree_complex_far() {
 
 #[test]
 fn test_eval_real_degree_edge_cases() {
-    // Arb at the exact binary64 inputs, at endpoints and near degenerate parameters
-    let (geg, jac) = (0.014_866_840_119_749_19, 0.051_003_083_013_708_025);
+    // Arb at the exact binary64 inputs, at endpoints and near degenerate parameters, for real x
+    // and the same x as complex
+    let expected = [0.014_866_840_119_749_19, 0.051_003_083_013_708_025];
     let actual = [eval_gegenbauer(1020.5, -235.625, 1.213), eval_jacobi(65535.5, 0.5, -0.25, -1.0)];
-    np_assert_allclose!(actual, [geg, jac], rtol = 1e-12);
-    let actual = [eval_gegenbauer(100_000.5, 1e-20, 0.999_999)];
-    np_assert_allclose!(actual, [-1.997_449_814_066_256e-25], rtol = 1e-11);
-    let actual = [eval_jacobi(80.25, 160.0, -50.5, c64(-0.99, 0.0))];
-    np_assert_allclose!(actual, [c64(2.427_175_418_570_017_2e-24, 0.0)], rtol = 1e-13);
+    np_assert_allclose!(actual, expected, rtol = 1e-12);
     let actual = [
         eval_gegenbauer(1020.5, -235.625, c64(1.213, 0.0)),
         eval_jacobi(65535.5, 0.5, -0.25, c64(-1.0, 0.0)),
     ];
-    let expected = [c64(geg, 0.0), c64(jac, 0.0)];
-    np_assert_allclose!(actual, expected, rtol = 1e-12);
-    let actual = [eval_chebyshev_t(99_999.125, c64(-0.999_999_999_999_999_8, 0.0))];
-    np_assert_allclose!(actual, [c64(-0.924_683_918_502_596_3, 0.0)], rtol = 1e-11);
+    np_assert_allclose!(actual, expected.map(|y| c64(y, 0.0)), rtol = 1e-12);
+
+    let y = -1.997_449_814_066_256e-25;
+    let actual = eval_gegenbauer(100_000.5, 1e-20, 0.999_999);
+    np_assert_allclose!([actual], [y], rtol = 1e-11);
     let actual = [
         eval_gegenbauer(100_000.5, 1e-20, c64(0.999_999, 0.0)),
         eval_gegenbauer(100_000.5, 1e-20, c64(0.999_999, 1e-12)),
+        eval_chebyshev_t(99_999.125, c64(-0.999_999_999_999_999_8, 0.0)),
     ];
     let expected = [
-        c64(-1.997_449_814_066_256e-25, 0.0),
+        c64(y, 0.0),
         c64(-1.997_449_819_058_151_7e-25, -7.125_428_839_815_872e-31),
+        c64(-0.924_683_918_502_596_3, 0.0),
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-11);
+
     let alphas = [
         -0.500_000_000_000_000_1,
         -0.500_000_000_000_000_2,
@@ -1038,11 +1039,13 @@ fn test_eval_real_degree_edge_cases() {
     ];
     np_assert_allclose!(actual, expected, rtol = 1e-14);
     let actual = [
+        eval_jacobi(80.25, 160.0, -50.5, c64(-0.99, 0.0)),
         eval_gegenbauer(100.5, -0.500_000_000_000_000_1, c64(1.0, 0.0)),
         eval_gegenbauer(2.5, -0.500_000_000_000_000_1, c64(-1.0, 0.0)),
         eval_gegenbauer(2.5, -0.999_999_999_999_999_9, c64(-1.25, 0.005)),
     ];
     let expected = [
+        c64(2.427_175_418_570_017_2e-24, 0.0),
         c64(2.220_501_561_789_355_7e-20, 0.0),
         c64(-0.169_765_272_631_355_05, 0.0),
         c64(-1.831_787_617_468_887e-18, -5.755_828_128_849_5e-17),
