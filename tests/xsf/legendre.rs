@@ -711,6 +711,43 @@ fn test_complex_legendre_q_exterior_near_unit_circle() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_interior_diagonals() {
+    // Arb type 2 at the exact binary64 argument.
+    let z = c64(0.0, 0.95);
+    let (q, d) = xsf::assoc_legendre_q_all(41, 40, z);
+    xsref::np_assert_allclose!(
+        [q[40][40], d[40][40], q[41][40], d[41][40]],
+        [
+            c64(0.0, 4.836_108_252_798_383e64),
+            c64(9.659_506_628_466_28e65, 0.0),
+            c64(-3.721_385_300_530_679_5e66, 0.0),
+            c64(0.0, 7.824_715_119_076_829e67),
+        ],
+        rtol = 2e-14
+    );
+
+    let (prefix_q, prefix_d) = xsf::assoc_legendre_q_all(40, 40, z);
+    assert_eq!((prefix_q[40][40], prefix_d[40][40]), (q[40][40], d[40][40]));
+    let (q_conj, d_conj) = xsf::assoc_legendre_q_all(41, 40, z.conj());
+    for n in [40, 41] {
+        assert_eq!((q_conj[n][40], d_conj[n][40]), (q[n][40].conj(), d[n][40].conj()));
+    }
+
+    // The unscaled order recurrence overflows before this finite diagonal.
+    let (q, d) = xsf::assoc_legendre_q_all(133, 133, z);
+    xsref::np_assert_allclose!(
+        [q[133][133], d[133][133]],
+        [c64(0.0, -4.673_913_265_621_371e283), c64(-3.104_068_021_609_778e285, 0.0)],
+        rtol = 3e-14
+    );
+
+    // Arb, with the real part of z subnormal.
+    let x = 1e-321;
+    let (_, d) = xsf::assoc_legendre_q_all(2, 2, c64(x, 0.1));
+    assert_eq!(d[2][2].im, -3e-323);
+}
+
+#[test]
 fn test_legendre_q_all_c64_off_axis() {
     // NaN in xsf: `km` is not positive for `z = -0.389 - 1.0005i`, and the backward recurrence
     // overflows for `z = 1e8 + 3e7i`; Arb references

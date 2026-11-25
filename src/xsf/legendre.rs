@@ -1537,6 +1537,62 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
         }
     }
 
+    // Unlike in xsf, form the interior diagonal from Q_(m-1)^m and the
+    // preceding diagonal, then advance one degree at fixed order.
+    if xc <= 1.0 && !z.is_real() && n.min(m) >= 2 {
+        // Unlike in xsf, lift a subnormal real part before computing its linear contribution.
+        // The lifted x is at most 2^-254; the even components are unchanged to working precision.
+        let lift = z.re.is_subnormal();
+        let (z, cq0) = if lift {
+            let z = c64(ldexp_f64(z.re, 768), z.im);
+            (z, q0_c64(z))
+        } else {
+            (z, cq0)
+        };
+        // Unlike in xsf, factor the real part near ±1 without cancelling the imaginary part.
+        let xy = z.re * z.im;
+        let r2 = c64((1.0 - z.re).mul_add(1.0 + z.re, z.im * z.im), -(xy + xy));
+        let r = r2.sqrt();
+        let inv_r = -1.0 / r;
+        let inv_r2 = 1.0 / r2;
+        let mut lower = inv_r;
+        let mut diagonal = -r * cq0 + z * lower;
+        for i in 2..=n.min(m) {
+            let order = f64::from(i);
+            lower *= 2.0 * (order - 1.0) * inv_r;
+            diagonal = -(2.0 * order - 1.0) * r * diagonal + z * lower;
+            if !diagonal.is_finite() || !lower.is_finite() {
+                break;
+            }
+            let next = (2.0 * order + 1.0) * z * diagonal - 2.0 * order * lower;
+            for (j, q, prev) in [(i, diagonal, lower), (i + 1, next, diagonal)] {
+                if j <= n && q.is_finite() {
+                    let degree = f64::from(j);
+                    let dq = ((degree + order) * prev - degree * z * q) * inv_r2;
+                    for (out, mut value, imaginary) in
+                        [(&mut cqm[(i, j)], q, i == j), (&mut cqd[(i, j)], dq, i != j)]
+                    {
+                        if !value.is_finite() {
+                            continue;
+                        }
+                        let (linear, old) = if imaginary {
+                            (&mut value.re, out.re)
+                        } else {
+                            (&mut value.im, out.im)
+                        };
+                        if lift {
+                            *linear = ldexp_f64(*linear, -768);
+                        } else if z.re == 0.0 {
+                            // Retain the zero signs in the components fixed by parity.
+                            *linear = 0.0_f64.copysign(old);
+                        }
+                        *out = value;
+                    }
+                }
+            }
+        }
+    }
+
     // Unlike in xsf, the imaginary parts for a tiny `Im z` are those at a lifted one, since those
     // of the seeds of the order recurrence can be subnormal, while those of the orders it raises
     // back into range are not
