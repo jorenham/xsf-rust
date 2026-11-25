@@ -224,8 +224,8 @@ mod sealed {
 
 /// `hyp2f1_sh` without `hyp2f1_sh_recurrence`
 fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64, lam: f64) -> Z {
-    // Unlike in xsf, try the recurrence in the degree, since the hypergeometric series cancels
-    // catastrophically for large non-integer degrees near [-1, 1].
+    // Unlike in xsf, try the recurrence in the degree where the hypergeometric series cancels
+    // catastrophically for large non-integer degrees.
     let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
     let y = crate::hyp2f1(-n, b, c, x * -0.5 + 0.5);
     jacobi_hyp2f1_recurrence(x, nu, lam, c, y).unwrap_or(y)
@@ -238,11 +238,15 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
 /// - It needs `alpha, beta > -1` (positive denominators; `beta > -1` as `lam + 1 > c`, which keeps
 ///   the digits of a small `beta + 1`), `n > 2` (at least one step), `n < 1e5` (to bound its
-///   cost), and `-1 < x < 1` for real x (where the series cancels).
-/// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
-///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
-///   `tol` is `HYP2F1_ETHRESH` if the recurrence is stable (`growth * SQRT_EPSILON <= |G_n|`, which
-///   limits that amplification to `1 / SQRT_EPSILON`), and 1 otherwise.
+///   cost), and that `series` isn't finite or is estimated to cancel by more than
+///   `HYP2F1_ETHRESH / EPSILON`.
+/// - A finite recurrence replaces `series` only if that isn't finite, or if they differ by more
+///   than `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
+/// - `tol` is the relative residual of the starting values in the recurrence for
+///   `G_{n - floor(n) + 2}` (at least `HYP2F1_ETHRESH`), since `hyp2f1` can lose accuracy for
+///   nearly degenerate parameters. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the
+///   recurrence is unstable (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond
+///   `1 / SQRT_EPSILON`).
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -251,26 +255,37 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     series: Z,
 ) -> Option<Z> {
     let (alpha, beta) = (c - 1.0, lam - c);
-    let inside = x.as_f64().is_none_or(|x| x.abs() < 1.0);
-    if !(inside && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && lam + 1.0 > c) {
+    // The terms of the series add up to about `xi(1 + |1 - x|)^n`, and `G_n` is about `|xi(x)|^n`,
+    // with `xi(x) = exp(acosh(x))`, so that `ln |xi(x)|` is the `acosh` of `(|x + 1| + |x - 1|) / 2`.
+    let (xp1, xm1) = ((x + 1.0).norm(), (x - 1.0).norm());
+    let loss = n * ((1.0 + xm1).acosh() - (0.5 * (xp1 + xm1)).acosh());
+    let cancels = !series.is_finite() || loss > (HYP2F1_ETHRESH / f64::EPSILON).ln();
+    if !(cancels && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && lam + 1.0 > c) {
         return None;
     }
     let ab = lam - 1.0;
+    // `G_v = (p G_{v-1} - q G_{v-2}) / r`
+    let pqr = |v: f64| {
+        let t = 2.0 * v + ab;
+        let p = (x * (t * (t - 2.0)) + (alpha - beta) * ab) * (t - 1.0);
+        let q = 2.0 * (v - 1.0) * (v + beta - 1.0) * t;
+        let r = 2.0 * (v + ab) * (t - 2.0) * (v + alpha);
+        (p, q, r)
+    };
     // `n - j` is exact for integer `0 <= j <= n`
     let m = n.floor();
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
+    let (p, q, r) = pqr(n - m + 2.0);
+    let residual = ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
+        / ((p * g1).norm() + (g0 * q).norm());
     // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
     let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
     let mut sols = [(g0, g1), (one, zero), (zero, one)];
     let mut j = m - 2.0;
     while j >= 0.0 {
-        let v = n - j;
-        let t = 2.0 * v + ab;
-        let p = (x * (t * (t - 2.0)) + (alpha - beta) * ab) * (t - 1.0);
-        let q = 2.0 * (v - 1.0) * (v + beta - 1.0) * t;
-        let r = 2.0 * (v + ab) * (t - 2.0) * (v + alpha);
+        let (p, q, r) = pqr(n - j);
         for (g0, g1) in &mut sols {
             (*g0, *g1) = (*g1, (p * *g1 - *g0 * q) / r);
         }
@@ -279,8 +294,13 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     let [(_, rec), (_, rec10), (_, rec01)] = sols;
     let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
     let stable = growth * SQRT_EPSILON <= rec.norm();
-    let tol = if stable { HYP2F1_ETHRESH } else { 1.0 };
-    (!series.is_finite() || (rec - series).norm() > tol * growth).then_some(rec)
+    let tol = if stable && residual <= SQRT_EPSILON {
+        residual.max(HYP2F1_ETHRESH)
+    } else {
+        1.0
+    };
+    let better = !series.is_finite() || (rec - series).norm() > tol * growth;
+    (rec.is_finite() && better).then_some(rec)
 }
 
 ///////////////////////////////

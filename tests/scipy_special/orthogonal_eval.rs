@@ -925,6 +925,71 @@ fn test_eval_gegenbauer_large_degree_prefactor() {
 }
 
 #[test]
+fn test_eval_gegenbauer_half_integer_degree_tiny_alpha() {
+    // Arb at the exact binary64 inputs
+    let actual = [
+        eval_gegenbauer(
+            28.5,
+            3.953_574_776_672_447e-15,
+            c64(1.844_541_722_177_252_9, 3.290_867_804_413_006_4),
+        ),
+        eval_gegenbauer(6.5, 2.152_107_484_123_784_7e-14, c64(4.567_469_368_404_611, -0.0)),
+        c64(eval_gegenbauer(6.5, 2.152_107_484_123_784_7e-14, 4.567_469_368_404_611), 0.0),
+        eval_gegenbauer(3.5, 3.228_128_641_071_311_5e-15, c64(-2.652_613_532_567_407, 0.0)),
+    ];
+    let expected = [
+        c64(1_311_443_533.492_234_7, -1_330_749_354.686_459_8),
+        c64(5.371_352_596_079_037e-9, 0.0),
+        c64(5.371_352_596_079_037e-9, 0.0),
+        c64(6.204_188_651_495_294e-32, -2.781_035_336_194_326_3e-13),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    let z = c64(-1.163_354_742_242_470_2, -0.421_997_928_241_190_87);
+    let actual = eval_gegenbauer(20.5, 3.737_515_729_697_872e-15, z);
+    let expected = c64(-1.532_492_659_017_981e-9, 1.214_073_328_126_497_4e-9);
+    np_assert_allclose!([actual], [expected], rtol = 1e-7);
+}
+
+#[test]
+fn test_eval_real_degree_complex_far() {
+    // Arb at the exact binary64 inputs: (near-)integer degrees and values near overflow
+    let actual = [
+        eval_chebyshev_u(
+            110.000_000_000_000_01,
+            c64(110.395_851_246_461_49, -93.619_263_249_809_53),
+        ),
+        eval_chebyshev_t(
+            49.999_999_999_057_36,
+            c64(-127.583_556_352_952_04, -59.242_895_885_893_88),
+        ),
+        eval_legendre(
+            337.954_089_363_107_47,
+            c64(3.777_241_426_537_581_8, 1.195_857_734_146_253_7),
+        ),
+        eval_gegenbauer(
+            126.781_197_186_081_44,
+            0.5,
+            c64(-92.269_847_891_519_03, 80.139_289_837_013_59),
+        ),
+        eval_jacobi(
+            164.812_827_677_618_5,
+            0.0,
+            0.0,
+            c64(-26.326_820_233_234_177, 23.961_913_639_808_216),
+        ),
+    ];
+    let expected = [
+        c64(-2.353_258_116_766_187e270, -5.552_992_349_497_835e270),
+        c64(-1.398_646_826_352_088_6e122, 3.641_160_306_552_269e121),
+        c64(2.304_404_353_982_515_4e300, 5.685_152_419_318_602e298),
+        c64(2.868_615_133_767_861_6e301, -7.369_867_401_616_242e300),
+        c64(8.756_513_500_020_92e303, 1.802_444_071_507_219e303),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-12);
+}
+
+#[test]
 fn test_eval_gegenbauer_near_minus_half() {
     // Arb at the exact binary64 inputs.
     let cases = [
@@ -943,6 +1008,10 @@ fn test_eval_gegenbauer_near_minus_half() {
     let endpoint = eval_gegenbauer(100_000, alpha, 1.0);
     np_assert_allclose!([endpoint], [2.220_468_253_932_847e-26], rtol = 2e-14);
     assert_eq!(eval_gegenbauer(1000, -0.5, 1.0), 0.0);
+
+    let fractional =
+        eval_gegenbauer(964.596_671_315_672_9, -0.499_999_999_999_999_94, 0.999_997_086_812_469_2);
+    np_assert_allclose!([fractional], [1.339_167_976_758_087_8e-6], rtol = 1e-14);
 }
 
 #[test]
