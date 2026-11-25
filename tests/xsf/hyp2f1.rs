@@ -2160,3 +2160,55 @@ fn test_hyp2f1_c64_nonnegative_population_polynomial() {
         assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
     }
 }
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter() {
+    // Pearson et al., Table A.2, case 19, and nearby complex arguments (Arb).
+    let expected_re = -3.852_027_081_523_918_5e32;
+    for y in [0.0, -0.0] {
+        let actual = xsf::hyp2f1(10.0, 5.0, -300.5, c64(0.5, y));
+        np_assert_allclose!([actual.re], [expected_re], rtol = 4e-14);
+        assert_eq!(actual.im.to_bits(), 0);
+    }
+    let y = f64::from_bits(1);
+    for sign in [1.0, -1.0] {
+        let actual = xsf::hyp2f1(10.0, 5.0, -300.5, c64(0.5, sign * y));
+        np_assert_allclose!(
+            [actual.re, actual.im],
+            [expected_re, -sign * 2.348_714_413_894_915_6e-288],
+            rtol = 4e-14,
+            atol = 0.0
+        );
+    }
+    for (z, expected) in [
+        (c64(0.5, 0.125), c64(-2.349_497_872_024_921e32, -9.112_118_651_455_808e31)),
+        (
+            c64(0.8, 0.380_580_885_090_989_36),
+            c64(-1.208_133_589_671_797_6e128, 9.531_361_570_497_277e127),
+        ),
+        (
+            c64(0.8, 0.380_580_885_090_989_4),
+            c64(-1.208_133_589_671_798_1e128, 9.531_361_570_496_575e127),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(10.0, 5.0, -300.5, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 4e-14);
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
+    // Arb at the exact binary64 inputs. The c-down value is less accurate.
+    let actual = xsf::hyp2f1(
+        19.714_877_719_930_925,
+        1.135_255_778_495_805_7,
+        -20.875,
+        c64(0.01, 0.250_827_529_860_137_1),
+    );
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-0.708_328_569_167_549_8, -0.060_416_415_146_359_134],
+        rtol = 5e-13,
+        atol = 0.0
+    );
+}
