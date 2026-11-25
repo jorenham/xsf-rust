@@ -1036,6 +1036,8 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, connect: bool) -> Optio
         let y = min_err(poly, best_combination(combs, cc, z, w, ln_1mz))?;
         Some(y.with_l(y.l - a * ln_mt))
     };
+    // the term `G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`
+    let term = |a: Dd, b: Dd| mul_gamma_ratio([c, b - a], [b, c - a], || series(a, b));
     let m = b - a;
     let (p, q) = if m.hi < 0.0 { (b, a) } else { (a, b) };
     // ln(-t) + ln(1 - 1/t) = ln(1 - t)
@@ -1048,18 +1050,11 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, connect: bool) -> Optio
     if m.is_integer() || err_of(log) <= HYP2F1_ETHRESH {
         return log;
     }
-    let sum = || {
-        let mut terms = [None; 2];
-        for (slot, (a, b)) in terms.iter_mut().zip([(a, b), (b, a)]) {
-            let den = [b, c - a];
-            // A pole of either denominator Gamma makes this term zero.
-            if !den.iter().any(|g| g.hi <= 0.0 && g.is_integer()) {
-                *slot = Some(mul_gamma_ratio([c, b - a], den, || series(a, b))?);
-            }
-        }
-        add_exp(terms.into_iter().flatten())
-    };
-    min_err(log, sum())
+    // (a term is 0 at a pole of its `Gamma(b) Gamma(c - a)`)
+    let is_zero = |&(a, b): &(Dd, Dd)| [b, c - a].iter().any(|g| g.hi <= 0.0 && g.is_integer());
+    let terms = [(a, b), (b, a)].into_iter().filter(|t| !is_zero(t));
+    let sum = terms.map(|(a, b)| term(a, b)).collect::<Option<Vec<_>>>();
+    min_err(log, sum.and_then(add_exp))
 }
 
 /// `F(a, b; c; x)` by `hyp2f1_recip`: the 1/x transformation (step 4) if `x < 0`, or else the 1/t
@@ -1321,7 +1316,7 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
         let start = |k: f64| {
             let y = hyp2f1_recur_dd(a + i * k, b + j * k, c + k, x, ln_1mx);
             let y = y.filter(|y| y.err <= HYP2F1_RECUR_TOL)?;
-            Some(y.mul_exp(ln_1mx * (i * j * k)))
+            Some(y.with_l(y.l + ln_1mx * (i * j * k)))
         };
         let (y_n, y_n1) = (start(n)?, start(n + 1.0)?);
         // (with `y_(n+1)` relative to `exp(y_n.l)`)
