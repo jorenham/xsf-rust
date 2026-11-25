@@ -1102,6 +1102,18 @@ fn test_domain_ends() {
 }
 
 #[test]
+fn test_poisson_zero_count() {
+    let minsub = f64::from_bits(1);
+    let p = 0.367_879_441_171_442_33;
+    assert!((xsf::pdtr(0.0, 1.0) - p).abs() <= p * f64::EPSILON);
+    assert_eq!(xsf::pdtrc(0.0, minsub), minsub);
+    assert_eq!(xsf::pdtrc(0.5, minsub), minsub);
+
+    let m = xsf::pdtri(0, 0.05);
+    assert!((xsf::pdtr(0.0, m) - 0.05).abs() <= 0.05 * f64::EPSILON);
+}
+
+#[test]
 fn test_pdtri_k_max() {
     // `k + 1` overflows `int` in xsf; the median of Gamma(k + 1), from mpmath
     let m = xsf::pdtri(i32::MAX, 0.5);

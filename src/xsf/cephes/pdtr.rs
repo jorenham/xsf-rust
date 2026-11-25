@@ -43,6 +43,10 @@ pub(crate) fn pdtrc(k: f64, m: f64) -> f64 {
     if m == 0.0 {
         return 0.0;
     }
+    // Unlike in xsf, use the zero-count identity directly, also for fractional k < 1.
+    if k < 1.0 {
+        return -(-m).exp_m1();
+    }
     let v = k.floor() + 1.0;
     igam(v, m)
 }
@@ -79,6 +83,11 @@ pub(crate) fn pdtr(k: f64, m: f64) -> f64 {
     if m == 0.0 {
         return 1.0;
     }
+    // Unlike in xsf, use the zero-count identity while exp(-m) is normal.
+    // Keep the same incomplete-gamma path as higher counts in the subnormal tail.
+    if k < 1.0 && m <= 708.0 {
+        return (-m).exp();
+    }
     let v = k.floor() + 1.0;
     igamc(v, m)
 }
@@ -111,6 +120,10 @@ pub(crate) fn pdtri(k: i32, y: f64) -> f64 {
     // Unlike in xsf, y = 1 is in the domain (m = 0) instead of NaN
     if (k < 0) || (y < 0.0) || (y > 1.0) {
         return f64::NAN;
+    }
+    // Unlike in xsf, invert the zero-count probability directly. Keep +0 at y = 1.
+    if k == 0 {
+        return 0.0 - y.ln();
     }
     let v = f64::from(k) + 1.0;
     igamci(v, y)
