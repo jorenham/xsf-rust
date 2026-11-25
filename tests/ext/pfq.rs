@@ -1307,6 +1307,14 @@ fn test_hyppfq_2f0_hard_cases() {
         assert!(y.is_none_or(|y| (y / expected - 1.0).abs() < 1e-13));
         assert!((hyp2f0(a[0], a[1], z) / expected - 1.0).abs() < 1e-13);
     }
+    // or where a1 a2 and -1 / z are near `f64::MAX`: exp(a1 a2 z), as (a)_k is a^k (mpmath)
+    for (a, z, expected) in [
+        (1.3e154, -2e-307, 2.093_372_485_519_397_8e-15),
+        (1e153, -2.2e-305, 2.789_468_092_868_925_7e-10),
+    ] {
+        let y = hyppfq([a, a], [], z);
+        assert!(y.is_none_or(|y| (y / expected - 1.0).abs() < 1e-13));
+    }
     // a subnormal result, ~8.63e-322 or ~6.8e-324 (Arb), is not that accurate
     assert_eq!(hyppfq([-2000.0, -2000.0], [], -0.000_122_549_019_607_843_14), None);
     assert_eq!(hyppfq([600.0, 4600.0], [], -0.000_56), None);

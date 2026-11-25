@@ -274,12 +274,13 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
         // which they are for x = 0, with mu = 1 - a_i. The sum of the one past n and that of
         // the other up to n are `q(n + 1) / -q(1)` in all for v_n = 1, or
         //
-        // `(c1 c2 + x) / ((n - 1) x - (c1 - n) (c2 - n))` for `c_i = a_i + n`
+        // `(c1 c2 / x + 1) / (n - 1 - (c1 - n) (c2 - n) / x)` for `c_i = a_i + n`
         //
-        // and infinite where the v_k don't decay faster than 1 / k yet.
+        // and infinite where the v_k don't decay faster than 1 / k yet. (Over x, as the
+        // products may overflow.)
         let [c1, c2] = [a1, a2].map(|a| a + (shift + n));
-        let decay = ((n - 1.0) * x.hi - (c1 - n) * (c2 - n)).max(0.0);
-        let truncation = (c1 * c2 + x.hi) / (decay * total.hi.abs());
+        let decay = (n - 1.0 - (c1 - n) / x.hi * (c2 - n)).max(0.0);
+        let truncation = (c1 / x.hi * c2 + 1.0) / decay / total.hi.abs();
         ((f[0] / total).hi, rounding, truncation)
     };
     // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
