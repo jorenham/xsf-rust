@@ -320,10 +320,14 @@ fn series_weighted(
     // `r + k` and `c + k`
     let (mut pk, mut rk, mut ck) = (p.hi, r.hi, c.hi);
     let (mut f0, mut f1) = (pk, rk / ck);
-    let tame = pow2(-250)..=pow2(250);
+    // As in rescale_exp, absolute binary64 encodings preserve the in-range test.
+    let tame = pow2(-250).to_bits()..=pow2(250).to_bits();
     while k < kmax {
         let fw = f1 * w;
-        if [f0, fw].into_iter().all(|f| tame.contains(&f.abs())) {
+        if [f0, fw]
+            .into_iter()
+            .all(|f| tame.contains(&f.abs().to_bits()))
+        {
             // (usually: then `|t f0 fw|` is 0 or in `[2^-1000, 2^1000]`, and one rescale equals two
             // `mul_scaled`, as scaling by powers of 2 is exact)
             (t, te) = rescaled(t * f0 * fw, te);
