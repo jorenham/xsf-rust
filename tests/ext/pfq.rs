@@ -1293,13 +1293,24 @@ fn test_hyppfq_2f0_hard_cases() {
             assert_eq!(hyp2f0(a[0], a[1], z), actual);
         }
     }
-    // where the recurrence amplifies its rounding errors past the tolerance
-    let (a, z) = ([-50.999_999_999_699_924, -104.536_535_990_336_39], -0.056_613_881_920_597_09);
-    let y = hyppfq(a, [], z);
-    assert!(y.is_none_or(|y| (y / 2.794_502_416_895_517_4e22 - 1.0).abs() < 1e-13));
-    // a subnormal result, ~8.63e-322 (Arb), is not that accurate
+    // where the recurrence amplifies its rounding errors past the tolerance, or where its terms
+    // only decay as 1 / k for the first ~ -z of them (Arb)
+    for (a, z, expected) in [
+        (
+            [-50.999_999_999_699_924, -104.536_535_990_336_39],
+            -0.056_613_881_920_597_09,
+            2.794_502_416_895_517_4e22,
+        ),
+        ([2.2e-16, 300.0], -1e304, 0.999_999_999_999_844_7),
+    ] {
+        let y = hyppfq(a, [], z);
+        assert!(y.is_none_or(|y| (y / expected - 1.0).abs() < 1e-13));
+        assert!((hyp2f0(a[0], a[1], z) / expected - 1.0).abs() < 1e-13);
+    }
+    // a subnormal result, ~8.63e-322 or ~6.8e-324 (Arb), is not that accurate
     assert_eq!(hyppfq([-2000.0, -2000.0], [], -0.000_122_549_019_607_843_14), None);
-    // but one for a1, a2 > 0 can be (Arb)
+    assert_eq!(hyppfq([600.0, 4600.0], [], -0.000_56), None);
+    // but one near `f64::MIN_POSITIVE` can be (Arb)
     let y = hyp2f0(600.0, 4600.0, -0.000_514_2);
     assert!((y / 1.639_445_051_441_121_7e-308 - 1.0).abs() < 1e-13);
     assert_eq!(hyppfq([600.0, 4600.0], [], -0.000_514_2), Some(y));

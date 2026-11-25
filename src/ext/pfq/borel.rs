@@ -203,9 +203,8 @@ impl RawBorel {
     }
 }
 
-/// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), and an estimate of its
-/// absolute error, or `None` if it would take more than `PFQ_DD_MAXITER` steps, or if the result
-/// of a shifted run is subnormal
+/// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), or `None` if it would take
+/// more than `PFQ_DD_MAXITER` steps
 ///
 /// With `x = -1/z`, the `v_k = (a1)_k (a2)_k / k! U(a1 + k, a1 - a2 + 1, x)` are the minimal
 /// solution of
@@ -224,7 +223,7 @@ impl RawBorel {
 ///
 /// with the rounding errors of its steps and of `f_shift` and `f_(shift+1)`, each times the
 /// sensitivity of `f_0` to it.
-fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
+fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
     // the least for a1 + shift, a2 + shift > 0
     let shift = ((-a1).max(-a2).floor() + 1.0).max(0.0);
     let x = Dd::new(-1.0) / z;
@@ -267,30 +266,32 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
         e_f += (w[0] * e[0]).abs() + (w[1] * e_f1).abs();
         let rounding = (e_f / f[0].hi).abs() + (e_total / total.hi).abs() + f64::EPSILON;
         // The sum lacks the v_k past n, and v_(n+1) = 0 adds some of the dominant solution to
-        // those up to n. With the roots r < 1 < R of the recurrence at k = n, by which the two
-        // solutions change per step, these are r / (1 - r) and r / (R - 1) times v_n, which is
-        // the 1 it starts from over 1 - r / R. In all, that is r R / ((1 - r) (R - 1)), or
+        // those up to n. By the recurrence at k = n, the two solutions are locally as
+        // `Gamma(k + 1 - mu) / Gamma(k + 1)` for the roots mu of
         //
-        // `b1 b2 / (n x - (b1 - n) (b2 - n))` for `b_i = a_i + n - 1`
+        // `q(mu) = (mu + a1 - 1) (mu + a2 - 1) + (mu - n) x`
         //
-        // and infinite where the v_k don't decay yet.
-        let [b1, b2] = [a1, a2].map(|a| a + (shift + n - 1.0));
-        let decay = (n * x.hi - (b1 - n) * (b2 - n)).max(0.0);
-        ((f[0] / total).hi, rounding, b1 * b2 / (decay * total.hi.abs()))
+        // which they are for x = 0, with mu = 1 - a_i. The sum of the one past n and that of
+        // the other up to n are `q(n + 1) / -q(1)` in all for v_n = 1, or
+        //
+        // `(c1 c2 + x) / ((n - 1) x - (c1 - n) (c2 - n))` for `c_i = a_i + n`
+        //
+        // and infinite where the v_k don't decay faster than 1 / k yet.
+        let [c1, c2] = [a1, a2].map(|a| a + (shift + n));
+        let decay = ((n - 1.0) * x.hi - (c1 - n) * (c2 - n)).max(0.0);
+        let truncation = (c1 * c2 + x.hi) / (decay * total.hi.abs());
+        ((f[0] / total).hi, rounding, truncation)
     };
     // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
     // (DLMF 13.8.11), which decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power
-    // of k. So the steps double while the truncation error exceeds the rounding errors. There is
-    // no result otherwise, as its estimate is too small where it is large (the roots are those
-    // of step n only).
+    // of k. So the steps double while the truncation error exceeds the rounding errors, and
+    // there is no result if it still does at `PFQ_DD_MAXITER` steps.
     let (m, max) = (-f64::EPSILON.ln(), f64::from(PFQ_DD_MAXITER));
     let n = (m + ((a1 - a2).abs() + m).powi(2) / (4.0 * x.hi)).ceil();
     successors((shift <= max).then_some(n.min(max)), |&n| (n < max).then(|| (2.0 * n).min(max)))
         .map(ratio)
         .find(|&(_, rounding, truncation)| truncation <= rounding)
-        // (a subnormal `y` of the shifted run has lost digits that its estimate misses)
-        .filter(|&(y, ..)| shift == 0.0 || y.is_normal())
-        .map(|(y, rounding, truncation)| (y, (rounding + truncation) * y.abs()))
+        .map(|(y, rounding, truncation)| Estimate::rounded(y, rounding + truncation))
 }
 
 /// Borel sum of `2F0(a1, a2;; z)` for `z < 0` (DLMF 13.6.21)
@@ -370,7 +371,7 @@ pub(super) fn hyp2f0_borel(a1: f64, a2: f64, z: f64) -> Option<Estimate> {
                 weniger_dd().or_better(residues)
             }
         })
-        .or_better(|| hyp2f0_miller(a1, a2, z).map(Estimate::absolute))
+        .or_better(|| hyp2f0_miller(a1, a2, z))
         .or_better(|| raw1.as_ref()?.estimate(0.0))
         .or_better(|| eval2()?.estimate(0.0))
 }
@@ -408,7 +409,7 @@ mod tests {
     #[test]
     fn test_hyp2f0_miller_err() {
         // the estimate covers the rounding of the result, that of the recurrence in a1 and a2
-        // (1.7e-13), and that of twice the steps, up to `PFQ_DD_MAXITER` (Arb)
+        // (1.7e-13), and the truncation at twice the steps, up to `PFQ_DD_MAXITER` (Arb)
         for (a1, a2, z, expected) in [
             (-36.5, -51.8, -0.026, -6.120_387_741_382_293e-9),
             (
@@ -419,13 +420,17 @@ mod tests {
             ),
             (7.0, 9.0, -1.8, 6.911_864_984_250_697e-8),
         ] {
-            let (y, err) = hyp2f0_miller(a1, a2, z).unwrap();
-            assert!(err >= f64::EPSILON * y.abs() && (y - expected).abs() <= err, "{y:e} {err:e}");
+            let Estimate { y, err } = hyp2f0_miller(a1, a2, z).unwrap();
+            assert!(err >= f64::EPSILON && (y / expected - 1.0).abs() <= err, "{y:e} {err:e}");
         }
         // and there is no result where those steps leave a truncation error (1.7e-11), or where
-        // the v_k don't decay within them
-        assert_eq!(hyp2f0_miller(7.6, 6.8, -3.3), None);
-        assert_eq!(hyp2f0_miller(760.0, 280.0, -0.014), None);
+        // the v_k don't decay within them, or only as 1 / k
+        assert!(hyp2f0_miller(7.6, 6.8, -3.3).is_none());
+        assert!(hyp2f0_miller(760.0, 280.0, -0.014).is_none());
+        assert!(hyp2f0_miller(2.2e-16, 300.0, -1e304).is_none());
+        // the estimate has the spacing of a subnormal result, ~6.8e-324 (Arb)
+        let y = hyp2f0_miller(600.0, 4600.0, -0.000_56).unwrap();
+        assert!(!y.is_accurate(), "{y:?}");
     }
 
     #[test]
