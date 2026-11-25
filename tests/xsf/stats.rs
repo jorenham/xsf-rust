@@ -459,12 +459,6 @@ fn test_ndtr_c64_overflow_like_erfc() {
             3.027_401_123_304_904e306,
             -4.022_582_231_100_544e306,
         ),
-        // The imaginary part is just below MAX.
-        (
-            c64(-15.0, -40.669_251_932_291_95),
-            -3.946_596_569_916_682_6e307,
-            -1.797_693_134_862_309e308,
-        ),
     ] {
         let actual = xsf::ndtr(z);
         xsref::np_assert_allclose!([actual.re, actual.im], [re, im], rtol = 2e-15);
@@ -473,6 +467,10 @@ fn test_ndtr_c64_overflow_like_erfc() {
     // The real part is below 1% of the modulus.
     xsref::np_assert_allclose!([actual.re], [3.968_472_849_220_208_6e307], rtol = 5e-14);
     assert_eq!(actual.im, f64::NEG_INFINITY);
+    // The real part rounds just past MAX.
+    let actual = xsf::ndtr(c64(-38.558_758_052_643_306, -54.008_571_720_344_385));
+    assert_eq!(actual.re, f64::NEG_INFINITY);
+    xsref::np_assert_allclose!([actual.im], [1.172_872_151_448_828_9e308], rtol = 2e-15);
 }
 
 #[test]
