@@ -1553,6 +1553,19 @@ fn test_hyppfq_cancel() {
 }
 
 #[test]
+fn test_hyppfq_1f1_subnormal() {
+    let (a, b, z) = (103.625, 270.125, -202_500.0);
+    // Arb at the exact binary64 inputs.
+    let expected = 8.649_129_932_114_355e-309;
+    for actual in [hyppfq([a], [b], z), hyppfq([a, -2.0], [-2.0, b], z)] {
+        let actual = actual.unwrap();
+        assert!((actual / expected - 1.0).abs() <= 1e-13, "{actual}");
+    }
+    // A neighboring upper parameter does not cancel the lower pole.
+    assert_eq!(hyppfq([a, -1.999_999_999_999_999_8], [-2.0, b], z), Some(f64::INFINITY));
+}
+
+#[test]
 fn test_hyppfq_special() {
     assert_eq!(hyppfq([0.5], [-2.0], 0.0), Some(1.0));
     // a pole, unless it is a polynomial of a lower degree

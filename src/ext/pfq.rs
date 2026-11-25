@@ -1278,7 +1278,23 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         },
         _ if complex => exact(f64::NAN),
         (&[], &[b]) => xsf(crate::hyp0f1(b, z)),
-        (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
+        (&[a0], &[b0]) => xsf(crate::hyp1f1(a0, b0, z)).or_better(|| {
+            if a0 > 0.0 && b0 > a0 && z.is_finite() && -z >= HYP2F2_ASYMPTOTIC_FIRST {
+                // For b-a >= 1, the beta integral gives M(a,b,-t) <= (b/t)^a
+                // (DLMF 13.4.1 and Jensen's inequality for the gamma ratio).
+                // Use only exponents to skip values below half the smallest subnormal.
+                let (_, b_exp) = frexp_f64(b0);
+                let (_, t_exp) = frexp_f64(-z);
+                if b0 - a0 > 1.0 && a0 * f64::from(t_exp - b_exp - 1) > 1075.0 {
+                    return None;
+                }
+                // As in 2F2 with a canceled parameter, try the large-argument expansion.
+                asymptotic::pfq_asymptotic(&a, &b, z, None)
+                    .filter(|v| v.y.is_finite() && v.is_accurate())
+            } else {
+                None
+            }
+        }),
         (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
         _ if z.is_infinite() => None,
         (&[a1, a2], &[]) if z < 0.0 => borel::hyp2f0_borel(a1, a2, z),
