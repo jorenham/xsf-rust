@@ -115,6 +115,14 @@ fn test_hyp3f2_cancels_to_2f1() {
     assert_eq!(hyppfq([2.0, 2.0], [1.0], 2.0), Some(-3.0));
     // 2F1(5/2, 1; 3/2; z) = (1 - z/3) / (1 - z)^2
     assert_hyp3f2([1.0, 2.5, 1.0], [1.0, 1.5], 10.0, -7.0 / 243.0);
+    // Full-rank Gaussian distance covariance in two dimensions (Dueck et al.,
+    // Corollary 3.2). Arb reference for the reduced Gauss function.
+    assert_hyp3f2([-0.5, -0.5, 1.0], [1.0, 1.0], 0.999_999, 1.273_239_226_425_837);
+    // Euler's transformation leaves a degree-six polynomial.
+    assert_hyp3f2([16.5, -40.25, 7.0], [10.5, 7.0], 0.75, 9.914_080_408_384_09e-20);
+    // F(1,1;2;z) = -log(1-z)/z.
+    let z = 1.0 - 2.0_f64.powi(-40);
+    assert_hyp3f2([1.0, 7.0, 1.0], [7.0, 2.0], z, -(-z).ln_1p() / z);
     // Terminating Hahn polynomial, from the exact rational sum.
     for (z, expected) in
         [(1.0, 0.000_402_866_243_889_239_3), (1.0f64.next_down(), 0.000_402_866_243_889_197_8)]
