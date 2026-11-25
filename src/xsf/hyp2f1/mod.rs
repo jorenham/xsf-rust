@@ -864,7 +864,7 @@ fn digamma_integral(mut x: f64, h: f64) -> f64 {
 }
 
 /// The 1 - z series (DLMF 15.8.4) for a balance c - a - b near zero, uniformly in the balance,
-/// and its estimated cancellation as in `series_eval_cancellation`, if finite
+/// and its estimated cancellation as in `series_eval_cancellation`, unless it may be inaccurate
 //
 // Unlike in xsf, pair the k-th terms of the two series, whose poles in the balance d cancel:
 // with A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
@@ -873,8 +873,10 @@ fn digamma_integral(mut x: f64, h: f64) -> f64 {
 fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     let d = f64::from(Dd::new(c) - a - b);
     // `four_gammas` reflects x < 1/2 with a relative error near eps |x| / dist(x, Z), worth it
-    // only where the unpaired series lose more, eps / |d|, to their cancelling poles.
-    let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (d * x).abs();
+    // only where both the unpaired series, which lose eps / |d| to their cancelling poles, and
+    // the limit for an integer balance, which is off by about |d|, lose more.
+    let tolerance = d.abs().max(f64::EPSILON / d.abs());
+    let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (tolerance * x).abs();
     if [a, b, c].into_iter().any(reflected) {
         return None;
     }
@@ -886,6 +888,9 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64
     }
     let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
     let mut log_ratio = log_ratio - digamma_integral(b, d); // log(A_k / B_k)
+    if !log_ratio.is_finite() {
+        return None;
+    }
     let mut upper = C64::ONE; // B_k w^k / B_0
     let mut k = 0.0;
     let (series, cancellation) = series_eval_settled(|| {
@@ -898,8 +903,13 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64
         k = n;
         term
     });
-    let value = series * (log_power.exp() * -four_gammas(c, -d, a, b));
-    value.is_finite().then_some((value, cancellation))
+    let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
+    let value = series * prefactor;
+    // An underflowed prefactor loses the scale, and a product whose imaginary part cancels by
+    // more than 1 / |d| loses more than the unpaired series.
+    let rotated = (series.re * prefactor.im).abs() + (series.im * prefactor.re).abs();
+    let accurate = prefactor.norm() >= f64::MIN_POSITIVE && value.im.abs() >= d.abs() * rotated;
+    (accurate && value.is_finite()).then_some((value, cancellation))
 }
 
 /// The limit of the 1 - z series for an integer balance, if it is closer than `result`.
@@ -929,7 +939,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
     // Unlike in xsf, pair the two 1 - z series for a balance near zero.
-    let paired = if offset >= HYP2F1_EPS && balance.round() == 0.0 {
+    let mut paired = if offset >= HYP2F1_EPS && balance.round() == 0.0 {
         hyp2f1_transform1_near_balance(a, b, c, z)
     } else {
         None
@@ -955,6 +965,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
         if maclaurin_cancellation < cancellation {
             result = maclaurin;
+            paired = None;
         }
     }
     // Unlike in xsf, check the result against the limit for a nearly integer balance.
@@ -962,7 +973,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // relative eps / offset, for an error near eps / offset^2, where the limit is off by its
     // sensitivity to the balance: the two meet at an offset near cbrt(eps).
     // (not for a balance beyond the term limit, which the limit sums as many terms for, nor
-    // for the paired series, which has no such error)
+    // for a kept paired series, which has no such error)
     let near = offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON;
     if near && paired.is_none() && balance.abs() <= HYP2F1_MAXITER as f64 {
         return hyp2f1_transform1_near_limit(a, b, c, z, offset, result);

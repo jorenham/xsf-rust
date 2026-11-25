@@ -604,6 +604,24 @@ fn test_hyp2f1_c64_near_zero_balance_edges() {
     let actual = xsf::hyp2f1(20.0, 20.0, 40.000_000_000_000_01, c64(0.999, 1e-313));
     np_assert_allclose!([actual.re], [855_282_174_438.874_3], rtol = 1e-13);
     np_assert_allclose!([actual.im], [6.987_929_090_888_118e-299], rtol = 1e-13);
+    // Near a negative integer a, beyond the direct gamma ratio, at a balance of 1e-14.
+    let actual = xsf::hyp2f1(-98.999_999_99, -1.5, -100.499_999_989_999_99, c64(0.95, 0.0));
+    np_assert_allclose!([actual.re], [0.016_051_788_054_881_427], rtol = 1e-14);
+    // A tiny imaginary part of w^d, which the rotation of the paired sum cancels.
+    let actual = xsf::hyp2f1(1.5, 2.5, 4.25, c64(1.0, 1e-100));
+    let desired = [20.321_224_998_531_57, 1.319_165_494_106_355_1e-24];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-14);
+    // An underflowing gamma ratio, not a zero.
+    let actual = xsf::hyp2f1(-600.25, -600.25, -1_200.499_999, c64(0.95, 0.001));
+    let desired = c64(-5.119_392_097_911_411e-257, -7.174_923_808_775_034e-257);
+    assert!(actual.is_nan() || ((actual - desired) / desired).norm() < 1e-13);
+    // The Maclaurin series replaces the paired sum, at a balance of 2^-49.
+    let actual = xsf::hyp2f1(6.0, 6.0, 12_f64.next_up(), c64(0.95, 0.0));
+    np_assert_allclose!([actual.re], [459.334_127_269_937_5], rtol = 3e-14);
+    // A log ratio of NaN, at a balance of 1/4.
+    let actual = xsf::hyp2f1(-0.125, 1.5, 1.625, c64(0.99, 0.001));
+    let desired = [0.648_655_097_173_738_4, -0.004_408_469_835_410_515];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-14);
 }
 
 #[test]
