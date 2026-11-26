@@ -274,10 +274,11 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
 ///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
 ///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
-/// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the relative residual of the starting
-///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
-///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the
-///   steps. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
+/// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the estimated relative error of the
+///   recurrence, so that `series` is kept only if about as accurate: twice the relative residual of
+///   the starting values in the recurrence for `G_{n - floor(n) + 2}` (`hyp2f1` can lose accuracy
+///   for nearly degenerate parameters), plus `floor(n) EPSILON` for the rounding in the steps. It
+///   is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
 ///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
@@ -313,13 +314,13 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     // `n - j` is exact for integer `0 <= j <= n`
     let m = n.floor();
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    let (residual, rounding) = if segment {
-        (0.0, 0.0)
+    let (residual, tol) = if segment {
+        (0.0, HYP2F1_ETHRESH)
     } else if g0.is_finite() && g1.is_finite() {
         let (p, q, r) = pqr(n - m + 2.0);
         let residual = ((p * g1 - g0 * q) / r - g(n - m + 2.0)).norm() * r.abs()
             / ((p * g1).norm() + (g0 * q).norm());
-        (residual, m * f64::EPSILON)
+        (residual, 2.0 * (2.0 * residual + m * f64::EPSILON))
     } else {
         return None;
     };
@@ -333,7 +334,7 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
     let stable = growth * SQRT_EPSILON <= rec.norm();
     let tol = if stable && residual <= SQRT_EPSILON {
-        (2.0 * residual).max(HYP2F1_ETHRESH) + rounding
+        tol
     } else {
         1.0
     };

@@ -162,6 +162,22 @@ fn test_eval_real_degree_large() {
 }
 
 #[test]
+fn test_eval_real_degree_complex_recurrence() {
+    // Arb. The recurrence in the degree is more accurate than `hyp2f1`, also where they agree to
+    // about 1e-12.
+    let actual = eval_chebyshev_t(
+        31.720_084_492_569_413,
+        c64(0.917_289_702_568_674_4, 0.009_920_414_125_759_391),
+    );
+    let expected = c64(1.196_592_962_926_711_8, 0.378_239_870_700_044_55);
+    assert!((actual - expected).norm() <= 1e-15 * expected.norm());
+    let z = c64(-0.923_689_350_508_349_7, 0.099_545_953_948_538_82);
+    let actual = eval_gegenbauer(48.667_347_090_349_05, 8.732_038_334_824_946, z);
+    let expected = c64(-299_902_782_426_589.1, -406_539_069_152_327.44);
+    assert!((actual - expected).norm() <= 3e-13 * expected.norm());
+}
+
+#[test]
 fn test_eval_integer_degree_reflection() {
     // the integer degrees use the symmetry for x < 0 (Arb)
     let actual = [
