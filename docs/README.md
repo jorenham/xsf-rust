@@ -8,11 +8,11 @@
 
 ## Tools
 
-| `just` recipe | does                                                                                   |
-| ------------- | -------------------------------------------------------------------------------------- |
-| `accuracy`    | regenerates [`accuracy.md`](accuracy.md)                                               |
-| `pfq-map`     | regenerates the maps of [`hyppfq.md`](hyppfq.md)                                       |
-| `diff-fuzz`   | finds random inputs where the working tree is less accurate than `--base` (Arb checks) |
+| `just` recipe | does                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `accuracy`    | regenerates [`accuracy.md`](accuracy.md)                                                             |
+| `pfq-map`     | regenerates the maps of [`hyppfq.md`](hyppfq.md)                                                     |
+| `diff-fuzz`   | finds random inputs where the working tree (or `--head`) is less accurate than `--base` (Arb checks) |
 
 Usage: `just diff-fuzz [--base REV] [--head REV] [--only NAME ...] [--cases N]`; see
 [`diff_fuzz.py`](../tools/accuracy/diff_fuzz.py).

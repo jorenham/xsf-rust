@@ -317,7 +317,9 @@ def main() -> None:
     ap.add_argument("--base", default="origin/master", help="(default: %(default)s)")
     ap.add_argument("--head", help="the revision to check (default: the working tree)")
     ap.add_argument("--only", nargs="+", default=[], help="spec or function names")
-    ap.add_argument("--cases", type=int, default=20000, help="inputs per spec")
+    ap.add_argument(
+        "--cases", type=int, default=20000, help="inputs per spec and round"
+    )
     ap.add_argument("--seed", default="0", help="the seed of the inputs")
     ap.add_argument("--max-refs", type=int, default=2000, help="references per spec")
     ap.add_argument("--jobs", type=int, default=8, help="reference worker processes")
