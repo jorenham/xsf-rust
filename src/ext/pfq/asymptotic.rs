@@ -1033,7 +1033,7 @@ pub(super) fn pfq_asymptotic_dd(a: &[f64], b: &[f64], z: f64) -> Option<Estimate
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::pow2;
+    use crate::utils::{DENORM_MIN, pow2};
 
     #[test]
     fn test_asymptotic_sum_cap_after_hump() {
@@ -1062,7 +1062,7 @@ mod tests {
         assert!(pfq_alg_series_dd(&a, &b, 0, -1.1 * s).1.is_infinite());
         // the bound of the unpaired factor underflows, and the terms grow to ~1e72 from the fifth
         let c = (1..=10).map(|i| f64::from(i) / 16.0);
-        let a: Vec<_> = once(f64::from_bits(1)).chain(c.clone()).collect();
+        let a: Vec<_> = once(DENORM_MIN).chain(c.clone()).collect();
         let b: Vec<_> = once(3.0).chain(c.map(|c| c - pow2(49))).collect();
         assert!(pfq_alg_series_dd(&a, &b, 0, -2.0).1.is_infinite());
     }
@@ -1185,7 +1185,7 @@ mod tests {
         assert!(sum_big.is_finite() && err_big.is_finite(), "{sum_big}, {err_big}");
         // subnormal scaled denominator in double-double rejects the lossy term
         let (_, err_sub) =
-            pfq_alg_series_dd(&[0.5, 0.75], &[2.5, 1.5 + pow2(-52)], 0, -3.0 * f64::from_bits(1));
+            pfq_alg_series_dd(&[0.5, 0.75], &[2.5, 1.5 + pow2(-52)], 0, -3.0 * DENORM_MIN);
         assert!(err_sub.is_infinite(), "{err_sub}");
     }
 

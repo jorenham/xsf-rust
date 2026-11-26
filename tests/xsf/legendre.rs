@@ -2,6 +2,8 @@
 
 use core::f64::consts;
 use num_complex::c64;
+
+use crate::DENORM_MIN;
 const I: num_complex::Complex<f64> = num_complex::Complex::new(0.0, 1.0);
 const LN_3: f64 = 1.098_612_288_668_109_8_f64;
 
@@ -9,7 +11,7 @@ const LN_3: f64 = 1.098_612_288_668_109_8_f64;
 // leading term
 fn assert_near_subnormal(actual: f64, expected: f64) {
     assert_eq!(actual.is_sign_negative(), expected.is_sign_negative(), "{actual:e}");
-    assert!((actual - expected).abs() <= f64::from_bits(1), "{actual:e} != {expected:e}");
+    assert!((actual - expected).abs() <= DENORM_MIN, "{actual:e} != {expected:e}");
 }
 
 // legendre_p
@@ -252,7 +254,7 @@ fn test_legendre_q_all_c64_pole_at_one() {
         let expected_derivative = c64(16.0 / 65.0, sign * (128.0 / 65.0));
         xsref::np_assert_allclose!([q[0], d[0]], [expected, expected_derivative], rtol = 1e-15);
 
-        let (q, _) = xsf::legendre_q_all(0, c64(1.0, sign * f64::from_bits(1)));
+        let (q, _) = xsf::legendre_q_all(0, c64(1.0, sign * DENORM_MIN));
         let expected = c64(1075.0 * consts::LN_2 / 2.0, sign * consts::FRAC_PI_4);
         xsref::np_assert_allclose!([q[0]], [expected], rtol = f64::EPSILON);
 
@@ -268,7 +270,7 @@ fn test_legendre_q_c64_degree_zero_derivative_near_poles() {
     for x in [-1.0, 1.0] {
         for side in [-1.0, 1.0] {
             for (y, magnitude) in [
-                (f64::from_bits(1), f64::INFINITY),
+                (DENORM_MIN, f64::INFINITY),
                 (f64::from_bits(overflow_ordinate - 1), f64::INFINITY),
                 (f64::from_bits(overflow_ordinate), f64::INFINITY),
                 (f64::from_bits(overflow_ordinate + 1), first_finite),
@@ -303,7 +305,7 @@ fn test_legendre_q_all_c64_q0_subnormal_near_pole() {
     // At y = minsub, the real magnitude rounds to log(2 / y) / 2.
     let re = 1075.0 * consts::LN_2 / 2.0;
     for lip in [-1.0, 1.0] {
-        let y = lip * f64::from_bits(1);
+        let y = lip * DENORM_MIN;
         let im = lip * consts::FRAC_PI_4;
         let (q, _) = xsf::legendre_q_all(0, c64(-1.0, y));
         xsref::np_assert_allclose!([q[0]], [c64(-re, im)], rtol = f64::EPSILON);
@@ -527,7 +529,7 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
     // Round tiny projections, including ties where the first tail correction matters.
     for (x, y, bits) in [
         (1.207_381_461_363_012_6e208, 2.0_f64.powi(308), 1),
-        (3.375, 3.0 * 2.0_f64.powi(536), (-f64::from_bits(1)).to_bits()),
+        (3.375, 3.0 * 2.0_f64.powi(536), (-DENORM_MIN).to_bits()),
         (1.0 - f64::EPSILON / 2.0, 2.0_f64.powi(511), 0x800f_ffff_ffff_ffff),
     ] {
         let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(x, y));
@@ -535,7 +537,7 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
         assert_eq!(projection.to_bits(), bits);
     }
     let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(3.0 * 2.0_f64.powi(536), 1.125));
-    assert_near_subnormal(q[0][1].im, f64::from_bits(1));
+    assert_near_subnormal(q[0][1].im, DENORM_MIN);
 }
 
 #[test]
@@ -585,13 +587,13 @@ fn test_assoc_legendre_q_all_extreme_order_two() {
     // The omitted terms resolve the half-minsubnormal derivative in opposite directions.
     let x = 2.0_f64.powi(538);
     let (_, dq) = xsf::assoc_legendre_q_all(0, 2, c64(x, 0.5));
-    assert_eq!(dq[0][2].re.to_bits(), (-f64::from_bits(1)).to_bits());
+    assert_eq!(dq[0][2].re.to_bits(), (-DENORM_MIN).to_bits());
     let (q, dq) = xsf::assoc_legendre_q_all(0, 2, c64(x, 1.0));
     assert_near_subnormal(dq[0][2].re, -0.0);
-    assert_eq!(q[0][2].im.to_bits(), (-f64::from_bits(1)).to_bits());
+    assert_eq!(q[0][2].im.to_bits(), (-DENORM_MIN).to_bits());
 
     // The real Q_1^2 midpoint changes direction at 1/sqrt(3).
-    let cases = [(0.577_350_269_189_625_7, f64::from_bits(1)), (0.577_350_269_189_625_8, 0.0)];
+    let cases = [(0.577_350_269_189_625_7, DENORM_MIN), (0.577_350_269_189_625_8, 0.0)];
     for (y, expected) in cases {
         let (q, _) = xsf::assoc_legendre_q_all(1, 2, c64(x, y));
         assert_near_subnormal(q[1][2].re, expected);
@@ -1138,7 +1140,7 @@ fn test_legendre_q_all_c64_tiny_re_subnormal() {
         [q[94].re, q[95].im, dq[94].im, dq[95].re],
         [-1.3544e-319, 5.1763e-320, -8.603_877e-318, -3.32274e-318],
         rtol = 0.0,
-        atol = f64::from_bits(1)
+        atol = DENORM_MIN
     );
 
     // At this degree, rounding the small parts of Q before differentiating loses digits.
@@ -1254,7 +1256,7 @@ fn test_assoc_legendre_q_all_extreme_real_x() {
     // halfway to the least subnormal. The exact derivative has greater magnitude.
     let x = 2.0_f64.powi(538);
     let (_, dq) = xsf::assoc_legendre_q_all(0, 2, x);
-    assert_eq!(dq[0][2], -f64::from_bits(1));
+    assert_eq!(dq[0][2], -DENORM_MIN);
 }
 
 #[test]
@@ -1267,7 +1269,7 @@ fn test_assoc_legendre_q_all_extreme_complex_axis() {
             let (q, _) = xsf::assoc_legendre_q_all(1, 0, c64(sign * below, lip));
             // Q_1 is finite just before the square overflows.
             let expected = (1.0 / below) / (3.0 * below);
-            assert!((q[1][0].re - expected).abs() <= f64::from_bits(1));
+            assert!((q[1][0].re - expected).abs() <= DENORM_MIN);
             for x in [square_overflow, above, 1e160] {
                 let (q, d) = xsf::assoc_legendre_q_all(2, 0, c64(sign * x, lip));
                 let inverse = 1.0 / x;

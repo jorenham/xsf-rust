@@ -1,5 +1,7 @@
 use num_traits::ToPrimitive;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     // The xsref tables also contain negative `n`, which in scipy returns NaN.
     test_expn_u32: "expn", "p_d-d", |x| {
@@ -47,7 +49,7 @@ fn test_expn_subnormal() {
     }
     // just above half the smallest subnormal, in each of the three paths
     for (n, x) in [(0, 738.528_114_325_140_7), (10, 738.514_767_187_870_7), (52, 738.46)] {
-        assert_eq!(xsf::expn(n, x), f64::from_bits(1), "expn({n}, {x})");
+        assert_eq!(xsf::expn(n, x), DENORM_MIN, "expn({n}, {x})");
     }
     // just below it (by 2.5e-14), where -lambda p (rounded) instead of -x gave 5e-324
     assert_eq!(xsf::expn(69, 738.439_456_627_518_1), 0.0);

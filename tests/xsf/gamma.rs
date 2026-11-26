@@ -1,5 +1,7 @@
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_gamma_f64: "gamma", "d-d", |x| xsf::gamma(x[0]);
     test_gamma_c64: "gamma", "cd-cd", |x| xsf::gamma(c64(x[0], x[1]));
@@ -231,7 +233,7 @@ fn test_gammaln_subnormal() {
     for (x, expected) in [
         (5e-309, 709.889_355_822_726),
         (2e-308, 708.503_061_461_606_1),
-        (f64::from_bits(1), 744.440_071_921_381_2),
+        (DENORM_MIN, 744.440_071_921_381_2),
         (f64::from_bits(f64::MIN_POSITIVE.to_bits() - 1), 708.396_418_532_264_1),
         (f64::MIN_POSITIVE, 708.396_418_532_264_1),
         (f64::from_bits(f64::MIN_POSITIVE.to_bits() + 1), 708.396_418_532_264_1),

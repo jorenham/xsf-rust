@@ -16,3 +16,6 @@ mod numpy;
 mod properties;
 mod scipy_special;
 mod xsf;
+
+/// The smallest positive subnormal `f64`
+const DENORM_MIN: f64 = f64::from_bits(1);

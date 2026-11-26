@@ -17,6 +17,8 @@ pub(crate) const SQRT_TAU: f64 = 2.506_628_274_631_000_7;
 pub(crate) const SQRT_EPSILON: f64 = 1.490_116_119_384_765_6e-8;
 /// f64::EPSILON^2
 pub(crate) const EPSILON_SQ: f64 = f64::EPSILON * f64::EPSILON;
+/// The smallest positive subnormal `f64`, `std::numeric_limits<double>::denorm_min()`
+pub(crate) const DENORM_MIN: f64 = f64::from_bits(1);
 /// pi^2 / 6
 pub(crate) const FRAC_PI_SQ_6: f64 = PI * PI / 6.0;
 /// Euler-Mascheroni constant
@@ -127,13 +129,12 @@ mod tests {
 
     #[test]
     fn test_adjacent_nonnegative() {
-        let min_subnormal = f64::from_bits(1);
         for zero in [0.0, -0.0] {
-            assert_eq!(next_up_nonneg(zero).to_bits(), min_subnormal.to_bits());
+            assert_eq!(next_up_nonneg(zero).to_bits(), DENORM_MIN.to_bits());
             assert_eq!(next_down_nonneg(zero).to_bits(), 0);
         }
-        assert_eq!(next_down_nonneg(min_subnormal).to_bits(), 0);
-        assert_eq!(next_up_nonneg(min_subnormal).to_bits(), 2);
+        assert_eq!(next_down_nonneg(DENORM_MIN).to_bits(), 0);
+        assert_eq!(next_up_nonneg(DENORM_MIN).to_bits(), 2);
         assert_eq!(next_down_nonneg(f64::MIN_POSITIVE).to_bits(), (1 << 52) - 1);
         assert_eq!(next_up_nonneg(f64::MAX), f64::INFINITY);
         assert_eq!(next_up_nonneg(f64::INFINITY), f64::INFINITY);

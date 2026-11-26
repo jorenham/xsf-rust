@@ -1,5 +1,7 @@
 use xsref::np_assert_allclose;
 
+use crate::DENORM_MIN;
+
 fn get_test_xy() -> [(f64, f64); 25] {
     let z1 = [-1.0, -0.5, 0.0, 0.5, 1.0];
     let z2 = z1.map(|x| z1.map(|y| (x, y)));
@@ -135,7 +137,7 @@ fn test_pseudo_huber_extreme() {
         (1e160, -1e150),
         (1e-170, 1e-100),
         (1.0, 1e100),
-        (f64::from_bits(1), 1e300),
+        (DENORM_MIN, 1e300),
         (f64::INFINITY, 1.0),
     ];
     // mpmath, r^2 / (sqrt(1 + (r / delta)^2) + 1)

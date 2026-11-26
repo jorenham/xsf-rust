@@ -7,6 +7,7 @@
 
 use super::incbet::{INCBET_TINY, betainc_xy, incbet, incbet_lnpow};
 use crate::expit;
+use crate::utils::DENORM_MIN;
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG, MINLOG};
 use crate::xsf::cephes::{lbeta, lgam, ndtri};
 
@@ -465,7 +466,7 @@ pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64, tol: f64) -
             return f64::NAN;
         }
         // adjacent subnormals, which the bisection or Newton steps cannot resolve
-        if hi < f64::MIN_POSITIVE && hi - lo <= f64::from_bits(1) {
+        if hi < f64::MIN_POSITIVE && hi - lo <= DENORM_MIN {
             return betainccinv_round_subnormal(a, y, lo, hi, p_hi);
         }
         // within rounding of the root
@@ -487,7 +488,7 @@ pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64, tol: f64) -
         // bisection if the step leaves the bracket, or does not halve once there is one
         if !(lo < xn && xn < hi) || (lo > 0.0 && hi < 1.0 && newton.abs() > 0.5 * step) {
             // `lo` is at least the smallest subnormal here
-            xn = lo.max(f64::from_bits(1)).sqrt() * hi.sqrt();
+            xn = lo.max(DENORM_MIN).sqrt() * hi.sqrt();
             if (xn - x).abs() <= f64::EPSILON * x {
                 return xn;
             }

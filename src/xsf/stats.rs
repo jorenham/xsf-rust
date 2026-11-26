@@ -12,7 +12,7 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 
-use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT_TAU, pow2};
+use crate::utils::{DENORM_MIN, LN_PI, LN_TAU, SQRT_PI, SQRT_TAU, pow2};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
@@ -322,7 +322,7 @@ fn stdtr_huge_tail(nu: f64, t: f64) -> f64 {
         let m = 0.5 * crate::xsf::faddeeva::erfcx(-t * FRAC_1_SQRT_2) - t * s / SQRT_TAU;
         let scaled = mul_exp_sq(m / f64::MIN_POSITIVE, -0.5, t);
         if scaled > 0.5 * f64::EPSILON * (1.0 + 12.0 * f64::EPSILON) {
-            return f64::from_bits(1);
+            return DENORM_MIN;
         }
     }
     p

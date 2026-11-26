@@ -27,7 +27,7 @@ use core::cmp::Ordering;
 use core::f64::consts::{E as E_HI, FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, pow2};
+use crate::utils::{DENORM_MIN, LN_PI, LN_SQRT_TAU, pow2};
 
 /*************************************************************************
  * The basic routines taking double arguments, returning 1 (or 2) doubles
@@ -127,7 +127,7 @@ impl DoubleDouble {
         } else {
             high
         };
-        rounded * f64::from_bits(1)
+        rounded * DENORM_MIN
     }
 
     pub(crate) const ONE: Self = Self::new(1.0);

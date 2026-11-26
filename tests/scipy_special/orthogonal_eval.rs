@@ -6,6 +6,8 @@ use xsf::{
 };
 use xsref::np_assert_allclose;
 
+use crate::DENORM_MIN;
+
 #[test]
 fn test_hyp2f1_inverse_near_integer_difference() {
     // Arb. The 2F1 have b - a within 2^-42 of an integer, and |z| = 2 and |3 + 1.5i|.
@@ -932,7 +934,7 @@ fn test_eval_hermite_negative_integer_kummer_overflow() {
 #[test]
 fn test_eval_hermite_negative_fractional_kummer_overflow() {
     // Arb at the exact binary64 arguments.
-    let tiny_degree = -f64::from_bits(1);
+    let tiny_degree = -DENORM_MIN;
     np_assert_allclose!(
         [
             eval_hermite_h(-1e-20, -27.0),

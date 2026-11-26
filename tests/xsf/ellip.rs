@@ -1,3 +1,5 @@
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_ellipk: "ellipk", "d-d", |x| xsf::ellipk(x[0]);
     test_ellipkm1: "ellipkm1", "d-d", |x| xsf::ellipkm1(x[0]);
@@ -115,7 +117,7 @@ fn test_ellipj_near_1() {
     }
     // the smallest subnormal sech(u)
     let (_, cn, dn, _) = xsf::ellipj(-745.5, 1.0);
-    assert_eq!((cn, dn), (f64::from_bits(1), f64::from_bits(1)));
+    assert_eq!((cn, dn), (DENORM_MIN, DENORM_MIN));
 
     // dn near the quarter period, where 1 - m sn^2 cancels (reference value from mpmath)
     let (_, _, dn, _) = xsf::ellipj(12.706_487_231_104_472, 0.999_999_999_85);

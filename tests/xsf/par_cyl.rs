@@ -1,5 +1,7 @@
 use num_complex::{Complex64, c64};
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_pbwa: "pbwa", "d_d-d_d", |x| xsf::pbwa(x[0], x[1]);
 }
@@ -217,7 +219,7 @@ fn test_pbvv_parity_at_zero() {
         let actual = if derivative { wp } else { w };
         assert!((actual / expected - 1.0).abs() < 5e-15, "v = {v}: {actual:e}");
     }
-    assert_eq!(xsf::pbvv(f64::from_bits(1), 0.0).0, -f64::from_bits(2));
+    assert_eq!(xsf::pbvv(DENORM_MIN, 0.0).0, -f64::from_bits(2));
 
     let (w, wp) = xsf::pbvv_seq(19.0, 0.0);
     assert_eq!(w[0], 0.0);

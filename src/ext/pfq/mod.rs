@@ -11,7 +11,7 @@ use core::ops::Add;
 
 use super::quadpack::quad;
 use super::{Scaled, add_exp, add_exp_in, fold_exp, ln_dd, ln_gamma};
-use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, next_up_nonneg, pow2};
+use crate::utils::{DENORM_MIN, EPSILON_SQ, is_nonpos_int, neg_one_pow, next_up_nonneg, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, FRAC_PI_2_DD, frexp_f64, ldexp_f64, two_sum,
@@ -90,7 +90,7 @@ impl Estimate {
     /// the spacing of a subnormal `y` relative to it
     fn rounded(y: f64, err: f64) -> Self {
         let normal = y.is_normal() || y.is_infinite();
-        let spacing = f64::from_bits(1) / y.abs();
+        let spacing = DENORM_MIN / y.abs();
         Self::new(y, if normal { err } else { err + spacing })
     }
 
@@ -1249,7 +1249,7 @@ mod tests {
             assert!((pow - v).hi.abs() <= pow2(-100) * v.hi, "k = {k}");
         }
         // subnormal input for k = 2 stays full double-double precision
-        let sub = 3.0 * f64::from_bits(1);
+        let sub = 3.0 * DENORM_MIN;
         let r_sub = root_dd(sub, 2);
         let expected_sub = Dd::new(0.75).sqrt().ldexp(-536);
         assert!(
@@ -1273,7 +1273,7 @@ mod tests {
         let diff3 = (pow3 - zm.ldexp(ze - 3 * be)).hi.abs();
         assert!(diff3 <= 3.0 * asymptotic::pfq_exp_x_rel(3) * zm.hi, "{diff3:e}");
         // symmetric scaling keeps 513 <= k <= 1024 accurate on subnormals and near f64::MAX
-        for (k, val) in [(513, f64::from_bits(1)), (1024, f64::from_bits(1)), (1024, f64::MAX)] {
+        for (k, val) in [(513, DENORM_MIN), (1024, DENORM_MIN), (1024, f64::MAX)] {
             let root = root_dd(val, k);
             assert!(root.hi.is_finite());
             let (mut pm, mut pe) = (Dd::ONE, 0_i64);
@@ -1323,7 +1323,7 @@ mod tests {
     fn test_add_exp_subnormal_with_zero_err() {
         use crate::xsf::cephes::dd_real::LOG2;
         // value 1 represented with subnormal mantissa 2^-1074 and exp(1074 * ln 2), plus 0 +- 0.5
-        let sub = Scaled::new(f64::from_bits(1), 0, 0.0)
+        let sub = Scaled::new(DENORM_MIN, 0, 0.0)
             .unwrap()
             .with_l(LOG2 * 1074.0);
         let zero_err = Scaled::new(0.5, 0, 0.0).unwrap().into_zero_err();

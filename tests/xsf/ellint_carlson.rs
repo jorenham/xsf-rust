@@ -2,6 +2,8 @@ use core::f64::consts::{LN_2, PI};
 
 use num_complex::{Complex64, c64};
 
+use crate::DENORM_MIN;
+
 const INF: f64 = f64::INFINITY;
 const ZERO: Complex64 = Complex64::new(0.0, 0.0);
 const ONE: Complex64 = Complex64::new(1.0, 0.0);
@@ -288,7 +290,7 @@ fn test_carlson_huge_near_cut() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 
-    let x = c64(p(260), f64::from_bits(1));
+    let x = c64(p(260), DENORM_MIN);
     let z = c64(p(260), 0.0);
     let actual = [
         xsf::elliprj(x, ZERO, z, c64(-p(260), 1.0)),
@@ -319,11 +321,11 @@ fn test_carlson_huge_negligible_imag_finite() {
 
     // just below 1.5 times the smallest subnormal
     let z = c64(p(550), p(-550));
-    assert_eq!(xsf::elliprj(z, z, z, c64(p(800), 0.0)).re, f64::from_bits(1));
+    assert_eq!(xsf::elliprj(z, z, z, c64(p(800), 0.0)).re, DENORM_MIN);
 
     // NaN unscaled, so retried with the imaginary part flushed (Arb)
     let h = c64(p(400), 0.0);
-    let res = xsf::elliprj(h + c64(0.0, f64::from_bits(1)), h, h, h * 2.0);
+    let res = xsf::elliprj(h + c64(0.0, DENORM_MIN), h, h, h * 2.0);
     xsref::np_assert_allclose!([res.re], [1.551_519_687_348_157_6e-181], rtol = 1e-15);
 }
 
@@ -467,7 +469,7 @@ fn test_elliprj_nearly_imaginary_p() {
 
     // but not if it underflows without cancellation (Arb: 4.17416e-438)
     let a = 2.0_f64.powi(976);
-    assert_eq!(xsf::elliprj(a, a, a, f64::from_bits(1)), 0.0);
+    assert_eq!(xsf::elliprj(a, a, a, DENORM_MIN), 0.0);
 
     // a negligible `Re x` that blocks rescaling, also if `p + lambda` cancels in the first step
     // (with `Im p` 1 ULP toward 0 too), or in a later one (Arb)
@@ -839,7 +841,7 @@ fn test_elliprj_wide_span_complex() {
     let x8 = c64(-3.404_076_565_287_425e255, 3.569_679_440_543_941e-182);
     let x9 = c64(-p2(-60), 1.25 * p2(-848));
     let v = c64(-1e215, 1e-99);
-    let s = f64::from_bits(1);
+    let s = DENORM_MIN;
     let actual = [
         xsf::elliprj(c64(1e-60, 1e-60), c64(3e142, 3.5e142), c64(1e120, 3e120), c64(3e112, 9e112)),
         xsf::elliprj(
@@ -966,7 +968,7 @@ fn test_elliprj_tiny_square_root_sum() {
 #[test]
 fn test_elliprj_subnormal_difference() {
     let p2 = |k: i32| 2.0_f64.powi(k);
-    let s = f64::from_bits(1);
+    let s = DENORM_MIN;
     let x = c64(-0.5, f64::from_bits(5));
     let actual = [
         // quartering the arguments rounds the subnormal `p - y` of a square root sum that cancels
@@ -999,7 +1001,7 @@ fn test_elliprj_subnormal_difference() {
 #[test]
 fn test_elliprj_subnormal_imag() {
     let p2 = |k: i32| 2.0_f64.powi(k);
-    let (m, s) = (f64::MIN_POSITIVE, f64::from_bits(1));
+    let (m, s) = (f64::MIN_POSITIVE, DENORM_MIN);
     let x = c64(-p2(-30), 4.342_393_763_554_186_5e-272);
     let x1 = c64(-1.231_626_472_742_281_6e226, 5.530_266_466_854_912e-223);
     let x2 = c64(-1.892_873_431_416_007_7e206, 6.975_985_885_499_649e-178);
@@ -1053,7 +1055,7 @@ fn test_elliprj_subnormal_delta() {
         // also if the arguments can't be upscaled
         xsf::elliprj(ZERO, y, ONE * p2(256), ONE * p2(-589)),
         // the step and the upscaling alternate
-        xsf::elliprj(ZERO, ONE * f64::from_bits(1), ONE * p2(253), c64(p2(-1020), p2(-1020))),
+        xsf::elliprj(ZERO, ONE * DENORM_MIN, ONE * p2(253), c64(p2(-1020), p2(-1020))),
         // not by the step if the subnormal `Im z` takes the shifted arguments out of the domain
         xsf::elliprj(
             x2,

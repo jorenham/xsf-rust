@@ -1,7 +1,7 @@
 use super::power::{ldexp_sat, one_minus_z_pow};
 use super::{HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
 use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
-use crate::utils::pow2;
+use crate::utils::{DENORM_MIN, pow2};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::hyp2f1::HYP2F1_ETHRESH;
@@ -272,8 +272,7 @@ fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
     // final scaling by less than the spacing of the subnormals.
     let product_error = 2.0 * f64::EPSILON * sum.value.norm();
     let pfaff_error =
-        ldexp_sat(power.mantissa.norm() * (sum.error + product_error), power.exponent)
-            + f64::from_bits(1);
+        ldexp_sat(power.mantissa.norm() * (sum.error + product_error), power.exponent) + DENORM_MIN;
     // Take each finite component that the Pfaff estimate resolves, and that differs from a
     // less certain origin one by more than its error.
     let select = |new: f64, old: f64| {
@@ -324,7 +323,7 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
 
 fn select_positive_beta(origin: C64, centered: &Estimate, n: u64, z: C64) -> C64 {
     let select = |old: f64, new: f64, uncertainty: f64| {
-        let limit = uncertainty + f64::EPSILON * new.abs() + f64::from_bits(1);
+        let limit = uncertainty + f64::EPSILON * new.abs() + DENORM_MIN;
         if (old.is_finite() && (old - new).abs() > 4.0 * limit)
             || (!old.is_finite() && limit < new.abs())
         {

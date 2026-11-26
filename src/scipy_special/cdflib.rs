@@ -9,7 +9,7 @@
 use core::f64::consts::{LN_2, SQRT_2};
 
 use crate::ext::quadpack::quad_unimodal;
-use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
+use crate::utils::{DENORM_MIN, SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
     betainc_xy, fdtr, fdtr_w, igam, igam_exp_scaled, igam_fac, igamc, incbet_cf_factor,
@@ -583,7 +583,7 @@ pub fn chndtri(p: f64, df: f64, nc: f64) -> f64 {
     }
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
         // as low as the smallest subnormal, where `cumchn` is accurate too
-        find_positive_root(|x| cumchn(x, df, nc) - p, f64::from_bits(1), f64::MAX, true)
+        find_positive_root(|x| cumchn(x, df, nc) - p, DENORM_MIN, f64::MAX, true)
     })
 }
 
@@ -748,7 +748,7 @@ pub fn ncfdtri(dfn: f64, dfd: f64, nc: f64, p: f64) -> f64 {
     }
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
         // as low as the smallest subnormal, like `chndtri`
-        find_positive_root(|f| cumfnc(f, dfn, dfd, nc) - p, f64::from_bits(1), f64::MAX, true)
+        find_positive_root(|f| cumfnc(f, dfn, dfd, nc) - p, DENORM_MIN, f64::MAX, true)
     })
 }
 

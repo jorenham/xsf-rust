@@ -3,6 +3,8 @@ use std::f64::consts::FRAC_PI_4;
 use num_complex::c64;
 use xsref::np_assert_allclose;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_hyp2f1_f64: "hyp2f1", "d_d_d_d-d", |x| xsf::hyp2f1(x[0], x[1], x[2], x[3]);
     test_hyp2f1_c64: "hyp2f1", "d_d_d_cd-cd", |x| xsf::hyp2f1(x[0], x[1], x[2], c64(x[3], x[4]));
@@ -64,7 +66,7 @@ fn test_hyp2f1_c64_common_parameter_polynomial() {
     // The real-axis shortcut must preserve small components off the axis.
     let actual = xsf::hyp2f1(2.0, -2.0, 2.0, c64(2.0_f64.powi(-54), 1.0));
     assert_eq!(actual, c64(-2.0_f64.powi(-53), -2.0));
-    let y = f64::from_bits(1);
+    let y = DENORM_MIN;
     let actual = xsf::hyp2f1(4.0, -3.0, 4.0, c64(1.5, y));
     assert_eq!(actual, c64(-0.125, -y));
     // With c negative, retain termination at c rather than canceling it.
@@ -85,7 +87,7 @@ fn test_hyp2f1_c64_linear_subnormal_denominator() {
         let value = xsf::hyp2f1(-1.0, -1.0, c * 0.5, c64(0.125, sign * 0.125));
         assert_eq!(value, c64(-large, -sign * large));
     }
-    let value = xsf::hyp2f1(-1.0, -1.0, c, c64(-c, f64::from_bits(1)));
+    let value = xsf::hyp2f1(-1.0, -1.0, c, c64(-c, DENORM_MIN));
     assert_eq!(value, c64(0.0, -2.0_f64.powi(-50)));
     assert!(xsf::hyp2f1(-1.0, -1.0, c, c64(1.0, 0.0)).re.is_infinite());
     assert!(
@@ -617,7 +619,7 @@ fn test_hyp2f1_c64_binomial() {
         (
             1.0,
             -512.0,
-            c64(-0.5, f64::from_bits(1)),
+            c64(-0.5, DENORM_MIN),
             c64(1.441_201_271_173_911e90, -2.430_457_299_045_594e-231),
         ),
     ] {
@@ -723,14 +725,7 @@ fn test_hyp2f1_c64_triangle_map() {
     for (a, d, x, y, re, im) in [
         (0.5, 0.01 / 180.0, 1.001, 0.001, 3.972_049_553_641_628, 1.175_344_862_076_758_1),
         (0.375, 0.1 / 180.0, 1.05, 0.0, 1.915_689_474_120_120_7, 1.154_794_618_703_662),
-        (
-            0.375,
-            0.1 / 180.0,
-            1.05,
-            f64::from_bits(1),
-            1.915_689_474_120_120_7,
-            1.154_794_618_703_662,
-        ),
+        (0.375, 0.1 / 180.0, 1.05, DENORM_MIN, 1.915_689_474_120_120_7, 1.154_794_618_703_662),
         (
             0.5,
             1e-7,
@@ -759,9 +754,7 @@ fn test_hyp2f1_c64_triangle_map() {
             1.964_843_75,
             c64(0.999_999_971_191_316_1, y),
         );
-        assert!(
-            (value.im - 2.803_053_809_78e-312_f64.copysign(y)).abs() <= 2.0 * f64::from_bits(1)
-        );
+        assert!((value.im - 2.803_053_809_78e-312_f64.copysign(y)).abs() <= 2.0 * DENORM_MIN);
     }
 }
 
@@ -782,7 +775,7 @@ fn test_hyp2f1_c64_rounded_integer_balance() {
             31.999_999_999_999_996,
             64.0,
             1.0,
-            f64::from_bits(1),
+            DENORM_MIN,
             2.159_228_790_004_916_6e22,
             4.605_886_830_369_123e19,
         ),
@@ -1133,7 +1126,7 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
-        for y in [0.0, f64::from_bits(1), 1e-40] {
+        for y in [0.0, DENORM_MIN, 1e-40] {
             for sign in [-1.0, 1.0] {
                 let actual = xsf::hyp2f1(a, b, 97.0, c64(2.0, sign * y));
                 np_assert_allclose!(
@@ -1368,7 +1361,7 @@ fn test_hyp2f1_c64_pfaff_polynomial_exact() {
 
     // The same, with 1 - z the double just above zero in the real part and the subnormal 2^-1074
     // in the imaginary part, so that the imaginary part is the subnormal 2^-1073.
-    let z = c64(1.0 - f64::EPSILON / 2.0, f64::from_bits(1));
+    let z = c64(1.0 - f64::EPSILON / 2.0, DENORM_MIN);
     let actual = xsf::hyp2f1(-2.0, 2.0, 1.0, z);
     np_assert_allclose!([actual.re], [-f64::EPSILON], rtol = 5e-16);
     assert_eq!(actual.im, f64::from_bits(2));
@@ -2897,7 +2890,7 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
     // a subnormal b, both a and b polynomial (of degree 2, not 1e6), a degree of 1e6 whose terms
     // vanish after about 60, and x = 1 (DLMF 15.4.24)
     let actual = [
-        xsf::hyp2f1(-1100.0, f64::from_bits(1), -1101.0, 2.0),
+        xsf::hyp2f1(-1100.0, DENORM_MIN, -1101.0, 2.0),
         xsf::hyp2f1(-1e6, -2.0, -1_000_001.0, 0.25),
         xsf::hyp2f1(-1e6, 2.0, -1_000_001.0, 0.25),
         xsf::hyp2f1(-29.0, -27.0, -57.0, 1.0),
@@ -3027,7 +3020,7 @@ fn test_hyp2f1_f64_degree_1() {
     let actual = [xsf::hyp2f1(-1.0, 1.0, 1.0, x), xsf::hyp2f1(1.0, -1.0, 1.0, x)];
     assert_eq!(actual, [f64::EPSILON / 2.0; 2]);
     // (where `b x` is subnormal)
-    let t = f64::from_bits(1);
+    let t = DENORM_MIN;
     assert_eq!([xsf::hyp2f1(-1.0, t, t, 0.5), xsf::hyp2f1(t, -1.0, t, 0.5)], [0.5; 2]);
     let actual = [
         xsf::hyp2f1(-1.0, -18.0, -6.361_004_257_813_726, 0.353_389_125_434_095_84),
@@ -3088,7 +3081,7 @@ fn test_hyp2f1_f64_c_eq_a_or_b_neg_int() {
     np_assert_allclose!(actual, [1.559_546_624_838_864e-308], rtol = 1e-15);
     // (the smallest subnormal, which exp(ln((1 - x)^m)) rounds up to)
     let actual = xsf::hyp2f1(-1e7, -1e7, -1e7, 7.451_054_586_157_437e-5);
-    assert_eq!(actual, f64::from_bits(1));
+    assert_eq!(actual, DENORM_MIN);
     // (a tiny x and a huge m, where `ln(1 - x)` must be accurate relative to x; reference: mpmath)
     let a = -12_772_208_543_222_726_656.0;
     let actual = [xsf::hyp2f1(a, a, a, 2.0_f64.powi(-54))];
@@ -3303,9 +3296,9 @@ fn test_hyp2f1_c64_real_polynomial_near_one() {
     let (p80, p81) = (2.0_f64.powi(80), 2.0_f64.powi(81));
     for imag in [0.0, -0.0] {
         let y = xsf::hyp2f1(-1075.0, p80, p81, c64(1.0, imag));
-        assert_eq!(y.re.to_bits(), f64::from_bits(1).to_bits());
+        assert_eq!(y.re.to_bits(), DENORM_MIN.to_bits());
         let y = xsf::hyp2f1(-1075.0, -3.0 * p80, -p81, c64(1.0, imag));
-        assert_eq!(y.re.to_bits(), (-f64::from_bits(1)).to_bits());
+        assert_eq!(y.re.to_bits(), (-DENORM_MIN).to_bits());
     }
 
     // Exact rationals (Chu-Vandermonde); the rounding of 2^-1022 and below is open to the
@@ -3343,7 +3336,7 @@ fn test_hyp2f1_c64_real_polynomial_near_one() {
 fn test_hyp2f1_c64_beta_binomial_polynomial() {
     // Pearson, Olver and Porter, Table A.2 case 18, and its off-axis continuation.
     for (a, b) in [(-300.0, 5.0), (5.0, -300.0)] {
-        for y in [0.0, -0.0, f64::from_bits(1)] {
+        for y in [0.0, -0.0, DENORM_MIN] {
             let value = xsf::hyp2f1(a, b, 10.0, c64(0.5, y));
             np_assert_allclose!([value.re], [1.661_006_238_211_309e-7], rtol = 1e-14);
             assert_eq!(value.im.to_bits(), if y == 0.0 { 0 } else { (-0.0_f64).to_bits() });
@@ -3356,7 +3349,7 @@ fn test_hyp2f1_c64_beta_binomial_polynomial() {
         );
     }
 
-    let y = f64::from_bits(1);
+    let y = DENORM_MIN;
     let value = xsf::hyp2f1(-3.0, 0.125, 0.25, c64(2.0, y));
     assert_eq!(value, c64(0.0, -y));
 
@@ -3375,7 +3368,7 @@ fn test_hyp2f1_c64_uniform_beta_binomial_polynomial() {
     assert_eq!(value, c64(1.0 / 1001.0, 0.0));
 
     // At x=-1 the derivative is -sum(k*2^(k-1), k=1..10)/11.
-    let y = f64::from_bits(1);
+    let y = DENORM_MIN;
     let value = xsf::hyp2f1(-10.0, 1.0, 2.0, c64(-1.0, y));
     assert_eq!(value.im, -f64::from_bits(838));
 }
@@ -3522,7 +3515,7 @@ fn test_hyp2f1_c64_negative_lower_parameter() {
         np_assert_allclose!([actual.re], [expected_re], rtol = 4e-14);
         assert_eq!(actual.im.to_bits(), 0);
     }
-    let y = f64::from_bits(1);
+    let y = DENORM_MIN;
     for sign in [1.0, -1.0] {
         let actual = xsf::hyp2f1(10.0, 5.0, -300.5, c64(0.5, sign * y));
         np_assert_allclose!(
@@ -3569,7 +3562,7 @@ fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
 fn test_hyp2f1_c64_negative_lower_parameter_c_down() {
     // Arb at the exact binary64 inputs. The connection cancels completely, or its gamma ratios
     // overflow.
-    let actual = xsf::hyp2f1(0.125, 250.0, -2.75, c64(0.8125, f64::from_bits(1)));
+    let actual = xsf::hyp2f1(0.125, 250.0, -2.75, c64(0.8125, DENORM_MIN));
     np_assert_allclose!(
         [actual.re, actual.im],
         [-4.010_669_060_041_866e189, -2.679_470_116_244_821e-131],

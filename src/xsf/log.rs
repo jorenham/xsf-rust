@@ -240,6 +240,7 @@ pub fn xlog1py<T: LogArg>(x: T, y: T) -> T {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::DENORM_MIN;
     use crate::xsf::c64::c64;
 
     #[test]
@@ -252,7 +253,7 @@ mod tests {
         // extreme magnitudes
         let w = clog(c64(f64::MAX, f64::MAX));
         xsref::np_assert_allclose!([w.re], [710.129_286_483_663_9], rtol = 1e-15);
-        let w = clog(c64(f64::from_bits(1), f64::from_bits(1)));
+        let w = clog(c64(DENORM_MIN, DENORM_MIN));
         xsref::np_assert_allclose!([w.re], [-744.093_498_331_101_4], rtol = 1e-15);
     }
 }

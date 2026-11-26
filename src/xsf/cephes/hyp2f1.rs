@@ -1534,6 +1534,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::DENORM_MIN;
 
     /// `times_gamma_ratio` with `q = s^k`
     fn ratio(y: (f64, f64), s: f64, k: f64, num: [f64; 2], den: [f64; 2]) -> (f64, f64) {
@@ -1554,7 +1555,7 @@ mod tests {
             assert!((y / desired - 1.0).abs() <= rel_err && rel_err < 1e-12, "{y} {err}");
         }
         // normal factors, but `y f` underflows: 2^-1074 / Gamma(3) 2^1000 = 2^-75
-        let tiny = f64::from_bits(1);
+        let tiny = DENORM_MIN;
         let (y, err) = ratio((tiny, tiny), 0.5, -1000.0, [1.0, 1.0], [3.0, 1.0]);
         let rel_err = err * MACHEP / 2f64.powi(-75);
         assert!((y / 2f64.powi(-75) - 1.0).abs() <= rel_err && rel_err < 1e-12, "{y} {err}");
