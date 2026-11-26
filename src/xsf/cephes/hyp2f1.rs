@@ -732,11 +732,10 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         // the terminating series.
         //
         // (also for c = a or c = b, for at most `HYP2F1_MAXITER` factors; not for a nonfinite
-        // parameter, where the product isn't finite, or a zero one, where `hyp2f1_impl` returns 1
-        // at once)
-        let short = |v: f64| is_nonpos_int(v) && v >= -(HYP2F1_MAXITER as f64);
+        // parameter, where the product isn't finite)
+        let short = |v: f64| is_nonpos_int(v) && (-(HYP2F1_MAXITER as f64)..0.0).contains(&v);
         let finite = [a, b, c].into_iter().all(f64::is_finite);
-        let eligible = finite && a != 0.0 && b != 0.0 && (short(a) || short(b));
+        let eligible = finite && (short(a) || short(b));
         let poly = eligible.then(|| hyp2f1_poly_dd(a, b, c, x));
         if let Some(y) = poly.flatten() {
             return y.to_f64().0;

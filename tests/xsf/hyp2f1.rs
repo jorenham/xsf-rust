@@ -2489,8 +2489,8 @@ fn test_hyp2f1_f64_neg_int_c_x_1() {
 #[test]
 fn test_hyp2f1_f64_polynomial_x_1() {
     // unlike in xsf: the Chu-Vandermonde product (DLMF 15.4.24) at x = 1 for a non-integer c,
-    // where xsf loses most digits, and gives 1.3365133773992304e17 for the fifth, for which
-    // the Rust port gave NaN before (references: Arb)
+    // where xsf loses most digits, and gives 1.3365133773992304e17 for the fifth (references:
+    // Arb)
     let args = [
         (-35.0, -30.83, -37.75, 1.015_046_708_249_615_6e-13),
         (-35.0, -30.5, -37.75, -1.889_066_610_240_864e-13),
