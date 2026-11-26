@@ -962,8 +962,8 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
     let n = c - a;
     let n_int = n.round();
     let near_int = (n - n_int).abs() < HYP2F1_EPS;
-    // Unlike in xsf, take x - m as c - a in the series for c - a below 1/2, so that a zero of
-    // 1 / Gamma(c - a) cancels the pole of digamma(c - a) exactly.
+    // Unlike in xsf, take x - m as c - a for c - a below 1/2 and not near an integer, so that a
+    // zero of 1 / Gamma(c - a) cancels the pole of digamma(c - a) exactly.
     let x_m = if near_int || n_int > 0.0 {
         cb - m
     } else {
