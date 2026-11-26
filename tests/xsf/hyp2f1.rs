@@ -255,6 +255,67 @@ fn test_hyp2f1_c64_inverse_tiny_imag() {
     }
 }
 
+#[test]
+fn test_hyp2f1_c64_inverse_near_equal() {
+    // a - b is near an integer, so the poles of the 1/z terms nearly cancel (the last two after
+    // the Euler transform). Arb at the binary64 inputs, compared componentwise.
+    for (a, b, c, z, expected) in [
+        (
+            1.0 + 2.0_f64.powi(-47),
+            1.0 + f64::EPSILON,
+            2.0,
+            c64(2.0, 0.25),
+            c64(0.163_330_184_812_119_58, 1.427_890_722_129_949_3),
+        ),
+        (
+            0.618_776_231_689_070_1,
+            0.618_776_231_689_068_9,
+            2.982_633_969_189_627_5,
+            c64(-3.459_733_432_750_732, -0.853_452_349_090_242_8),
+            c64(0.764_767_445_893_113_2, -0.033_055_478_840_512_145),
+        ),
+        (
+            0.997_388_517_972_448_7,
+            -1.002_611_482_027_599_8,
+            3.150_968_818_948_326_7,
+            c64(2.045_922_291_999_997_5, 0.333_194_302_263_917),
+            c64(0.351_688_010_827_500_9, -0.104_787_053_409_834_48),
+        ),
+        (
+            -6.198_721_292_721_535,
+            -3.198_721_292_721_532_3,
+            -2.126_916_436_678_337,
+            c64(-1.018_479_056_347_564_7, 1.446_640_991_662_744_5),
+            c64(-2_615.177_010_022_977_4, -2_193.034_090_860_991),
+        ),
+        (
+            2.891_850_628_025_062,
+            2.891_850_628_025_058,
+            -1.673_453_207_224_207,
+            c64(-0.656_577_054_389_945_3, 0.973_480_163_347_360_1),
+            c64(-0.486_955_198_463_085_9, -6.854_834_441_578_813),
+        ),
+        (
+            3.0,
+            2.000_000_000_000_001_3,
+            4.0,
+            c64(3.514_055_857_750_915, -0.331_333_151_666_662_44),
+            c64(0.154_015_399_276_666_3, 0.445_105_599_187_927_8),
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 1e-14
+                );
+            }
+        }
+    }
+}
+
 /// Compares each component, so that a small one is checked too.
 fn assert_components_close(actual: num_complex::Complex64, expected: num_complex::Complex64) {
     np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 3e-15);
