@@ -1,8 +1,19 @@
 use super::hypergeometric_series_generator;
+use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
+use crate::xsf::cephes::hyp2f1::HYP2F1_ETHRESH;
 use crate::xsf::tools::series_eval_fixed_length;
+
+/// The double-double polynomial as an `f64` if `err` is small, and the interval of its error
+/// bound if that holds more than one rounding of a (nearly) subnormal value
+fn dd_candidate(y: Scaled) -> Option<(f64, Option<[f64; 2]>)> {
+    let y = fold_exp(y);
+    let [lo, v, hi] = [1.0 - y.err, 1.0, 1.0 + y.err].map(|f| ldexp_f64(y.m * f, y.e));
+    let open = lo != hi && lo.abs().min(hi.abs()) < f64::MIN_POSITIVE;
+    (v.is_finite() && y.err <= HYP2F1_ETHRESH).then_some((v, open.then_some([lo, hi])))
+}
 
 struct Estimate {
     value: C64,
@@ -12,14 +23,35 @@ struct Estimate {
 
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     let other = if a == -(n as f64) { b } else { a };
-    let count = n + 1;
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
     if other == 1.0 && c == 2.0 && z.is_finite() {
-        let mean = uniform_beta_binomial(count, z);
+        let mean = uniform_beta_binomial(n + 1, z);
         if mean.is_finite() {
             return mean;
         }
     }
+    // Unlike in xsf, use the double-double polynomial on the real axis (at z = 1 the
+    // Chu-Vandermonde product, DLMF 15.4.24), as the terms of the series can cancel, or the
+    // series if it lies within an open subnormal rounding of it.
+    if z.is_real() {
+        match hyp2f1_poly_dd(a, b, c, z.re).and_then(dd_candidate) {
+            Some((y, None)) => return c64(y, 0.0),
+            Some((y, Some([lo, hi]))) => {
+                let value = series(a, b, c, z, n, other);
+                return if (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0 {
+                    value
+                } else {
+                    c64(y, 0.0)
+                };
+            },
+            None => {},
+        }
+    }
+    series(a, b, c, z, n, other)
+}
+
+// The series, with `other` the upper parameter that is not `-n`.
+fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> C64 {
     // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
     let positive_beta = other > 0.0 && other < c && c.is_finite();
     let finite_population = other < 0.0
@@ -33,7 +65,7 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     {
         population(a, b, c, n, z)
     } else {
-        series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, count)
+        series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, n + 1)
     };
     // Unlike in xsf, recover a finite linear result when forming its
     // coefficient overflows for a subnormal denominator.

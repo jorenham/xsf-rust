@@ -2623,6 +2623,77 @@ fn test_hyp2f1_c64_nonnegative_population_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_real_polynomial_near_one() {
+    // Arb; the terms of the series cancel near z = 1 (jorenham/xsf-rust#2211).
+    for (a, b, c, x, expected) in [
+        (-44.0, 1.06, -1.856_984_912_833_326, 1.0, -0.035_524_249_588_294_71),
+        (-30.0, 20.25, -9.75, 1.0, 2_276_618_356.587_293_6),
+        (
+            -70.0,
+            34.547_259_441_692_82,
+            -23.998_630_037_442_19,
+            1.000_000_000_011_891_6,
+            -716_883_681.526_757_1,
+        ),
+        (
+            0.914_864_001_003_731_6,
+            -75.0,
+            -24.971_086_673_375_95,
+            0.999_999_999_013_385,
+            -2.156_742_200_728_316_6,
+        ),
+    ] {
+        for imag in [0.0, -0.0] {
+            let y = xsf::hyp2f1(a, b, c, c64(x, imag));
+            np_assert_allclose!([y.re], [expected], rtol = 4e-16);
+            assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
+        }
+    }
+
+    // Arb: 0.5000000000000000001 and -0.5000000000000000004 times the smallest subnormal, just
+    // past the ties that the rounded products sit on.
+    let (p80, p81) = (2.0_f64.powi(80), 2.0_f64.powi(81));
+    for imag in [0.0, -0.0] {
+        let y = xsf::hyp2f1(-1075.0, p80, p81, c64(1.0, imag));
+        assert_eq!(y.re.to_bits(), f64::from_bits(1).to_bits());
+        let y = xsf::hyp2f1(-1075.0, -3.0 * p80, -p81, c64(1.0, imag));
+        // (Arb: -from_bits(1); the rounding is open and the series is NaN)
+        assert_eq!(y.re.to_bits(), (-0.0_f64).to_bits());
+    }
+
+    // Exact rationals (Chu-Vandermonde); the rounding of 2^-1022 and below is open to the
+    // double-double bound, and the series is far off.
+    for (a, bits) in [
+        (-1022.0, 0x0010_0000_0000_0000),
+        (-1023.0, 0x0008_0000_0000_0000),
+        (-1024.0, 0x0004_0000_0000_0000),
+    ] {
+        for imag in [0.0, -0.0] {
+            let y = xsf::hyp2f1(a, -p80, -p81, c64(1.0, imag));
+            assert_eq!(y.re.to_bits(), bits);
+        }
+    }
+
+    // Arb; the real overload keeps its rounding near the subnormal range (except for a deficit of
+    // 1 ulp at a = -1023, as on master).
+    for (a, b, bits) in [
+        (-1022.0, -549_755_813_888.5, 0x000f_ffff_805f_f1fb),
+        (-1023.0, -549_755_813_888.5, 0x0007_ffff_c010_00fe),
+        (-1024.0, -549_755_813_888.5, 0x0003_ffff_dff8_0080),
+        (-1025.0, -549_755_813_888.75, 0x0001_ffff_efef_fd40),
+    ] {
+        let y = xsf::hyp2f1(a, b, -1_099_511_627_776.0, 1.0);
+        assert_eq!(y.to_bits(), bits);
+    }
+
+    // Arb: 70368752623712.5049 times the smallest subnormal, which rounds up.
+    for imag in [0.0, -0.0] {
+        let y = xsf::hyp2f1(-1028.0, 2.0_f64.powi(41), 2.0_f64.powi(42), c64(1.0, imag));
+        assert_eq!(y.re.to_bits(), 0x0000_4000_0080_e061);
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_beta_binomial_polynomial() {
     // Pearson, Olver and Porter, Table A.2 case 18, and its off-axis continuation.
     for (a, b) in [(-300.0, 5.0), (5.0, -300.0)] {
