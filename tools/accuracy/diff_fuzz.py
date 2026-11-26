@@ -12,6 +12,9 @@ Steps:
 1. Build the dump program of `accuracy.py` for both revisions; a revision other than the working
    tree is exported with `git archive` and built in a temporary directory, and its program is
    cached in `.cache/diff-fuzz/`.
+   A run that times out is repeated line by line, each timed out line costing the
+   `TIMEOUT_BUDGET` of its spec and revision; the lines after it is spent are "skipped", which
+   counts as a regression if the head skips more than the base.
 2. Evaluate both on the same `--cases` seeded inputs per spec of `specs.py` (or of `--only`, by
    spec or function name): samples of its domains, with the parameters scaled log-uniformly or
    rounded to (half-)integers, single arguments moved to log-uniform, (half-)integer, boundary
@@ -32,8 +35,8 @@ Steps:
    flagged inputs so far (or, if none are flagged yet, of new inputs as in 2), with the
    parameters scaled (keeping that sum), two arguments shifted together, or one moved slightly
    or as in 2.
-6. Print the counts, write the regressions to `.cache/diff-fuzz.tsv`, and exit with 1 if there
-   are any.
+6. Print the counts (and the skipped lines of the base and head), write the regressions to
+   `.cache/diff-fuzz.tsv`, and exit with 1 if there are any.
 """
 
 import argparse
@@ -85,8 +88,8 @@ CHUNK: Final = 1000
 # seconds per run of a dump program, and per line in it
 RUN_TIMEOUT: Final = 10
 LINE_TIMEOUT: Final = 0.02
-# seconds per spec and revision that timeouts of runs may cost, after which the lines of a timed
-# out run are not bisected further (a library call can hang)
+# seconds per spec and revision that the timeouts of single lines may cost, after which the
+# remaining lines are skipped (a library call can hang)
 TIMEOUT_BUDGET: Final = 120
 # references per worker process, since mpmath caches grow
 WORKER_TASKS: Final = 500
@@ -125,14 +128,16 @@ class Kind(StrEnum):
     NO_REF = "no ref"
 
 
-COLUMNS: Final = ["function", "cases", "flagged", *Kind, "unchecked"]
+COLUMNS: Final = ["function", "cases", "flagged", *Kind, "unchecked", "skipped"]
 
 
 class Budget:
-    """The seconds that timeouts may still cost for one revision of a spec."""
+    """The seconds that timeouts may still cost for one revision of a spec, and the lines
+    skipped after that."""
 
     def __init__(self) -> None:
         self.left: float = TIMEOUT_BUDGET
+        self.skipped = 0
 
 
 def program(rev: str | None) -> str:
@@ -140,9 +145,15 @@ def program(rev: str | None) -> str:
     if rev is None:
         return accuracy.build_rust()
     git = ["git", "-C", str(accuracy.ROOT)]
-    sha = subprocess.check_output(
-        [*git, "rev-parse", f"{rev}^{{commit}}"], text=True
-    ).strip()
+    res = subprocess.run(
+        [*git, "rev-parse", "--verify", "-q", f"{rev}^{{commit}}"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if res.returncode:
+        raise ValueError(f"cannot resolve the revision {rev}")
+    sha = res.stdout.strip()
     exe = CACHE / f"xsf-accuracy-{sha}"
     if not exe.exists():
         accuracy.log(f"building {rev} ({sha[:12]})")
@@ -169,6 +180,7 @@ def evaluate(exe: str, lines: list[tuple[str, Args]], budget: Budget) -> list[Va
             for v in evaluate(exe, lines[i : i + CHUNK], budget)
         ]
     if budget.left <= 0:
+        budget.skipped += len(lines)
         return ["skipped"] * len(lines)
     timeout = RUN_TIMEOUT + LINE_TIMEOUT * len(lines)
     try:
@@ -176,8 +188,10 @@ def evaluate(exe: str, lines: list[tuple[str, Args]], budget: Budget) -> list[Va
     except subprocess.CalledProcessError as e:
         fail = "unsupported" if "unknown function" in e.stderr else "panic"
     except subprocess.TimeoutExpired:
-        fail = "timeout"
+        if len(lines) > 1:  # (to find the line that hangs)
+            return [v for line in lines for v in evaluate(exe, [line], budget)]
         budget.left -= timeout
+        return ["timeout"]
     if len(lines) == 1:
         return [fail]
     mid = len(lines) // 2
@@ -415,22 +429,30 @@ class Refs:
                     self.count[proc] += 1
                     if self.count[proc] < WORKER_TASKS:
                         self.idle.append((proc, conn))
-                    else:
-                        proc.kill()
+                        continue
                 except EOFError:
                     out[i] = "worker died"
+                self.retire(proc, conn)
             now = time.monotonic()
             for conn, (proc, _, t) in list(busy.items()):
                 if t <= now:
-                    proc.kill()
                     del busy[conn]
+                    self.retire(proc, conn)
         return out
+
+    def retire(self, proc: multiprocessing.Process, conn: Connection) -> None:
+        proc.kill()
+        proc.join()
+        proc.close()
+        conn.close()
+        del self.count[proc]
 
 
 def _start() -> tuple[multiprocessing.Process, Connection]:
     conn, child = multiprocessing.Pipe()
     proc = multiprocessing.Process(target=_worker, args=(child,), daemon=True)
     proc.start()
+    child.close()
     return proc, conn
 
 
@@ -505,6 +527,7 @@ def fuzz(
     spec: specs.Spec,
     opts: argparse.Namespace,
     run: Callable[[list[Case]], list[list[Value]]],
+    budgets: list[Budget],
     refs: Refs,
 ) -> tuple[list[str | int], list[str]] | None:
     """The row of the table and the TSV lines of the regressions, or None if a revision lacks
@@ -562,6 +585,7 @@ def fuzz(
     n = Counter(v.kind for v in checked.values())
     row = [spec.name, len(seen), len(flagged), *(n[k] for k in Kind)]
     row.append(len(flagged) - len(checked))
+    row.append("/".join(str(b.skipped) for b in budgets))
     worst = sorted(
         ((i, v) for i, v in checked.items() if v.kind == Kind.REGRESSED),
         key=lambda iv: -iv[1].eh,
@@ -626,29 +650,39 @@ def main() -> None:
     CACHE.mkdir(parents=True, exist_ok=True)
     try:
         exes = [program(opts.base), program(opts.head)]
+    except ValueError as e:
+        ap.exit(2, f"error: {e}\n")
     except subprocess.CalledProcessError as e:
         ap.exit(
             2, f"error: building the revisions failed (exit status {e.returncode})\n"
         )
     threads = concurrent.futures.ThreadPoolExecutor(len(exes))
-    budgets = [Budget() for _ in exes]
-
-    def run(cases: list[Case]) -> list[list[Value]]:
-        lines = [(c.fuzzer.name, c.args) for c in cases]
-        return list(threads.map(evaluate, exes, [lines] * len(exes), budgets))
 
     rows: list[list[str | int]] = []
     regressions: list[str] = []
+    # the specs whose head skipped more lines than the base, so that it is not compared there
+    unchecked: list[str] = []
     refs = Refs(opts.jobs)
     for spec in chosen:
-        for b in budgets:
-            b.left = TIMEOUT_BUDGET
-        if (res := fuzz(spec, opts, run, refs)) is None:
+        budgets = [Budget() for _ in exes]
+
+        def run(
+            cases: list[Case], budgets: list[Budget] = budgets
+        ) -> list[list[Value]]:
+            lines = [(c.fuzzer.name, c.args) for c in cases]
+            return list(threads.map(evaluate, exes, [lines] * len(exes), budgets))
+
+        if (res := fuzz(spec, opts, run, budgets, refs)) is None:
             accuracy.log(f"{spec.name}: skipped, since a revision lacks it")
             continue
         rows.append(res[0])
         regressions += res[1]
-        accuracy.log(f"{spec.name}: {res[0][COLUMNS.index(Kind.REGRESSED)]} regressed")
+        accuracy.log(
+            f"{spec.name}: {res[0][COLUMNS.index(Kind.REGRESSED)]} regressed, "
+            f"{res[0][-1]} lines skipped (base/head)"
+        )
+        if budgets[1].skipped > budgets[0].skipped:
+            unchecked.append(spec.name)
 
     widths = [
         max(len(str(r[j])) for r in [COLUMNS, *rows]) for j in range(len(COLUMNS))
@@ -656,11 +690,13 @@ def main() -> None:
     for r in [COLUMNS, *rows]:
         print("  ".join(str(v).rjust(w) for v, w in zip(r, widths, strict=True)))
     head = "function\tinput\tbase\thead\treference\tbase error\thead error"
-    TSV.write_text("".join(f"{line}\n" for line in [head, *regressions]))
+    TSV.write_text("".join(f"{line}\n" for line in [head, *regressions] if regressions))
     print(f"\n{len(regressions)} regressions, in {TSV}")
-    for line in [head, *regressions[:10]]:
+    for line in [head, *regressions[:10]] if regressions else []:
         print(line.replace("\t", "  "))
-    sys.exit(1 if regressions else 0)
+    if unchecked:
+        print(f"regression: the head hit its timeout budget in {', '.join(unchecked)}")
+    sys.exit(1 if regressions or unchecked else 0)
 
 
 if __name__ == "__main__":
