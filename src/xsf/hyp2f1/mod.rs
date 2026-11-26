@@ -1253,13 +1253,15 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let m = (a - b).round();
         // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
         let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
-        if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
-            let result = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
-            if let Some(result) = euler_scaled(result) {
-                return result;
-            }
-        }
-        return hyp2f1_transform2_limiting_case(a, b, c, m, z);
+        let euler_limit = if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
+            euler_scaled(hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z))
+        } else {
+            None
+        };
+        let result = euler_limit.unwrap_or_else(|| hyp2f1_transform2_limiting_case(a, b, c, m, z));
+        // Unlike in xsf, continue the Maclaurin series analytically if the limit, which has no
+        // cancellation estimate, is less accurate.
+        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
     let (mut result, mut cancellation) = series_eval_cancellation(series_generator);
@@ -1279,6 +1281,10 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         if let Some(value) = hyp2f1_lopez_temme_retry(a, b, c, z, cancellation) {
             return value;
         }
+    }
+    // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
+    if cancellation * f64::EPSILON > HYP2F1_EPS {
+        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
     result
 }
