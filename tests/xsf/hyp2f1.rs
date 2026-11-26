@@ -3580,6 +3580,55 @@ fn test_hyp2f1_f64_x_gt_1() {
 }
 
 #[test]
+fn test_hyp2f1_f64_c_eq_b_x_lt_minus_1() {
+    // for c = b, (1 - x)^-a (DLMF 15.4.6), in either order of a and b; references: Arb
+    let args = [
+        (-20.0, -15.5, -2.0, 3_486_784_401.0),
+        (-20.0, -11.5, -1.796_264_745_767_867, 854_212_153.609_603_8),
+        (-40.0, -0.5, -3.5, 1.344_313_472_276_061_7e26),
+        // (not inf for a tiny `a`)
+        (-1e-15, 5.0, -1.5, 1.000_000_000_000_000_9),
+        (-1e-14, 5.0, -10.0, 1.000_000_000_000_024),
+        (-1e-15, 2.5, -1e5, 1.000_000_000_000_011_5),
+    ];
+    for (a, b, x, expected) in args {
+        let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
+        np_assert_allclose!(actual, [expected; 2], rtol = 1e-15);
+    }
+    // correctly rounded, also if `1 - x` rounds, or near a halfway point (Arb:
+    // 2.068_550_481_565_191_884_6e-17, 3.162_277_660_168_390_719_0e-25 and
+    // 1.216_544_397_990_848_077_5e26, 0.4986 ulp from the result)
+    let args = [
+        (34.968_75, 5.0, -2.0, 2.068_550_481_565_192e-17),
+        (0.7, 5.0, -1e35, 3.162_277_660_168_390_6e-25),
+        (-4.997_835_996_417_962, -15.960_328_640_065_548, -165_684.5, 1.216_544_397_990_848_2e26),
+    ];
+    for (a, b, x, expected) in args {
+        let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
+        assert_eq!(actual, [expected; 2]);
+    }
+    // the smallest subnormal (Arb: 2.470_328_229_206_232_833_8e-324, just above half of it)
+    let (a, b, x) = (302.149_535_879_118_96, 5.0, -10.776_516_745_244_6);
+    for actual in [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)] {
+        assert_eq!(actual.to_bits(), 1);
+    }
+}
+
+#[test]
+fn test_hyp2f1_f64_underflow_rounding() {
+    // Arb: 2_435_967_307_718_350.148 times the smallest subnormal
+    let y = xsf::hyp2f1(
+        48.693_394_922_270_65,
+        95.590_479_273_532_74,
+        -8.060_438_561_183_474,
+        -918_661.856_710_704_3,
+    );
+    assert_eq!(y, 1.203_527_761_136_029e-308);
+    // Arb: -3.223e-477121254709
+    assert_eq!(xsf::hyp2f1(1e12, 5.5, 4.5, -2.0).to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_hyp2f1_f64_rounded_euler_exponent_on_cut() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {

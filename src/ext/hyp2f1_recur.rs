@@ -1299,14 +1299,31 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     }
 }
 
+/// `(r, e + k)` with `exp(l) = 2^k exp(r)` and `|r| <= ln(2) / 2`
+fn split_exp(l: Dd, e: i32) -> (Dd, i32) {
+    // If `|k|` is so large that it's clamped, then so is `e + k`, since `|e|` is at most about 1e9
+    // (2^1000 per term), and the value overflows or underflows.
+    let k = (l.hi / LN_2).round().clamp(-1e12, 1e12);
+    let e = (f64::from(e) + k).clamp(-1e9, 1e9) as i32;
+    (l - LOG2 * k, e)
+}
+
+/// `exp(l)` rounded once from double-double, also if subnormal
+pub(crate) fn exp_rounded(l: Dd) -> f64 {
+    let (r, e) = split_exp(l, 0);
+    let y = r.exp();
+    let v = ldexp_f64(y.hi, e);
+    if v.abs() <= f64::MIN_POSITIVE {
+        // (in units of the smallest subnormal, as `ldexp` would round `y.hi` a second time)
+        y.ldexp(e + 1074).round_subnormal_units()
+    } else {
+        v
+    }
+}
+
 /// `y` with `exp(l)` folded into `m 2^e` (so `l = 0`), and its roundings into the error bound
 pub(crate) fn fold_exp(y: Scaled) -> Scaled {
-    // `exp(l) = 2^k exp(r)` with `|r| <= ln(2) / 2`. If `|k|` is so large that it's clamped, then
-    // so is `e + k`, since `|e|` is at most about 1e9 (2^1000 per term), and the value overflows
-    // or underflows.
-    let k = (y.l.hi / LN_2).round().clamp(-1e12, 1e12);
-    let r = y.l - LOG2 * k;
-    let e = (f64::from(y.e) + k).clamp(-1e9, 1e9) as i32;
+    let (r, e) = split_exp(y.l, y.e);
     // For an unclamped `k`, `exp(r.lo)` rounds to 1. It is left out, as `r` is huge for a clamped
     // `k`, where `m` must keep its sign.
     let (m, l) = (y.m * r.hi.exp(), Dd::ZERO);
@@ -1397,8 +1414,8 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
 #[cfg(test)]
 mod tests {
     use super::{
-        Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, gamma_quot, hyp2f1_recur, ln_gamma, psi_dd,
-        recur_down,
+        Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, exp_rounded, gamma_quot, hyp2f1_recur, ln_gamma,
+        psi_dd, recur_down,
     };
     use crate::utils::DENORM_MIN;
 
@@ -1480,6 +1497,19 @@ mod tests {
             let (y, err) = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64).unwrap();
             assert!((y / desired - 1.0).abs() <= err && err <= HYP2F1_RECUR_TOL, "{y} {err}");
         }
+    }
+
+    #[test]
+    fn test_exp_rounded() {
+        // (2^52 - 1/2 - 2^-8) times the smallest subnormal (Arb), which `ldexp` alone rounds up to
+        // the smallest normal
+        let l = Dd {
+            hi: -708.396_418_532_264_1,
+            lo: -2.758_730_638_543_521_8e-14,
+        };
+        assert_eq!(exp_rounded(l), f64::MIN_POSITIVE - DENORM_MIN);
+        assert_eq!(exp_rounded(Dd::new(-1e300)), 0.0);
+        assert_eq!(exp_rounded(Dd::new(1e300)), f64::INFINITY);
     }
 
     #[test]

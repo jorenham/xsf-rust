@@ -17,7 +17,7 @@
 use core::iter;
 
 use crate::ext::{
-    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp,
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, exp_rounded, fold_exp,
     hyp2f1_poly_dd, hyp2f1_recur, ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, neg_one_pow, pow2};
@@ -552,8 +552,11 @@ fn pow_1mx(x: f64, m: f64) -> f64 {
         ln_dd(Dd::ONE - x)
     };
     let l = ln_1mx * m;
-    let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
-    y.map_or_else(|| (1.0 - x).powf(m), |y| y.with_l(l).to_f64().0)
+    if l.is_finite() {
+        exp_rounded(l)
+    } else {
+        (1.0 - x).powf(m)
+    }
 }
 
 /// Whether `sum_{k <= m} (b)_k x^k / k!` (DLMF 15.2.5) is exactly 0, as are all its terms and
@@ -1048,6 +1051,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         }
     }
 
+    // Unlike in xsf, for |x| > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
+    // DLMF 15.4.6, as the paths below lose digits or diverge. For x > 1 only if the exponent is an
+    // integer, else inf, as for the other powers (see below). Not for an integer c <= 0 (see above),
+    // nor for x > 1 with an exponent within `HYP2F1_EPS` of an integer, nor in the transformations,
+    // where c - a or c - b can round to c.
+    if outer && ax > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
+        let e = if a == c { b } else { a };
+        if x < -1.0 {
+            return pow_1mx(x, -e);
+        } else if e == e.round() {
+            return s.powf(-e);
+        } else if (e - e.round()).abs() >= HYP2F1_EPS {
+            return f64::INFINITY;
+        }
+    }
+
     let neg_int_a = near_neg_int(a);
     let neg_int_b = near_neg_int(b);
 
@@ -1137,21 +1156,6 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             hys2f1_pfaff(a, b, c, x)
         };
         return if err < HYP2F1_ETHRESH { y } else { f64::NAN };
-    }
-
-    // Unlike in xsf, for x > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
-    // DLMF 15.4.6 if its exponent is an integer, else inf, as for the other powers (see below), as the
-    // Euler transformation rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`.
-    // Not for an integer c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above),
-    // nor for an exponent within `HYP2F1_EPS` of an integer, which the paths below can take as
-    // one, nor in the transformations, whose `c - a` or `c - b` can round to `c`.
-    if outer && x > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
-        let e = if a == c { b } else { a };
-        if e == e.round() {
-            return s.powf(-e);
-        } else if (e - e.round()).abs() >= HYP2F1_EPS {
-            return f64::INFINITY;
-        }
     }
 
     // Unlike in xsf, do not use a rounded Euler exponent as an integer on the cut.

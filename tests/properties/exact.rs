@@ -169,10 +169,8 @@ property!(
     within,
     hyp2f1_terminating(n in 0..=MAX_N, b in param(), c in param(), x in moderate()) => {
         let a = -f64::from(n);
-        // known: n >= 10 with b < 0 and x > 1, where x is negated (#2258), and (1 - x)^n for a
-        // negative non-integer b = c, n >= 9 and x < -1 (#2262)
+        // known: n >= 10 with b < 0 and x > 1, where x is negated (#2258)
         let x = if n >= 10 && b < 0.0 && x > 1.0 { -x } else { x };
-        prop_assume!(!(b == c && c < 0.0 && c.fract() != 0.0 && n >= 9 && x < -1.0), "known");
         (xsf::hyp2f1(a, b, c, x), terminating(&[a, b], &[c], x)?)
     }
 );
