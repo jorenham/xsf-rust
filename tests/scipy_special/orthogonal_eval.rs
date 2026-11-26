@@ -7,6 +7,16 @@ use xsf::{
 use xsref::np_assert_allclose;
 
 #[test]
+fn test_hyp2f1_inverse_near_integer_difference() {
+    // Arb. The 2F1 have b - a within 2^-42 of an integer, and |z| = 2 and |3 + 1.5i|.
+    let actual = eval_jacobi(-50.25, 129.625, -15.124_999_999_999_773, c64(5.0, 0.0));
+    np_assert_allclose!([actual.re, actual.im], [1.775_279_186_045_572_3e-53, 0.0], rtol = 1e-14);
+    let actual = eval_gegenbauer(-27.772_528_979_698_194, 53.272_528_979_698_31, c64(-5.0, -3.0));
+    let expected = [2.870_025_555_962_445e-47, 5.562_995_179_391_358e-48];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 3e-14);
+}
+
+#[test]
 fn test_jacobi_negative_hyp2f1_lower_parameter() {
     // Arb, through 2F1(0.125, 250; -2.75; 0.8125).
     let actual = eval_jacobi(-0.125, -3.75, 252.875, c64(-0.625, 0.0));

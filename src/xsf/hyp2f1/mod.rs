@@ -401,6 +401,10 @@ fn series_eval_settled(mut g: impl FnMut() -> C64) -> Cancelled {
         let term = g();
         sum += term;
         abs_sum += term.norm();
+        // (a NaN sum never settles)
+        if sum.norm().is_nan() {
+            break;
+        }
         small = if term.norm() < sum.norm() * HYP2F1_EPS {
             small + 1
         } else {
@@ -1100,11 +1104,10 @@ fn hyp2f1_paired(
     log_power: C64,
     prefactor: C64,
 ) -> Option<Cancelled> {
-    // The phase of w^d must not underflow before the prefactor restores its scale.
-    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE {
-        return None;
-    }
-    if !log_ratio.is_finite() {
+    // The phase of exp(log_power) must not underflow before the prefactor restores its scale,
+    // and an over- or underflowed prefactor loses the scale.
+    let scaled = prefactor.is_finite() && prefactor.norm() >= f64::MIN_POSITIVE;
+    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE || !scaled || !log_ratio.is_finite() {
         return None;
     }
     let mut upper = C64::ONE; // w^k B_k
@@ -1121,10 +1124,10 @@ fn hyp2f1_paired(
         term
     });
     let value = series.value * prefactor;
-    // An underflowed prefactor loses the scale, and a product whose imaginary part cancels by
-    // more than 1 / |d| loses more than the unpaired series.
+    // A product whose imaginary part cancels by more than 1 / |d| loses more than the unpaired
+    // series.
     let rotated = (series.value.re * prefactor.im).abs() + (series.value.im * prefactor.re).abs();
-    let accurate = prefactor.norm() >= f64::MIN_POSITIVE && value.im.abs() >= d.abs() * rotated;
+    let accurate = value.im.abs() >= d.abs() * rotated;
     (accurate && value.is_finite()).then_some(Cancelled { value, ..series })
 }
 
@@ -1355,6 +1358,11 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     result
 }
 
+/// The offset of a - b from an integer below which `hyp2f1_inverse` pairs the two 1/z series, as
+/// they lose more than ten bits to poles that cancel between them (beyond it, the pairing was
+/// measured to be less accurate)
+const TRANSFORM2_POLE_OFFSET: f64 = 1.0 / 1024.0;
+
 /// The 1/z series (DLMF 15.8.2) for a - b near an integer m, uniformly in the offset, and its
 /// estimated cancellation as in `series_eval_cancellation`, where that is accurate
 //
@@ -1367,19 +1375,21 @@ fn hyp2f1_transform2_near_integer(a: f64, b: f64, c: f64, z: C64) -> Option<Canc
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let m = (a - b).round();
     let d = f64::from(Dd::new(a) - b - m);
-    // Only where the unpaired series lose more than HYP2F1_EPS to their cancelling poles, and
-    // not if the first series terminates, which the pairing divides by.
+    // Not if the first series terminates, which the pairing divides by, or if c - b is a positive
+    // integer of at most m, where the second series stops before its poles, and those of the
+    // first cancel in its gamma ratio.
     let terminates = c - a > 0.0 && (c - a).fract() == 0.0;
-    if f64::EPSILON / d.abs() <= HYP2F1_EPS || m > HYP2F1_MAXITER as f64 || terminates {
+    let stops = (c - b).fract() == 0.0 && c - b <= m;
+    if d.abs() >= TRANSFORM2_POLE_OFFSET || m > HYP2F1_MAXITER as f64 || terminates || stops {
         return None;
     }
     let w = 1.0 / z;
     let p = b + m;
     let log_ratio = digamma_integral(m + 1.0, d) - crate::lgam1p(-d) - digamma_integral(p, d);
     let log_ratio = log_ratio - digamma_integral(c - a, d);
-    // Gamma(-m-d) = Gamma(-d) / ((-1)^m (1+d)_m)
-    let power = (-z).powf(-a) * (neg_one_pow(m) / poch(1.0 + d, m));
-    let prefactor = power * -four_gammas(c, -d, b, c - a);
+    // Gamma(-m-d) / Gamma(b) = (-1)^m (b)_m / (1+d)_m Gamma(-d) / Gamma(p), a balanced ratio.
+    let rising = neg_one_pow(m) * (poch(b, m) / poch(1.0 + d, m));
+    let prefactor = (-z).powf(-a) * (rising * -four_gammas(c, -d, p, c - a));
     let log_power = (-z).ln() * -d;
     // (b - c + 1 keeps the exact zero of the second series if c - b is an integer)
     let tail = hyp2f1_paired((p, b - c + 1.0 + m), m, d, w, log_ratio, log_power, prefactor)?;
@@ -1409,8 +1419,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let prefactor = (1.0 - z).powf(c - a - b);
         (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
     };
-    let offset = (a - b - (a - b).round()).abs();
-    if offset < HYP2F1_EPS {
+    if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
         let (a, b) = if b > a { (b, a) } else { (a, b) };
         let m = (a - b).round();
         // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
@@ -1426,9 +1435,9 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
     // Unlike in xsf, pair the two series for a - b near an integer, or else count the loss of
-    // the unpaired terms to their poles, near 1 / offset.
-    let pole_loss = if f64::EPSILON / offset > HYP2F1_EPS {
-        offset.recip()
+    // the unpaired terms to poles that cancel within them, near 1 / |a - b| for a near b.
+    let pole_loss = if (a - b).abs() < TRANSFORM2_POLE_OFFSET {
+        (a - b).abs().recip()
     } else {
         0.0
     };

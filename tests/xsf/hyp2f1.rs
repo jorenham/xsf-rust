@@ -316,6 +316,45 @@ fn test_hyp2f1_c64_inverse_near_equal() {
     }
 }
 
+#[test]
+fn test_hyp2f1_c64_inverse_near_equal_edges() {
+    // a - b is near an integer: with large c, with c - b an integer, near 1/8, or with an
+    // overflowing (1 + d)_m. Arb at the binary64 inputs, compared componentwise.
+    for (a, b, c, z, expected) in [
+        (2.125, 1.0, 101.0, c64(100.0, 1.0), c64(-0.382_351_731_216_135_9, 1.089_877_562_791_618)),
+        (
+            28.125_000_000_000_227,
+            3.125,
+            6.125,
+            c64(2.0, 0.25),
+            c64(-5.932_929_836_608_319e-4, -3.525_838_182_852_035e-5),
+        ),
+        (
+            1.125,
+            1.0,
+            2.0625,
+            c64(2.0, 0.25),
+            c64(-0.027_024_445_301_198_41, 1.453_291_172_228_273_7),
+        ),
+        (
+            3_000.125 + 2.0_f64.powi(-20),
+            0.125,
+            1.25,
+            c64(100.0, 1.0),
+            c64(0.183_905_066_744_820_52, 0.075_906_798_189_663_85),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 5e-14);
+    }
+    // On the real axis below -1, the imaginary part stays +0.
+    for z in [c64(-2.0, 0.0), c64(-2.0, -0.0)] {
+        let actual = xsf::hyp2f1(-0.75, -2.875, 0.5, z);
+        np_assert_allclose!([actual.re], [-11.081_748_758_453_574], rtol = 1e-15);
+        assert_eq!(actual.im.to_bits(), 0.0_f64.to_bits());
+    }
+}
+
 /// Compares each component, so that a small one is checked too.
 fn assert_components_close(actual: num_complex::Complex64, expected: num_complex::Complex64) {
     np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 3e-15);
