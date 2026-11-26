@@ -52,7 +52,7 @@ use crate::ext::{HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_poly_dd, ln_dd, mul_
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
-use crate::xsf::cephes::hyp2f1::{hyp2f1_at_1, ln_max_growth, max_term_index};
+use crate::xsf::cephes::hyp2f1::{HYP2F1_ETHRESH, hyp2f1_at_1, ln_max_growth, max_term_index};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::complex::cpow_integral;
@@ -1468,6 +1468,33 @@ fn hyp2f1_transform1_paired(a: f64, b: f64, c: f64, d: f64, w: C64) -> Option<Bo
     })
 }
 
+/// `value`, or, for negative a and b where it loses more than HYP2F1_ETHRESH to its estimated
+/// `cancellation`, the 1 - z series, w = 1 - z, for a balance near zero, if their error bound
+/// makes them usable and, by the triangle inequality, closer (or accurate, if `value` is not
+/// finite)
+fn hyp2f1_near_balance_retry(a: f64, b: f64, c: f64, w: C64, value: C64, cancellation: f64) -> C64 {
+    let lossy = cancellation * f64::EPSILON > HYP2F1_ETHRESH;
+    let eligible = a < 0.0 && b < 0.0 && lossy && w.norm() < 1.0;
+    // (also where `four_gammas` reflects near a pole, as the bound includes its error)
+    small_balance(a, b, c)
+        .filter(|_| eligible)
+        .and_then(|d| hyp2f1_transform1_paired(a, b, c, d, w))
+        .map(|(series, error)| Estimate {
+            value: series.value,
+            error,
+        })
+        .filter(|paired| {
+            let usable = paired.error <= USABLE_ERROR * paired.value.norm();
+            let closer = (paired.value - value).norm() > 2.0 * paired.error;
+            if value.is_finite() {
+                usable && closer
+            } else {
+                paired.accurate()
+            }
+        })
+        .map_or(value, |paired| paired.value)
+}
+
 /// `prefactor` times the sum of w^k B_k expm1(log_ratio() + log(A_k / B_k) - log_power) over
 /// k, with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k),
 /// its estimated cancellation as in `series_eval_cancellation`, and an estimated bound of its
@@ -1762,7 +1789,9 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
-    let mut estimate = if offset < HYP2F1_EPS {
+    let w = 1.0 - z;
+    // (with the loss of the unpaired 1 - z series to their cancelling poles)
+    let (mut estimate, poles) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
@@ -1770,11 +1799,12 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
             return series_eval(series_generator);
         }
-        hyp2f1_transform1_limiting_case(a, b, c, z, false)
+        (hyp2f1_transform1_limiting_case(a, b, c, z, false), 0.0)
     } else {
         // Unlike in xsf, pair the two series for a balance near zero.
-        hyp2f1_transform1_near_balance(a, b, c, 1.0 - z)
-            .unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
+        let unpaired = || series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z));
+        hyp2f1_transform1_near_balance(a, b, c, w)
+            .map_or_else(|| (unpaired(), 1.0 / balance.abs()), |paired| (paired, 0.0))
     };
     // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
     // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
@@ -1799,9 +1829,10 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
     if estimate.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, result.into()).unwrap_or(result);
+        result = hyp2f1_continuation(a, b, c, z, result.into()).unwrap_or(result);
     }
-    result
+    // Unlike in xsf, also try the paired 1 - z series if the 1 - z series still cancel.
+    hyp2f1_near_balance_retry(a, b, c, w, result, estimate.cancellation.max(poles))
 }
 
 /// The offset of a - b from an integer below which `hyp2f1_inverse` pairs the two 1/z series,
@@ -2025,10 +2056,13 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
     }
     // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
-    if series.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, series.value.into()).unwrap_or(series.value);
-    }
-    series.value
+    let value = if series.is_lossy() {
+        hyp2f1_continuation(a, b, c, z, series.value.into()).unwrap_or(series.value)
+    } else {
+        series.value
+    };
+    // Unlike in xsf, also try the paired 1 - z series if the 1/z series cancel.
+    hyp2f1_near_balance_retry(a, b, c, 1.0 - z, value, series.cancellation)
 }
 
 /// F(a, b; c; z) from the Lopez-Temme series, if it cancels less than half as much as the 1/z
@@ -2317,7 +2351,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let rounding = pole_rounding(c - a).max(pole_rounding(c - b));
             return prefactor * hypergeometric_series(c - a, c - b, c, z, rounding).value;
         }
-        return hypergeometric_series(a, b, c, z, 0.0).value;
+        // Unlike in xsf, also try the paired 1 - z series if the Maclaurin series cancels.
+        let series = hypergeometric_series(a, b, c, z, 0.0);
+        return hyp2f1_near_balance_retry(a, b, c, 1.0 - z, series.value, series.cancellation);
     }
     /* Points near exp(iπ/3), exp(-iπ/3) not handled by any of the standard
      * transformations. Use series of López and Temme [5]. These regions
