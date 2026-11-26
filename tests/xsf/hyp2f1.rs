@@ -2865,3 +2865,25 @@ fn test_hyp2f1_c64_negative_lower_parameter_connection() {
         np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = rtol);
     }
 }
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_componentwise() {
+    // Arb at the exact binary64 inputs, componentwise.
+    for im in [1.0, -1.0] {
+        let z = c64(0.078_125, im * 2.0_f64.powi(-540));
+        let actual = xsf::hyp2f1(2.0_f64.powi(-46), 16.0, -300.25, z);
+        np_assert_allclose!(
+            [actual.re, actual.im],
+            [0.999_999_999_999_999_9, im * -2.094_772_308_230_493_7e-178],
+            rtol = 1e-14,
+            atol = 0.0
+        );
+    }
+    let actual = xsf::hyp2f1(4.0, 1.125, -300.5, c64(0.078_125, 0.0));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [0.998_831_693_479_051_2, 0.0],
+        rtol = f64::EPSILON,
+        atol = 0.0
+    );
+}

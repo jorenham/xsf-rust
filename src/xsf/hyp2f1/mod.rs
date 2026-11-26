@@ -48,7 +48,7 @@ mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
-use crate::ext::{hyp2f1_poly_dd, ln_dd, ln_gamma};
+use crate::ext::{Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
@@ -810,25 +810,11 @@ fn certified_c_down(a: f64, b: f64, c: f64, z: C64, current: C64) -> Option<C64>
     ))
 }
 
-/// `ln |Gamma(num_0) Gamma(num_1) ... / (Gamma(den_0) Gamma(den_1) ...)|`
-fn ln_gamma_ratio(num: &[Dd], den: &[Dd]) -> Option<Dd> {
-    let ln = |args: &[Dd]| {
-        args.iter()
-            .try_fold(Dd::ZERO, |sum, &g| Some(sum + ln_gamma(g)?.0))
-    };
-    Some(ln(num)? - ln(den)?)
-}
-
 // DLMF 15.10.17 solved for w1 = F(a,b;c;z), with w2 = z^(1-c) (1-z)^(c-a-b) F(1-a,1-b;2-c;z)
 // (DLMF 15.10.12, 15.8.1), w3 = F(a,b;a+b+1-c;1-z), and Gamma(c-1) by reflection (DLMF 5.5.3),
-// and its cancellation. For a, b > 0 > c, the gamma ratios are positive except for the sine.
+// and an estimated bound of its absolute error. For a, b > 0 > c, the gamma ratios are positive
+// except for the sine.
 fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
-    // Im F is linear in a subnormal Im z: scale it onto the normal range.
-    if z.im.is_subnormal() {
-        let scale = 1.0 / f64::EPSILON;
-        let (value, lost) = hyp2f1_negative_c(a, b, c, c64(z.re, z.im * scale))?;
-        return Some((c64(value.re, value.im / scale), lost));
-    }
     let w = 1.0 - z;
     // For |1 - z| > 1, this is NaN unless the terms first decrease below the tolerance.
     let (w3, w3_cancellation) =
@@ -838,29 +824,26 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     // The gamma ratios can over- or underflow where the terms do not, so keep their logs.
     let one_c = -Dd::new(c) + 1.0;
     let (a1, b1) = (one_c + a, one_c + b);
-    let ln_g1 = ln_gamma_ratio(&[a1, b1], &[a1 + b, one_c])?;
+    let one = || Scaled::new(1.0, 0, 0.0);
+    let g1 = mul_gamma_ratio([a1, b1], [a1 + b, one_c], one)?;
     // (with Gamma(a) = Gamma(a + 1) / a, as `ln_gamma` fails at a subnormal a)
     let (a_1, b_1) = (Dd::new(a) + 1.0, Dd::new(b) + 1.0);
+    let g2 = mul_gamma_ratio([a1, b1], [a_1, b_1, one_c, one_c + 1.0], one)?;
     let sin = sinpi(c);
-    let ln_g2 = ln_gamma_ratio(&[a1, b1], &[a_1, b_1, one_c, one_c + 1.0])?.hi
-        + a.ln()
-        + b.ln()
-        + (PI / sin.abs()).ln();
-    let g1 = ln_g1.exp().hi;
-    let t1 = if g1.is_normal() {
-        g1 * w3
+    let ln_g2 = g2.l.hi + a.ln() + b.ln() + (PI / sin.abs()).ln();
+    let g = g1.l.exp().hi;
+    let t1 = if g.is_normal() {
+        g * w3
     } else {
-        (w3.ln() + ln_g1.hi).exp()
+        (w3.ln() + g1.l.hi).exp()
     };
     let (ln_z, ln_w) = ((1.0 - c) * z.ln(), (c - a - b) * w.ln());
     let t2 = (ln_z + ln_w + ln_g2).exp() * sin.signum() * f2;
-    let result = t1 + t2;
-    // (relative to the result first, as the sum of the absolute terms can overflow, and with the
-    // rounding of the exponent of t2 as a cancellation)
+    // (with the tolerance of each series for its tail, and the rounding of the exponent of t2)
     let exponent_cancellation = ln_z.norm() + ln_w.norm() + ln_g2.abs();
-    let lost = t1.norm() / result.norm() * w3_cancellation
-        + t2.norm() / result.norm() * (f2_cancellation + exponent_cancellation);
-    Some((result, lost))
+    let t1_error = f64::EPSILON * w3_cancellation + HYP2F1_EPS + g1.err;
+    let t2_error = f64::EPSILON * (f2_cancellation + exponent_cancellation) + HYP2F1_EPS + g2.err;
+    Some((t1 + t2, t1.norm() * t1_error + t2.norm() * t2_error))
 }
 
 fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
@@ -1357,15 +1340,22 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 let value = prefactor * sum;
                 if !(8.0 * CERT_U * terms * mass <= crate::ext::HYP2F1_RECUR_TOL * sum.l1_norm()) {
                     let current = certified_c_down(a, b, c, z, value).unwrap_or(value);
-                    // Use it if it keeps some digits, and differs from `current` by more than
-                    // twice its estimated error, so that `current` is less accurate.
-                    if let Some((alt, lost)) = hyp2f1_negative_c(a, b, c, z) {
-                        let error = f64::EPSILON * lost;
-                        if error < 1.0 && !((alt - current).norm() <= 2.0 * error * alt.norm()) {
-                            return alt;
-                        }
-                    }
-                    return current;
+                    // Take each component of the connection, if it keeps some digits, that differs
+                    // from `current` by more than twice the estimated error, so that `current` is
+                    // estimated to be less accurate there.
+                    return match hyp2f1_negative_c(a, b, c, z) {
+                        Some((alt, error)) if error < alt.norm() => {
+                            let pick = |alt: f64, current: f64| {
+                                if (alt - current).abs() <= 2.0 * error {
+                                    current
+                                } else {
+                                    alt
+                                }
+                            };
+                            c64(pick(alt.re, current.re), pick(alt.im, current.im))
+                        },
+                        _ => current,
+                    };
                 }
                 return value;
             }
