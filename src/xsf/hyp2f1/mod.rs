@@ -487,7 +487,7 @@ fn series_eval_pairs(mut g: impl FnMut() -> (C64, C64), pairs: bool) -> Cancelle
 }
 
 /// `series_eval_cancellation`, and the estimated relative size of the omitted tail, a geometric
-/// series in the ratio of the last two terms (infinite unless that ratio is below one)
+/// series in the ratio of the last two terms
 fn series_eval_tail(mut g: impl FnMut() -> C64) -> (Cancelled, f64) {
     let (mut previous, mut last) = (0.0, 0.0);
     let series = series_eval_cancellation(|| {
@@ -495,13 +495,17 @@ fn series_eval_tail(mut g: impl FnMut() -> C64) -> (Cancelled, f64) {
         (previous, last) = (last, term.norm());
         term
     });
-    let ratio = last / previous;
-    let tail = if ratio < 1.0 {
+    (series, geometric_tail(last, last / previous) / series.value.norm())
+}
+
+/// The sum of the terms after `last` of a geometric series in `ratio`, or infinity unless that is
+/// below one
+fn geometric_tail(last: f64, ratio: f64) -> f64 {
+    if ratio < 1.0 {
         last * ratio / (1.0 - ratio)
     } else {
         f64::INFINITY
-    };
-    (series, tail / series.value.norm())
+    }
 }
 
 /// `series_eval_cancellation`, but converged only after three successive small terms
@@ -1339,7 +1343,7 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     let w = 1.0 - z;
     let log_power = w.ln() * d;
     // log(d B(d,a)) = log Gamma(1+d) - integral of psi from a to a+d.
-    let log_beta = crate::lgam1p(d) - digamma_integral(shape, d);
+    let log_beta = crate::lgam1p(d) - digamma_integral(shape, d).0;
     let constant = log_beta.exp_m1() - crate::xsf::cexpm1(log_power);
 
     // Factor the first nonconstant term out of F(1-a,d;1+d;w) - 1. The normalized
@@ -1362,70 +1366,94 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     Some(value)
 }
 
-/// `ln Gamma(x + h) - ln Gamma(x)`, the integral of digamma from `x` to `x + h`, or NaN if
-/// `x < -HYP2F1_MAXITER`
+/// `ln Gamma(x + h) - ln Gamma(x)`, the integral of digamma from `x` to `x + h`, and an estimated
+/// bound of its absolute error, or NaN if `x < -HYP2F1_MAXITER`
 //
 // Gamma(x + 1) = x Gamma(x) (DLMF 5.5.1) moves x to at least max(1, 128 |h|), where
 // three-point Gauss quadrature errs by less than 4.2e-4 (h/x)^6 |h| < 1e-16 |h|.
-fn digamma_integral(mut x: f64, h: f64) -> f64 {
+fn digamma_integral(mut x: f64, h: f64) -> (f64, f64) {
     if x < -(HYP2F1_MAXITER as f64) {
-        return f64::NAN;
+        return (f64::NAN, f64::NAN);
     }
-    let mut integral = 0.0;
+    let (mut integral, mut error) = (0.0, 0.0);
     while x < (128.0 * h.abs()).max(1.0) {
-        integral -= (h / x).ln_1p();
+        let y = h / x;
+        let term = y.ln_1p();
+        integral -= term;
+        // (with the rounding of y, which ln_1p amplifies near -1)
+        error += term.abs() + (y / (1.0 + y)).abs();
         x += 1.0;
     }
     let mid = x + 0.5 * h;
     let step = 0.5 * (3.0_f64 / 5.0).sqrt() * h;
-    integral + h / 18.0 * (5.0 * (digamma(mid - step) + digamma(mid + step)) + 8.0 * digamma(mid))
+    let quadrature =
+        h / 18.0 * (5.0 * (digamma(mid - step) + digamma(mid + step)) + 8.0 * digamma(mid));
+    let error = f64::EPSILON * (error + quadrature.abs() + h.abs());
+    (integral + quadrature, error)
 }
 
 /// The 1 - z series (DLMF 15.8.4) for a balance c - a - b near zero, uniformly in the balance,
 /// and its estimated cancellation as in `series_eval_cancellation`, where it is safe and more
 /// accurate than the two separate series
+fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, w: C64) -> Option<Cancelled> {
+    let d = small_balance(a, b, c)?;
+    // Beyond its direct ratio, `four_gammas` reflects x < 1/2 with a relative error near
+    // eps |x| / dist(x, Z), worth it only where both the unpaired series, which lose eps / |d|
+    // to their cancelling poles, and the limit for an integer balance, which is off by about
+    // |d|, lose more.
+    let tolerance = d.abs().max(f64::EPSILON / d.abs());
+    let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (tolerance * x).abs();
+    if !in_direct_gamma_range([c, -d, a, b]) && [a, b, c].into_iter().any(reflected) {
+        return None;
+    }
+    hyp2f1_transform1_paired(a, b, c, d, w).map(|(series, _)| series)
+}
+
+/// The balance c - a - b, if the unpaired 1 - z series lose more than HYP2F1_EPS to their
+/// cancelling poles in it
+fn small_balance(a: f64, b: f64, c: f64) -> Option<f64> {
+    let d = f64::from(Dd::new(c) - a - b);
+    (f64::EPSILON / d.abs() > HYP2F1_EPS).then_some(d)
+}
+
+/// The 1 - z series for the balance `d`, as in `hyp2f1_transform1_near_balance`, and an
+/// estimated bound of its absolute error
 //
 // The k-th terms of the two series, whose poles in the balance d cancel, are paired: with
 // A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
 // B_k = (a+d)_k (b+d)_k / (k! Gamma(1+d+k)), it is -Gamma(c) Gamma(-d) / (Gamma(a) Gamma(b))
 // w^d / B_0 times the sum of B_k w^k expm1(log(A_k / B_k) - d log(w)), w = 1 - z.
-fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<Cancelled> {
-    let d = f64::from(Dd::new(c) - a - b);
-    // Only where the unpaired series lose more than HYP2F1_EPS to their cancelling poles.
-    let pole_loss = f64::EPSILON / d.abs();
-    if pole_loss <= HYP2F1_EPS {
-        return None;
-    }
-    // Beyond its direct ratio, `four_gammas` reflects x < 1/2 with a relative error near
-    // eps |x| / dist(x, Z), worth it only where both the unpaired series, which lose eps / |d|
-    // to their cancelling poles, and the limit for an integer balance, which is off by about
-    // |d|, lose more.
-    let tolerance = d.abs().max(pole_loss);
-    let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (tolerance * x).abs();
-    if !in_direct_gamma_range([c, -d, a, b]) && [a, b, c].into_iter().any(reflected) {
-        return None;
-    }
-    let w = 1.0 - z;
+fn hyp2f1_transform1_paired(a: f64, b: f64, c: f64, d: f64, w: C64) -> Option<(Cancelled, f64)> {
     let log_power = w.ln() * d;
     // log(A_0 / B_0)
-    let log_ratio =
-        || crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d) - digamma_integral(b, d);
-    let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
-    hyp2f1_paired((a, b), 0.0, d, w, log_ratio, log_power, prefactor)
+    let log_ratio = || {
+        let [(ln_a, a_error), (ln_b, b_error)] = [a, b].map(|x| digamma_integral(x, d));
+        let (plus, minus) = (crate::lgam1p(d), crate::lgam1p(-d));
+        let error = a_error + b_error + f64::EPSILON * (plus.abs() + minus.abs());
+        (plus - minus - ln_a - ln_b, error)
+    };
+    let (gammas, gammas_error) = four_gammas_estimate(c, -d, a, b);
+    let prefactor = log_power.exp() * -gammas;
+    let (series, error) = hyp2f1_paired((a, b), 0.0, d, w, log_ratio, log_power, prefactor)?;
+    // (with the rounding of the exponent of the power)
+    let prefactor_error = gammas_error + f64::EPSILON * (log_power.norm() + 1.0);
+    Some((series, error + prefactor_error * series.value.norm()))
 }
 
 /// `prefactor` times the sum of w^k B_k expm1(log_ratio() + log(A_k / B_k) - log_power) over
 /// k, with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k),
-/// and its estimated cancellation as in `series_eval_cancellation`, where that is accurate
+/// its estimated cancellation as in `series_eval_cancellation`, and an estimated bound of its
+/// absolute error without that of the prefactor, given that of `log_ratio()`, where that is
+/// accurate
 fn hyp2f1_paired(
     (a, b): (f64, f64),
     m: f64,
     d: f64,
     w: C64,
-    log_ratio: impl FnOnce() -> f64,
+    log_ratio: impl FnOnce() -> (f64, f64),
     log_power: C64,
     prefactor: C64,
-) -> Option<Cancelled> {
+) -> Option<(Cancelled, f64)> {
     // The phase of exp(log_power) must not underflow before the prefactor restores its scale,
     // and an over- or underflowed prefactor loses the scale.
     let scaled = prefactor.is_finite() && prefactor.norm() >= f64::MIN_POSITIVE;
@@ -1433,18 +1461,31 @@ fn hyp2f1_paired(
         return None;
     }
     // (only then, as its digamma integrals can be slow)
-    let mut log_ratio = Some(log_ratio()).filter(|x| x.is_finite())?;
+    let (mut log_ratio, log_error) = Some(log_ratio()).filter(|(x, _)| x.is_finite())?;
+    // The error of the exponents, the sum of those of the terms, and the last term and ratio
+    let mut log_error = log_error + f64::EPSILON * log_power.norm();
+    let (mut error, mut last, mut ratio) = (0.0, 0.0, 0.0);
     let mut upper = C64::ONE; // w^k B_k
     let mut k = 0.0;
     let series = series_eval_settled(|| {
-        let term = upper * crate::xsf::cexpm1(log_ratio - log_power);
+        let expm1 = crate::xsf::cexpm1(log_ratio - log_power);
+        let term = upper * expm1;
+        // (that of the exponent, and the rounding of the k factors of w^k B_k)
+        let rounding = f64::EPSILON * (k + 1.0) * expm1.norm();
+        error += upper.norm() * ((expm1 + 1.0).norm() * log_error + rounding);
         let (p, q, n) = (a + k, b + k, k + 1.0);
         let (shifted, nd) = ((p + d) * (q + d), n - d);
-        // A_k+1 / B_k+1 = (A_k / B_k) (1 + d step)
-        let step = ((1.0 + n / (n + m)) * p * q - (p + q + d) * nd) / (nd * shifted);
-        log_ratio += (d * step).ln_1p();
-        upper *= w * (shifted / (n * (n + m + d)));
-        k = n;
+        // A_k+1 / B_k+1 = (A_k / B_k) (1 + y)
+        let (product, sum) = ((1.0 + n / (n + m)) * p * q, (p + q + d) * nd);
+        let y = d * ((product - sum) / (nd * shifted));
+        let ln = y.ln_1p();
+        log_ratio += ln;
+        // (with the rounding of the difference, which ln_1p amplifies near y = -1)
+        let amplified = (y / (1.0 + y)).abs() * (product.abs() + sum.abs()) / (product - sum).abs();
+        log_error += f64::EPSILON * (ln.abs() + amplified);
+        let factor = w * (shifted / (n * (n + m + d)));
+        upper *= factor;
+        (last, ratio, k) = (term.norm(), factor.norm(), n);
         term
     });
     let value = series.value * prefactor;
@@ -1452,7 +1493,12 @@ fn hyp2f1_paired(
     // series.
     let rotated = (series.value.re * prefactor.im).abs() + (series.value.im * prefactor.re).abs();
     let accurate = value.im.abs() >= d.abs() * rotated;
-    (accurate && value.is_finite()).then_some(Cancelled { value, ..series })
+    (accurate && value.is_finite()).then(|| {
+        // (with the rounding of the sum, and its geometric tail in the last ratio)
+        let abs_sum = series.cancellation * series.value.norm();
+        let error = f64::EPSILON * abs_sum + error + geometric_tail(last, ratio);
+        (Cancelled { value, ..series }, prefactor.norm() * error)
+    })
 }
 
 /// The limit of the 1 - z series for an integer balance, if it is closer than `result`.
@@ -1692,7 +1738,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         hyp2f1_transform1_limiting_case(a, b, c, z, false)
     } else {
         // Unlike in xsf, pair the two series for a balance near zero.
-        hyp2f1_transform1_near_balance(a, b, c, z)
+        hyp2f1_transform1_near_balance(a, b, c, 1.0 - z)
             .unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
     };
     // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
@@ -1765,8 +1811,11 @@ fn hyp2f1_transform2_near_integer(
     let w = 1.0 / z;
     let p = b + m;
     let log_ratio = || {
-        let log_ratio = digamma_integral(m + 1.0, d) - crate::lgam1p(-d);
-        log_ratio - digamma_integral(p, d) - digamma_integral(ca, d)
+        let [(ln_m, m_error), (ln_p, p_error), (ln_ca, ca_error)] =
+            [m + 1.0, p, ca].map(|x| digamma_integral(x, d));
+        let minus = crate::lgam1p(-d);
+        let error = m_error + p_error + ca_error + f64::EPSILON * minus.abs();
+        (ln_m - minus - ln_p - ln_ca, error)
     };
     // Gamma(-m-d) / Gamma(b) = (-1)^m (b)_m / (1+d)_m Gamma(-d) / Gamma(p), a balanced ratio.
     let rising = neg_one_pow(m) * (poch(b, m) / poch(1.0 + d, m));
@@ -1774,7 +1823,7 @@ fn hyp2f1_transform2_near_integer(
     let log_z = (-z).ln();
     let log_power = log_z * -d;
     // (1 - (c - b) keeps the exact zero of the second series if c - b is an integer)
-    let tail = hyp2f1_paired((p, 1.0 - cb + m), m, d, w, log_ratio, log_power, prefactor)?;
+    let (tail, _) = hyp2f1_paired((p, 1.0 - cb + m), m, d, w, log_ratio, log_power, prefactor)?;
     // The pairing rebuilds a, 1 - (c - a) and c - b - m from d, with its rounding error.
     let rebuilt = a.abs().min((1.0 - ca).abs()).min((cb - m).abs());
     let tail = Cancelled {
