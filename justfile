@@ -25,6 +25,9 @@ accuracy *args:
 pfq-map *args:
     uv run --project tools tools/accuracy/pfq_map.py {{ args }}
 
+diff-fuzz *args:
+    uv run --project tools tools/accuracy/diff_fuzz.py {{ args }}
+
 [working-directory("tools")]
 lint-py:
     uv run ruff check
