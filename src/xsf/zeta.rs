@@ -382,7 +382,7 @@ fn rs_correction(sigma: f64, a: f64, fp: &[C64; 3 * RS_TERMS - 2]) -> C64 {
                     + prev[l + 2] / (4.0 * m)
                     + (1.0 - 2.0 * sigma) / (2.0 * m) * prev[l + 1]
             };
-            sum += d[l + 2] * g * fp[3 * k - 2 * l];
+            sum += d[l + 2] * g * fp[m];
             g *= c64(0.0, -FRAC_PI_2);
         }
     }
@@ -444,8 +444,8 @@ fn zeta_riemann_siegel(z: C64) -> C64 {
         }
     }
 
-    // phi in double-double, as its f64 rounding error grows like eps t ln(t)
     let (x, y) = dirichlet_sums(z, n_max);
+    // phi in double-double, as its f64 rounding error grows like eps t ln(t)
     let phi = (Dd::new(t).log().mul_pwr2(0.5) - LN_SQRT_2PI_DD - 0.5) * t - FRAC_PI_8;
     let (sin, cos) = (-phi).sin_cos();
     let u = c64(cos, sin);
@@ -500,8 +500,7 @@ fn zeta_right_halfplane(z: C64) -> C64 {
         // |Im z| = MAX_IM: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
         // eps |Im z| ln(n) n^-Re z. Above MAX_IM, Euler-Maclaurin is kept for Re z >= 2.5, where
         // its sum stops early.
-        let t = z.im.abs();
-        if (TAU * RS_MIN_A * RS_MIN_A..=MAX_IM).contains(&t) {
+        if (TAU * RS_MIN_A * RS_MIN_A..=MAX_IM).contains(&z.im.abs()) {
             return zeta_riemann_siegel(z);
         }
         return zeta_euler_maclaurin(z);
