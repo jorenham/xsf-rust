@@ -500,10 +500,10 @@ fn zeta_right_halfplane(z: C64) -> C64 {
         }
         // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to
         // |Im z| = MAX_IM: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
-        // eps |Im z| ln(n) n^-Re z, which can exceed eps for Re z < log2 |Im z|. Above MAX_IM,
-        // Euler-Maclaurin is kept for Re z >= 2.5, where its sum stops early.
+        // eps |Im z| ln(n) n^-Re z. Above MAX_IM, Euler-Maclaurin is kept for Re z >= 2.5, where
+        // its sum stops early.
         let t = z.im.abs();
-        if (TAU * RS_MIN_A * RS_MIN_A..=MAX_IM).contains(&t) && z.re < t.log2() {
+        if (TAU * RS_MIN_A * RS_MIN_A..=MAX_IM).contains(&t) {
             return zeta_riemann_siegel(z);
         }
         return zeta_euler_maclaurin(z);
