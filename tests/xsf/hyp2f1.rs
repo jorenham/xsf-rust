@@ -1365,6 +1365,8 @@ fn test_hyp2f1_c64_large_balanced_disk() {
         ),
     ] {
         let actual = xsf::hyp2f1(a, b, c, z);
+        // (the continuation is skipped for such a power, so the NaN of the cancelling series
+        // is accepted, but not a wrong value)
         let close = (actual - expected).norm() <= 1e-12 * expected.norm();
         assert!(actual.is_nan() || close, "{actual}");
     }

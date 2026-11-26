@@ -405,8 +405,8 @@ impl Cancelled {
     }
 }
 
-/// The estimated relative roundoff of a series above which to try `hyp2f1_continuation`: below
-/// it, the continuation was measured to gain little accuracy at much more cost
+/// The estimated relative roundoff of a series above which to try `hyp2f1_continuation`, as
+/// below it the continuation gains little accuracy at much more cost
 const CONTINUED_ROUNDOFF: f64 = 100.0 * HYP2F1_EPS;
 
 /// The largest estimated relative error of a usable sum
@@ -1447,9 +1447,8 @@ const TAYLOR_STEP_RATIO: f64 = 0.25;
 // the Taylor terms of a solution near exp(kappa h) cancel by up to exp(|kappa h| - Re(kappa h)).
 // (measured for large a, b and c near a + b: 4 sums up to 45% more terms, 16 cancels too much)
 const TAYLOR_STEP_PHASE: f64 = 8.0;
-// Unlike in xsf, the Taylor terms of a continuation, as many as of 20 series: up to about 6e4
-// were measured for a, b <= 400, c near a + b and |1 - z| near 1, as the steps shrink with the
-// distance to 0
+// The Taylor terms of a continuation, as many as of 20 series: about that many were measured for
+// a, b <= 400, c near a + b and |1 - z| near 1, as the steps shrink with the distance to 0
 const TAYLOR_MAX_TERMS: u64 = 20 * HYP2F1_MAXITER;
 
 /// F(p + h) and F'(p + h) from F(p) and F'(p), for each solution in `x`, by the Taylor series
