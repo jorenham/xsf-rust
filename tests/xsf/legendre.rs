@@ -515,6 +515,32 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
     }
 }
 
+// Arb rounds these just off a midpoint of the leading term; the approximation in
+// `assoc_legendre_q_all` may land one least subnormal past it.
+fn assert_near_subnormal(actual: f64, expected: f64) {
+    assert_eq!(actual.is_sign_negative(), expected.is_sign_negative(), "{actual:e}");
+    assert!((actual - expected).abs() <= f64::from_bits(1), "{actual:e} != {expected:e}");
+}
+
+#[test]
+fn test_legendre_q_extreme_derivative_subnormal_midpoint() {
+    // Arb at the exact binary64 inputs: the imaginary magnitude is just below
+    // the leading value of 3.5 times the smallest subnormal.
+    let a = 5991.0_f64;
+    let major = a * 2.0_f64.powi(467);
+    let minor = 7.0 * a.powi(3) * 2.0_f64.powi(325);
+    for (x, y) in [(major, minor), (minor, major)] {
+        for (sx, sy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+            let z = c64(sx * x, sy * y);
+            let (_, derivative) = xsf::legendre_q_all(0, z);
+            let (_, associated_derivative) = xsf::assoc_legendre_q_all(0, 1, z);
+            let magnitude = f64::from_bits(3);
+            assert_near_subnormal(derivative[0].im, sx * sy * magnitude);
+            assert_near_subnormal(associated_derivative[0][1].im, -sy * magnitude);
+        }
+    }
+}
+
 #[test]
 fn test_assoc_legendre_q_all_extreme_order_two() {
     for sx in [-1.0, 1.0] {
@@ -529,12 +555,39 @@ fn test_assoc_legendre_q_all_extreme_order_two() {
             assert_eq!(dq[1][2].im.to_bits(), (sy * 0.0).to_bits());
 
             let (q, dq) = xsf::assoc_legendre_q_all(1, 2, c64(sx * 0.0, sy * 1e160));
-            assert_eq!(q[0][2], c64(0.0, -sy * 2e-160));
-            assert_eq!(dq[0][2], c64(f64::from_bits(0xfd0), 0.0));
-            assert_eq!(q[1][2], c64(-f64::from_bits(0xfd0), 0.0));
-            assert_eq!(dq[1][2], c64(0.0, 0.0));
+            assert_eq!(q[0][2].re.to_bits(), (sx * 0.0).to_bits());
+            assert_eq!(q[0][2].im, -sy * 2e-160);
+            assert_eq!(dq[0][2].re.to_bits(), 0xfd0);
+            assert_eq!(dq[0][2].im.to_bits(), 0);
+            assert_eq!(q[1][2].re, -f64::from_bits(0xfd0));
+            assert_eq!(q[1][2].im.to_bits(), 0);
+            assert_eq!(dq[1][2].re.to_bits(), 0);
+            assert_eq!(dq[1][2].im.to_bits(), (-sy * 0.0).to_bits());
         }
     }
+
+    // The omitted terms resolve the half-minsubnormal derivative in opposite directions.
+    let x = 2.0_f64.powi(538);
+    let (_, dq) = xsf::assoc_legendre_q_all(0, 2, c64(x, 0.5));
+    assert_eq!(dq[0][2].re.to_bits(), (-f64::from_bits(1)).to_bits());
+    let (q, dq) = xsf::assoc_legendre_q_all(0, 2, c64(x, 1.0));
+    assert_near_subnormal(dq[0][2].re, -0.0);
+    assert_eq!(q[0][2].im.to_bits(), (-f64::from_bits(1)).to_bits());
+
+    // The real Q_1^2 midpoint changes direction at 1/sqrt(3).
+    let (q, _) = xsf::assoc_legendre_q_all(1, 2, c64(x, 0.577_350_269_189_625_7));
+    assert_eq!(q[1][2].re.to_bits(), 1);
+    let (q, _) = xsf::assoc_legendre_q_all(1, 2, c64(x, 0.577_350_269_189_625_8));
+    assert_near_subnormal(q[1][2].re, 0.0);
+
+    // The leading imaginary derivative at this input is 3.5 minsubnormals.
+    let a = 5991.0_f64;
+    let (_, dq) = xsf::assoc_legendre_q_all(
+        0,
+        2,
+        c64(a * 2.0_f64.powi(467), 7.0 * a.powi(3) * 2.0_f64.powi(324)),
+    );
+    assert_near_subnormal(dq[0][2].im, f64::from_bits(3));
 }
 
 #[test]
@@ -548,10 +601,18 @@ fn test_assoc_legendre_q_all_extreme_degree_one_order_one() {
             assert_eq!(dq[1][1].im.to_bits(), (-sx * sy * 0.0).to_bits());
 
             let (q, dq) = xsf::assoc_legendre_q_all(1, 1, c64(sx * 0.0, sy * 1e160));
-            assert_eq!(q[1][1], c64(sx * f64::from_bits(0x545), 0.0));
-            assert_eq!(dq[1][1], c64(0.0, 0.0));
+            assert_eq!(q[1][1].re, sx * f64::from_bits(0x545));
+            assert_eq!(q[1][1].im.to_bits(), (sy * 0.0).to_bits());
+            assert_eq!(dq[1][1].re.to_bits(), 0);
+            assert_eq!(dq[1][1].im.to_bits(), (sx * sy * 0.0).to_bits());
         }
     }
+
+    // The axis approximation is a 3.5-minsubnormal imaginary projection.
+    let a = 5991.0_f64;
+    let z = c64(a * 2.0_f64.powi(467), 21.0 * a.powi(3) * 2.0_f64.powi(324));
+    let (q, _) = xsf::assoc_legendre_q_all(1, 1, z);
+    assert_near_subnormal(q[1][1].im, f64::from_bits(3));
 }
 
 #[test]
@@ -588,10 +649,14 @@ fn test_assoc_legendre_q_all_extreme_complex_orders() {
     assert_eq!(q[1][200].re, -8.903_420_595_702_894e-198);
     assert_eq!(dq[0][180].re, 1.370_823_570_613_042_2e-244);
 
-    // Arb. The real part is 7e-32 of the modulus here, near the double-double resolution.
+    // Arb. Here `Re z^-4` is 7e-32 of its modulus, near the double-double resolution.
     let z = c64(4_217_293_152_016_490.0 * x, 1_746_860_020_068_409.0 * x);
-    let (_, dq) = xsf::assoc_legendre_q_all(2, 200, z);
-    xsref::np_assert_allclose!([dq[2][200].re], [1.686_547_975_285_891e-292], rtol = 0.15);
+    let (q, dq) = xsf::assoc_legendre_q_all(3, 333, z);
+    xsref::np_assert_allclose!(
+        [dq[2][200].re, dq[2][333].re, q[3][200].re],
+        [1.686_547_975_285_891e-292, -6.090_345_402_686_098e30, -1.630_329_709_443_028e-291],
+        rtol = 1e-15
+    );
 
     // `z^2` overflows here
     let (q, dq) = xsf::assoc_legendre_q_all(1, 100, c64(-6e199, 8e199));

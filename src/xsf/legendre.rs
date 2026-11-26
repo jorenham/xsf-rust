@@ -1177,7 +1177,7 @@ fn lqmn_extreme<T>(
     let cmul = |a: [Part; 2], b: [Part; 2]| {
         [add(mul(a[0], b[0]), neg(mul(a[1], b[1]))), add(mul(a[0], b[1]), mul(a[1], b[0]))]
     };
-    let scale = |a: [Part; 2], f: DoubleDouble| a.map(|(m, e)| norm((m * f, e)));
+    let real = |m: DoubleDouble| norm((m, 0));
 
     // The series of DLMF 14.3.7 times that of (1 - 1/z^2)^(m/2), relative to the leading term
     let coefficients = |n: f64, m: f64| -> [DoubleDouble; TERMS] {
@@ -1191,15 +1191,15 @@ fn lqmn_extreme<T>(
         core::array::from_fn(|j| (0..=j).fold(DoubleDouble::ZERO, |s, i| s + f[j - i] * b[i]))
     };
 
-    let (x, y) = (norm((DoubleDouble::new(z.re), 0)), norm((DoubleDouble::new(z.im), 0)));
+    let (x, y) = (real(DoubleDouble::new(z.re)), real(DoubleDouble::new(z.im)));
     // Powers of `1/z = conj(z) / |z|^2` keep cancelling parts exact in the numerator.
     let conj = [x, neg(y)];
     let abs2 = add(mul(x, x), mul(y, y));
     let (conj2, abs4) = (cmul(conj, conj), mul(abs2, abs2));
     // `sum_j k_j num / (den z^2j)`
-    let series = |mut num: [Part; 2], mut den: Part, k: [DoubleDouble; TERMS]| {
+    let series = |mut num: [Part; 2], mut den: Part, k: [Part; TERMS]| {
         let [lead, rest @ ..] = k.map(|k| {
-            let term = scale(num, k).map(|p| div(p, den));
+            let term = num.map(|p| div(mul(p, k), den));
             (num, den) = (cmul(num, conj2), mul(den, abs4));
             term
         });
@@ -1217,11 +1217,22 @@ fn lqmn_extreme<T>(
         units.round_subnormal_units()
     };
     let scaled = |a: [Part; 2]| c64(scaled(a[0]), scaled(a[1]));
-    // `c_{n,0} conj(z)^(n+1)` over `|z|^(2n+2)`
-    let (mut seed, mut den) = (conj, abs2);
+    // `conj(z)^(n+1)` over `|z|^(2n+2)`, and `c_{n,0}`
+    let (mut seed, mut den, mut c0) = (conj, abs2, DoubleDouble::ONE);
     for n in 0..int(qm.extent(1)) {
         let next = f64::from(n) + 1.0;
-        let mut value = seed;
+        // Multiply by `conj(z)` before the rounded order factors, as a cancelling part would
+        // amplify their errors.
+        let mut slope = cmul(seed, conj);
+        if n == 2 {
+            // Factored, the part of Re conj(z)^4 that can vanish has no rounding before its sum.
+            let (a, b) = (z.re.abs().max(z.im.abs()), z.re.abs().min(z.im.abs()));
+            let [a, b] = [a, b].map(|v| real(DoubleDouble::new(v)));
+            let two_b = (b.0, b.1 + 1);
+            let quadratic = |two_b: Part| add(mul(a, add(a, two_b)), neg(mul(b, b)));
+            slope[0] = mul(quadratic(neg(two_b)), quadratic(two_b));
+        }
+        let mut c = real(c0);
         for m in 0..int(qm.extent(0)) {
             let k = coefficients(f64::from(n), f64::from(m));
             // d/dz z^-p = -p z^-(p+1), for p = n + 1 + 2j
@@ -1231,12 +1242,13 @@ fn lqmn_extreme<T>(
                 power += 2.0;
                 dk
             });
-            let derivative = series(cmul(value, conj), mul(den, abs2), dk);
-            (qm[(m, n)], qd[(m, n)]) = output(scaled(series(value, den, k)), scaled(derivative));
-            value = scale(value, DoubleDouble::new(order_sign * (next + f64::from(m))));
+            let ck = |k: [DoubleDouble; TERMS]| k.map(|k| mul(c, real(k)));
+            let derivative = series(slope, mul(den, abs2), ck(dk));
+            (qm[(m, n)], qd[(m, n)]) = output(scaled(series(seed, den, ck(k))), scaled(derivative));
+            c = mul(c, real(DoubleDouble::new(order_sign * (next + f64::from(m)))));
         }
-        seed = scale(cmul(seed, conj), DoubleDouble::new(next) / (2.0 * next + 1.0));
-        den = mul(den, abs2);
+        c0 = c0 * next / (2.0 * next + 1.0);
+        (seed, den) = (slope, mul(den, abs2));
     }
 }
 
@@ -1370,7 +1382,17 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
 
     // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
     if lq_is_extreme(z) {
-        lqmn_extreme_c64(z, cqm, cqd);
+        lqmn_extreme_c64(z, Mdspan::new(&mut *cqm.data, cqm.extents), cqd);
+        // On the imaginary axis, these zero parts keep the signs of their limits from the side of
+        // `Re z`, as in `Q_0^2(z) = 2z / (z^2 - 1)`.
+        if z.re == 0.0 {
+            if m >= 2 {
+                cqm[(2, 0)].re = z.re;
+            }
+            if m >= 1 && n >= 1 {
+                cqm[(1, 1)].im = 0.0_f64.copysign(z.im);
+            }
+        }
         return;
     }
 
