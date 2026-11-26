@@ -2789,3 +2789,134 @@ fn test_hyp2f1_c64_negative_lower_parameter_legacy_accurate() {
         atol = 0.0
     );
 }
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_c_down() {
+    // Arb at the exact binary64 inputs. The connection cancels completely, or its gamma ratios
+    // overflow.
+    let actual = xsf::hyp2f1(0.125, 250.0, -2.75, c64(0.8125, f64::from_bits(1)));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-4.010_669_060_041_866e189, -2.679_470_116_244_821e-131],
+        rtol = 5e-14,
+        atol = 0.0
+    );
+    let actual = xsf::hyp2f1(10.0, 400.0, -600.5, c64(0.351_562_5, 0.0));
+    np_assert_allclose!([actual.re], [-1.718_794_060_874_630_4e231], rtol = 1e-14);
+}
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_connection() {
+    // Arb at the exact binary64 inputs. The power z^(1-c) amplifies rounding for large -c.
+    for (a, b, c, z, expected, rtol) in [
+        (
+            48.182_200_865_203_15,
+            36.346_344_282_079_976,
+            -462.5,
+            c64(0.367_892_340_752_568_55, 0.0),
+            c64(-5.961_484_280_097_055_4e32, 0.0),
+            1e-13,
+        ),
+        (
+            0.218_038_636_317_081_54,
+            17.265_619_719_555_445,
+            -499.003_703_751_683_4,
+            c64(0.212_418_840_135_297_27, 0.737_066_445_331_071_8),
+            c64(0.998_315_176_639_864_1, -0.005_506_388_833_780_157),
+            1e-15,
+        ),
+        (
+            37.017_066_355_571_25,
+            18.820_456_630_672_53,
+            -455.5,
+            c64(0.066_319_771_490_485_67, 0.696_745_444_703_667_1),
+            c64(0.426_933_370_197_611_1, -0.749_970_908_904_107_3),
+            1e-15,
+        ),
+        (
+            35.814_904_418_297_68,
+            5.870_706_585_831_542,
+            -13_409.206_097_240_702,
+            c64(0.321_249_329_126_809, 0.030_792_978_506_227_82),
+            c64(0.994_977_840_225_617, -0.000_479_923_719_001_871_2),
+            1e-15,
+        ),
+        // The gamma ratios overflow or underflow.
+        (1e-310, 1.0, -600.5, c64(0.82, 0.0), c64(-4.071_648_340_424_102_6e86, 0.0), 2e-13),
+        (10.0, 400.0, -3000.5, c64(0.351_562_5, 0.0), c64(0.632_731_795_534_758_4, 0.0), 1e-15),
+        (
+            10.0,
+            250.0,
+            -3200.25,
+            c64(0.25, 0.125),
+            c64(0.820_048_634_846_336_2, -0.078_710_402_110_502_63),
+            1e-15,
+        ),
+        (
+            1_625.795_720_232_304_8,
+            1_464.348_873_264_744_5,
+            -1_804.840_375_426_593_3,
+            c64(0.043_341_339_953_302_65, 0.000_380_527_842_563_327_6),
+            c64(2.103_216_361_252_056_2e-24, -1.030_477_013_920_713_7e-24),
+            2e-13,
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = rtol);
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_componentwise() {
+    // Arb at the exact binary64 inputs, componentwise.
+    for im in [1.0, -1.0] {
+        let z = c64(0.078_125, im * 2.0_f64.powi(-540));
+        let actual = xsf::hyp2f1(2.0_f64.powi(-46), 16.0, -300.25, z);
+        np_assert_allclose!(
+            [actual.re, actual.im],
+            [0.999_999_999_999_999_9, im * -2.094_772_308_230_493_7e-178],
+            rtol = 1e-14,
+            atol = 0.0
+        );
+    }
+    let actual = xsf::hyp2f1(4.0, 1.125, -300.5, c64(0.078_125, 0.0));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [0.998_831_693_479_051_2, 0.0],
+        rtol = f64::EPSILON,
+        atol = 0.0
+    );
+}
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_slow_tail() {
+    // Arb at the exact binary64 inputs, componentwise. The 1 - z series of the connection
+    // converges slowly.
+    let (a, b, c) = (73.680_102_833_806_94, 117.940_314_118_962_05, -40.141_963_360_724_26);
+    let (x, y) = (0.008_982_543_883_583_44, 0.006_264_459_310_953_478);
+    let (re, im) = (0.048_352_207_278_304_735, 0.142_312_799_167_885_72);
+    for (a, b, c, z, expected, rtol) in [
+        (
+            73.741_988_378_154_32,
+            77.312_817_555_681_2,
+            -27.195_599_170_424_025,
+            c64(0.010_675_248_312_002_528, 0.0),
+            c64(0.160_856_938_961_155_2, 0.0),
+            [1e-14, 0.0],
+        ),
+        (
+            158.287_121_924_868_96,
+            144.693_188_697_127_54,
+            -39.322_275_314_486_54,
+            c64(0.004_380_685_242_286_605, 0.0),
+            c64(0.087_574_706_153_352_65, 0.0),
+            [5e-14, 0.0],
+        ),
+        (a, b, c, c64(x, -y), c64(re, im), [2e-13, 1e-14]),
+        (a, b, c, c64(x, y), c64(re, -im), [2e-13, 1e-14]),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re], [expected.re], rtol = rtol[0], atol = 0.0);
+        np_assert_allclose!([actual.im], [expected.im], rtol = rtol[1], atol = 0.0);
+    }
+}

@@ -171,7 +171,7 @@ type Coefs = (f64, f64, f64, f64);
 pub(crate) struct Scaled {
     pub(crate) m: f64,
     pub(crate) e: i32,
-    l: Dd,
+    pub(crate) l: Dd,
     pub(crate) err: f64,
 }
 

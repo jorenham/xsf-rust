@@ -48,7 +48,7 @@ mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
-use crate::ext::{hyp2f1_poly_dd, ln_dd};
+use crate::ext::{Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
@@ -284,6 +284,24 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
     };
     let result = series_eval(g);
     (result, cancellation(abs_sum, result))
+}
+
+/// `series_eval_cancellation`, and the estimated relative size of the omitted tail, a geometric
+/// series in the ratio of the last two terms (infinite unless that ratio is below one)
+fn series_eval_tail(mut g: impl FnMut() -> C64) -> (C64, f64, f64) {
+    let (mut previous, mut last) = (0.0, 0.0);
+    let (sum, cancellation) = series_eval_cancellation(|| {
+        let term = g();
+        (previous, last) = (last, term.norm());
+        term
+    });
+    let ratio = last / previous;
+    let tail = if ratio < 1.0 {
+        last * ratio / (1.0 - ratio)
+    } else {
+        f64::INFINITY
+    };
+    (sum, cancellation, tail / sum.norm())
 }
 
 /// `series_eval_cancellation`, but converged only after three successive small terms
@@ -810,6 +828,45 @@ fn certified_c_down(a: f64, b: f64, c: f64, z: C64, current: C64) -> Option<C64>
     ))
 }
 
+// DLMF 15.10.17 solved for w1 = F(a,b;c;z), with w2 = z^(1-c) (1-z)^(c-a-b) F(1-a,1-b;2-c;z)
+// (DLMF 15.10.12, 15.8.1), w3 = F(a,b;a+b+1-c;1-z), and Gamma(c-1) by reflection (DLMF 5.5.3),
+// and an estimated bound of its absolute error. For a, b > 0 > c, the gamma ratios are positive
+// except for the sine.
+fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
+    let w = 1.0 - z;
+    // For |1 - z| > 1, this is NaN unless the terms first decrease below the tolerance.
+    let (w3, w3_cancellation, w3_tail) =
+        series_eval_tail(hypergeometric_series_generator(a, b, a + b + 1.0 - c, w));
+    if !(w3.is_finite() && w3_tail.is_finite()) {
+        return None;
+    }
+    let (f2, f2_cancellation, f2_tail) =
+        series_eval_tail(hypergeometric_series_generator(1.0 - a, 1.0 - b, 2.0 - c, z));
+    // The gamma ratios can over- or underflow where the terms do not, so keep their logs.
+    let one_c = -Dd::new(c) + 1.0;
+    let (a1, b1) = (one_c + a, one_c + b);
+    let one = || Scaled::new(1.0, 0, 0.0);
+    let g1 = mul_gamma_ratio([a1, b1], [a1 + b, one_c], one)?;
+    // (with Gamma(a) = Gamma(a + 1) / a, as `ln_gamma` fails at a subnormal a)
+    let (a_1, b_1) = (Dd::new(a) + 1.0, Dd::new(b) + 1.0);
+    let g2 = mul_gamma_ratio([a1, b1], [a_1, b_1, one_c, one_c + 1.0], one)?;
+    let sin = sinpi(c);
+    let ln_g2 = g2.l.hi + a.ln() + b.ln() + (PI / sin.abs()).ln();
+    let g = g1.l.exp().hi;
+    let t1 = if g.is_normal() {
+        g * w3
+    } else {
+        (w3.ln() + g1.l.hi).exp()
+    };
+    let (ln_z, ln_w) = ((1.0 - c) * z.ln(), (c - a - b) * w.ln());
+    let t2 = (ln_z + ln_w + ln_g2).exp() * sin.signum() * f2;
+    // (with the tail of each series, and the rounding of the exponent of t2)
+    let exponent_cancellation = ln_z.norm() + ln_w.norm() + ln_g2.abs();
+    let t1_error = f64::EPSILON * w3_cancellation + w3_tail + g1.err;
+    let t2_error = f64::EPSILON * (f2_cancellation + exponent_cancellation) + f2_tail + g2.err;
+    Some((t1 + t2, t1.norm() * t1_error + t2.norm() * t2_error))
+}
+
 fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     let (a, b) = if 0.0 < b && b < a && a < c {
         (b, a)
@@ -1291,8 +1348,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         if c - a < a && c - b < b {
             let prefactor = (1.0 - z).powf(c - a - b);
             let mut series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
-            // Unlike in xsf, track cancellation and try a certified recurrence down in c.
-            if a > 0.0 && b > 0.0 && c < -1.0 && -c < HYP2F1_MAXITER as f64 {
+            // Unlike in xsf, track cancellation and try a certified recurrence down in c, or else
+            // `hyp2f1_negative_c`.
+            if a > 0.0 && b > 0.0 && c < 0.0 {
                 let (mut mass, mut terms) = (0.0, 0.0);
                 let sum = series_eval(|| {
                     let term = series_generator();
@@ -1302,9 +1360,23 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 });
                 let value = prefactor * sum;
                 if !(8.0 * CERT_U * terms * mass <= crate::ext::HYP2F1_RECUR_TOL * sum.l1_norm()) {
-                    if let Some(recovered) = certified_c_down(a, b, c, z, value) {
-                        return recovered;
-                    }
+                    let current = certified_c_down(a, b, c, z, value).unwrap_or(value);
+                    // Take each component of the connection, if it keeps some digits, that differs
+                    // from `current` by more than twice the estimated error, so that `current` is
+                    // estimated to be less accurate there.
+                    return match hyp2f1_negative_c(a, b, c, z) {
+                        Some((alt, error)) if error < alt.norm() => {
+                            let pick = |alt: f64, current: f64| {
+                                if (alt - current).abs() <= 2.0 * error {
+                                    current
+                                } else {
+                                    alt
+                                }
+                            };
+                            c64(pick(alt.re, current.re), pick(alt.im, current.im))
+                        },
+                        _ => current,
+                    };
                 }
                 return value;
             }
