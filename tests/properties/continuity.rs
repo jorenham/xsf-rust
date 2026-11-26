@@ -119,7 +119,7 @@ fn bessel_j_extremum() {
 
 // singular at the poles of c, and at x = 1 for c <= a + b; known: polynomials at x = 1 (#2198,
 // fixed by #2214), next to the poles of c (#2241), a tiny c near x = 1 (#2242) and at x << 0
-// (#2243), a tiny a or b at x << 0, and c = a or b at x < -1
+// (#2243), a tiny a or b at x << 0 (#2253), and c = a or b at x < -1 (#2254)
 continuous!(
     hyp2f1(a in moderate(), b in moderate(), c in moderate(), x)
         unless near_pole(c)
@@ -138,12 +138,12 @@ continuous!(
         => xsf::hyp2f1(a, b, c, c64(re, im))
 );
 // known: finite at the poles b = 0, -1, ... (#2239), unlike the limit for integers b <= a <= 0,
-// and wrong for x << 0 next to them (#2240); polynomials a = 0, -1, ... where e^x underflows
+// and wrong for x << 0 next to them (#2240); polynomials a = 0, -1, ... at x << 0 (#2251)
 continuous!(
     hyp1f1(a in moderate(), b in moderate(), x)
         unless near_pole(b) || (is_pole(a) && x.exp() == 0.0)
 );
-// known: NaN for an integer a at a tiny x
+// known: NaN for an integer a at a tiny x (#2252)
 continuous!(hypu(a in moderate(), b in moderate(), x) unless a.fract() == 0.0 && x < f64::EPSILON);
 
 // known: AMOS loses all digits beyond 2^30
