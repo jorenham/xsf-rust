@@ -21,14 +21,17 @@ pub(super) struct Estimate {
     abs_roundoff: f64,
 }
 
-impl Estimate {
-    fn exact(value: C64) -> Self {
+// A value whose only error is its final rounding to f64
+impl From<C64> for Estimate {
+    fn from(value: C64) -> Self {
         Self {
             value,
             abs_roundoff: 0.0,
         }
     }
+}
 
+impl Estimate {
     // Whether the estimate is finite with an estimated error below its magnitude.
     pub(super) fn resolved(&self) -> bool {
         self.value.is_finite() && self.abs_roundoff < self.value.re.abs().max(self.value.im.abs())
@@ -53,7 +56,7 @@ pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> Estimate {
     if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
         evaluate(a, b, c, z, degree as u64)
     } else {
-        Estimate::exact(C64::NAN)
+        Estimate::from(C64::NAN)
     }
 }
 
@@ -64,7 +67,7 @@ fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> Estimate {
     if other == 1.0 && c == 2.0 && z.is_finite() {
         let mean = uniform_beta_binomial(n + 1, z);
         if mean.is_finite() {
-            return Estimate::exact(mean);
+            return Estimate::from(mean);
         }
     }
     // Unlike in xsf, use the double-double polynomial on the real axis (at z = 1 the
@@ -72,11 +75,11 @@ fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> Estimate {
     // series if it lies within an open subnormal rounding of it.
     if z.is_real() {
         match hyp2f1_poly_dd(a, b, c, z.re).and_then(dd_candidate) {
-            Some((y, None)) => return Estimate::exact(c64(y, 0.0)),
+            Some((y, None)) => return Estimate::from(c64(y, 0.0)),
             Some((y, Some([lo, hi]))) => {
                 let value = series(a, b, c, z, n, other).value;
                 let inside = (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0;
-                return Estimate::exact(if inside { value } else { c64(y, 0.0) });
+                return Estimate::from(if inside { value } else { c64(y, 0.0) });
             },
             None => {},
         }
@@ -97,7 +100,7 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
         // Headroom for the squared ordinate in the centered recurrence.
         && z.re.abs().max(z.im.abs()) <= pow2(256)
     {
-        Estimate::exact(population(a, b, c, n, z))
+        Estimate::from(population(a, b, c, n, z))
     } else {
         estimated_sum(a, b, c, n, z)
     };
@@ -116,7 +119,7 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
             };
             let candidate = c64((linear(z.re) + 1.0).hi, 0.0 + linear(z.im).hi);
             if candidate.is_finite() {
-                return Estimate::exact(candidate);
+                return Estimate::from(candidate);
             }
         }
     }
