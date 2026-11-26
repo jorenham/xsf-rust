@@ -983,16 +983,20 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
         series_eval(weighted(g, &mut series_abs))
     };
     let prefactor = power::neg_z_pow(z, -a);
-    // (each part, its sum of absolute terms, and its scale)
-    let parts = [
+    sum_scaled_parts([
         (finite, finite_factor.mantissa.norm() * finite_abs, finite_factor.exponent),
         (
             prefactor.mantissa * series,
             prefactor.mantissa.norm() * series_abs,
             prefactor.exponent + factor.exponent,
         ),
-    ];
-    // (summed at the largest scale of a nonzero part)
+    ])
+}
+
+/// The sum of the parts, each a value and its sum of absolute terms scaled by 2^exponent, at the
+/// largest exponent of a nonzero part, and its estimated cancellation as in
+/// `series_eval_cancellation`
+fn sum_scaled_parts(parts: [(C64, f64, f64); 2]) -> (ScaledC64, f64) {
     let exponent = parts
         .iter()
         .filter(|(part, ..)| *part != C64::ZERO)
