@@ -556,6 +556,11 @@ fn test_hyp2f1_c64_inverse_integer_large_a() {
     np_assert_allclose!([actual.re, actual.im], expected, rtol = 2e-14);
     // Both 1/z forms lose all digits of -1.4e-238 to cancellation, and return NaN.
     assert!(xsf::hyp2f1(316.5, 235.5, 449.5, c64(-15.0, 4.0)).is_nan());
+    // The finite part underflows alone, and both forms lose all digits of 4.2e-322 and 9.4e-314.
+    let z = c64(-64.094_980_736_878_5, 14.159_687_357_613_613);
+    assert!(xsf::hyp2f1(169.0, 156.0, 21.39, z).is_nan());
+    let z = c64(-27.318_795_276_621_16, -46.785_907_089_397_25);
+    assert!(xsf::hyp2f1(174.262, 234.262, -27.66, z).is_nan());
 }
 
 #[test]

@@ -48,7 +48,7 @@ mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI, TAU};
 
-use crate::ext::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
+use crate::ext::{HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
@@ -584,7 +584,7 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     c: f64,
     m: f64,
     n: f64,
-    factor: f64,
+    scaled_factor: ScaledC64,
     z: C64,
 ) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m, and c - a approaches
@@ -594,8 +594,9 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     let mut d3 = digamma(a);
     let mut d4 = digamma(n);
     let log_neg_z = (-z).ln();
-    // Unlike in xsf, start from the caller's factor, which includes the gammas of the prefactor.
-    let mut factor = c64(factor, 0.0);
+    // Unlike in xsf, start from the caller's factor, which includes the gammas of the prefactor,
+    // relative to its scale.
+    let mut factor = scaled_factor.mantissa;
     let mut k: u64 = 0;
     move || {
         let k_ = k as f64;
@@ -643,11 +644,12 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
              * (-1)**(a - b + k) * gamma(c - b) * (-1)**(k + a - c + 1)(k + a - c)!
              * = (-1)**(c - b - 1)*Gamma(k + a - c + 1)
              */
-            // Unlike in xsf, times the gammas of the prefactor.
+            // Unlike in xsf, times the gammas of the prefactor, relative to the scale.
+            let gammas = gamma_ratio([c.into()], [a.into(), (c - b).into()]);
             let f = (-1.0_f64).powf(m + n)
                 * crate::binom(c - 1.0, b - 1.0)
                 * poch(c - a + 1.0, m - 1.0)
-                * gamma_ratio([c.into()], [a.into(), (c - b).into()]);
+                * ldexp_sat(gammas.mantissa.re, gammas.exponent - scaled_factor.exponent);
             // Unlike in xsf, use an integer power for the rounded index to retain small phases.
             factor = if n != c - a {
                 (1.0 / z).powi(k as i32) * f
@@ -903,34 +905,41 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
     }
 }
 
-/// The product of the gamma functions at `num` divided by that at `den`, or 0 at a pole and NaN
-/// where it underflows or overflows
-fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> f64 {
+/// The product of the gamma functions at `num` divided by that at `den`, or 0 at a pole
+fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> ScaledC64 {
     // (directly where that tends to be more accurate, as in `four_gammas`)
     let (num_f64, den_f64) = (num.map(f64::from), den.map(f64::from));
     if in_direct_gamma_range(num_f64.into_iter().chain(den_f64)) {
         let direct = num_f64.map(gamma).iter().product::<f64>()
             * den_f64.map(rgamma).iter().product::<f64>();
-        if direct.is_finite() && direct != 0.0 {
-            return direct;
+        if direct.is_normal() {
+            let mantissa = c64(direct, 0.0);
+            return ScaledC64 {
+                mantissa,
+                ..ScaledC64::ZERO
+            }
+            .normalized();
         }
     }
-    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(0.0, |y| {
-        Some(y.to_f64().0)
-            .filter(|y| y.is_normal())
-            .unwrap_or(f64::NAN)
+    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(ScaledC64::ZERO, |y| {
+        let Scaled { m, e, .. } = fold_exp(y);
+        ScaledC64 {
+            mantissa: c64(m, 0.0),
+            exponent: e.into(),
+        }
     })
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
-fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> Cancelled {
+fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (ScaledC64, f64) {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
     // Unlike in xsf, take each ratio of gammas, including those of the first term of the series,
-    // as one (or NaN if it underflows or overflows), as its factors can overflow or underflow
-    // alone. The second is free of poles by
-    // (1 - x)_m / Gamma(x) = (-1)^m / Gamma(x - m) for x = c - b, rounded as in the Euler
-    // transform, where it is the original a.
+    // as one, as its factors can overflow or underflow alone. The second uses
+    // (1 - x)_m / Gamma(x) = (-1)^m / Gamma(x - m) for x = c - b, so it is 0 at a pole of
+    // Gamma(x - m), not 0 times infinity.
+    //
+    // (x is c - b rounded as in xsf, which in the Euler transform is exactly the original a.)
     let (a_dd, b_dd, c_dd, cb) = (Dd::new(a), Dd::new(b), Dd::new(c), Dd::new(c - b));
     let mut series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
     let mut finite_abs = 0.0;
@@ -939,13 +948,12 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> Ca
         finite_abs += term.norm();
         term
     };
-    // Unlike in xsf, keep a separate scale for each power, as it can underflow or overflow alone.
-    let finite_power = power::neg_z_pow(z, -b);
-    let finite_factor = finite_power.mantissa * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
-    let finite = finite_factor * series_eval_finite(series_generator1, m as u64);
-    let prefactor = power::neg_z_pow(z, -a);
-    let factor =
-        neg_one_pow(m) * gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, cb - m, (m + 1.0).into()]);
+    // Unlike in xsf, keep a separate scale for each power and ratio, and for each part, as they
+    // can underflow or overflow alone.
+    let finite_factor = power::neg_z_pow(z, -b) * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
+    let finite = finite_factor.mantissa * series_eval_finite(series_generator1, m as u64);
+    let mut factor = gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, cb - m, (m + 1.0).into()]);
+    factor.mantissa *= neg_one_pow(m);
     let n = c - a;
     let n_int = n.round();
     let series = if (n - n_int).abs() < HYP2F1_EPS {
@@ -955,20 +963,37 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> Ca
             a, b, c, m, n, factor, z,
         ))
     } else {
+        let factor = factor.mantissa.re;
         series_eval_cancellation(hyp2f1_transform2_limit_series_generator(a, b, c, m, factor, z))
     };
-    let abs_sum = ldexp_sat(finite_factor.norm() * finite_abs, finite_power.exponent)
-        + ldexp_sat(
+    let prefactor = power::neg_z_pow(z, -a);
+    // (each part, its sum of absolute terms, and its scale)
+    let parts = [
+        (finite, finite_factor.mantissa.norm() * finite_abs, finite_factor.exponent),
+        (
+            prefactor.mantissa * series.value,
             prefactor.mantissa.norm() * series.value.norm() * series.cancellation,
-            prefactor.exponent,
-        );
-    let scaled = |mantissa, exponent| ScaledC64 { mantissa, exponent }.to_c64();
-    let result = scaled(finite, finite_power.exponent)
-        + scaled(prefactor.mantissa * series.value, prefactor.exponent);
-    Cancelled {
-        value: result,
-        cancellation: cancellation(abs_sum, result),
-    }
+            prefactor.exponent + factor.exponent,
+        ),
+    ];
+    // (summed at the largest scale of a nonzero part)
+    let exponent = parts
+        .iter()
+        .filter(|(part, ..)| *part != C64::ZERO)
+        .map(|&(.., exponent)| exponent)
+        .reduce(f64::max)
+        .unwrap_or(0.0);
+    let [(first, first_abs), (second, second_abs)] =
+        parts.map(|(part, part_abs, part_exponent)| {
+            let shift = part_exponent - exponent;
+            let part = ScaledC64 {
+                mantissa: part,
+                exponent: shift,
+            };
+            (part.to_c64(), ldexp_sat(part_abs, shift))
+        });
+    let mantissa = first + second;
+    (ScaledC64 { mantissa, exponent }, cancellation(first_abs + second_abs, mantissa))
 }
 
 #[cold]
@@ -1694,26 +1719,33 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             cancellation: f64::INFINITY,
         };
         if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
-            let limit = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
+            let (result, lost) = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
             // Unlike in xsf, multiply by the power with a separate scale, as it can underflow or
-            // overflow alone.
-            let mut power = power::one_minus_z_pow(z, c - a - b);
-            power.mantissa *= limit.value;
-            let value = power.to_c64();
-            if value.norm().is_finite() && value != C64::ZERO {
-                best = Cancelled { value, ..limit };
+            // overflow alone. (The result before it must be in range, as elsewhere the Euler form
+            // tends to be less accurate.)
+            let value = (power::one_minus_z_pow(z, c - a - b) * result).to_c64();
+            let in_range = |x: C64| x.norm().is_finite() && x != C64::ZERO;
+            if in_range(result.to_c64()) && in_range(value) {
+                best = Cancelled {
+                    value,
+                    cancellation: lost,
+                };
             }
         }
         // Unlike in xsf, if the Euler result is not used or loses more than HYP2F1_EPS to
-        // cancellation, use the one that cancels less, or NaN if that loses most digits (unless
-        // it is zero, as if it underflows).
+        // cancellation, use the one that cancels less, or NaN if that overflows or loses most
+        // digits (unless it is zero, as if it underflows).
         if best.is_lossy() {
-            let direct = hyp2f1_transform2_limiting_case(a, b, c, m, z);
-            if direct.cancellation <= best.cancellation {
-                best = direct;
+            let (result, lost) = hyp2f1_transform2_limiting_case(a, b, c, m, z);
+            if lost <= best.cancellation {
+                best = Cancelled {
+                    value: result.to_c64(),
+                    cancellation: lost,
+                };
             }
         }
-        let result = if best.value != C64::ZERO && loses_most_digits(best.cancellation) {
+        let lossy = best.value != C64::ZERO && loses_most_digits(best.cancellation);
+        let result = if !best.value.norm().is_finite() || lossy {
             C64::NAN
         } else {
             best.value
