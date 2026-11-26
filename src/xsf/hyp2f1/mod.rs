@@ -1237,11 +1237,16 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
         return (1.0 - z).powf(-a) * series_eval(series_generator);
     }
     // Unlike in xsf, evaluate the Pfaff prefactor without rounding |1-z| first.
-    let log_modulus = 0.5 * z.re.mul_add(z.re - 2.0, z.im * z.im).ln_1p();
-    let (sin, cos) = (a * z.im.atan2(1.0 - z.re)).sin_cos();
-    let power = c64(cos, sin) * (-a * log_modulus).exp();
+    let power = pfaff_power(a, z);
     // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon.
     power * tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER)
+}
+
+/// (1 - z)^(-a), from ln |1 - z| without rounding |1 - z| first
+fn pfaff_power(a: f64, z: C64) -> C64 {
+    let log_modulus = 0.5 * z.re.mul_add(z.re - 2.0, z.im * z.im).ln_1p();
+    let (sin, cos) = (a * z.im.atan2(1.0 - z.re)).sin_cos();
+    c64(cos, sin) * (-a * log_modulus).exp()
 }
 
 // Unlike in xsf, use the complementary incomplete beta integral (DLMF 8.17.4, 8.17.7)
@@ -1498,19 +1503,22 @@ fn hyp2f1_continuation(
     if !(a > 0.0 && b > 0.0 && c > 0.0 && r <= 0.5 && end < 1.0 && (a * b).is_normal()) {
         return None;
     }
-    let half = c64(0.5, 0.0);
-    // The Maclaurin terms at 1/2 are positive, and grow while (k + a) (k + b) >= 2 (k + 1) (k + c),
-    // so up to the larger root of k^2 + (2 c + 2 - a - b) k + 2 c - a b: sum past it before
-    // stopping at a small term. Each of its n terms errs by about eps times the sum, by
-    // rounding it, the roundings of the recurrence for it, or its part of the omitted tail.
+    let x0 = end.min(0.5);
+    let start = c64(x0, 0.0);
+    // The Maclaurin terms at x0 are positive, and grow while x0 (k + a) (k + b) >= (k + 1) (k + c),
+    // so up to the larger root of k^2 + (s c + s - t a - t b) k + s c - t a b, s = 1 / (1 - x0),
+    // t = x0 s: sum past it before stopping at a small term. Each of its n terms errs by about
+    // eps times the sum, by rounding it, the roundings of the recurrence for it, or its part of
+    // the omitted tail.
+    let (s, t) = (1.0 / (1.0 - x0), x0 / (1.0 - x0));
     let maclaurin = |a: f64, b: f64, c: f64| {
-        let q = 2.0 * c + 2.0 - a - b;
-        let root = ((q * q - 8.0 * c + 4.0 * a * b).sqrt() - q) / 2.0;
+        let q = s * c + s - t * a - t * b;
+        let root = ((q * q - 4.0 * s * c + 4.0 * t * a * b).sqrt() - q) / 2.0;
         let head = root.max(0.0) + 2.0;
         if !(head <= HYP2F1_MAXITER as f64) {
             return None;
         }
-        let (mut series_generator, mut n) = (hypergeometric_series_generator(a, b, c, half), 0.0);
+        let (mut series_generator, mut n) = (hypergeometric_series_generator(a, b, c, start), 0.0);
         let mut terms = || {
             n += 1.0;
             series_generator()
@@ -1540,13 +1548,13 @@ fn hyp2f1_continuation(
     // the factor 2 in the comparison below absorbs.
     // (the Maclaurin sums first, before any step)
     let mut steps = vec![([[C64::ZERO; 2]; 2], [f_error, g_error * ab_c])];
-    let (mut x, mut p, mut turned, mut terms) = (x, half, 0.0, TAYLOR_MAX_TERMS);
+    let (mut x, mut p, mut turned, mut terms) = (x, start, 0.0, TAYLOR_MAX_TERMS);
     let columns = [[C64::ONE, C64::ZERO], [C64::ZERO, C64::ONE]];
     while p != z {
         let q = if p.re < end {
             c64((p.re + step(p, 1.0 - p.re)).min(end), 0.0)
         } else {
-            turned = (turned + step(p, r) / r).min(angle.abs());
+            turned = (turned + step(p, r.min(p.norm())) / r).min(angle.abs());
             if turned < angle.abs() {
                 1.0 - r * C64::cis(turned.copysign(angle))
             } else {
