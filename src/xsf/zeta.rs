@@ -450,18 +450,19 @@ fn zeta_riemann_siegel(z: C64) -> C64 {
     let (sin, cos) = (-phi).sin_cos();
     let u = c64(cos, sin);
 
-    // The derivatives F^(m)(p) for m <= 3 (RS_TERMS - 1)
-    let mut coeffs = [C64::ZERO; 2 * RS_F_COEFFS.len()];
-    for (c, &f) in coeffs.iter_mut().step_by(2).zip(&RS_F_COEFFS) {
-        *c = f;
-    }
+    // The derivatives F^(m)(p) = sum_k coeffs[k] p^(2k - m) for m <= 3 (RS_TERMS - 1)
+    let q = p * p;
+    let mut coeffs = RS_F_COEFFS;
     let mut fp = [C64::ZERO; 3 * RS_TERMS - 2];
-    for f in &mut fp {
-        *f = coeffs.iter().rev().fold(C64::ZERO, |acc, &c| acc * p + c);
-        for k in 1..coeffs.len() {
-            coeffs[k - 1] = k as f64 * coeffs[k];
+    for (m, f) in fp.iter_mut().enumerate() {
+        let even = coeffs[m.div_ceil(2)..]
+            .iter()
+            .rev()
+            .fold(C64::ZERO, |acc, &c| acc * q + c);
+        *f = if m % 2 == 0 { even } else { p * even };
+        for (k, c) in coeffs.iter_mut().enumerate() {
+            *c *= (2 * k) as f64 - m as f64;
         }
-        coeffs[coeffs.len() - 1] = C64::ZERO;
     }
 
     let cx = rs_correction(sigma, a, &fp);
