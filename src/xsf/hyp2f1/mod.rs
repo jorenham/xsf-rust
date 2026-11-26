@@ -921,7 +921,7 @@ fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> Sc
             return ScaledC64::from(c64(direct, 0.0)).normalized();
         }
     }
-    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(C64::ZERO.into(), |y| {
+    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(ScaledC64::from(C64::ZERO), |y| {
         let Scaled { m, e, .. } = fold_exp(y);
         ScaledC64 {
             mantissa: c64(m, 0.0),
@@ -993,9 +993,8 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
     ])
 }
 
-/// The sum of the parts, each a value and its sum of absolute terms scaled by 2^exponent, at the
-/// largest exponent of a nonzero part, and its estimated cancellation as in
-/// `series_eval_cancellation`
+/// The sum of the (value, sum of absolute terms, exponent) parts at the largest exponent of a
+/// nonzero part, and its estimated cancellation as in `series_eval_cancellation`
 fn sum_scaled_parts(parts: [(C64, f64, f64); 2]) -> (ScaledC64, f64) {
     let exponent = parts
         .iter()
@@ -1483,11 +1482,16 @@ fn hyp2f1_taylor_step<const N: usize>(
 /// the error of `result` is larger.
 //
 // On that path, 1 is the nearest singular point.
-fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: Estimate) -> Option<C64> {
-    let Estimate {
+fn hyp2f1_continuation(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: C64,
+    Estimate {
         value: result,
         error: result_error,
-    } = result;
+    }: Estimate,
+) -> Option<C64> {
     let w = 1.0 - z;
     let r = w.norm();
     let (end, angle) = (1.0 - r, w.im.atan2(w.re));
@@ -1740,8 +1744,9 @@ fn hyp2f1_transform2_pick(
         })
 }
 
-/// `hyp2f1_transform2_limiting_case` of the Euler transform (DLMF 15.8.1), if c - a and c - b
-/// are exact, and both it and the result before the power are nonzero and finite
+/// `hyp2f1_transform2_limiting_case` of the Euler transform (DLMF 15.8.1), times its power.
+/// None unless c - a and c - b are exact and both the result before the power and the product
+/// are nonzero and finite
 fn hyp2f1_inverse_euler_limit(a: f64, b: f64, c: f64, m: f64, z: C64) -> Option<Cancelled> {
     // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
     let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
@@ -1793,23 +1798,22 @@ fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
         C64::NAN
     };
     // Unlike in xsf, continue the Maclaurin series analytically if the limit is less accurate.
-    let limit = Estimate {
+    let estimate = Estimate {
         value: result,
         error: f64::EPSILON * best.cancellation * result.norm(),
     };
-    if let Some(value) = hyp2f1_continuation(a, b, c, z, limit) {
-        return value;
-    }
-    // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
-    // reduce a and b, if usable.
-    let fallback = if !euler && result.is_nan() {
-        hyp2f1_inverse_euler_limit(a, b, c, m, z)
-    } else {
-        None
-    };
-    fallback
-        .filter(|l| l.is_usable())
-        .map_or(result, |l| l.value)
+    hyp2f1_continuation(a, b, c, z, estimate).unwrap_or_else(|| {
+        // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
+        // reduce a and b, if usable.
+        let fallback = if !euler && result.is_nan() {
+            hyp2f1_inverse_euler_limit(a, b, c, m, z)
+        } else {
+            None
+        };
+        fallback
+            .filter(|l| l.is_usable())
+            .map_or(result, |l| l.value)
+    })
 }
 
 fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
