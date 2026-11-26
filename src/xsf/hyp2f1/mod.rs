@@ -928,8 +928,18 @@ fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> Sc
     })
 }
 
-/// The result, and its estimated cancellation as in `series_eval_cancellation`, but with the norm of
-/// the k-th term (from 1) of the infinite series times k, as each step of its recurrence rounds
+/// The generator, adding the norm of its k-th term (from 1) times k to `abs_sum`
+fn weighted<'s>(mut g: impl FnMut() -> C64 + 's, abs_sum: &'s mut f64) -> impl FnMut() -> C64 + 's {
+    let mut k = 0.0;
+    move || {
+        let term = g();
+        k += 1.0;
+        *abs_sum += k * term.norm();
+        term
+    }
+}
+
+/// The result, and its estimated cancellation as in `series_eval_cancellation`
 fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (ScaledC64, f64) {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
@@ -940,17 +950,15 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
     //
     // (x is c - b rounded as in xsf, which in the Euler transform is exactly the original a.)
     let (a_dd, b_dd, c_dd, cb) = (Dd::new(a), Dd::new(b), Dd::new(c), Dd::new(c - b));
-    let mut series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
-    let mut finite_abs = 0.0;
-    let series_generator1 = || {
-        let term = series_generator1();
-        finite_abs += term.norm();
-        term
-    };
+    let series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
+    // Unlike in xsf, also return the estimated cancellation, with the norm of the k-th term of
+    // each sum weighted by k, as each step of its recurrence rounds.
+    let (mut finite_abs, mut series_abs) = (0.0, 0.0);
     // Unlike in xsf, keep a separate scale for each power and ratio, and for each part, as they
     // can underflow or overflow alone.
     let finite_factor = power::neg_z_pow(z, -b) * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
-    let finite = finite_factor.mantissa * series_eval_finite(series_generator1, m as u64);
+    let finite_sum = series_eval_finite(weighted(series_generator1, &mut finite_abs), m as u64);
+    let finite = finite_factor.mantissa * finite_sum;
     let n = c - a;
     let n_int = n.round();
     let near_int = (n - n_int).abs() < HYP2F1_EPS;
@@ -963,20 +971,14 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
     };
     let mut factor = gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, x_m, (m + 1.0).into()]);
     factor.mantissa *= neg_one_pow(m);
-    let (mut series_abs, mut k) = (0.0, 0.0);
-    let mut weigh = |term: C64| {
-        k += 1.0;
-        series_abs += k * term.norm();
-        term
-    };
     let series = if near_int {
         // Unlike in xsf, pass an integer at the positive-parameter coefficient switch.
         let n = if n_int > 0.0 && b > 0.0 { n_int } else { n };
-        let mut g = hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, factor, z);
-        series_eval(|| weigh(g()))
+        let g = hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, factor, z);
+        series_eval(weighted(g, &mut series_abs))
     } else {
-        let mut g = hyp2f1_transform2_limit_series_generator(a, b, c, m, factor.mantissa.re, z);
-        series_eval(|| weigh(g()))
+        let g = hyp2f1_transform2_limit_series_generator(a, b, c, m, factor.mantissa.re, z);
+        series_eval(weighted(g, &mut series_abs))
     };
     let prefactor = power::neg_z_pow(z, -a);
     // (each part, its sum of absolute terms, and its scale)
