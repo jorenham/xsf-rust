@@ -1,3 +1,5 @@
+use core::ops::Mul;
+
 use crate::ext::HYP2F1_RECUR_TOL;
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
@@ -79,7 +81,7 @@ impl ScaledC64 {
     }
 }
 
-impl core::ops::Mul for ScaledC64 {
+impl Mul for ScaledC64 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
@@ -90,7 +92,7 @@ impl core::ops::Mul for ScaledC64 {
     }
 }
 
-impl core::ops::Mul<C64> for ScaledC64 {
+impl Mul<C64> for ScaledC64 {
     type Output = Self;
 
     // Scale the factor by its larger component, which then stays in range until the final
