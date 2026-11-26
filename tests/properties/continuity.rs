@@ -149,12 +149,14 @@ continuous!(
 );
 // singular at the poles of c, and at z = 1 for c <= a + b; known: polynomials (#2130), Euler
 // polynomials (#2107, #2247), near-integer a - b at |z| >= 1.1 (#2104, #2244, #2245), next to the
-// poles of c (#2246), and cancellation for larger parameters (#2196)
+// poles of c (#2246), a or b next to a pole for a near-integer c (#2256), and cancellation for
+// larger parameters (#2196)
 continuous!(
     hyp2f1_complex(a in small(), b in small(), c in small(), re, im)
         unless is_pole(a) || is_pole(b) || is_pole(c - a) || is_pole(c - b)
             || pole_within(c, 1e-12)
-            || (re == 1.0 && c - a - b <= 0.0)
+            || ((pole_within(a, 1e-12) || pole_within(b, 1e-12)) && almost_int(c))
+            || (re == 1.0 && im.abs() < f64::EPSILON.sqrt() && c - a - b <= 0.0)
             || (almost_int(a - b) && re.hypot(im) >= 1.1)
         => xsf::hyp2f1(a, b, c, c64(re, im))
 );
