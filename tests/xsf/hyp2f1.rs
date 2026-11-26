@@ -3363,20 +3363,20 @@ fn test_hyp2f1_f64_polynomial_overflow() {
 
 #[test]
 fn test_hyp2f1_f64_polynomial_cancellation() {
-    // unlike in xsf: polynomials whose recurrence in a or power series loses digits, also for a
-    // tiny x, where xsf has relative errors of 2e-15 to 8e-10, and 8e6 for n = 35; then as in
-    // xsf, where those are accurate (references: Arb, and the exact sum for n = 10^6)
+    // unlike in xsf: polynomials whose recurrence in a or power series loses digits, where xsf has
+    // relative errors of 2e-15 to 8e-10, and 8e6 for n = 35 (references: Arb, and the exact sum
+    // for n = 10^6). The last row is where xsf is already accurate.
     let actual = [
-        xsf::hyp2f1(-9.0, 2.875, -4.5, 1.110_223_024_625_156_5e-16),
-        xsf::hyp2f1(-9.0, 2.875, -4.5, -0.1),
-        xsf::hyp2f1(-3.0, 8.75, -0.5, 8.037_062_314_695_019e-16),
-        xsf::hyp2f1(-9.0, 7.625, 0.125, 1e-4),
-        xsf::hyp2f1(-9.0, 7.25, 6.25, 0.967_752_084_398_092_9),
-        xsf::hyp2f1(-7.0, -6.285_307_557_516_495, -8.25, 0.669_881_340_187_126_6),
-        xsf::hyp2f1(-35.0, -34.375, -40.75, 1.010_183_901_888_319_4),
-        xsf::hyp2f1(-6.0, 0.750_000_000_000_000_3, 0.75, 1.000_000_000_000_000_4),
-        xsf::hyp2f1(-16.0, 19.75, -0.75, 2.5),
-        xsf::hyp2f1(-1e6, 1.0, 1e12, 1.0001),
+        xsf::hyp2f1(-9.0, 2.875, -4.5, 1.110_223_024_625_156_5e-16), // tiny x, n = 9
+        xsf::hyp2f1(-9.0, 2.875, -4.5, -0.1),                        // negative c, n = 9
+        xsf::hyp2f1(-3.0, 8.75, -0.5, 8.037_062_314_695_019e-16),    // tiny x, n = 3
+        xsf::hyp2f1(-9.0, 7.625, 0.125, 1e-4),                       // small x, n = 9
+        xsf::hyp2f1(-9.0, 7.25, 6.25, 0.967_752_084_398_092_9),      // x near 1, n = 9
+        xsf::hyp2f1(-7.0, -6.285_307_557_516_495, -8.25, 0.669_881_340_187_126_6), // negative b and c, n = 7
+        xsf::hyp2f1(-35.0, -34.375, -40.75, 1.010_183_901_888_319_4), // x just above 1, n = 35
+        xsf::hyp2f1(-6.0, 0.750_000_000_000_000_3, 0.75, 1.000_000_000_000_000_4), // a few ulps from 1 and c, n = 6
+        xsf::hyp2f1(-16.0, 19.75, -0.75, 2.5),                                     // x > 1, n = 16
+        xsf::hyp2f1(-1e6, 1.0, 1e12, 1.0001), // n = 10^6, c = 10^12
     ];
     let desired = [
         1.000_000_000_000_000_6,

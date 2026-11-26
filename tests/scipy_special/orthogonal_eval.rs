@@ -39,6 +39,14 @@ fn test_jacobi_negative_hyp2f1_lower_parameter() {
 }
 
 #[test]
+fn test_jacobi_real_polynomial_negative_alpha() {
+    // Arb, through binom(n + alpha, n) 2F1(-n, n + alpha + beta + 1; alpha + 1; 1/2). The error is
+    // that of `eval_jacobi`, not of `hyp2f1`: the binomial factor and `n + alpha + beta + 1`.
+    let actual = eval_jacobi(6.0, -1.015_333_058_407_334_6, -2.25, 0.0);
+    np_assert_allclose!([actual], [-0.036_192_835_872_582_27], rtol = 1e-14);
+}
+
+#[test]
 fn test_jacobi_symmetric_degree_one() {
     let a = f64::MAX;
     let x = 2f64.powi(-20);
