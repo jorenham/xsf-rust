@@ -1,3 +1,4 @@
+use super::Estimate;
 use super::power::{ScaledC64, ldexp_sat, one_minus_z_pow};
 use crate::ext::{Scaled, fold_exp, mul_gamma_ratio};
 use crate::utils::pow2;
@@ -6,12 +7,6 @@ use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 
 const U: f64 = f64::EPSILON / 2.0;
 const TOL: f64 = 1e-13;
-
-#[derive(Clone, Copy)]
-struct Estimate {
-    value: C64,
-    abs_error: f64,
-}
 
 #[inline]
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, radius: f64) -> Option<C64> {
@@ -66,8 +61,7 @@ fn contour(a: f64, p: f64, c: f64, z: C64) -> Option<C64> {
     let left = scale_endpoint(left, left_mean, shared, ScaledC64::ONE)?;
     let right = scale_endpoint(right, right_mean, shared, one_minus_z_pow(z, p))?;
     let value = left.value + right.value;
-    let error =
-        left.abs_error + right.abs_error + 4.0 * U * (left.value.norm() + right.value.norm());
+    let error = left.error + right.error + 4.0 * U * (left.value.norm() + right.value.norm());
     let magnitude = value.norm();
     // The modulus estimate alone does not protect a tiny real or imaginary part.
     let component = value.re.abs().min(value.im.abs());
@@ -121,7 +115,7 @@ fn endpoint_mean((a, d, q): (Dd, Dd, C64), p1: Dd) -> Option<Estimate> {
             let terminated = exponent == 0.0 || (a + k).hi == 0.0;
             return terminated.then_some(Estimate {
                 value: sum,
-                abs_error: roundoff_sum,
+                error: roundoff_sum,
             });
         }
         if abs_term <= 2.0 * U * sum.l1_norm() {
@@ -131,7 +125,7 @@ fn endpoint_mean((a, d, q): (Dd, Dd, C64), p1: Dd) -> Option<Estimate> {
                 // additions, and the rounding of the complex prefactors.
                 return Some(Estimate {
                     value: sum,
-                    abs_error: roundoff_sum + tail,
+                    error: roundoff_sum + tail,
                 });
             }
         }
@@ -154,13 +148,13 @@ fn scale_endpoint(
         return None;
     }
     let mantissa = scale * mean.value;
-    let error = scale_abs * (mean.abs_error + beta.err * mean.value.norm());
+    let error = scale_abs * (mean.error + beta.err * mean.value.norm());
     if !(mantissa.is_finite() && error.is_finite()) {
         return None;
     }
     let exponent = power.exponent + f64::from(beta.e);
     Some(Estimate {
         value: ScaledC64 { mantissa, exponent }.to_c64(),
-        abs_error: ldexp_sat(error, exponent).max(f64::MIN_POSITIVE),
+        error: ldexp_sat(error, exponent).max(f64::MIN_POSITIVE),
     })
 }

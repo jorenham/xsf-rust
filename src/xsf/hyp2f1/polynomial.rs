@@ -1,5 +1,5 @@
 use super::power::{ldexp_sat, one_minus_z_pow};
-use super::{HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
+use super::{Estimate, HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
 use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
 use crate::utils::{DENORM_MIN, pow2};
 use crate::xsf::c64::{C64, c64};
@@ -14,31 +14,6 @@ fn dd_candidate(y: Scaled) -> Option<(f64, Option<[f64; 2]>)> {
     let [lo, v, hi] = [1.0 - y.err, 1.0, 1.0 + y.err].map(|f| ldexp_f64(y.m * f, y.e));
     let open = lo != hi && lo.abs().min(hi.abs()) < f64::MIN_POSITIVE;
     (v.is_finite() && y.err <= HYP2F1_ETHRESH).then_some((v, open.then_some([lo, hi])))
-}
-
-pub(super) struct Estimate {
-    pub(super) value: C64,
-    // Estimated absolute error, before accounting for the final rounding to f64.
-    error: f64,
-}
-
-// A value whose only error is its final rounding to f64
-impl From<C64> for Estimate {
-    fn from(value: C64) -> Self {
-        Self { value, error: 0.0 }
-    }
-}
-
-impl Estimate {
-    // Whether the estimate is finite with an estimated error below its magnitude.
-    pub(super) fn resolved(&self) -> bool {
-        self.value.is_finite() && self.error < self.value.linf_norm()
-    }
-
-    // Whether the estimate leaves at least half the significand.
-    fn accurate(&self) -> bool {
-        self.value.is_finite() && self.error <= pow2(-26) * self.value.linf_norm()
-    }
 }
 
 /// The series terminated by the negative integer `a` or `b`, or NaN if it is too long.
