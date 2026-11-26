@@ -1,7 +1,9 @@
 use super::hypergeometric_series_generator;
+use crate::ext::{Scaled, hyp2f1_poly_dd};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
+use crate::xsf::cephes::hyp2f1::HYP2F1_ETHRESH;
 use crate::xsf::tools::series_eval_fixed_length;
 
 struct Estimate {
@@ -18,6 +20,14 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
         let mean = uniform_beta_binomial(count, z);
         if mean.is_finite() {
             return mean;
+        }
+    }
+    // Unlike in xsf, use the double-double polynomial on the real axis (at z = 1 the
+    // Chu-Vandermonde product, DLMF 15.4.24), as the terms of the series can cancel.
+    if z.is_real() {
+        let poly = hyp2f1_poly_dd(a, b, c, z.re).map(Scaled::to_f64);
+        if let Some((y, _)) = poly.filter(|&(y, err)| y.is_finite() && err <= HYP2F1_ETHRESH) {
+            return c64(y, 0.0);
         }
     }
     // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.

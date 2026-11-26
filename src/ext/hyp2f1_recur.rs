@@ -206,10 +206,19 @@ impl Scaled {
     }
 
     /// The value as an `f64` (which can overflow or underflow), and its error bound (not counting
-    /// the rounding of an underflow)
+    /// the rounding of an underflow, unless the bound leaves its direction open)
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
-        (ldexp_f64(y.m, y.e), y.err)
+        let v = ldexp_f64(y.m, y.e);
+        // (`m` is already rounded, e.g. onto a tie that the exact value is just above)
+        let [lo, hi] = [1.0 - y.err, 1.0 + y.err].map(|f| ldexp_f64(y.m * f, y.e));
+        let open = lo != hi && lo.abs().min(hi.abs()) < f64::MIN_POSITIVE;
+        let underflow = if open {
+            f64::from_bits(1) / v.abs()
+        } else {
+            0.0
+        };
+        (v, y.err + underflow)
     }
 }
 

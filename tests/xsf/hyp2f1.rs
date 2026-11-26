@@ -2623,6 +2623,16 @@ fn test_hyp2f1_c64_real_polynomial_near_one() {
             assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
         }
     }
+
+    // Arb: 0.5000000000000000001 and -0.5000000000000000004 times the smallest subnormal, just
+    // past the ties that the rounded products sit on.
+    let (p80, p81) = (2.0_f64.powi(80), 2.0_f64.powi(81));
+    for imag in [0.0, -0.0] {
+        let y = xsf::hyp2f1(-1075.0, p80, p81, c64(1.0, imag));
+        assert_eq!(y.re.to_bits(), f64::from_bits(1).to_bits());
+        let y = xsf::hyp2f1(-1075.0, -3.0 * p80, -p81, c64(1.0, imag));
+        assert!(y.re.is_nan() || y.re.to_bits() == (-f64::from_bits(1)).to_bits());
+    }
 }
 
 #[test]
