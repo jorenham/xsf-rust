@@ -6,7 +6,7 @@ use super::strategies::{arg, moderate};
 use super::{config, int_distance, is_pole};
 
 /// Within `tol` relative to a finite `expected`, or both the same inf, or both NaN
-fn close(actual: f64, expected: f64, tol: f64) -> bool {
+pub(super) fn close(actual: f64, expected: f64, tol: f64) -> bool {
     actual.to_bits() == expected.to_bits()
         || (actual.is_nan() && expected.is_nan())
         || (expected.is_finite() && (actual - expected).abs() <= tol * expected.abs())

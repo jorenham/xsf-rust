@@ -10,6 +10,7 @@ use proptest::prelude::*;
 
 use super::is_pole;
 use super::strategies::moderate;
+use super::symmetry::close;
 
 /// The largest degree `n` of the terminating series
 const MAX_N: u32 = 20;
@@ -20,6 +21,11 @@ const U: f64 = f64::EPSILON / 2.0;
 /// Multiples `m / 8` of 1/8, e.g. -3, 2.5 or 0.125, so that `t + k` is exact for `|m| <= 256`
 fn eighths(m: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
     m.prop_map(|m| f64::from(m) / 8.0)
+}
+
+/// `eighths` for all `|m| <= 256`
+fn param() -> impl Strategy<Value = f64> {
+    eighths(-256..=256)
 }
 
 /// An upper bound on `m u / (1 - m u)`, the relative error of `m` roundings (Higham, Accuracy
@@ -94,13 +100,10 @@ impl Dd {
     }
 
     fn abs(self) -> Self {
-        if self.hi < 0.0 {
-            Self {
-                hi: -self.hi,
-                lo: -self.lo,
-            }
-        } else {
-            self
+        let sign = 1_f64.copysign(self.hi);
+        Self {
+            hi: sign * self.hi,
+            lo: sign * self.lo,
         }
     }
 }
@@ -185,23 +188,22 @@ fn real_hyp2f1_args() -> impl Strategy<Value = (u32, f64, f64)> {
 
 property!(
     within,
-    hyp2f1_terminating(ncx in real_hyp2f1_args(), b in eighths(-256..=256)) => {
+    hyp2f1_terminating(ncx in real_hyp2f1_args(), b in param()) => {
         let (n, c, x) = ncx;
+        let a = -f64::from(n);
         // known: n >= 10 with b < 0 and x > 1, where x is negated (#2258), and (1 - x)^n for a
         // negative non-integer b = c, n >= 9 and x < -1 (#2262)
         let x = if n >= 10 && b < 0.0 && x > 1.0 { -x } else { x };
         prop_assume!(!(b == c && c < 0.0 && c.fract() != 0.0 && n >= 9 && x < -1.0), "known");
-        (xsf::hyp2f1(-f64::from(n), b, c, x), terminating(&[-f64::from(n), b], &[c], x)?)
+        (xsf::hyp2f1(a, b, c, x), terminating(&[a, b], &[c], x)?)
     }
 );
 property!(
     within,
-    hyp2f1_terminating_complex(
-        n in 0..=MAX_N, b in eighths(-256..=256), c in eighths(-256..=256), x in moderate()
-    ) => (
-        xsf::hyp2f1(-f64::from(n), b, c, c64(x, 0.0)),
-        terminating(&[-f64::from(n), b], &[c], x)?
-    )
+    hyp2f1_terminating_complex(n in 0..=MAX_N, b in param(), c in param(), x in moderate()) => {
+        let a = -f64::from(n);
+        (xsf::hyp2f1(a, b, c, c64(x, 0.0)), terminating(&[a, b], &[c], x)?)
+    }
 );
 
 /// `a` and `b` without the parameters that they share, which cancel
@@ -219,11 +221,11 @@ fn cancel(a: &[f64], b: &[f64]) -> (Vec<f64>, Vec<f64>) {
 property!(
     within,
     hyp3f2_terminating(
-        n in 0..=MAX_N, a2 in eighths(-256..=256), a3 in eighths(-256..=256),
-        b1 in eighths(-256..=256), b2 in eighths(-256..=256), x in moderate()
+        n in 0..=MAX_N, a2 in param(), a3 in param(), b1 in param(), b2 in param(), x in moderate()
     ) => {
-        let (a, b) = cancel(&[-f64::from(n), a2, a3], &[b1, b2]);
-        (xsf::hyp3f2(-f64::from(n), a2, a3, b1, b2, x), terminating(&a, &b, x)?)
+        let a1 = -f64::from(n);
+        let (a, b) = cancel(&[a1, a2, a3], &[b1, b2]);
+        (xsf::hyp3f2(a1, a2, a3, b1, b2, x), terminating(&a, &b, x)?)
     }
 );
 
@@ -243,22 +245,15 @@ fn chu_vandermonde(n: u32, b: f64, c: f64) -> (f64, f64) {
 
 property!(
     within,
-    hyp2f1_chu_vandermonde(n in 0..=MAX_N, b in eighths(-256..=256), c in eighths(-256..=256))
+    hyp2f1_chu_vandermonde(n in 0..=MAX_N, b in param(), c in param())
         if !(is_pole(c) && -c < f64::from(n)) // a pole of (c)_n
         => (xsf::hyp2f1(-f64::from(n), b, c, 1.0), chu_vandermonde(n, b, c))
 );
 
-/// `f(conj(z))` and `f(z)` for `z = re + i im`
-fn conjugates(f: impl Fn(Complex64) -> Complex64, re: f64, im: f64) -> [Complex64; 2] {
-    let z = c64(re, im);
-    [f(z.conj()), f(z)]
-}
-
 /// `f(conj(z)) = conj(f(z))` exactly, where NaN equals NaN and -0 equals 0
 fn conjugate_symmetric([w_conj, w]: [Complex64; 2]) -> Result<(), TestCaseError> {
-    let same = |x: f64, y: f64| x == y || (x.is_nan() && y.is_nan());
     let w = w.conj();
-    prop_assert!(same(w_conj.re, w.re) && same(w_conj.im, w.im), "{w_conj:e} != {w:e}");
+    prop_assert!(close(w_conj.re, w.re, 0.0) && close(w_conj.im, w.im, 0.0), "{w_conj:e} != {w:e}");
     Ok(())
 }
 
@@ -269,7 +264,7 @@ macro_rules! conjugate {
         property!(
             conjugate_symmetric,
             $name($($param,)* re, im) if im.is_finite() && im != 0.0
-                => conjugates(|z| xsf::$name($($param,)* z), re, im)
+                => [xsf::$name($($param,)* c64(re, -im)), xsf::$name($($param,)* c64(re, im))]
         );
     };
 }
