@@ -1173,6 +1173,47 @@ fn test_eval_jacobi_alpha_lt_minus_one() {
 }
 
 #[test]
+fn test_eval_jacobi_minus_one() {
+    // P_n(-1) = (-1)^n (beta + 1)_n / n! (Arb)
+    let actual = [
+        eval_jacobi(91.0, 14.9, -13.004_252_634_573_632, -1.0),
+        eval_jacobi(35.0, -46.922, -1.7, -1.0),
+        eval_jacobi(20.0, 19.9, -21.2, -1.0),
+        eval_jacobi(38.0, -39.4, -19.653_415_738_132_338, -1.0),
+        xsf::eval_sh_jacobi(17.0, -3.0, 37.86, 0.0),
+    ];
+    let desired = [
+        1.692_867_567_181_582e-19,
+        5.646_143_852_553_384e-4,
+        1.994_615_199_834_204_5,
+        -4.150_153_191_184_249e-13,
+        -6.483_688_927_341_96e13,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+    // a zero factor `beta + 1 + k` for some `k < n`
+    assert_eq!(eval_jacobi(284.0, 43.971_282_060_204_07, -2.0, -1.0), 0.0);
+    assert_eq!(eval_jacobi(5.0, -3.0, -2.0, -1.0).to_bits(), 0.0_f64.to_bits());
+    assert_eq!(eval_jacobi(3.0, 1.0, -2.0, -1.0).to_bits(), 0.0_f64.to_bits());
+    assert_eq!(eval_jacobi(1_000_001.0, -2.5, -2.0, -1.0).to_bits(), 0.0_f64.to_bits());
+    assert_eq!(eval_jacobi(2.0, -1.0, -1.0, -1.0).to_bits(), (-0.0_f64).to_bits());
+    // binom(-beta - 1, n) for an integer beta < -n
+    assert_eq!(eval_jacobi(1_000_000.0, 0.0, -1_000_001.0, -1.0), 1.0);
+    assert_eq!(eval_jacobi(1_000_000.0, 0.0, -1_000_002.0, -1.0), 1_000_001.0);
+    // NaN for these degrees above 2^53, where `n - 1` is inexact
+    assert!(eval_jacobi(9_007_199_254_740_994.0, -1.0, 1.0, -1.0).is_nan());
+    assert!(eval_jacobi(1e308, -1.0, 1.0, -1.0).is_nan());
+}
+
+#[test]
+fn test_eval_jacobi_minus_one_underflow_sign() {
+    // -1.77e-324 (Arb) rounds to -0.0
+    let neg_zero = (-0.0_f64).to_bits();
+    assert_eq!(eval_jacobi(1074.0, -0.5, -499.5, -1.0).to_bits(), neg_zero);
+    assert_eq!(xsf::eval_sh_jacobi(1074.0, -0.5, -499.5, 0.0).to_bits(), neg_zero);
+    assert_eq!(xsf::eval_sh_jacobi(1074.0, -0.5, -499.5, -0.0).to_bits(), neg_zero);
+}
+
+#[test]
 fn test_shifted_and_scaled() {
     // reference values from scipy.special
     let r = [
