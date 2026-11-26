@@ -375,11 +375,24 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         }
         // Unlike in xsf, use `P_n(-1) = (-1)^n (beta + 1)_n / n!` (DLMF Table 18.6.1) for the
         // other integer degrees, as `2F1(-n, -beta; 1; 1)` (DLMF 15.4.24) with exact parameters,
-        // since the 2F1 below rounds `n + alpha + beta + 1`.
-        if self.as_f64() == Some(-1.0) && n > 0.0 && n.fract() == 0.0 && a.is_finite() {
+        // since the 2F1 below rounds `n + alpha + beta + 1`. Only for `n < 2^53`, where a degree
+        // `n - 1` from the ported recursion above is exact.
+        let int_n = (1.0..2.0 / f64::EPSILON).contains(&n) && n.fract() == 0.0;
+        if self.as_f64() == Some(-1.0) && int_n && a.is_finite() {
             // (the zero factor `beta + 1 + k`, which the capped product misses for huge `n`)
             if b.fract() == 0.0 && (-n..=-1.0).contains(&b) {
                 return Self::ZERO;
+            }
+            // (for an integer `beta < -n`, it is `binom(-beta - 1, n)`, which is symmetric in `n`
+            // and `m = -beta - 1 - n`, so with the shorter product)
+            let m = -(n + b) - 1.0;
+            let n = if b.fract() == 0.0 && (0.0..n).contains(&m) {
+                m
+            } else {
+                n
+            };
+            if n == 0.0 {
+                return Self::ZERO + 1.0;
             }
             if let Some(p) = hyp2f1_poly_dd(-n, -b, 1.0, 1.0) {
                 // (`self * -p` keeps the sign of an underflow, unlike `ZERO + p`)

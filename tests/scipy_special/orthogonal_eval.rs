@@ -1195,6 +1195,13 @@ fn test_eval_jacobi_minus_one() {
     assert_eq!(eval_jacobi(5.0, -3.0, -2.0, -1.0).to_bits(), 0.0_f64.to_bits());
     assert_eq!(eval_jacobi(3.0, 1.0, -2.0, -1.0).to_bits(), 0.0_f64.to_bits());
     assert_eq!(eval_jacobi(1_000_001.0, -2.5, -2.0, -1.0).to_bits(), 0.0_f64.to_bits());
+    assert_eq!(eval_jacobi(2.0, -1.0, -1.0, -1.0).to_bits(), (-0.0_f64).to_bits());
+    // binom(-beta - 1, n) for an integer beta < -n
+    assert_eq!(eval_jacobi(1_000_000.0, 0.0, -1_000_001.0, -1.0), 1.0);
+    assert_eq!(eval_jacobi(1_000_000.0, 0.0, -1_000_002.0, -1.0), 1_000_001.0);
+    // NaN for these degrees above 2^53, where `n - 1` is inexact
+    assert!(eval_jacobi(9_007_199_254_740_994.0, -1.0, 1.0, -1.0).is_nan());
+    assert!(eval_jacobi(1e308, -1.0, 1.0, -1.0).is_nan());
 }
 
 #[test]
