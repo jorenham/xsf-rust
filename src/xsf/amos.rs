@@ -1581,7 +1581,7 @@ pub(crate) fn besh(
     for i in 1..=nn {
         zn = cy[(i - 1) as usize];
         let mut atol = 1.0;
-        if zn.re.abs().max(zn.im.abs()) <= ascle {
+        if zn.linf_norm() <= ascle {
             zn *= rtol;
             atol = tol;
         }
@@ -1827,7 +1827,7 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     for i in 1..=nn {
         zn = cy[(i - 1) as usize];
         let mut atol = 1.0;
-        if zn.re.abs().max(zn.im.abs()) <= ascle {
+        if zn.linf_norm() <= ascle {
             zn *= rtol;
             atol = tol;
         }
@@ -3582,7 +3582,7 @@ fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                     ck += rz;
                     if kflag < 3 {
                         p2 = s2 * p1;
-                        p2m = p2.re.abs().max(p2.im.abs());
+                        p2m = p2.linf_norm();
                         if p2m > ascle {
                             kflag += 1;
                             ascle = bry[(kflag - 1) as usize];
@@ -3626,7 +3626,7 @@ fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                     p2 = s2 * p1;
                     y[(i - 1) as usize] = p2;
                     if kflag < 3 {
-                        p2m = p2.re.abs().max(p2.im.abs());
+                        p2m = p2.linf_norm();
                         if p2m > ascle {
                             kflag += 1;
                             ascle = bry[(kflag - 1) as usize];
@@ -5373,7 +5373,7 @@ fn uni1(
                     if iflag >= 3 {
                         continue;
                     }
-                    if c2.re.abs().max(c2.im.abs()) <= ascle {
+                    if c2.linf_norm() <= ascle {
                         continue;
                     }
                     iflag += 1;
@@ -6123,7 +6123,7 @@ fn unk1(
             c2 = s2 * c1;
             y[(i - 1) as usize] = c2;
             if kflag < 3 {
-                c2m = c2.re.abs().max(c2.im.abs());
+                c2m = c2.linf_norm();
                 if c2m > ascle {
                     kflag += 1;
                     ascle = bry[(kflag - 1) as usize];
@@ -6336,7 +6336,7 @@ fn unk1(
         kk -= 1;
         cspn = -cspn;
         if iflag < 3 {
-            c2m = c2.re.abs().max(c2.im.abs());
+            c2m = c2.linf_norm();
             if c2m > ascle {
                 iflag += 1;
                 ascle = bry[(iflag - 1) as usize];
@@ -6682,7 +6682,7 @@ fn unk2(
             c2 = s2 * c1;
             y[(i - 1) as usize] = c2;
             if kflag < 3 {
-                c2m = c2.re.abs().max(c2.im.abs());
+                c2m = c2.linf_norm();
                 if c2m > ascle {
                     kflag += 1;
                     ascle = bry[(kflag - 1) as usize];
@@ -6912,7 +6912,7 @@ fn unk2(
         kk -= 1;
         cspn = -cspn;
         if iflag < 3 {
-            c2m = ck.re.abs().max(ck.im.abs());
+            c2m = ck.linf_norm();
             if c2m > ascle {
                 iflag += 1;
                 ascle = bry[(iflag - 1) as usize];
