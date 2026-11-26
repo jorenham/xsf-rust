@@ -111,10 +111,9 @@ fn test_wright_bessel_asymptotic_overflow() {
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-6);
     assert_eq!(xsf::wright_bessel(4.9, 150.0, 4.9e18), f64::INFINITY);
 
-    // Unlike in xsf, these cases reach the asymptotic expansion (Arb)
     let actual = xsf::wright_bessel(4.0, 10.0, 2e13);
-    let expected = 2.557_441_567_905_184e300; // was inf
+    let expected = 2.557_441_567_905_184e300;
     xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-12);
-    assert_eq!(xsf::wright_bessel(1.0, 120.0, 1e9), f64::INFINITY); // was NaN
-    assert_eq!(xsf::wright_bessel(2.0, 30.0, 1e308), f64::INFINITY); // was NaN
+    assert_eq!(xsf::wright_bessel(1.0, 120.0, 1e9), f64::INFINITY);
+    assert_eq!(xsf::wright_bessel(2.0, 30.0, 1e308), f64::INFINITY);
 }
