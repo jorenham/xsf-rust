@@ -1816,11 +1816,6 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
     // reduces a and b, as for |z| < 0.9.
     let euler = c - a < a && c - b < b;
-    // times (1 - z)^(c - a - b), if both are normal
-    let euler_scaled = move |result: C64| {
-        let prefactor = (1.0 - z).powf(c - a - b);
-        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
-    };
     if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
         return hyp2f1_inverse_limit(a, b, c, z, euler);
     }
@@ -1838,9 +1833,11 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             || hyp2f1_transform2_near_integer((c - a, a), (c - b, b), Dd::new(b) - a, c, z),
         );
         if euler_series.cancellation < series.cancellation {
-            if let Some(value) = euler_scaled(euler_series.value) {
+            // (times (1 - z)^(c - a - b), if both are normal)
+            let prefactor = (1.0 - z).powf(c - a - b);
+            if prefactor.norm().is_normal() && euler_series.value.norm().is_normal() {
                 series = Cancelled {
-                    value,
+                    value: prefactor * euler_series.value,
                     ..euler_series
                 };
             }
