@@ -37,9 +37,11 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, radius: f64) -> Option<C6
 // With q = 1/z and d = c-a, the first contribution is q^a B(a,p+1)/B(a,d)
 // times the beta(a,p+1) mean of (1-q*u)^(d-1). Reflecting t about 1/2 gives the
 // second contribution with a,d swapped and q replaced by 1-q, times (1-z)^p.
+// These are the two terms of DLMF 15.10.33, so by meromorphic continuation they
+// hold for all a and c.
 #[cold]
 fn contour(a: f64, p: f64, c: f64, z: C64) -> Option<C64> {
-    if !(a > 0.0 && a < c && c.is_finite()) {
+    if !c.is_finite() {
         return None;
     }
     let a = Dd::new(a);
@@ -74,19 +76,39 @@ fn contour(a: f64, p: f64, c: f64, z: C64) -> Option<C64> {
 }
 
 fn endpoint_mean((a, d, q): (Dd, Dd, C64), p1: Dd) -> Option<Estimate> {
-    // Taylor expand (1-q*u)^(d-1) against the beta(a,p+1) weight. The integral
-    // remainder is bounded by the next term's magnitude times min|1-q*u|^(d-1-n).
-    // The distance from 1 to the full line through 0 and q is a lower bound.
-    // Argument error can be amplified by the beta shape in q^a.
-    let roundoff = (128.0 + 20.0 * a.hi) * U;
+    // Taylor expand (1-q*u)^(d-1) against the beta(a,p+1) weight, termwise the
+    // series F(1-d,a;a+p+1;q). Argument error can be amplified by the shape in q^a.
+    let roundoff = (128.0 + 20.0 * a.hi.abs()) * U;
     if roundoff >= TOL {
         return None;
     }
     let radius = q.norm();
     let min_distance = q.im.abs() / radius * (1.0 - 64.0 * U);
+    let beta_sum = p1 + a;
+    let alpha = Dd::ONE - d;
+    let shapes = [(a, alpha), (alpha, a)];
+    // Bound the remainder from the term n. For a positive beta weight in either
+    // upper parameter, the integral remainder of the Taylor expansion in the other
+    // is at most the term's magnitude times min|1-q*u|^(-other-n). The distance
+    // from 1 to the full line through 0 and q is a lower bound. For |q| < 1 and
+    // positive parameters, both factors of the term ratio tend monotonically to 1.
+    let tail = |n: f64, abs_term: f64| {
+        let beta_bounds = shapes.into_iter().filter_map(|(shape, other)| {
+            let power = -(other + n).hi;
+            (shape.hi > 0.0 && (beta_sum - shape).hi > 0.0 && power <= 0.0)
+                .then(|| min_distance.powf(power))
+        });
+        let [alpha_n, a_n, gamma_n] = [alpha, a, beta_sum].map(|x| (x + n).hi);
+        // Pad rho for its roundings before testing rho < 1 and forming 1 - rho.
+        let rho =
+            radius * (alpha_n / gamma_n).max(1.0) * (a_n / (n + 1.0)).max(1.0) * (1.0 + 16.0 * U);
+        let positive = alpha_n > 0.0 && a_n > 0.0 && gamma_n > 0.0;
+        let ratio_bound = (positive && rho < 1.0).then(|| 1.0 / (1.0 - rho));
+        let bound = beta_bounds.chain(ratio_bound).fold(f64::INFINITY, f64::min);
+        abs_term * bound * (1.0 + 4096.0 * U)
+    };
     let mut term = C64::ONE;
     let (mut sum, mut abs_term, mut roundoff_sum) = (term, 1.0, roundoff);
-    let beta_sum = p1 + a;
     for k in 0..48 {
         let k = f64::from(k);
         let n = k + 1.0;
@@ -94,12 +116,16 @@ fn endpoint_mean((a, d, q): (Dd, Dd, C64), p1: Dd) -> Option<Estimate> {
         let ratio = -exponent * (a + k).hi / (n * (beta_sum + k).hi);
         term = term * q * ratio;
         abs_term *= ratio.abs() * radius;
-        if exponent <= 0.0 && abs_term <= 2.0 * U * sum.l1_norm() {
-            let tail = if exponent == 0.0 {
-                0.0
-            } else {
-                abs_term * min_distance.powf(exponent - 1.0) * (1.0 + 4096.0 * U)
-            };
+        if abs_term == 0.0 {
+            // Only a zero factor terminates the series, not an underflow.
+            let terminated = exponent == 0.0 || (a + k).hi == 0.0;
+            return terminated.then_some(Estimate {
+                value: sum,
+                abs_error: roundoff_sum,
+            });
+        }
+        if abs_term <= 2.0 * U * sum.l1_norm() {
+            let tail = tail(n, abs_term);
             if tail <= 2.0 * U * sum.norm() {
                 // Bound the input and multiplication roundings of each term, all
                 // additions, and the rounding of the complex prefactors.

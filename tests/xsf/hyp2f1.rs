@@ -3249,6 +3249,38 @@ fn test_hyp2f1_c64_nonterminating_beta_endpoints() {
 }
 
 #[test]
+fn test_hyp2f1_c64_continued_beta_endpoints() {
+    // Upper parameters outside (0, c), Arb at the exact binary64 inputs, also at conj(z).
+    for ([a, b, c], z, expected) in [
+        (
+            [-1.111, -186.000_000_01, 6.684],
+            c64(0.3024, -0.9576),
+            c64(8.200_280_364_814_066, -39.759_998_653_624_79),
+        ),
+        (
+            [9.376, -220.01, 4.227],
+            c64(0.641, 0.8724),
+            c64(345.211_447_704_520_9, -468.688_508_593_692_35),
+        ),
+        (
+            [-8.919, -290.1, -14.603],
+            c64(0.5083, -0.8412),
+            c64(4_977_639_494_430.354, 394_482_200_962.892_1),
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            for actual in [xsf::hyp2f1(a, b, c, z), xsf::hyp2f1(b, a, c, z)] {
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 1e-13
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_beta_endpoints_tiny_imaginary_part() {
     // The series retains a small imaginary part that is poorly resolved by the contour.
     let value = xsf::hyp2f1(1.0, -48.125, 2.0, c64(0.01, 1e-24));
