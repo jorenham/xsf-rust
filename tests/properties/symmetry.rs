@@ -17,9 +17,14 @@ pub(super) fn is_pole(x: f64) -> bool {
     x <= 0.0 && x.fract() == 0.0
 }
 
+/// The distance to the nearest integer, e.g. 0.25 for 2.75
+pub(super) fn int_distance(x: f64) -> f64 {
+    (x - x.round()).abs()
+}
+
 /// A pole of Gamma, or within 1e-12 of a negative one, e.g. -3 + 1e-13
 fn near_pole(x: f64) -> bool {
-    is_pole(x) || (x.round() < 0.0 && (x - x.round()).abs() < 1e-12)
+    is_pole(x) || (x.round() < 0.0 && int_distance(x) < 1e-12)
 }
 
 proptest! {
