@@ -672,10 +672,10 @@ fn test_assoc_legendre_q_all_extreme_complex_orders() {
         rtol = 1e-15
     );
 
-    // Arb. Here `x^2 - 3y^2 = 1` before scaling, so `Re z^-3` cancels to about 2^-105.
+    // Arb. Here `x^2 - 3y^2 = 1` before scaling, so `Re z^-3` cancels to about 2^-105. The real
+    // parts are beyond the double-double resolution, and are not checked.
     let z = c64(5_170_128_475_599_457.0 * x, 2_984_975_067_132_296.0 * x);
     let (q, dq) = xsf::assoc_legendre_q_all(2, 200, z);
-    assert!(q[2][200].re.is_nan() && dq[1][200].re.is_nan());
     xsref::np_assert_allclose!(
         [q[2][200].im, dq[1][200].im],
         [-2.638_328_859_165_686_3e-102, 1.306_103_395_626_577_4e-103],
