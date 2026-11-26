@@ -1474,10 +1474,11 @@ fn hyp2f1_transform1_paired(a: f64, b: f64, c: f64, d: f64, w: C64) -> Option<Bo
 /// finite)
 fn hyp2f1_near_balance_retry(a: f64, b: f64, c: f64, w: C64, value: C64, cancellation: f64) -> C64 {
     let lossy = cancellation * f64::EPSILON > HYP2F1_ETHRESH;
+    // The bound also covers `four_gammas` reflecting near a pole, as it includes its error.
     let eligible = a < 0.0 && b < 0.0 && lossy && w.norm() < 1.0;
-    // (also where `four_gammas` reflects near a pole, as the bound includes its error)
-    small_balance(a, b, c)
-        .filter(|_| eligible)
+    eligible
+        .then(|| small_balance(a, b, c))
+        .flatten()
         .and_then(|d| hyp2f1_transform1_paired(a, b, c, d, w))
         .map(|(series, error)| Estimate {
             value: series.value,
