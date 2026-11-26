@@ -1252,7 +1252,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
      * handling of situations like a < c < b <= 0, a, b, c all non-positive
      * integers, where terminating at a would lead to a term of the form 0 / 0. */
     if a_neg_int || b_neg_int {
-        return polynomial::terminating(a, b, c, z).0;
+        return polynomial::terminating(a, b, c, z).value;
     }
     // Unlike in xsf, try a beta contour for a large negative nonintegral upper parameter.
     if let Some(value) = beta_endpoints::evaluate(a, b, c, z, z_abs) {
@@ -1309,7 +1309,8 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 .filter(|power| power.is_finite())
                 .unwrap_or_else(|| w.powf(c - a - b));
             // Unlike in xsf, sum the polynomial like a directly terminating one.
-            let (polynomial, resolved) = polynomial::terminating(c - a, c - b, c, z);
+            let estimate = polynomial::terminating(c - a, c - b, c, z);
+            let polynomial = estimate.value;
             let value = prefactor * polynomial;
             // Unlike in xsf, carry the scale of a prefactor or product that under- or overflows.
             let peak = prefactor.re.abs().max(prefactor.im.abs());
@@ -1318,7 +1319,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             // cancelled sum would surface instead of underflowing; otherwise a finite nonzero
             // one is rescaled when the prefactor overflows or the product is not finite)
             let scale = if peak < f64::MIN_POSITIVE {
-                resolved
+                estimate.resolved()
             } else {
                 !(value.is_finite() && in_range)
                     && polynomial.is_finite()

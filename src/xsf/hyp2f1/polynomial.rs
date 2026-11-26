@@ -15,8 +15,8 @@ fn dd_candidate(y: Scaled) -> Option<(f64, Option<[f64; 2]>)> {
     (v.is_finite() && y.err <= HYP2F1_ETHRESH).then_some((v, open.then_some([lo, hi])))
 }
 
-struct Estimate {
-    value: C64,
+pub(super) struct Estimate {
+    pub(super) value: C64,
     // Absolute evaluation roundoff, before accounting for the final rounding to f64.
     abs_roundoff: f64,
 }
@@ -29,6 +29,11 @@ impl Estimate {
         }
     }
 
+    // Whether the estimate is finite with an estimated error below its magnitude.
+    pub(super) fn resolved(&self) -> bool {
+        self.value.is_finite() && self.abs_roundoff < self.value.re.abs().max(self.value.im.abs())
+    }
+
     // Whether the estimate leaves at least half the significand.
     fn accurate(&self) -> bool {
         self.value.is_finite()
@@ -36,9 +41,8 @@ impl Estimate {
     }
 }
 
-/// The series terminated by the negative integer `a` or `b`, or NaN if it is too long, and
-/// whether it is finite with any estimated error below its magnitude.
-pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> (C64, bool) {
+/// The series terminated by the negative integer `a` or `b`, or NaN if it is too long.
+pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> Estimate {
     let neg_int = |p: f64| p == p.trunc() && p < 0.0;
     let degree = match (neg_int(a), neg_int(b)) {
         (true, true) => -a.max(b),
@@ -46,14 +50,11 @@ pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> (C64, bool) {
         _ => -b,
     };
     // Unlike in xsf, cap the number of terms in the finite series.
-    let estimate = if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
+    if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
         evaluate(a, b, c, z, degree as u64)
     } else {
         Estimate::exact(C64::NAN)
-    };
-    let value = estimate.value;
-    let resolved = value.is_finite() && estimate.abs_roundoff < value.re.abs().max(value.im.abs());
-    (value, resolved)
+    }
 }
 
 // The polynomial and the estimated absolute error of a plain origin sum (zero for other forms).
