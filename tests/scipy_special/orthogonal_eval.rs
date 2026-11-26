@@ -184,7 +184,8 @@ fn test_eval_integer_degree_below_minus_one() {
         rtol = 1e-12
     );
 
-    // near those endpoints, where the recurrence was accurate (exact)
+    // near an endpoint whose exponent is below -1, where the recurrence was already accurate
+    // (exact fmpq)
     let cases: [(i32, f64, f64, f64, f64); 6] = [
         (10, -2.999_999_988_749_566_5, -7.0, 0.999_999_993_232_022_6, 3.125_120_500_667_126e-11),
         (18, -15.961_638_268_161_28, -10.0, 0.999_999_997_573_687_2, -1.458_441_313_669_469e-5),
@@ -210,6 +211,19 @@ fn test_eval_integer_degree_below_minus_one() {
         cases.map(|(.., p)| p),
         rtol = 1e-14
     );
+
+    // roots of P_2 there, where the 2F1 was NaN or noise (exact fmpq: 0)
+    let roots: [(i32, f64, f64, f64); 5] = [
+        (2, -1.000_213_611_871_004, 4.998_992_953_449_488, 0.5),
+        (2, -1.000_427_201_390_266_4, -2.000_549_182_295_799_3, 0.5),
+        (2, 4.999_496_468_342_841, -1.000_106_808_729_469_8, -0.5),
+        (2, -2.000_068_662_455_305_5, -1.000_053_405_063_226_8, -0.5),
+        (2, -1.000_366_181_135_177_6, -4.999_023_497_104_645, 3.0),
+    ];
+    let actual = roots.map(|(n, a, b, x)| xsf::eval_jacobi(n, a, b, x));
+    // the recurrence is exactly zero at the first three
+    assert!(actual[..3].iter().all(|&p| p == 0.0), "{actual:?}");
+    np_assert_allclose!(actual, [0.0; 5], atol = 1e-30);
 }
 
 #[test]

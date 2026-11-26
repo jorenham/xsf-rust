@@ -598,21 +598,25 @@ impl JacobiArg<i32> for f64 {
         let amplifies =
             |e: f64| e < -1.0 && !(endpoint_growth(n, e) <= HYP2F1_ETHRESH / f64::EPSILON);
         let near = (self < 0.0 && amplifies(beta)) || (self > 0.0 && amplifies(alpha));
-        if p.is_finite() {
-            if !near || alpha == -1.0 {
-                return p;
-            }
-            let p_dd = eval_jacobi_l_dd(n, alpha, beta, self);
-            if (p - p_dd).abs() * f64::EPSILON < HYP2F1_ETHRESH * p.abs().min(p_dd.abs()) {
-                return p_dd;
-            }
+        if p.is_finite() && (!near || alpha == -1.0) {
+            return p;
+        }
+        let p_dd = if alpha == -1.0 {
+            f64::NAN
+        } else {
+            eval_jacobi_l_dd(n, alpha, beta, self)
+        };
+        let close =
+            |u: f64, v: f64| (u - v).abs() * f64::EPSILON < HYP2F1_ETHRESH * u.abs().min(v.abs());
+        if close(p, p_dd) {
+            return p_dd;
         }
         // Unlike in xsf, use the 2F1 where those are nonfinite or cancel. For an integer
         // alpha = -l with 1 <= l <= n, the terms below l of DLMF 18.5.7 vanish, so it is
         // binom(n + beta, l) / binom(n, l) ((x - 1) / 2)^l P_m^{(l, beta)} with m = n - l. For
         // such a beta, reflect (DLMF Table 18.6.1).
         let int_in_range = |t: f64| t.fract() == 0.0 && (-f64::from(n)..=-1.0).contains(&t);
-        if int_in_range(alpha) {
+        let f = if int_in_range(alpha) {
             let (l, m) = (-alpha as i32, n + alpha as i32);
             let c: f64 = (m + 1..=n)
                 .map(|k| (f64::from(k) + beta) / f64::from(k))
@@ -622,7 +626,16 @@ impl JacobiArg<i32> for f64 {
             neg_one_pow(n) * (-self).eval_jacobi(n, beta, alpha)
         } else {
             self.eval_jacobi(f64::from(n), alpha, beta)
+        };
+        // At a root, the 2F1 can be NaN or noise where `p` is an exact zero, so keep that zero
+        // unless the 2F1 is close to `p_dd`. Where the 2F1 is nonfinite, use `p_dd` or `p`.
+        if p == 0.0 && !close(f, p_dd) {
+            return p;
         }
+        [f, p_dd, p]
+            .into_iter()
+            .find(|v| v.is_finite())
+            .unwrap_or(f)
     }
 
     /// Corresponds to `xsf::detail::eval_legendre_l`
