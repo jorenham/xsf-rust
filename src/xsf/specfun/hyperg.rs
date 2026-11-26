@@ -12,7 +12,9 @@ use super::hyp1f1_recurrence::{
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::ext::{Scaled, add_exp, gamma_quot, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::numpy::sinc;
-use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_if_odd, pow2};
+use crate::utils::{
+    EGAMMA, EPSILON_SQ, MIN_SUBNORMAL_EXP, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_if_odd, pow2,
+};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
@@ -1412,7 +1414,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             return 0.0_f64.copysign((b + x) / b);
         }
         // Shift the exponential so the product is measured in units of 2^-1074.
-        let units = ((DoubleDouble::new(b) + x) / b) * (DoubleDouble::new(x) + LOG2 * 1074.0).exp();
+        let units = ((DoubleDouble::new(b) + x) / b)
+            * (DoubleDouble::new(x) + LOG2 * -f64::from(MIN_SUBNORMAL_EXP)).exp();
         return units.round_subnormal_units();
     }
 

@@ -1138,12 +1138,6 @@ fn lq_is_extreme(z: C64) -> bool {
 // Keep the exponent of each part separate, because raising the order can bring an underflowed
 // part back into range, also one far below the other part.
 fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) {
-    #[expect(
-        clippy::cast_possible_wrap,
-        reason = "the binary64 mantissa width fits i32"
-    )]
-    const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
-
     // `m 2^e` as `(m, e)`, with `m` zero or normalized
     type Part = (DoubleDouble, i64);
     let norm = |(m, e): Part| {
@@ -1173,7 +1167,8 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
             let e = a.1.max(b.1);
             // A negligible part stays as a sticky least subnormal, below the precision of the
             // other.
-            let align = |(m, k): Part| m.ldexp((k - e).max(i64::from(MIN_SUB_EXP + 1)) as i32);
+            let align =
+                |(m, k): Part| m.ldexp((k - e).max(i64::from(utils::MIN_SUBNORMAL_EXP + 1)) as i32);
             norm((align(a) + align(b), e))
         }
     };
@@ -1231,7 +1226,7 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
         if e >= i64::from(f64::MIN_EXP) {
             ldexp_f64(m.hi, e.min(i64::from(i32::MAX)) as i32)
         } else {
-            m.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32)
+            m.ldexp((e - i64::from(utils::MIN_SUBNORMAL_EXP)).max(i64::from(i32::MIN)) as i32)
                 .round_subnormal_units()
         }
     };
@@ -1274,12 +1269,6 @@ fn lqmn_extreme_real<T>(
     mut qd: Mdspan<'_, T, 2>,
     output: impl Fn(f64, f64) -> (T, T),
 ) {
-    #[expect(
-        clippy::cast_possible_wrap,
-        reason = "the binary64 mantissa width fits i32"
-    )]
-    const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
-
     let (xm, xe) = frexp_f64(x);
     let xe = i64::from(xe);
     let inv = DoubleDouble::ONE / xm;
@@ -1292,12 +1281,12 @@ fn lqmn_extreme_real<T>(
         if e > i64::from(f64::MIN_EXP) {
             return ldexp_f64(a.hi, e.min(i64::from(i32::MAX)) as i32);
         }
-        if e < i64::from(MIN_SUB_EXP - 1) {
+        if e < i64::from(utils::MIN_SUBNORMAL_EXP - 1) {
             return 0.0_f64.copysign(a.hi);
         }
         // Round in units of the least subnormal. At an exact midpoint
         // the first omitted term increases the magnitude.
-        let units = ldexp_f64(a.hi, (e - i64::from(MIN_SUB_EXP)) as i32);
+        let units = ldexp_f64(a.hi, (e - i64::from(utils::MIN_SUBNORMAL_EXP)) as i32);
         let rounded = if units.fract().abs() == 0.5
             && a.lo != 0.0
             && a.lo.is_sign_negative() != a.hi.is_sign_negative()
@@ -1306,7 +1295,7 @@ fn lqmn_extreme_real<T>(
         } else {
             units.round()
         };
-        ldexp_f64(rounded, MIN_SUB_EXP)
+        ldexp_f64(rounded, utils::MIN_SUBNORMAL_EXP)
     };
     for n in 0..int(qm.extent(1)) {
         let next = f64::from(n) + 1.0;

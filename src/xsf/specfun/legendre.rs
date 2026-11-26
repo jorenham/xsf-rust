@@ -4,7 +4,7 @@
 use core::f64::consts::PI;
 
 use super::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF, gamma2, psi_spec, specfun_convinf};
-use crate::utils::neg_one_pow;
+use crate::utils::{MIN_SUBNORMAL_EXP, neg_one_pow};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::tools::int_x86;
 
@@ -254,7 +254,7 @@ fn lpmv_scaled_integer(x: f64, m: i32, gap: i32) -> f64 {
     let scale = i32::try_from(exponent.clamp(-4096, 4096)).unwrap();
     let rounded = p1.ldexp(scale).hi;
     if rounded.abs() <= f64::MIN_POSITIVE {
-        p1.ldexp(scale + 1074).round_subnormal_units()
+        p1.ldexp(scale - MIN_SUBNORMAL_EXP).round_subnormal_units()
     } else {
         rounded
     }

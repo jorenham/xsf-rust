@@ -130,7 +130,7 @@ use core::cmp::Ordering;
 use core::f64::consts::{LN_2, LOG2_E, PI};
 
 use crate::numpy::sinc;
-use crate::utils::{DENORM_MIN, neg_one_pow, pow2};
+use crate::utils::{DENORM_MIN, MIN_SUBNORMAL_EXP, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
@@ -1242,7 +1242,8 @@ fn chu_vandermonde(n: f64, b: Dd, c: Dd, round_subnormal: bool) -> Option<Scaled
         });
     match product {
         Some((t, e)) => {
-            let units = round_subnormal.then(|| t.ldexp(e + 1074).round_subnormal_units());
+            let units =
+                round_subnormal.then(|| t.ldexp(e - MIN_SUBNORMAL_EXP).round_subnormal_units());
             let m = units
                 .filter(|v| v.is_subnormal())
                 .map_or(t.hi, |v| ldexp_f64(v, -e));
@@ -1315,7 +1316,7 @@ pub(crate) fn exp_rounded(l: Dd) -> f64 {
     let v = ldexp_f64(y.hi, e);
     if v.abs() <= f64::MIN_POSITIVE {
         // (in units of the smallest subnormal, as `ldexp` would round `y.hi` a second time)
-        y.ldexp(e + 1074).round_subnormal_units()
+        y.ldexp(e - MIN_SUBNORMAL_EXP).round_subnormal_units()
     } else {
         v
     }

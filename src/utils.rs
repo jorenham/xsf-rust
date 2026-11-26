@@ -19,6 +19,12 @@ pub(crate) const SQRT_EPSILON: f64 = 1.490_116_119_384_765_6e-8;
 pub(crate) const EPSILON_SQ: f64 = f64::EPSILON * f64::EPSILON;
 /// The smallest positive subnormal `f64`, `std::numeric_limits<double>::denorm_min()`
 pub(crate) const DENORM_MIN: f64 = f64::from_bits(1);
+/// The binary exponent of `DENORM_MIN`, -1074
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "the binary64 mantissa width fits i32"
+)]
+pub(crate) const MIN_SUBNORMAL_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
 /// pi^2 / 6
 pub(crate) const FRAC_PI_SQ_6: f64 = PI * PI / 6.0;
 /// Euler-Mascheroni constant
