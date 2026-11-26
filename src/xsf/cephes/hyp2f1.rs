@@ -1483,17 +1483,26 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             }
         }
         // hypok:
-        // Unlike in xsf, a polynomial in scaled double-double (in the outermost call, as above):
-        // the power series stops at its first infinite term, whose sign can differ from that of
-        // the sum, and its terms can cancel, while the recurrence in `a` can add infinities of
-        // both signs (NaN), or amplify the rounding of its starting values, even for a tiny x
-        if outer && inexact.is_none() && (neg_int_a || neg_int_b) {
+        let (y, err, err_full) = hyt2f1(a, b, c, x);
+
+        // Unlike in xsf, the polynomial in scaled double-double (in the outermost call, as above)
+        // if it differs from `y` by more than twice its bound, so that it is more accurate, or if
+        // `y` is not finite: the power series can lose digits to cancellation or stop at an
+        // infinity of the wrong sign, and the recurrence in `a` can give NaN or amplify rounding,
+        // even for a tiny x. Only if `y` is estimated to be inaccurate, or for a degree below
+        // `HYP2F1_RECUR_MIN`, as the polynomial takes a step per degree.
+        let low_degree = |p: f64| is_nonpos_int(p) && p > -HYP2F1_RECUR_MIN;
+        let retry =
+            !(y.is_finite() && err_full <= HYP2F1_ETHRESH) || low_degree(a) || low_degree(b);
+        if outer && inexact.is_none() && retry && (neg_int_a || neg_int_b) {
+            let better = |&(alt, bound): &(f64, f64)| {
+                !y.is_finite() || (y - alt).abs() > 2.0 * bound * alt.abs()
+            };
             let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
-            if let Some((y, _)) = poly.filter(accurate) {
+            if let Some((y, _)) = poly.filter(accurate).filter(better) {
                 return y;
             }
         }
-        let (y, err, err_full) = hyt2f1(a, b, c, x);
 
         // Unlike in xsf, the result of `hyp2f1_recur` instead if its error bound is below the
         // estimate of `y`, or shows `y` to be less accurate.

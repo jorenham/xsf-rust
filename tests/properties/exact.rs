@@ -3,8 +3,6 @@
 // exact values, e.g. integer parameters
 #![allow(clippy::float_cmp)]
 
-use std::ops::RangeInclusive;
-
 use num_complex::{Complex64, c64};
 use proptest::prelude::*;
 
@@ -18,14 +16,9 @@ const MAX_N: u32 = 20;
 /// The unit roundoff
 const U: f64 = f64::EPSILON / 2.0;
 
-/// Multiples `m / 8` of 1/8, e.g. -3, 2.5 or 0.125, so that `t + k` is exact for `|m| <= 256`
-fn eighths(m: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
-    m.prop_map(|m| f64::from(m) / 8.0)
-}
-
-/// `eighths` for all `|m| <= 256`
+/// Multiples `m / 8` of 1/8 for `|m| <= 256`, e.g. -3, 2.5 or 0.125, so that `t + k` is exact
 fn param() -> impl Strategy<Value = f64> {
-    eighths(-256..=256)
+    (-256..=256).prop_map(|m| f64::from(m) / 8.0)
 }
 
 /// An upper bound on `m u / (1 - m u)`, the relative error of `m` roundings (Higham, Accuracy
