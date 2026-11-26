@@ -585,6 +585,40 @@ fn test_hyp2f1_c64_inverse_integer_large_a() {
 }
 
 #[test]
+fn test_hyp2f1_c64_inverse_integer_near_pole() {
+    // a - b is an integer and c - a is near, but not at, one; the 1/z limit then returns NaN or
+    // the Arb value.
+    for (a, b, c, z, expected) in [
+        (
+            213.248_643_689_586_17,
+            50.248_643_689_586_16,
+            222.248_643_689_351_44,
+            c64(-1.014_210_024_115_557_6, 1.417_701_621_453_768_5),
+            [3.580_075_139_787_867e-20, -8.579_730_464_408_666e-20],
+        ),
+        (
+            210.058_542_894_719_72,
+            55.058_542_894_719_71,
+            214.058_542_854_443_97,
+            c64(1.059_923_483_788_382_9, -1.086_705_256_220_733_8),
+            [0.025_883_630_091_518_207, -0.007_377_722_523_533_524],
+        ),
+        (
+            110.448_769_834_638,
+            28.448_769_834_637_993,
+            121.448_770_434_331,
+            c64(-1.802_743_511_750_525, -1.473_247_426_501_849_4),
+            [3.541_814_800_979_363e-14, -3.033_825_256_149_333e-14],
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        if !actual.is_nan() {
+            np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-8);
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
     // a - b is near an integer, but the paired 1/z series cancel more than the unpaired ones.
     // Arb at the binary64 inputs, compared componentwise.

@@ -565,8 +565,11 @@ fn hyp2f1_transform2_limit_series_generator(
         d1 += 1.0 / (1.0 + k_); // d1 = digamma(1 + k)
         d2 += 1.0 / (1.0 + m + k_); // d2 = digamma(1 + m + k)
         d3 += 1.0 / (a + k_); // d3 = digamma(a + k)
-        d4 -= 1.0 / (c - a - k_ - 1.0); // d4 = digamma(c - a - k)
-        let f = (b + m + k_) * (1.0 - c + b + m + k_) / ((k + 1) as f64 * (m + k_ + 1.0));
+        let s = c - a - k_ - 1.0;
+        d4 -= 1.0 / s; // d4 = digamma(c - a - k)
+        // Unlike in xsf, take 1 - c + b + m as 1 - c + a, so that the zero of the factor cancels
+        // the pole of d4 exactly.
+        let f = -(b + m + k_) * s / ((k + 1) as f64 * (m + k_ + 1.0));
         factor *= f / z;
         k += 1;
         term
@@ -948,17 +951,25 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
     // can underflow or overflow alone.
     let finite_factor = power::neg_z_pow(z, -b) * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
     let finite = finite_factor.mantissa * series_eval_finite(series_generator1, m as u64);
-    let mut factor = gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, cb - m, (m + 1.0).into()]);
-    factor.mantissa *= neg_one_pow(m);
     let n = c - a;
     let n_int = n.round();
+    let near_int = (n - n_int).abs() < HYP2F1_EPS;
+    // Unlike in xsf, take x - m as c - a in the series for c - a below 1/2, so that a zero of
+    // 1 / Gamma(c - a) cancels the pole of digamma(c - a) exactly.
+    let x_m = if near_int || n_int > 0.0 {
+        cb - m
+    } else {
+        Dd::new(n)
+    };
+    let mut factor = gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, x_m, (m + 1.0).into()]);
+    factor.mantissa *= neg_one_pow(m);
     let (mut series_abs, mut k) = (0.0, 0.0);
     let mut weigh = |term: C64| {
         k += 1.0;
         series_abs += k * term.norm();
         term
     };
-    let series = if (n - n_int).abs() < HYP2F1_EPS {
+    let series = if near_int {
         // Unlike in xsf, pass an integer at the positive-parameter coefficient switch.
         let n = if n_int > 0.0 && b > 0.0 { n_int } else { n };
         let mut g = hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, factor, z);
