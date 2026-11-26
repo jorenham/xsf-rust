@@ -557,8 +557,21 @@ impl JacobiArg<i32> for f64 {
             self.eval_jacobi(f64::from(n), alpha, beta)
         } else {
             // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
-            eval_jacobi_l_reflected(n, alpha, beta, self)
-                .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self))
+            let p = eval_jacobi_l_reflected(n, alpha, beta, self)
+                .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self));
+            // Unlike in xsf, for alpha or beta <= -1, where the recurrence can lose all digits
+            // (e.g. near x = -1 for beta < -1), keep it only where it agrees with the 2F1 up to
+            // the error threshold of the 2F1.
+            let q = if is_classical(alpha, beta) {
+                p
+            } else {
+                self.eval_jacobi(f64::from(n), alpha, beta)
+            };
+            if q.is_finite() && !((p - q).abs() <= HYP2F1_ETHRESH * q.abs()) {
+                q
+            } else {
+                p
+            }
         }
     }
 

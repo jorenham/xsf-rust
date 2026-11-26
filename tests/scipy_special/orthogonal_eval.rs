@@ -147,6 +147,36 @@ fn test_eval_integer_degree_reflection() {
 }
 
 #[test]
+fn test_eval_integer_degree_below_minus_one() {
+    // the recurrence lost all digits or was NaN for alpha or beta below -1 (Arb)
+    let actual = [
+        // beta < -1 near x = -1
+        xsf::eval_jacobi(
+            85_i32,
+            0.923_528_596_985_787_5,
+            -20.066_479_948_825_68,
+            -0.999_999_549_074_469_4,
+        ),
+        // beta < -1 at x = -1
+        xsf::eval_jacobi(91_i32, 14.9, -13.004_252_634_573_632, -1.0),
+        // alpha < -1 near x = 1
+        xsf::eval_jacobi(50_i32, -7.6, 3.3, 0.95),
+        // alpha + beta = -2, where the recurrence divides by 2k + alpha + beta = 0 at k = 1
+        xsf::eval_jacobi(40_i32, -0.3, -1.7, -1.0),
+        // alpha + beta = -3, where it divides by k + alpha + beta + 1 = 0 at k = 2
+        xsf::eval_jacobi(200_i32, 0.5, -3.5, 0.3),
+    ];
+    let desired = [
+        -2.169_024_416_715_375e-22,
+        1.692_867_567_181_582e-19,
+        -2.415_984_839_942_639_5e-7,
+        -4.489_754_303_000_653e-4,
+        0.020_564_176_834_305_885,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_eval_integer_degree_f64() {
     // integer degrees use the integer-degree recurrence, where `hyp2f1` was NaN or cancelled (Arb)
     let x = 1.0 - f64::EPSILON / 2.0; // the largest f64 below 1
