@@ -167,7 +167,7 @@ fn pow_ratio(num_gh: f64, den_gh: f64, d: f64, e: f64, big: bool) -> f64 {
 }
 
 /// Whether `four_gammas` tries the direct ratio of gamma functions at these arguments
-fn four_gammas_direct(args: [f64; 4]) -> bool {
+fn in_direct_gamma_range(args: [f64; 4]) -> bool {
     /* Direct ratio tends to be more accurate for arguments in this range. Range
      * chosen empirically based on the relevant benchmarks in
      * scipy/special/_precompute/hyp2f1_data.py */
@@ -182,7 +182,7 @@ fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     if x.abs() > w.abs() {
         core::mem::swap(&mut x, &mut w);
     }
-    if four_gammas_direct([u, v, w, x]) {
+    if in_direct_gamma_range([u, v, w, x]) {
         let result = gamma(u) * gamma(v) * (rgamma(w) * rgamma(x));
         if result.is_finite() && result != 0.0 {
             return result;
@@ -879,16 +879,17 @@ fn digamma_integral(mut x: f64, h: f64) -> f64 {
 fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     let d = f64::from(Dd::new(c) - a - b);
     // Only where the unpaired series lose more than HYP2F1_EPS to their cancelling poles.
-    if f64::EPSILON / d.abs() <= HYP2F1_EPS {
+    let pole_loss = f64::EPSILON / d.abs();
+    if pole_loss <= HYP2F1_EPS {
         return None;
     }
     // Beyond its direct ratio, `four_gammas` reflects x < 1/2 with a relative error near
     // eps |x| / dist(x, Z), worth it only where both the unpaired series, which lose eps / |d|
     // to their cancelling poles, and the limit for an integer balance, which is off by about
     // |d|, lose more.
-    let tolerance = d.abs().max(f64::EPSILON / d.abs());
+    let tolerance = d.abs().max(pole_loss);
     let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (tolerance * x).abs();
-    if !four_gammas_direct([c, -d, a, b]) && [a, b, c].into_iter().any(reflected) {
+    if !in_direct_gamma_range([c, -d, a, b]) && [a, b, c].into_iter().any(reflected) {
         return None;
     }
     let w = 1.0 - z;
@@ -907,10 +908,11 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64
     let (series, cancellation) = series_eval_settled(|| {
         let term = upper * crate::xsf::cexpm1(log_ratio - log_power);
         let (p, q, n) = (a + k, b + k, k + 1.0);
+        let (shifted, nd) = ((p + d) * (q + d), n - d);
         // A_k+1 / B_k+1 = (A_k / B_k) (1 + d step)
-        let step = (2.0 * p * q - (p + q + d) * (n - d)) / ((n - d) * (p + d) * (q + d));
+        let step = (2.0 * p * q - (p + q + d) * nd) / (nd * shifted);
         log_ratio += (d * step).ln_1p();
-        upper *= w * ((p + d) * (q + d) / (n * (n + d)));
+        upper *= w * (shifted / (n * (n + d)));
         k = n;
         term
     });
