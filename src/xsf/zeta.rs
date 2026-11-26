@@ -333,10 +333,16 @@ const RS_F_COEFFS: [C64; 30] = [
 /// Number of terms `C_k / a^k` of the Riemann-Siegel correction
 const RS_TERMS: usize = 10;
 
+/// Number of derivatives `F^(m)`, `m <= 3 (RS_TERMS - 1)`, in the Riemann-Siegel correction
+const RS_DERIVATIVES: usize = 3 * RS_TERMS - 2;
+
 /// Smallest `a = sqrt(|Im z| / (2 pi))` for the Riemann-Siegel formula. The cutoff is empirical:
 /// on a grid of `|p| <= 1` and the dispatched `Re z`, the first omitted correction terms, weighted
 /// as `a^(-Re z - 10) (|C_10(Re z, p)| + |C_10(1 - Re z, p)|)`, stay below eps.
 const RS_MIN_A: f64 = 10.0;
+
+/// Smallest `|Im z|` for the Riemann-Siegel formula
+const RS_MIN_IM: f64 = TAU * RS_MIN_A * RS_MIN_A;
 
 /// Largest `|Im z|` with `0 <= Re z < 2.5` for which zeta is computed (NaN above)
 const MAX_IM: f64 = 1e9;
@@ -347,14 +353,14 @@ const MAX_IM: f64 = 1e9;
 const DIRICHLET_TERM_STEPS: usize = 16;
 
 /// Cost of the Riemann-Siegel correction in Dirichlet terms, counting `2 RS_F_COEFFS.len()` steps
-/// for each of its `3 RS_TERMS - 2` derivatives of `F`.
+/// for each of its `RS_DERIVATIVES` derivatives of `F`.
 const RS_CORRECTION_TERMS: u32 =
-    ((3 * RS_TERMS - 2) * 2 * RS_F_COEFFS.len() / DIRICHLET_TERM_STEPS) as u32;
+    (RS_DERIVATIVES * 2 * RS_F_COEFFS.len() / DIRICHLET_TERM_STEPS) as u32;
 
 /// `sum_k C_k(sigma, p) / a^k` of the Riemann-Siegel formula, with
 /// `C_k(sigma, p) = sum_l d_kl(sigma) F^(3k - 2l)(p) / (pi^(2k - l) (2i)^l)`, given the derivatives
 /// `fp[m] = F^(m)(p)`.
-fn rs_correction(sigma: f64, a: f64, fp: &[C64; 3 * RS_TERMS - 2]) -> C64 {
+fn rs_correction(sigma: f64, a: f64, fp: &[C64; RS_DERIVATIVES]) -> C64 {
     // Row k of d_kl(sigma) by the recurrence of mpmath's `Rzeta_simul`, with d_kl at d[l + 2] so
     // that d_k,-2 = d_k,-1 = 0
     let mut d = [0.0; 3 * RS_TERMS / 2 + 3];
@@ -412,7 +418,7 @@ fn dirichlet_sums(z: C64, n_max: u32) -> (C64, C64) {
     (x, y)
 }
 
-/// Compute riemann_zeta for complex z with `|Im z| >= 2 pi RS_MIN_A^2` by the Riemann-Siegel
+/// Compute riemann_zeta for complex z with `|Im z| >= RS_MIN_IM` by the Riemann-Siegel
 /// formula of Arias de Reyna (2011, Math. Comp. 80, 995-1009), as in mpmath's `rszeta`, or by
 /// the Dirichlet series where that needs fewer terms.
 ///
@@ -450,17 +456,17 @@ fn zeta_riemann_siegel(z: C64) -> C64 {
     let (sin, cos) = (-phi).sin_cos();
     let u = c64(cos, sin);
 
-    // The derivatives F^(m)(p) = sum_k coeffs[k] p^(2k - m) for m <= 3 (RS_TERMS - 1)
+    // The derivatives F^(m)(p) = sum_k coeffs[k] p^(2k - m)
     let q = p * p;
     let mut coeffs = RS_F_COEFFS;
-    let mut fp = [C64::ZERO; 3 * RS_TERMS - 2];
+    let mut fp = [C64::ZERO; RS_DERIVATIVES];
     for (m, f) in fp.iter_mut().enumerate() {
         let even = coeffs[m.div_ceil(2)..]
             .iter()
             .rev()
             .fold(C64::ZERO, |acc, &c| acc * q + c);
         *f = if m % 2 == 0 { even } else { p * even };
-        for (k, c) in coeffs.iter_mut().enumerate() {
+        for (k, c) in coeffs.iter_mut().enumerate().skip(m.div_ceil(2)) {
             *c *= (2 * k) as f64 - m as f64;
         }
     }
@@ -497,10 +503,8 @@ fn zeta_right_halfplane(z: C64) -> C64 {
             return C64::NAN;
         }
         // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to
-        // |Im z| = MAX_IM: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
-        // eps |Im z| ln(n) n^-Re z. Above MAX_IM, Euler-Maclaurin is kept for Re z >= 2.5, where
-        // its sum stops early.
-        if (TAU * RS_MIN_A * RS_MIN_A..=MAX_IM).contains(&z.im.abs()) {
+        // |Im z| = MAX_IM, as the phase errors of Euler-Maclaurin grow with |Im z|.
+        if (RS_MIN_IM..=MAX_IM).contains(&z.im.abs()) {
             return zeta_riemann_siegel(z);
         }
         return zeta_euler_maclaurin(z);
