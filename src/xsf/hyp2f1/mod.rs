@@ -1313,7 +1313,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let polynomial = estimate.value;
             let value = prefactor * polynomial;
             // Unlike in xsf, carry the scale of a prefactor or product that under- or overflows.
-            let peak = prefactor.re.abs().max(prefactor.im.abs());
+            let peak = prefactor.linf_norm();
             let in_range = peak.is_normal();
             // (a prefactor below the range needs a resolved polynomial, as the error of a
             // cancelled sum would surface instead of underflowing; otherwise a finite nonzero

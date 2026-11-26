@@ -96,7 +96,7 @@ impl core::ops::Mul<C64> for ScaledC64 {
     // Scale the factor by its larger component, which then stays in range until the final
     // scaling.
     fn mul(self, rhs: C64) -> Self {
-        let (_, shift) = frexp_f64(rhs.re.abs().max(rhs.im.abs()));
+        let (_, shift) = frexp_f64(rhs.linf_norm());
         let [re, im] = [rhs.re, rhs.im].map(|v| ldexp_f64(v, -shift));
         self * Self {
             mantissa: c64(re, im),

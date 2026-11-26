@@ -34,13 +34,12 @@ impl From<C64> for Estimate {
 impl Estimate {
     // Whether the estimate is finite with an estimated error below its magnitude.
     pub(super) fn resolved(&self) -> bool {
-        self.value.is_finite() && self.abs_roundoff < self.value.re.abs().max(self.value.im.abs())
+        self.value.is_finite() && self.abs_roundoff < self.value.linf_norm()
     }
 
     // Whether the estimate leaves at least half the significand.
     fn accurate(&self) -> bool {
-        self.value.is_finite()
-            && self.abs_roundoff <= pow2(-26) * self.value.re.abs().max(self.value.im.abs())
+        self.value.is_finite() && self.abs_roundoff <= pow2(-26) * self.value.linf_norm()
     }
 }
 

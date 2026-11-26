@@ -148,6 +148,12 @@ impl C64 {
         self.re.abs() + self.im.abs()
     }
 
+    /// The larger part magnitude, `max(|re|, |im|)`
+    #[inline]
+    pub(crate) fn linf_norm(self) -> f64 {
+        self.re.abs().max(self.im.abs())
+    }
+
     /// `std::log(z)`
     #[inline]
     pub(crate) fn ln(self) -> Self {
