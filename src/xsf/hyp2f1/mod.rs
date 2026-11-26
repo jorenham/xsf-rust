@@ -179,7 +179,26 @@ fn in_direct_gamma_range(args: impl IntoIterator<Item = f64>) -> bool {
     args.into_iter().all(|x| x.abs() <= 100.0)
 }
 
-fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
+fn four_gammas(u: f64, v: f64, w: f64, x: f64) -> f64 {
+    four_gammas_estimate(u, v, w, x).0
+}
+
+/// The relative error of terms proportional to the distance of `p` to a nonpositive integer from
+/// the rounding of `p`
+fn pole_rounding(p: f64) -> f64 {
+    if p.round() > 0.0 {
+        0.0
+    } else {
+        f64::EPSILON * p.abs() / (p - p.round()).abs()
+    }
+}
+
+/// `four_gammas`, and an estimated bound of its relative error: eps per unit of each argument (the
+/// rounding of a recurrence or of the exponent of a power), with the rounding of pi t in the sine
+/// of each argument t < 1/2 that the Lanczos approximation reflects, or that of the logarithms
+//
+// Unlike in xsf, also estimate the error.
+fn four_gammas_estimate(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> (f64, f64) {
     // Without loss of generality, ensure |u| >= |v| and |w| >= |x|.
     if v.abs() > u.abs() {
         core::mem::swap(&mut u, &mut v);
@@ -187,20 +206,24 @@ fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     if x.abs() > w.abs() {
         core::mem::swap(&mut x, &mut w);
     }
-    if in_direct_gamma_range([u, v, w, x]) {
+    let args = [u, v, w, x];
+    let powers = f64::EPSILON * args.map(|t| t.abs() + 1.0).iter().sum::<f64>();
+    if in_direct_gamma_range(args) {
         let result = gamma(u) * gamma(v) * (rgamma(w) * rgamma(x));
         if result.is_finite() && result != 0.0 {
-            return result;
+            return (result, powers);
         }
     }
     let mut result = four_gammas_lanczos(u, v, w, x);
     if result.is_finite() && result != 0.0 {
-        return result;
+        return (result, powers + args.map(pole_rounding).iter().sum::<f64>());
     }
     // If overflow or underflow, try again with logs.
-    result = (lgam(v) - lgam(x) + lgam(u) - lgam(w)).exp();
+    let logs = [lgam(v), lgam(x), lgam(u), lgam(w)];
+    result = (logs[0] - logs[1] + logs[2] - logs[3]).exp();
     result *= gammasgn(u) * gammasgn(w) * gammasgn(v) * gammasgn(x);
-    result
+    let rounding = f64::EPSILON * logs.map(f64::abs).iter().sum::<f64>();
+    (result, powers + rounding)
 }
 
 fn hypergeometric_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
@@ -2206,14 +2229,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             }
             // Unlike in xsf, account for the rounding of `c - a` or `c - b` near a nonpositive
             // integer, as the later terms are proportional to their distance to it.
-            let relative_rounding = |p: f64| {
-                if p.round() > 0.0 {
-                    0.0
-                } else {
-                    f64::EPSILON * p.abs() / (p - p.round()).abs()
-                }
-            };
-            let rounding = relative_rounding(c - a).max(relative_rounding(c - b));
+            let rounding = pole_rounding(c - a).max(pole_rounding(c - b));
             return prefactor * hypergeometric_series(c - a, c - b, c, z, rounding).value;
         }
         return hypergeometric_series(a, b, c, z, 0.0).value;
