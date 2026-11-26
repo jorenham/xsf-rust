@@ -338,6 +338,9 @@ const RS_TERMS: usize = 10;
 /// as `a^(-Re z - 10) (|C_10(Re z, p)| + |C_10(1 - Re z, p)|)`, stay below eps.
 const RS_MIN_A: f64 = 10.0;
 
+/// Largest `|Im z|` with `0 <= Re z < 2.5` for which zeta is computed (NaN above)
+const MAX_IM: f64 = 1e9;
+
 /// Cost of a Dirichlet term (a power, a double-double logarithm and a sine and cosine) in steps
 /// of `RS_CORRECTION_TERMS`. Calibrated by timing at large `|Im z|`; at small `|Im z|` the
 /// Dirichlet sum stays cheaper somewhat beyond the resulting cutoff.
@@ -490,17 +493,17 @@ fn zeta_right_halfplane(z: C64) -> C64 {
     // Unlike in xsf, Euler-Maclaurin is used for |Im z| > 30 instead of 50: the error of the
     // 50-term Borwein sum grows like exp(pi |Im z| / 2) / (3 + sqrt(8))^50 (2e-7 at 1/2 + 48i).
     if z.re < 50.0 && z.im.abs() > 30.0 {
-        if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > 1e9 {
+        if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > MAX_IM {
             /* Euler-MacLaurin summation starts to take an unreasonable amount of time in this
              * region, so just give up and return NaN instead. */
             return C64::NAN;
         }
         // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to
-        // |Im z| = 1e9: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
-        // eps |Im z| ln(n) n^-Re z, which can exceed eps for Re z < log2 |Im z|. Above the limit,
-        // its sum still stops early (Re z >= 2.5).
+        // |Im z| = MAX_IM: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
+        // eps |Im z| ln(n) n^-Re z, which can exceed eps for Re z < log2 |Im z|. Above MAX_IM,
+        // Euler-Maclaurin is kept for Re z >= 2.5, where its sum stops early.
         let t = z.im.abs();
-        if (TAU * RS_MIN_A * RS_MIN_A..=1e9).contains(&t) && z.re < t.log2() {
+        if (TAU * RS_MIN_A * RS_MIN_A..=MAX_IM).contains(&t) && z.re < t.log2() {
             return zeta_riemann_siegel(z);
         }
         return zeta_euler_maclaurin(z);
