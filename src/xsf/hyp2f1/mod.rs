@@ -235,6 +235,12 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
         (n, last) = (n + 1.0, series_generator());
         last
     });
+    // Unlike in xsf, continue the series analytically if it cancels.
+    if head.is_continued() {
+        if let Some(value) = hyp2f1_continuation(a, b, c, z, head.value.into()) {
+            return value;
+        }
+    }
     let x = z.norm();
     let growth = ln_max_growth(a, b, c, x, n - 1.0);
     // A subnormal term would pass its rounding on to the larger later ones.
@@ -388,24 +394,38 @@ impl Cancelled {
         self.cancellation * f64::EPSILON > HYP2F1_EPS
     }
 
+    /// Whether the estimated relative roundoff exceeds `CONTINUED_ROUNDOFF`
+    fn is_continued(self) -> bool {
+        self.cancellation * f64::EPSILON > CONTINUED_ROUNDOFF
+    }
+
     /// Whether the estimated relative roundoff is at most `USABLE_ERROR`
     fn is_usable(self) -> bool {
         self.cancellation * f64::EPSILON <= USABLE_ERROR
     }
 }
 
+/// The estimated relative roundoff of a series above which to try `hyp2f1_continuation`; below
+/// it the continuation gains little accuracy at much more cost
+const CONTINUED_ROUNDOFF: f64 = 100.0 * HYP2F1_EPS;
+
 /// The largest estimated relative error of a usable sum
 const USABLE_ERROR: f64 = 0.125;
 
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
-fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> Cancelled {
+fn series_eval_cancellation(g: impl FnMut() -> C64) -> Cancelled {
+    series_eval_cancellation_to(g, HYP2F1_EPS)
+}
+
+/// `series_eval_cancellation` to the relative tolerance `tol`
+fn series_eval_cancellation_to(mut g: impl FnMut() -> C64, tol: f64) -> Cancelled {
     let mut abs_sum = 0.0;
     let g = || {
         let term = g();
         abs_sum += term.norm();
         term
     };
-    let result = series_eval(g);
+    let result = tools::series_eval(g, C64::ZERO, tol, HYP2F1_MAXITER);
     Cancelled {
         value: result,
         cancellation: cancellation(abs_sum, result),
@@ -1231,15 +1251,24 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     } else {
         (a, b)
     };
-    let series_generator = hypergeometric_series_generator(a, c - b, c, z / (z - 1.0));
+    let z_pfaff = z / (z - 1.0);
+    let series_generator = hypergeometric_series_generator(a, c - b, c, z_pfaff);
     let positive_parameters = a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite();
     if z.is_real() || !positive_parameters {
         return (1.0 - z).powf(-a) * series_eval(series_generator);
     }
     // Unlike in xsf, evaluate the Pfaff prefactor without rounding |1-z| first.
     let power = pfaff_power(a, z);
-    // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon.
-    power * tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER)
+    // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon, and continue it
+    // analytically if it cancels.
+    let series = series_eval_cancellation_to(series_generator, f64::EPSILON);
+    // (only for a normal power, as the continuation's error is then relative to its value)
+    let sum = if series.is_continued() && power.norm().is_normal() {
+        hyp2f1_continuation(a, c - b, c, z_pfaff, series.value.into()).unwrap_or(series.value)
+    } else {
+        series.value
+    };
+    power * sum
 }
 
 /// (1 - z)^(-a), from ln |1 - z| without rounding |1 - z| first
@@ -1418,9 +1447,9 @@ const TAYLOR_STEP_RATIO: f64 = 0.25;
 // the Taylor terms of a solution near exp(kappa h) cancel by up to exp(|kappa h| - Re(kappa h)).
 // (measured for large a, b and c near a + b: 4 sums up to 45% more terms, 16 cancels too much)
 const TAYLOR_STEP_PHASE: f64 = 8.0;
-// The Taylor terms of a continuation, as many as of three series: of F and of the two columns
-// of the transfer matrices
-const TAYLOR_MAX_TERMS: u64 = 3 * HYP2F1_MAXITER;
+// The Taylor terms of a continuation, as many as of 20 series: about that many were measured for
+// a, b <= 400, c near a + b and |1 - z| near 1, as the steps shrink with the distance to 0
+const TAYLOR_MAX_TERMS: u64 = 20 * HYP2F1_MAXITER;
 
 /// F(p + h) and F'(p + h) from F(p) and F'(p), for each solution in `x`, by the Taylor series
 /// at p of the hypergeometric equation (DLMF 15.10.1), and the sums of the absolute values of
@@ -1439,9 +1468,13 @@ fn hyp2f1_taylor_step<const N: usize>(
     terms: &mut u64,
 ) -> Option<([[C64; 2]; N], [f64; 2])> {
     let g = h / (p * (1.0 - p));
-    // c - (a + b + 1) p, without rounding a + b near p = 1
-    let (a_plus_b, low) = two_sum(a, b);
-    let t = (c - a_plus_b - low - 1.0) + (1.0 - p) * (a + b + 1.0);
+    // c - (a + b + 1) p, without rounding a + b near p = 1 or cancelling near p = 0
+    let t = if p.norm() < (1.0 - p).norm() {
+        c - (a + b + 1.0) * p
+    } else {
+        let (a_plus_b, low) = two_sum(a, b);
+        (c - a_plus_b - low - 1.0) + (1.0 - p) * (a + b + 1.0)
+    };
     let (u, v, s) = (g * h, g * (1.0 - 2.0 * p), g * t);
     // For each solution, [e_k, e_(k+1)], the sums of the terms of F and h F', their absolute
     // values, and whether they have yet to converge
@@ -1477,15 +1510,15 @@ fn hyp2f1_taylor_step<const N: usize>(
     Some((next, [abs_sum, abs_derivative / h.norm()]))
 }
 
-/// F(a, b; c; z) for a, b, c > 0 and |1 - z| <= 1/2 by analytic continuation of the Maclaurin
-/// series at 1/2, along the real axis to 1 - |1 - z| and then along the circle about 1 through
-/// z, if its error estimate is below half its distance from `result`, which is then less accurate,
-/// or below the estimated error of `result`.
-/// For Re z > 1, where a small component may stem from the cut, a `result` within sqrt(eps)
-/// relative to it is also kept if the estimate exceeds a component, or only that component if
-/// the error of `result` is larger.
+/// F(a, b; c; z) for a, b, c > 0 and |1 - z| < 1 by analytic continuation of the Maclaurin
+/// series at x0 = min(1/2, 1 - |1 - z|), along the real axis to 1 - |1 - z| and then along the
+/// circle about 1 through z, if its error estimate is below half its distance from `result`, which
+/// is then less accurate, or below the estimated error of `result`. For |1 - z| > 1 and Re z < 1,
+/// the same for its Pfaff transform, if c - b > 0. For Re z > 1, where a small component may stem
+/// from the cut, a `result` within sqrt(eps) relative to it is also kept if the estimate exceeds a
+/// component, or only that component if the error of `result` is larger.
 //
-// On that path, 1 is the nearest singular point.
+// On that path, the nearest singular point is 1, or 0 near x0 if |1 - z| > 1/2.
 fn hyp2f1_continuation(
     a: f64,
     b: f64,
@@ -1496,25 +1529,30 @@ fn hyp2f1_continuation(
         error: result_error,
     }: Estimate,
 ) -> Option<C64> {
+    // Unlike in xsf, also continue the Pfaff transform: F(a, b; c; z) = (1 - z)^(-a)
+    // F(a, c - b; c; z / (z - 1)) (DLMF 15.8.1), whose argument is within the unit circle about 1
+    // if z is not, and off the cut for Re z < 1.
+    let (power, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
+        // (only if normal, as the error estimate omits the rounding of a subnormal power)
+        let power = Some(pfaff_power(a, z)).filter(|p| p.norm().is_normal())?;
+        (Some(power), c - b, z / (z - 1.0))
+    } else {
+        (None, b, z)
+    };
     let w = 1.0 - z;
     let r = w.norm();
     let (end, angle) = (1.0 - r, w.im.atan2(w.re));
     // (and only if the real axis reaches the circle, and the first Maclaurin term keeps a b)
-    if !(a > 0.0 && b > 0.0 && c > 0.0 && r <= 0.5 && end < 1.0 && (a * b).is_normal()) {
+    if !(a > 0.0 && b > 0.0 && c > 0.0 && r < 1.0 && end < 1.0 && (a * b).is_normal()) {
         return None;
     }
     let x0 = end.min(0.5);
     let start = c64(x0, 0.0);
-    // The Maclaurin terms at x0 are positive, and grow while x0 (k + a) (k + b) >= (k + 1) (k + c),
-    // so up to the larger root of k^2 + (s c + s - t a - t b) k + s c - t a b, s = 1 / (1 - x0),
-    // t = x0 s: sum past it before stopping at a small term. Each of its n terms errs by about
-    // eps times the sum, by rounding it, the roundings of the recurrence for it, or its part of
-    // the omitted tail.
-    let (s, t) = (1.0 / (1.0 - x0), x0 / (1.0 - x0));
+    // The Maclaurin terms at x0 are positive, and grow up to `max_term_index`: sum past it before
+    // stopping at a small term. Each of its n terms errs by about eps times the sum, by rounding
+    // it, the roundings of the recurrence for it, or its part of the omitted tail.
     let maclaurin = |a: f64, b: f64, c: f64| {
-        let q = s * c + s - t * a - t * b;
-        let root = ((q * q - 4.0 * s * c + 4.0 * t * a * b).sqrt() - q) / 2.0;
-        let head = root.max(0.0) + 2.0;
+        let head = (max_term_index(a, b, c, x0) + 1.0).max(2.0);
         if !(head <= HYP2F1_MAXITER as f64) {
             return None;
         }
@@ -1576,7 +1614,11 @@ fn hyp2f1_continuation(
         error += (row[0].l1_norm() * abs[0] + row[1].l1_norm() * abs[1]) * f64::EPSILON;
         row = transfer.map(|t| row[0] * t[0] + row[1] * t[1]);
     }
-    let f = x[0];
+    // (for the Pfaff transform, also the rounding of its argument z / (z - 1), times |F'| there)
+    let (f, error) = power.map_or((x[0], error), |power| {
+        let argument = x[1].norm() * z.norm() * f64::EPSILON;
+        (power * x[0], power.norm() * (error + argument))
+    });
     // (a first-order estimate, so only if well below one; NaN `result` is less accurate)
     let (tolerance, distance) = (f64::EPSILON.sqrt() * f.norm(), (result - f).norm());
     let less_accurate = result_error > error;
@@ -1804,12 +1846,16 @@ fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
     } else {
         C64::NAN
     };
-    // Unlike in xsf, continue the Maclaurin series analytically if the limit is less accurate.
+    // Unlike in xsf, continue the Maclaurin series analytically if the limit is NaN or lossy and
+    // the continuation is more accurate.
     let estimate = Estimate {
         value: result,
         error: f64::EPSILON * best.cancellation * result.norm(),
     };
-    hyp2f1_continuation(a, b, c, z, estimate).unwrap_or_else(|| {
+    let continued = (result.is_nan() || best.is_lossy())
+        .then(|| hyp2f1_continuation(a, b, c, z, estimate))
+        .flatten();
+    continued.unwrap_or_else(|| {
         // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
         // reduce a and b, if usable.
         if euler || !result.is_nan() {
@@ -2173,7 +2219,12 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         } else {
             prefactor * series.value
         };
-        return euler.map_or(result, |euler| euler * result);
+        let value = euler.map_or(result, |euler| euler * result);
+        // Unlike in xsf, continue the Maclaurin series analytically if this series cancels.
+        if series.is_continued() {
+            return hyp2f1_continuation(a, b, c, z, value.into()).unwrap_or(value);
+        }
+        return value;
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
      * occur with Maclaurin series for real(z) < 0.

@@ -1299,6 +1299,80 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
 }
 
 #[test]
+fn test_hyp2f1_c64_large_balanced_disk() {
+    // Arb at the exact binary64 inputs. Large a and b with c near a + b, inside the unit circle,
+    // where the Maclaurin, Pfaff and Lopez-Temme series cancel
+    let (a, b, c) = (150.25, 200.5, 350.75);
+    for (a, b, c, z, expected) in [
+        // |1 - z| < 1/2
+        (
+            173.181_018_908_421_66,
+            194.75,
+            367.931_018_908_421_66,
+            c64(0.834_163_223_445_199_3, -0.234_629_166_630_303_34),
+            c64(-7.412_245_444_771_716e45, 1.460_333_771_293_824_5e46),
+        ),
+        // 1/2 < |1 - z| < 1
+        (a, b, c, c64(0.5, 0.6), c64(67_829_572_343.769_91, 2_944_109_183_172.078)),
+        (a, b, 351.5, c64(0.5, -0.6), c64(552_838_982_571.165_9, -2_809_216_319_572.802_2)),
+        // |1 - z| > 1
+        (a, b, c, c64(0.25, 0.75), c64(3.286_580_089_028_89, -2.452_723_090_915_516)),
+        (
+            a,
+            b,
+            c,
+            c64(-0.125, 0.875),
+            c64(6.820_060_640_621_524e-13, -1.359_299_351_188_647_3e-12),
+        ),
+        // |z| > 0.9 and |1 - z| > 0.9
+        (a, b, c, c64(0.5, 0.8), c64(-4_653_720.084_001_497, -6_087_089.980_483_296)),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        assert!((actual - expected).norm() <= 1e-14 * expected.norm(), "{actual}");
+    }
+    // z / (z - 1) rounds near 1
+    let actual = xsf::hyp2f1(2.0, 1.0, 2.5, c64(-1e15, 9.99e14));
+    let expected = c64(7.507_503_749_998_12e-16, 7.499_996_246_247_988e-16);
+    assert!((actual - expected).norm() <= 1e-14 * expected.norm(), "{actual}");
+    // large a + b and |1 - z| near 1, so the continuation starts near 0
+    let z = c64(0.000_243_474_571_997_206_93, 0.000_535_538_300_541_918_2);
+    let actual =
+        xsf::hyp2f1(2.293_017_702_656_493, 19_300.623_616_428_114, 5.174_393_649_592_053, z);
+    let expected = c64(1.099_993_544_550_123_7, 2.066_579_583_230_746_3);
+    assert!((actual - expected).norm() <= 1e-13 * expected.norm(), "{actual}");
+    // (1 - z)^(-a) is subnormal or zero
+    for (a, b, c, z, expected) in [
+        (
+            1060.0,
+            1060.0,
+            2120.0,
+            c64(-0.75, 1.0),
+            c64(-1.259_118_513_108_502_5e-168, 6.434_381_829_782_831e-169),
+        ),
+        (
+            1164.25,
+            10.0,
+            11.5,
+            c64(-0.8, 0.6),
+            c64(3.032_046_757_850_353_6e-24, 4.557_849_294_707_913e-25),
+        ),
+        (
+            1163.25,
+            17.0,
+            20.5,
+            c64(-0.8, 0.6),
+            c64(-1.081_784_204_781_903_6e-36, -1.374_113_847_294_581_3e-35),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        // (the continuation is skipped for such a power, so the NaN of the cancelling series
+        // is accepted, but not a wrong value)
+        let close = (actual - expected).norm() <= 1e-12 * expected.norm();
+        assert!(actual.is_nan() || close, "{actual}");
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
