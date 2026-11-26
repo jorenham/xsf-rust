@@ -483,7 +483,7 @@ fn test_hyp2f1_c64_inverse_near_equal_edges() {
 
 #[test]
 fn test_hyp2f1_c64_inverse_integer_large_a() {
-    // a - b is an integer and Gamma(a) overflows (gh-2244); in the last two, (1 - z)^(c - a - b)
+    // a - b is an integer and Gamma(a) overflows (gh-2244); in the last three, (1 - z)^(c - a - b)
     // underflows. Arb at the binary64 inputs, compared componentwise.
     for (a, b, c, z, expected) in [
         (
@@ -528,10 +528,27 @@ fn test_hyp2f1_c64_inverse_integer_large_a() {
             c64(-14.817_493_273_898_183, 23.847_506_713_102_423),
             c64(5.414_467_502_777_059e-190, 4.912_107_071_492_364e-190),
         ),
+        (
+            218.0,
+            144.0,
+            51.5,
+            c64(-21.0, 18.0),
+            c64(-5.704_597_589_396_346e-307, -2.390_606_909_611_691_7e-307),
+        ),
     ] {
         let actual = xsf::hyp2f1(a, b, c, z);
         np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-14);
     }
+    // A subnormal result (Arb).
+    let actual = xsf::hyp2f1(125.0, 125.0, 150.5, c64(-550.0, 2.0));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [2.265_408_42e-315, 1.079_529_834e-315],
+        rtol = 1e-8
+    );
+    // The 1/z series lose all digits of 7.4e-281, and return NaN (a known limitation).
+    let z = c64(-5.116_255_236_708_257, 1.081_168_310_773_071_4);
+    assert!(xsf::hyp2f1(269.209, 269.209, 102.193, z).is_nan());
 }
 
 #[test]
@@ -1170,7 +1187,8 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
     // A weak imaginary part on both lips of the cut, and just off it, keeps its sign.
     for y in [0.0_f64, -0.0, 1e-100, -1e-100] {
         let actual = xsf::hyp2f1(0.5, 0.5, 20.5, c64(1.125, y));
-        np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 1e-11);
+        // (the limit of the 1/z series, which loses about 1e-11)
+        np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 2e-11);
         assert_eq!(actual.im.is_sign_negative(), y.is_sign_negative(), "{actual}");
     }
 }
