@@ -2,24 +2,14 @@
 
 use proptest::prelude::*;
 
-use super::config;
 use super::strategies::{arg, moderate};
+use super::{config, int_distance, is_pole};
 
 /// Within `tol` relative to a finite `expected`, or both the same inf, or both NaN
 fn close(actual: f64, expected: f64, tol: f64) -> bool {
     actual.to_bits() == expected.to_bits()
         || (actual.is_nan() && expected.is_nan())
         || (expected.is_finite() && (actual - expected).abs() <= tol * expected.abs())
-}
-
-/// A pole of Gamma, e.g. -3 or -0
-pub(super) fn is_pole(x: f64) -> bool {
-    x <= 0.0 && x.fract() == 0.0
-}
-
-/// The distance to the nearest integer, e.g. 0.25 for 2.75
-pub(super) fn int_distance(x: f64) -> f64 {
-    (x - x.round()).abs()
 }
 
 /// A pole of Gamma, or within 1e-12 of a negative one, e.g. -3 + 1e-13

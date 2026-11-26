@@ -8,7 +8,7 @@ use proptest::prelude::*;
 use proptest::sample::Index;
 
 use super::strategies::{moderate, small, unit};
-use super::symmetry::{int_distance, is_pole};
+use super::{int_distance, is_pole};
 
 /// Relative steps `2^-k` from half the digits, `2^-MIN_K`, down to an ulp, `2^-MAX_K`
 const MIN_K: u32 = f64::MANTISSA_DIGITS / 2;
@@ -20,18 +20,18 @@ const CONFIRM_K: u32 = 16;
 
 /// Within `sqrt(eps)` of an integer, e.g. 3 + 1e-12, where terms with opposite poles at the
 /// integers cancel more than half the digits
-fn near_int(x: f64) -> bool {
+fn almost_int(x: f64) -> bool {
     int_distance(x) <= f64::EPSILON.sqrt()
 }
 
-/// `near_int` for a pole of Gamma, e.g. -3 + 1e-12 or -1e-15
-fn near_pole(x: f64) -> bool {
-    x.round() <= 0.0 && near_int(x)
+/// Within `tol` of a pole of Gamma, e.g. -3 + 1e-13 or -1e-15 for `tol = 1e-12`
+fn pole_within(x: f64, tol: f64) -> bool {
+    x.round() <= 0.0 && int_distance(x) <= tol
 }
 
 /// `f(x)` with `x[i]` moved by `-h`, `0` and `h`, for `h = 2^-k |x[i]|`, but at most half the
-/// distance to the nearest integer if `x[i]` is not one, or `None` if these inputs are not
-/// distinct or round to that integer.
+/// distance to the nearest integer if `x[i]` is not one, or `None` if these inputs are not finite
+/// and distinct, or round to that integer.
 ///
 /// Poles in the parameters are at integers, and a pole closer than `h` with a small residue would
 /// look like a jump.
@@ -45,8 +45,8 @@ fn bracket<const N: usize, T: Into<Complex64>>(
     let h = x[i].abs() * (-f64::from(k)).exp2();
     let h = if offset > 0.0 { h.min(offset / 2.0) } else { h };
     let ys = [x[i] - h, x[i], x[i] + h];
-    let off_int = offset == 0.0 || ys.iter().all(|&y| int_distance(y) > 0.0);
-    (ys[0] < ys[1] && ys[1] < ys[2] && off_int).then(|| {
+    let valid = |y: f64| y.is_finite() && (offset == 0.0 || int_distance(y) > 0.0);
+    (ys[0] < ys[1] && ys[1] < ys[2] && ys.into_iter().all(valid)).then(|| {
         ys.map(|t| {
             let mut y = x;
             y[i] = t;
@@ -62,26 +62,32 @@ fn neighbours<const N: usize, T: Into<Complex64>>(
     k: u32,
     f: impl Fn([f64; N]) -> T + Copy,
 ) -> [Option<[Complex64; 3]>; 2] {
-    [k, (k + CONFIRM_K).min(MAX_K)].map(|k| bracket(x, i, k, f))
+    [k, k + CONFIRM_K].map(|k| bracket(x, i, k, f))
+}
+
+/// The larger neighbour
+fn scale([lo, _, hi]: [Complex64; 3]) -> f64 {
+    lo.norm().max(hi.norm())
 }
 
 /// The middle value is not within a quarter of the digits of both neighbours, while these are
-/// normal and agree to half the digits.
+/// normal and agree to half the digits, relative to `scale`.
 ///
 /// A smooth function lies between its neighbours, and steep ones, poles, and zeros make the
 /// neighbours disagree.
-fn jumps([lo, mid, hi]: [Complex64; 3]) -> bool {
+fn jumps([lo, mid, hi]: [Complex64; 3], scale: f64) -> bool {
     let normal = |w: Complex64| (f64::MIN_POSITIVE..f64::INFINITY).contains(&w.norm());
-    let scale = lo.norm().max(hi.norm());
     let agree = f64::EPSILON.sqrt();
     let close = (mid - lo).norm().max((mid - hi).norm()) <= agree.sqrt() * scale;
     normal(lo) && normal(hi) && (hi - lo).norm() <= agree * scale && !close
 }
 
-/// No jump at both steps of `neighbours`, where a NaN or infinite middle value is a jump
-fn continuous(brackets: [Option<[Complex64; 3]>; 2]) -> Result<(), TestCaseError> {
-    match brackets.map(|w| w.filter(|&w| jumps(w))) {
-        [Some([lo, mid, hi]), Some(_)] => {
+/// No jump at both steps of `neighbours`, relative to the `scale` of the first, so that a smooth
+/// zero, where the middle value approaches its neighbours with the step, is not one. A NaN or
+/// infinite middle value is a jump.
+fn continuous([wide, narrow]: [Option<[Complex64; 3]>; 2]) -> Result<(), TestCaseError> {
+    match (wide, narrow) {
+        (Some(w @ [lo, mid, hi]), Some(n)) if jumps(w, scale(w)) && jumps(n, scale(w)) => {
             Err(TestCaseError::fail(format!("{lo:e}, {mid:e}, {hi:e}")))
         },
         _ => Ok(()),
@@ -94,7 +100,9 @@ macro_rules! continuous {
     ($name:ident($($arg:ident $(in $strategy:expr)?),+) $(unless $skip:expr)? => $call:expr) => {
         property!(
             continuous,
-            $name($($arg $(in $strategy)?),+, i in any::<Index>(), k in MIN_K..=MAX_K) => {
+            $name(
+                $($arg $(in $strategy)?),+, i in any::<Index>(), k in MIN_K..=MAX_K - CONFIRM_K
+            ) => {
                 $(if $skip {
                     return Ok(());
                 })?
@@ -108,13 +116,25 @@ macro_rules! continuous {
     };
 }
 
+/// A jump at the first step of `neighbours` that the second does not confirm
+fn assert_unconfirmed(brackets: [Option<[Complex64; 3]>; 2]) {
+    assert!(brackets[0].is_some_and(|w| jumps(w, scale(w))));
+    continuous(brackets).unwrap();
+}
+
 /// A smooth extremum, where the curvature over a step of 0.16 looks like a jump
 #[test]
 fn bessel_j_extremum() {
     let x = [0.0, 52_707_179.318_687_3];
-    let brackets = neighbours(x, 1, MIN_K, |[v, x]| xsf::bessel_j(v, x));
-    assert!(brackets[0].is_some_and(jumps));
-    continuous(brackets).unwrap();
+    assert_unconfirmed(neighbours(x, 1, MIN_K, |[v, x]| xsf::bessel_j(v, x)));
+}
+
+/// A smooth double zero in c, from the two reciprocal gammas `1 / (Gamma(c - a) Gamma(c - b))`
+/// of Gauss's sum
+#[test]
+fn hyp2f1_double_zero() {
+    let x = [-1.5, -1.5, -2.5, 1.0];
+    assert_unconfirmed(neighbours(x, 2, 30, |[a, b, c, x]| xsf::hyp2f1(a, b, c, x)));
 }
 
 // singular at the poles of c, and at x = 1 for c <= a + b; known: polynomials at x = 1 (#2198,
@@ -122,31 +142,36 @@ fn bessel_j_extremum() {
 // (#2243), a tiny a or b at x << 0 (#2253), and c = a or b at x < -1 (#2254)
 continuous!(
     hyp2f1(a in moderate(), b in moderate(), c in moderate(), x)
-        unless near_pole(c)
+        unless pole_within(c, 1e-12)
             || (x == 1.0 && (c - a - b <= 0.0 || is_pole(a) || is_pole(b)))
             || (a.abs().min(b.abs()) < f64::EPSILON && x < -1.0)
             || ((a == c || b == c) && x < -1.0)
 );
 // singular at the poles of c, and at z = 1 for c <= a + b; known: polynomials (#2130), Euler
-// polynomials (#2107), near-integer a - b at |z| > 1 (#2104, #2244, #2245), next to the poles of
-// c (#2246), and cancellation for larger parameters (#2196)
+// polynomials (#2107, #2247), near-integer a - b at |z| >= 1.1 (#2104, #2244, #2245), next to the
+// poles of c (#2246), and cancellation for larger parameters (#2196)
 continuous!(
     hyp2f1_complex(a in small(), b in small(), c in small(), re, im)
-        unless is_pole(a) || is_pole(b) || is_pole(c - a) || is_pole(c - b) || near_pole(c)
+        unless is_pole(a) || is_pole(b) || is_pole(c - a) || is_pole(c - b)
+            || pole_within(c, 1e-12)
             || (re == 1.0 && c - a - b <= 0.0)
-            || (near_int(a - b) && re.hypot(im) > 1.0)
+            || (almost_int(a - b) && re.hypot(im) >= 1.1)
         => xsf::hyp2f1(a, b, c, c64(re, im))
 );
 // known: finite at the poles b = 0, -1, ... (#2239), unlike the limit for integers b <= a <= 0,
 // and wrong for x << 0 next to them (#2240); polynomials a = 0, -1, ... at x << 0 (#2251)
 continuous!(
     hyp1f1(a in moderate(), b in moderate(), x)
-        unless near_pole(b) || (is_pole(a) && x.exp() == 0.0)
+        unless is_pole(b)
+            || (pole_within(b, f64::EPSILON.sqrt()) && x < -1e4)
+            || (is_pole(a) && x.exp() == 0.0)
 );
 // known: NaN for an integer a at a tiny x (#2252)
-continuous!(hypu(a in moderate(), b in moderate(), x) unless a.fract() == 0.0 && x < f64::EPSILON);
+continuous!(
+    hypu(a in moderate(), b in moderate(), x) unless a.fract() == 0.0 && 0.0 < x && x < f64::EPSILON
+);
 
-// known: AMOS loses all digits beyond 2^30
+// known: AMOS is inaccurate for large x, e.g. bessel_j(-7, 2.71e79)
 const MAX_BESSEL: f64 = (1 << 30) as f64;
 
 // singular at the poles b = 0, -1, ...; known: beyond the Bessel cutoff at 2 sqrt(|x|) (#1472)
@@ -158,8 +183,8 @@ continuous!(rgamma(x));
 
 continuous!(bessel_j(v in moderate(), x) unless x.abs() > MAX_BESSEL);
 continuous!(bessel_y(v in moderate(), x) unless x.abs() > MAX_BESSEL);
-continuous!(bessel_i(v in moderate(), x) unless x.abs() > MAX_BESSEL);
-continuous!(bessel_k(v in moderate(), x) unless x.abs() > MAX_BESSEL);
+continuous!(bessel_i(v in moderate(), x));
+continuous!(bessel_k(v in moderate(), x));
 
 continuous!(betainc(a in moderate(), b in moderate(), x in unit()));
 continuous!(betaincinv(a in moderate(), b in moderate(), y in unit()));
