@@ -118,8 +118,8 @@ impl Dd {
 /// `Dd::ERROR A` for each of its `n (p + q + 5)` operations.
 ///
 /// The terms of the reference are double-doubles `s 2^e` with `|s|` in [1/2, 2], so that they do
-/// not underflow. It leaves out a term below `u^2 <= u^2 A`, and rescaling one to add it
-/// underflows by less.
+/// not underflow. It leaves out a term below `u^2 <= u^2 A`, and adding a rescaled term loses
+/// less than that.
 fn terminating(a: &[f64], b: &[f64], x: f64) -> Result<(f64, f64), TestCaseError> {
     let Some(degree) = a
         .iter()
@@ -244,7 +244,7 @@ fn chu_vandermonde(n: u32, b: f64, c: f64) -> (f64, f64) {
 property!(
     within,
     hyp2f1_chu_vandermonde(n in 0..=MAX_N, b in eighths(-256..=-1), c in eighths(1..=256))
-        // known: all but b < 0 < c, where the factors are positive (#2198, fixed by #2214)
+        // known: wrong at one outside b < 0 < c (#2198, fixed by #2214)
         => (xsf::hyp2f1(-f64::from(n), b, c, 1.0), chu_vandermonde(n, b, c))
 );
 
