@@ -576,6 +576,12 @@ fn test_hyp2f1_c64_inverse_integer_large_a() {
         let actual = xsf::hyp2f1(a, b, c, z);
         np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-5);
     }
+    // The 1/z limit loses most digits, but the Euler form, which does not reduce a and b, does
+    // not (Arb).
+    let (a, b, c) = (11.911_949_601_445_617, 10.911_949_601_445_617, 41.775_963_390_755_535);
+    let actual = xsf::hyp2f1(a, b, c, c64(2.216_671_797_966_365, 0.113_686_126_346_338_54));
+    let expected = [-5_576.909_964_282_516, 1_424.503_175_073_857_4];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 2e-10);
 }
 
 #[test]

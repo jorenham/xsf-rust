@@ -1739,7 +1739,8 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             value: C64::NAN,
             cancellation: f64::INFINITY,
         };
-        if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
+        let exact = c - (c - a) == a && c - (c - b) == b && !b_near_int;
+        let euler_limit = || {
             let (result, lost) = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
             // Unlike in xsf, multiply by the power with a separate scale, as it can underflow or
             // overflow alone. (The result before it must be in range, as elsewhere the Euler form
@@ -1748,12 +1749,14 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let rounding = 1.0 + degree.lo * (1.0 - z).ln();
             let value = (power::one_minus_z_pow(z, degree.hi) * result * rounding).to_c64();
             let in_range = |x: C64| x.norm().is_finite() && x != C64::ZERO;
-            if in_range(result.to_c64()) && in_range(value) {
-                best = Cancelled {
-                    value,
-                    cancellation: lost,
-                };
-            }
+            let cancelled = Cancelled {
+                value,
+                cancellation: lost,
+            };
+            (in_range(result.to_c64()) && in_range(value)).then_some(cancelled)
+        };
+        if let Some(limit) = (euler && exact).then(euler_limit).flatten() {
+            best = limit;
         }
         // Unlike in xsf, if the Euler result is not used or loses more than HYP2F1_EPS to
         // cancellation, use the one that cancels less, or NaN if that overflows or is not usable
@@ -1776,7 +1779,17 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         // Unlike in xsf, continue the Maclaurin series analytically if the limit is less
         // accurate.
         let error = f64::EPSILON * best.cancellation * result.norm();
-        return hyp2f1_continuation(a, b, c, z, result, error).unwrap_or(result);
+        // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
+        // reduce a and b, if usable.
+        let untried = !euler && exact && result.is_nan();
+        let euler_value = || {
+            untried
+                .then(euler_limit)?
+                .filter(|l| l.is_usable())
+                .map(|l| l.value)
+        };
+        let continued = hyp2f1_continuation(a, b, c, z, result, error);
+        return continued.or_else(euler_value).unwrap_or(result);
     }
     // Unlike in xsf, pair the two series for a - b near an integer if that clearly cancels less,
     // counting for a near b both parts of each unpaired term, whose poles cancel within it.
