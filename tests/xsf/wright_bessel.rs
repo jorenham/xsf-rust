@@ -86,3 +86,34 @@ fn test_wright_bessel_asymptotic() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 }
+
+#[test]
+fn test_wright_bessel_asymptotic_overflow() {
+    // Regression test: in the large-x asymptotic expansion, pow(Z, 0.5 - b) * exp(.../a * Z)
+    // overflowed in exp (or underflowed in pow) before the product was formed, so the
+    // finite results below were returned as inf. The last case overflows: it was NaN.
+    // The asymptotic expansion has a relative error of up to ~1e-7 here.
+    //
+    // Unlike in xsf, these cases use the series around the maximum term.
+    let abx = [
+        (0.75, 20.0, 10.0_f64.powf(4.5)),
+        (2.0, 30.0, 1e8),
+        (2.0, 30.0, 1.077e8),
+        (4.9, 80.0, 5e15),
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::wright_bessel(a, b, x));
+    let expected = [
+        1.153_548_523_932_893_3e271,
+        3.980_356_527_302_694_7e298,
+        6.652_307_057_991_812e307,
+        3.334_148_696_466_592_6e91,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-6);
+    assert_eq!(xsf::wright_bessel(4.9, 150.0, 4.9e18), f64::INFINITY);
+
+    let actual = xsf::wright_bessel(4.0, 10.0, 2e13);
+    let expected = 2.557_441_567_905_184e300;
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-12);
+    assert_eq!(xsf::wright_bessel(1.0, 120.0, 1e9), f64::INFINITY);
+    assert_eq!(xsf::wright_bessel(2.0, 30.0, 1e308), f64::INFINITY);
+}
