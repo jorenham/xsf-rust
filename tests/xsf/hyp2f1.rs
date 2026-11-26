@@ -483,7 +483,7 @@ fn test_hyp2f1_c64_inverse_near_equal_edges() {
 
 #[test]
 fn test_hyp2f1_c64_inverse_integer_large_a() {
-    // a - b is an integer and Gamma(a) overflows (gh-2244); in the last three, (1 - z)^(c - a - b)
+    // a - b is an integer and Gamma(a) overflows (gh-2244); in the last two, (1 - z)^(c - a - b)
     // underflows. Arb at the binary64 inputs, compared componentwise.
     for (a, b, c, z, expected) in [
         (
@@ -549,6 +549,13 @@ fn test_hyp2f1_c64_inverse_integer_large_a() {
     // The 1/z series lose all digits of 7.4e-281, and return NaN (a known limitation).
     let z = c64(-5.116_255_236_708_257, 1.081_168_310_773_071_4);
     assert!(xsf::hyp2f1(269.209, 269.209, 102.193, z).is_nan());
+    // (-z)^(-b) overflows (Arb).
+    let z = c64(-53.532_855_637_485_9, -13.238_624_013_961_552);
+    let actual = xsf::hyp2f1(-111.6, -182.6, 25.5, z);
+    let expected = [-1.605_566_467_870_386_9e236, -2.280_336_531_279_955_7e236];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 2e-14);
+    // Both 1/z forms lose all digits of -1.4e-238 to cancellation, and return NaN.
+    assert!(xsf::hyp2f1(316.5, 235.5, 449.5, c64(-15.0, 4.0)).is_nan());
 }
 
 #[test]

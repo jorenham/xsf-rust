@@ -59,6 +59,8 @@ use crate::xsf::complex::cpow_integral;
 use crate::xsf::tools::{self, series_eval_fixed_length};
 use crate::{cospi, digamma, sinpi};
 
+use power::{ScaledC64, ldexp_sat};
+
 const HYP2F1_EPS: f64 = 1e-15;
 /* The original implementation in SciPy from Zhang and Jin used 1500 for the
  * maximum number of series iterations in some cases and 500 in others.
@@ -901,7 +903,8 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
     }
 }
 
-/// The product of the gamma functions at `num` divided by that at `den`, or 0 at a pole
+/// The product of the gamma functions at `num` divided by that at `den`, or 0 at a pole and NaN
+/// where it underflows or overflows
 fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> f64 {
     // (directly where that tends to be more accurate, as in `four_gammas`)
     let (num_f64, den_f64) = (num.map(f64::from), den.map(f64::from));
@@ -912,7 +915,11 @@ fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> f6
             return direct;
         }
     }
-    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(0.0, |y| y.to_f64().0)
+    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(0.0, |y| {
+        Some(y.to_f64().0)
+            .filter(|y| y.is_normal())
+            .unwrap_or(f64::NAN)
+    })
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
@@ -920,7 +927,8 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> Ca
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
     // Unlike in xsf, take each ratio of gammas, including those of the first term of the series,
-    // as one, as its factors can overflow or underflow alone. The second is free of poles by
+    // as one (or NaN if it underflows or overflows), as its factors can overflow or underflow
+    // alone. The second is free of poles by
     // (1 - x)_m / Gamma(x) = (-1)^m / Gamma(x - m) for x = c - b, rounded as in the Euler
     // transform, where it is the original a.
     let (a_dd, b_dd, c_dd, cb) = (Dd::new(a), Dd::new(b), Dd::new(c), Dd::new(c - b));
@@ -931,9 +939,11 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> Ca
         finite_abs += term.norm();
         term
     };
-    let finite_factor = (-z).powf(-b) * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
-    let mut result = finite_factor * series_eval_finite(series_generator1, m as u64);
-    let prefactor = (-z).powf(-a);
+    // Unlike in xsf, keep a separate scale for each power, as it can underflow or overflow alone.
+    let finite_power = power::neg_z_pow(z, -b);
+    let finite_factor = finite_power.mantissa * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
+    let finite = finite_factor * series_eval_finite(series_generator1, m as u64);
+    let prefactor = power::neg_z_pow(z, -a);
     let factor =
         neg_one_pow(m) * gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, cb - m, (m + 1.0).into()]);
     let n = c - a;
@@ -947,9 +957,14 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> Ca
     } else {
         series_eval_cancellation(hyp2f1_transform2_limit_series_generator(a, b, c, m, factor, z))
     };
-    let abs_sum = finite_factor.norm() * finite_abs
-        + prefactor.norm() * series.value.norm() * series.cancellation;
-    result += prefactor * series.value;
+    let abs_sum = ldexp_sat(finite_factor.norm() * finite_abs, finite_power.exponent)
+        + ldexp_sat(
+            prefactor.mantissa.norm() * series.value.norm() * series.cancellation,
+            prefactor.exponent,
+        );
+    let scaled = |mantissa, exponent| ScaledC64 { mantissa, exponent }.to_c64();
+    let result = scaled(finite, finite_power.exponent)
+        + scaled(prefactor.mantissa * series.value, prefactor.exponent);
     Cancelled {
         value: result,
         cancellation: cancellation(abs_sum, result),

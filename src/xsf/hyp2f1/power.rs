@@ -107,6 +107,20 @@ impl Mul<C64> for ScaledC64 {
     }
 }
 
+// (-z)^p, for |z| > 1, with a separate scale where it underflows or overflows.
+// (1 - (z + 1) is -z to about an ulp of |z|.)
+pub(super) fn neg_z_pow(z: C64, p: f64) -> ScaledC64 {
+    let power = (-z).powf(p);
+    if power.norm().is_normal() || !z.is_finite() {
+        ScaledC64 {
+            mantissa: power,
+            exponent: 0.0,
+        }
+    } else {
+        one_minus_z_pow(z + 1.0, p)
+    }
+}
+
 // (1-z)^p, for finite z != 1.
 pub(super) fn one_minus_z_pow_sqrt(z: C64, p: f64) -> ScaledC64 {
     // Unlike in xsf, a half power is a square root, which keeps a component that vanishes on
