@@ -1032,13 +1032,99 @@ fn hyp2f1_transform1_near_limit(a: f64, b: f64, c: f64, z: C64, offset: f64, res
     }
 }
 
+// A step is at most this fraction of the distance to the nearest singular point, 0 or 1, so
+// that the Taylor terms decay at least as 4^-k.
+const TAYLOR_STEP_RATIO: f64 = 0.25;
+// A step h also has |kappa h| at most this, for the local exponents kappa of the equation, as
+// the Taylor terms of a solution growing as exp(kappa h) cancel by up to exp(|kappa h|).
+const TAYLOR_STEP_PHASE: f64 = 8.0;
+
+/// F(p + h) and F'(p + h) from F(p) and F'(p), by the Taylor series at p of the hypergeometric
+/// equation (DLMF 15.10.1), and its estimated cancellation sum(|term|) / |sum| in the 1-norm
+//
+// With e_k = F^(k)(p) h^k / k!, the equation gives p (1 - p) (k + 2) (k + 1) e_(k+2) =
+// (k + a) (k + b) h^2 e_k - ((1 - 2p) k + c - (a + b + 1) p) (k + 1) h e_(k+1).
+fn hyp2f1_taylor_step(a: f64, b: f64, c: f64, p: C64, f: C64, fp: C64, h: C64) -> (C64, C64, f64) {
+    let g = h / (p * (1.0 - p));
+    let (u, v, s) = (g * h, g * (1.0 - 2.0 * p), g * (c - (a + b + 1.0) * p));
+    let (mut e0, mut e1) = (f, fp * h);
+    let (mut sum, mut derivative, mut abs_sum) = (e0 + e1, e1, e0.l1_norm() + e1.l1_norm());
+    for k in 0..HYP2F1_MAXITER {
+        let k = k as f64;
+        let e2 =
+            (u * e0 * ((k + a) * (k + b)) - (v * k + s) * e1 * (k + 1.0)) / ((k + 2.0) * (k + 1.0));
+        sum += e2;
+        derivative += e2 * (k + 2.0);
+        abs_sum += e2.l1_norm();
+        // (also for the derivative, whose terms have an extra factor k + 2)
+        let tail = (k + 2.0) * (e1.l1_norm() + e2.l1_norm());
+        if tail <= f64::EPSILON * sum.l1_norm().min(derivative.l1_norm()) {
+            return (sum, derivative / h, abs_sum / sum.l1_norm());
+        }
+        (e0, e1) = (e1, e2);
+    }
+    (C64::NAN, C64::NAN, f64::INFINITY)
+}
+
+/// F(a, b; c; z) for a, b, c > 0 and |1 - z| <= 1/2 by analytic continuation of the Maclaurin
+/// series at 1/2, along the real axis to 1 - |1 - z| and then along the circle about 1 through
+/// z, if it cancels less than `cancellation` in sum over its Taylor steps
+//
+// On that path, 1 is the nearest singular point, and the Maclaurin terms at 1/2 are positive.
+fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, cancellation: f64) -> Option<C64> {
+    let w = 1.0 - z;
+    let r = w.norm();
+    let (end, angle) = (1.0 - r, w.im.atan2(w.re));
+    // (and only if the real axis reaches the circle)
+    if !(a > 0.0 && b > 0.0 && c > 0.0 && r <= 0.5 && end < 1.0) {
+        return None;
+    }
+    let half = c64(0.5, 0.0);
+    let maclaurin = |a, b, c| {
+        let series_generator = hypergeometric_series_generator(a, b, c, half);
+        tools::series_eval(series_generator, C64::ZERO, f64::EPSILON, HYP2F1_MAXITER)
+    };
+    // F' = (a b / c) F(a + 1, b + 1; c + 1) (DLMF 15.5.1)
+    let (mut f, mut fp) = (maclaurin(a, b, c), maclaurin(a + 1.0, b + 1.0, c + 1.0) * (a * b / c));
+    // The local exponents are the roots of p (1 - p) kappa^2 + (c - (a + b + 1) p) kappa = a b.
+    let step = |p: C64, distance: f64| {
+        let (s, t) = ((p * (1.0 - p)).norm(), (c - (a + b + 1.0) * p).norm());
+        let kappa = (t + t.hypot(2.0 * (s * a * b).sqrt())) / (2.0 * s);
+        (TAYLOR_STEP_RATIO * distance).min(TAYLOR_STEP_PHASE / kappa)
+    };
+    // (where the Maclaurin sums do not cancel)
+    let (mut p, mut turned, mut lost) = (half, 0.0, 1.0);
+    for _ in 0..HYP2F1_MAXITER {
+        if !(f.is_finite() && fp.is_finite()) {
+            return None;
+        }
+        if p == z {
+            return (lost < cancellation).then_some(f);
+        }
+        let q = if p.re < end {
+            c64((p.re + step(p, 1.0 - p.re)).min(end), 0.0)
+        } else {
+            turned = (turned + step(p, r) / r).min(angle.abs());
+            if turned < angle.abs() {
+                1.0 - r * C64::cis(turned.copysign(angle))
+            } else {
+                z
+            }
+        };
+        let step_cancellation;
+        (f, fp, step_cancellation) = hyp2f1_taylor_step(a, b, c, p, f, fp, q - p);
+        (p, lost) = (q, lost + step_cancellation);
+    }
+    None
+}
+
 fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if let Some(value) = hyp2f1_incomplete_beta(a, b, c, z) {
         return value;
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
-    let (mut result, cancellation) = if offset < HYP2F1_EPS {
+    let (mut result, mut cancellation) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
@@ -1060,7 +1146,13 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let series_generator = hypergeometric_series_generator(a, b, c, z);
         let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
         if maclaurin_cancellation < cancellation {
-            result = maclaurin;
+            (result, cancellation) = (maclaurin, maclaurin_cancellation);
+        }
+    }
+    // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
+    if cancellation * f64::EPSILON > HYP2F1_EPS {
+        if let Some(value) = hyp2f1_continuation(a, b, c, z, cancellation) {
+            return value;
         }
     }
     // Unlike in xsf, check the result against the limit for a nearly integer balance.
@@ -1085,6 +1177,11 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
     };
     if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
+        // Unlike in xsf, prefer the analytic continuation of the Maclaurin series to the limit,
+        // which has no cancellation estimate.
+        if let Some(value) = hyp2f1_continuation(a, b, c, z, f64::INFINITY) {
+            return value;
+        }
         let (a, b) = if b > a { (b, a) } else { (a, b) };
         let m = (a - b).round();
         // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
@@ -1113,6 +1210,12 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Lopez-Temme series for Re z < 1 where its tail is bounded.
     if z.re < 1.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
         if let Some(value) = hyp2f1_lopez_temme_retry(a, b, c, z, cancellation) {
+            return value;
+        }
+    }
+    // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
+    if cancellation * f64::EPSILON > HYP2F1_EPS {
+        if let Some(value) = hyp2f1_continuation(a, b, c, z, cancellation) {
             return value;
         }
     }

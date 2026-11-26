@@ -700,6 +700,64 @@ fn test_hyp2f1_c64_near_zero_balance_edges() {
 }
 
 #[test]
+fn test_hyp2f1_c64_large_near_zero_balance() {
+    // Large a and b at a distance from 1, where the 1 - z, 1/z and Maclaurin series cancel:
+    // exact balances inside and outside the unit circle, a balance of -5e-8, and an integer
+    // a - b.
+    for (a, b, c, x, y, re, im) in [
+        (
+            39.358_066_203_017_785,
+            37.510_684_884_703_18,
+            76.868_751_087_720_97,
+            0.989_591_664_228_343_8,
+            -0.268_876_794_115_152_03,
+            152_914_339_631.575_23,
+            -213_148_183_992.845_9,
+        ),
+        (
+            26.812_186_340_530_424,
+            35.466_637_734_956_11,
+            62.278_824_075_486_53,
+            0.952_293_724_093_895_6,
+            0.280_160_557_509_086_25,
+            -231_308_370.703_926_53,
+            282_156_881.884_880_07,
+        ),
+        (
+            35.672_428_368_194_73,
+            39.25,
+            74.922_428_320_253_62,
+            1.122_345_052_724_406_5,
+            -0.217_285_801_179_134_7,
+            22_818_029_254_577.574,
+            3_152_305_726_487.289,
+        ),
+        (
+            34.25,
+            33.25,
+            67.5,
+            1.120_760_142_922_645_3,
+            0.225_001_041_654_064_87,
+            -646_162_001_297.730_7,
+            -415_616_178_762.879_1,
+        ),
+    ] {
+        for sign in [1.0, -1.0] {
+            let actual = xsf::hyp2f1(a, b, c, c64(x, sign * y));
+            np_assert_allclose!([actual.re, actual.im], [re, sign * im], rtol = 1e-14);
+        }
+    }
+    // Both lips of the cut, at an exact balance.
+    let (a, b, c) = (32.442_996_112_826_41, 39.907_764_779_431_275, 72.350_760_892_257_68);
+    for y in [0.0, -0.0] {
+        let actual = xsf::hyp2f1(a, b, c, c64(1.055_851_490_374_344_6, y));
+        np_assert_allclose!([actual.re], [-2.088_749_453_446_372e19], rtol = 1e-13);
+        let im = 6.059_741_666_724_565e20_f64.copysign(-y);
+        np_assert_allclose!([actual.im], [im], rtol = 1e-14);
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
