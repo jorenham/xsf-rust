@@ -2657,8 +2657,7 @@ fn test_hyp2f1_c64_real_polynomial_near_one() {
         let y = xsf::hyp2f1(-1075.0, p80, p81, c64(1.0, imag));
         assert_eq!(y.re.to_bits(), f64::from_bits(1).to_bits());
         let y = xsf::hyp2f1(-1075.0, -3.0 * p80, -p81, c64(1.0, imag));
-        // (Arb: -from_bits(1); the rounding is open and the series is NaN)
-        assert_eq!(y.re.to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(y.re.to_bits(), (-f64::from_bits(1)).to_bits());
     }
 
     // Exact rationals (Chu-Vandermonde); the rounding of 2^-1022 and below is open to the
@@ -2674,11 +2673,10 @@ fn test_hyp2f1_c64_real_polynomial_near_one() {
         }
     }
 
-    // Arb; the real overload keeps its rounding near the subnormal range (except for a deficit of
-    // 1 ulp at a = -1023, as on master).
+    // Arb; the real overload keeps its rounding near the subnormal range.
     for (a, b, bits) in [
         (-1022.0, -549_755_813_888.5, 0x000f_ffff_805f_f1fb),
-        (-1023.0, -549_755_813_888.5, 0x0007_ffff_c010_00fe),
+        (-1023.0, -549_755_813_888.5, 0x0007_ffff_c010_00ff),
         (-1024.0, -549_755_813_888.5, 0x0003_ffff_dff8_0080),
         (-1025.0, -549_755_813_888.75, 0x0001_ffff_efef_fd40),
     ] {
