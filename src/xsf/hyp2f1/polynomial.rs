@@ -72,7 +72,7 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
     let estimate = if (finite_population || positive_beta)
         && (z.re > 0.0 || z.im != 0.0)
         // Headroom for the squared ordinate in the centered recurrence.
-        && z.re.abs().max(z.im.abs()) <= pow2(256)
+        && z.linf_norm() <= pow2(256)
     {
         Estimate::from(population(a, b, c, n, z))
     } else {
@@ -282,7 +282,7 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     if c > 0.0 {
         return select_positive_beta(origin.value, &estimate, n, z);
     }
-    let magnitude = centered.re.abs().max(centered.im.abs());
+    let magnitude = centered.linf_norm();
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
     let limit = if origin.value.is_finite() {
         origin.error

@@ -341,7 +341,7 @@ fn hyp0f1_subnormal_parameter(v: f64, z: C64, radius: f64, sum: C64) -> C64 {
         // Bound the absolute series roundoff in units of v*0F1(v; z).
         let slack = 128.0 * f64::EPSILON * radius;
         let near_overflow = if sum.is_finite() {
-            let peak = sum.re.abs().max(sum.im.abs());
+            let peak = sum.linf_norm();
             f64::MAX - peak <= (slack / scale.abs()) * (0.5 * f64::MAX)
         } else {
             // The unscaled result has lost its magnitude. Estimate the
@@ -472,7 +472,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
             // Unlike in xsf (scipy/xsf#557), this is also done if a factor or the product is
             // subnormal, and the phase is applied first, so that `e^Re(ln)` only overflows if the
             // result does.
-            let m = r.re.abs().max(r.im.abs());
+            let m = r.linf_norm();
             let ln = arg.ln() * (1.0 - v) + crate::gammaln(v) + m.ln();
             (r / m * C64::cis(ln.im) * crate::gammasgn(v)).mul_exp(ln.re)
         }

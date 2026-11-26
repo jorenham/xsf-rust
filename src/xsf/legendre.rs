@@ -1124,7 +1124,7 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, km: i32) {
 
 /// Whether `lqmn` and the complex `lqn` use their leading terms at `z`
 fn lq_is_extreme(z: C64) -> bool {
-    z.is_finite() && z.re.abs().max(z.im.abs()) >= LQ_LARGE_X
+    z.is_finite() && z.linf_norm() >= LQ_LARGE_X
 }
 
 // Use the first two terms of the expansion in 1/z (DLMF 14.3.7 and 14.8.15), with the exterior
@@ -1193,7 +1193,7 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
     // and `(a^2 - 2ab - b^2) (a^2 + 2ab - b^2)`. Factored, the cancelling
     // differences `a - b` and `a - 2b` are exact (Sterbenz).
     let major = usize::from(z.im.abs() > z.re.abs());
-    let (a, b) = (real(z.re.abs().max(z.im.abs())), real(z.re.abs().min(z.im.abs())));
+    let (a, b) = (real(z.linf_norm()), real(z.re.abs().min(z.im.abs())));
     let (a_b, a_2b, b2) = (add(a, neg(b)), add(a, neg(twice(b))), mul(b, b));
     let cubic = mul([x, y][major], add(mul(a_b, a_b), mul(twice(b), a_2b)));
     let quartic = mul(add(mul(a, a_2b), neg(b2)), add(mul(a, add(a, twice(b))), neg(b2)));

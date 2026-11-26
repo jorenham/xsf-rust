@@ -681,7 +681,7 @@ fn rescale_bessel(raw: C64, exponent: C64) -> Option<C64> {
     let rotated = raw * C64::cis(exponent.im);
     // The rotation amplifies errors by at most sqrt(2) in max norm. Keep
     // components large enough to limit the subsequent relative error.
-    let min = (raw.re.abs().max(raw.im.abs()) / 32.0).max(2.0 * f64::MIN_POSITIVE);
+    let min = (raw.linf_norm() / 32.0).max(2.0 * f64::MIN_POSITIVE);
     if rotated.re.abs().min(rotated.im.abs()) < min {
         return None;
     }
@@ -1345,7 +1345,7 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
 // Both functions have a leading multiple of z^(-v) with opposite signs.
 #[cold]
 fn bessel_small_argument_overflow(v: f64, z: C64, weight: f64) -> Option<C64> {
-    let m = z.re.abs().max(z.im.abs());
+    let m = z.linf_norm();
     let fraction = v.fract();
     let supported =
         matches!(fraction, 0.0 | 0.5) || v >= 1.0 && (0.125..=0.875).contains(&fraction);

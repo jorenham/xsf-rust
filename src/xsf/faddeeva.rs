@@ -195,7 +195,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
                 let rotated = phase * w;
                 // Each angle doubling can double the phase error.
                 let eps = 16.0 * f64::EPSILON * f64::from(1 << doublings);
-                let margin = (eps * w.re.abs().max(w.im.abs())).max(f64::from_bits(4));
+                let margin = (eps * w.linf_norm()).max(f64::from_bits(4));
                 if rotated.re.abs().min(rotated.im.abs()) > margin {
                     return rotated;
                 }

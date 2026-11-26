@@ -340,7 +340,7 @@ fn div(mut a: C64, mut b: C64) -> C64 {
 
     // Not for an `a` of 2^424 or more, which the scaling would overflow: its quotient is only
     // finite for a `b` of about 2^-600 or more, where nothing significant is subnormal.
-    if b.re.abs().max(b.im.abs()) < TWO_M400 && a.re.abs().max(a.im.abs()) < TWO_424 {
+    if b.linf_norm() < TWO_M400 && a.linf_norm() < TWO_424 {
         a *= TWO_600;
         b *= TWO_600;
     }

@@ -220,7 +220,7 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
     }
 
     // The binary exponent of the larger part
-    let exp2 = |g: C64| frexp_f64(g.re.abs().max(g.im.abs())).1;
+    let exp2 = |g: C64| frexp_f64(g.linf_norm()).1;
     // `1 / z = 2^-m / w`, as `1 / z` overflows for tiny `z`
     let m = exp2(z).min(0);
     let rw = C64::ONE / z.ldexp(-m);
@@ -282,7 +282,7 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
         let a =
             (abs_mul(a, rw) + tiny(-d_a)).ldexp((d_a - i64::from(de)).clamp(-E_MAX, E_MAX) as i32);
         let g = g.ldexp(-de) * rw;
-        let min = tol * g.re.abs().max(g.im.abs());
+        let min = tol * g.linf_norm();
         let e = e + i64::from(de - m) + q as i64;
         c64(part(g.re, min.min(tol_a * a.re), e), part(g.im, min.min(tol_a * a.im), e))
     };
