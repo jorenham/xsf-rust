@@ -377,6 +377,178 @@ fn test_hyp2f1_c64_inverse_tiny_imag() {
     }
 }
 
+#[test]
+fn test_hyp2f1_c64_inverse_near_equal() {
+    // a - b is near an integer, so the poles of the 1/z terms nearly cancel (the last two after
+    // the Euler transform). Arb at the binary64 inputs, compared componentwise.
+    for (a, b, c, z, expected) in [
+        (
+            1.0 + 2.0_f64.powi(-47),
+            1.0 + f64::EPSILON,
+            2.0,
+            c64(2.0, 0.25),
+            c64(0.163_330_184_812_119_58, 1.427_890_722_129_949_3),
+        ),
+        (
+            0.618_776_231_689_070_1,
+            0.618_776_231_689_068_9,
+            2.982_633_969_189_627_5,
+            c64(-3.459_733_432_750_732, -0.853_452_349_090_242_8),
+            c64(0.764_767_445_893_113_2, -0.033_055_478_840_512_145),
+        ),
+        (
+            0.997_388_517_972_448_7,
+            -1.002_611_482_027_599_8,
+            3.150_968_818_948_326_7,
+            c64(2.045_922_291_999_997_5, 0.333_194_302_263_917),
+            c64(0.351_688_010_827_500_9, -0.104_787_053_409_834_48),
+        ),
+        (
+            -6.198_721_292_721_535,
+            -3.198_721_292_721_532_3,
+            -2.126_916_436_678_337,
+            c64(-1.018_479_056_347_564_7, 1.446_640_991_662_744_5),
+            c64(-2_615.177_010_022_977_4, -2_193.034_090_860_991),
+        ),
+        (
+            2.891_850_628_025_062,
+            2.891_850_628_025_058,
+            -1.673_453_207_224_207,
+            c64(-0.656_577_054_389_945_3, 0.973_480_163_347_360_1),
+            c64(-0.486_955_198_463_085_9, -6.854_834_441_578_813),
+        ),
+        (
+            3.0,
+            2.000_000_000_000_001_3,
+            4.0,
+            c64(3.514_055_857_750_915, -0.331_333_151_666_662_44),
+            c64(0.154_015_399_276_666_3, 0.445_105_599_187_927_8),
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                // (2e-14, as the real part of the fifth is 1/14 of the norm)
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 2e-14
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_near_equal_edges() {
+    // a - b is near an integer: with large c, with c - b an integer, near 1/8, or with an
+    // overflowing (1 + d)_m. Arb at the binary64 inputs, compared componentwise.
+    for (a, b, c, z, expected) in [
+        (2.125, 1.0, 101.0, c64(100.0, 1.0), c64(-0.382_351_731_216_135_9, 1.089_877_562_791_618)),
+        (
+            28.125_000_000_000_227,
+            3.125,
+            6.125,
+            c64(2.0, 0.25),
+            c64(-5.932_929_836_608_319e-4, -3.525_838_182_852_035e-5),
+        ),
+        (
+            1.125,
+            1.0,
+            2.0625,
+            c64(2.0, 0.25),
+            c64(-0.027_024_445_301_198_41, 1.453_291_172_228_273_7),
+        ),
+        (
+            3_000.125 + 2.0_f64.powi(-20),
+            0.125,
+            1.25,
+            c64(100.0, 1.0),
+            c64(0.183_905_066_744_820_52, 0.075_906_798_189_663_85),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        // (the second and third lose about 3e-14 in one component to cancellation)
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 5e-14);
+    }
+    // On the real axis below -1, the imaginary part stays +0.
+    for z in [c64(-1.125, 0.0), c64(-1.125, -0.0)] {
+        let actual = xsf::hyp2f1(-2.875 + 2.0_f64.powi(-14), -2.875, 1.5, z);
+        np_assert_allclose!([actual.re], [-0.697_502_355_699_381_9], rtol = 4e-15);
+        assert_eq!(actual.im.to_bits(), 0.0_f64.to_bits());
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
+    // a - b is near an integer, but the paired 1/z series cancel more than the unpaired ones.
+    // Arb at the binary64 inputs, compared componentwise.
+    let actual = xsf::hyp2f1(75.25 + 2.0_f64.powi(-14), -4.75, 5.0, c64(-1.25, 0.125));
+    let expected = [422_907.130_552_140_6, -197_134.634_126_622_1];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 4e-15);
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_near_integer_unpaired() {
+    // a - b is near an integer, but pairing the 1/z series gains little, or loses a tiny a or b.
+    // Arb at the binary64 inputs, relative to the norm.
+    for (a, b, c, z, expected, rtol) in [
+        (
+            5.024_997_972_554_356e-7,
+            -1.361_721_274_401_763_5e-6,
+            -30.717_500_717_391_21,
+            c64(-1.201_105_588_470_700_7, -0.669_078_036_954_691_5),
+            c64(0.999_999_999_999_972_9, -1.555_693_488_344_063e-14),
+            1e-14,
+        ),
+        (
+            2.889_925_064_146_597e-10,
+            5.492_583_293_852_574e-13,
+            -108.719_964_352_302_91,
+            c64(-0.193_675_008_963_609_06, -3.649_948_169_840_155_5),
+            c64(1.0, 5.377_948_821_171_109_6e-24),
+            1e-13,
+        ),
+        (
+            1.333_146_694_014_018_5e-10,
+            1.376_623_639_782_201_2e-10,
+            -225.100_664_606_829_72,
+            c64(-0.930_006_774_382_229_3, -3.541_234_746_238_994_4),
+            c64(1.0, 2.898_743_782_923_748e-22),
+            2e-11,
+        ),
+        (
+            9.294_168_821_359_962,
+            4.294_168_821_359_3,
+            11.1875,
+            c64(0.667_471_980_816_785, 1.352_831_044_772_488),
+            c64(0.082_811_595_041_503_58, -0.395_157_581_779_192_1),
+            1e-13,
+        ),
+        (
+            9.193_099_974_568_938,
+            37.193_099_985_524_036,
+            44.8125,
+            c64(-2.848_635_621_977_817_5, 1.422_743_258_795_358_8),
+            c64(-9.501_738_164_549_64e-6, 7.011_859_829_330_347e-7),
+            1e-13,
+        ),
+        (
+            -5.999_999_999_999_815,
+            -5.999_999_998_420_666,
+            0.163_827_140_645_315_34,
+            c64(-4.219_983_348_289_068, 0.0),
+            c64(-2_937.138_296_482_582, 0.0),
+            1e-13,
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            assert!((actual - expected).norm() <= rtol * expected.norm(), "{z}: {actual}");
+        }
+    }
+}
+
 /// Compares each component, so that a small one is checked too.
 fn assert_components_close(actual: num_complex::Complex64, expected: num_complex::Complex64) {
     np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 3e-15);

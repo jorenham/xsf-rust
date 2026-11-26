@@ -321,22 +321,24 @@ fn hyp2f1_transform1_limit_series_generator(a: f64, b: f64, m: f64, z: C64) -> i
     }
 }
 
-fn hyp2f1_transform2_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
+fn hyp2f1_transform2_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> (C64, C64) {
     /* 1/z transformation of standard series.*/
     let factor1 = (-z).powf(-a) * four_gammas(c, b - a, b, c - a);
     let factor2 = (-z).powf(-b) * four_gammas(c, a - b, a, c - b);
     let mut generator1 = hypergeometric_series_generator(a, a - c + 1.0, a - b + 1.0, 1.0 / z);
     let mut generator2 = hypergeometric_series_generator(b, b - c + 1.0, b - a + 1.0, 1.0 / z);
-    move || factor1 * generator1() + factor2 * generator2()
+    // Unlike in xsf, the terms of both series are returned apart, for `series_eval_pairs`.
+    move || (factor1 * generator1(), factor2 * generator2())
 }
 
 /// `hyp2f1_transform2_generator(c - a, c - b, c, z)`, but without `c - (c - a)` losing `a` if tiny
-fn hyp2f1_transform2_euler_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
+fn hyp2f1_transform2_euler_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> (C64, C64) {
     let factor1 = (-z).powf(a - c) * four_gammas(c, a - b, c - b, a);
     let factor2 = (-z).powf(b - c) * four_gammas(c, b - a, c - a, b);
     let mut generator1 = hypergeometric_series_generator(c - a, 1.0 - a, b - a + 1.0, 1.0 / z);
     let mut generator2 = hypergeometric_series_generator(c - b, 1.0 - b, a - b + 1.0, 1.0 / z);
-    move || factor1 * generator1() + factor2 * generator2()
+    // (the terms of both series apart, for `series_eval_pairs`)
+    move || (factor1 * generator1(), factor2 * generator2())
 }
 
 /// The estimated cancellation `abs_sum / |sum|`, or infinity if NaN (e.g. if `sum` is NaN)
@@ -382,6 +384,26 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> Cancelled {
     }
 }
 
+/// `series_eval_cancellation` of the sums of the pairs of terms, but with both their norms in the
+/// cancellation if `pairs`
+fn series_eval_pairs(mut g: impl FnMut() -> (C64, C64), pairs: bool) -> Cancelled {
+    let mut abs_sum = 0.0;
+    let sum = series_eval(|| {
+        let (first, second) = g();
+        let term = first + second;
+        abs_sum += if pairs {
+            first.norm() + second.norm()
+        } else {
+            term.norm()
+        };
+        term
+    });
+    Cancelled {
+        value: sum,
+        cancellation: cancellation(abs_sum, sum),
+    }
+}
+
 /// `series_eval_cancellation`, and the estimated relative size of the omitted tail, a geometric
 /// series in the ratio of the last two terms (infinite unless that ratio is below one)
 fn series_eval_tail(mut g: impl FnMut() -> C64) -> (Cancelled, f64) {
@@ -409,6 +431,10 @@ fn series_eval_settled(mut g: impl FnMut() -> C64) -> Cancelled {
         let term = g();
         sum += term;
         abs_sum += term.norm();
+        // (a NaN sum never settles)
+        if sum.norm().is_nan() {
+            break;
+        }
         small = if term.norm() < sum.norm() * HYP2F1_EPS {
             small + 1
         } else {
@@ -1184,31 +1210,33 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<Canc
     }
     let w = 1.0 - z;
     let log_power = w.ln() * d;
-    let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
-    let log_ratio = log_ratio - digamma_integral(b, d); // log(A_0 / B_0)
+    // log(A_0 / B_0)
+    let log_ratio =
+        || crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d) - digamma_integral(b, d);
     let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
     hyp2f1_paired((a, b), 0.0, d, w, log_ratio, log_power, prefactor)
 }
 
-/// `prefactor` times the sum of w^k B_k expm1(log_ratio + log(A_k / B_k) - log_power) over k,
-/// with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k), and
-/// its estimated cancellation as in `series_eval_cancellation`, where that is accurate
+/// `prefactor` times the sum of w^k B_k expm1(log_ratio() + log(A_k / B_k) - log_power) over
+/// k, with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k),
+/// and its estimated cancellation as in `series_eval_cancellation`, where that is accurate
 fn hyp2f1_paired(
     (a, b): (f64, f64),
     m: f64,
     d: f64,
     w: C64,
-    mut log_ratio: f64,
+    log_ratio: impl FnOnce() -> f64,
     log_power: C64,
     prefactor: C64,
 ) -> Option<Cancelled> {
-    // The phase of w^d must not underflow before the prefactor restores its scale.
-    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE {
+    // The phase of exp(log_power) must not underflow before the prefactor restores its scale,
+    // and an over- or underflowed prefactor loses the scale.
+    let scaled = prefactor.is_finite() && prefactor.norm() >= f64::MIN_POSITIVE;
+    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE || !scaled {
         return None;
     }
-    if !log_ratio.is_finite() {
-        return None;
-    }
+    // (only then, as its digamma integrals can be slow)
+    let mut log_ratio = Some(log_ratio()).filter(|x| x.is_finite())?;
     let mut upper = C64::ONE; // w^k B_k
     let mut k = 0.0;
     let series = series_eval_settled(|| {
@@ -1223,10 +1251,10 @@ fn hyp2f1_paired(
         term
     });
     let value = series.value * prefactor;
-    // An underflowed prefactor loses the scale, and a product whose imaginary part cancels by
-    // more than 1 / |d| loses more than the unpaired series.
+    // A product whose imaginary part cancels by more than 1 / |d| loses more than the unpaired
+    // series.
     let rotated = (series.value.re * prefactor.im).abs() + (series.value.im * prefactor.re).abs();
-    let accurate = prefactor.norm() >= f64::MIN_POSITIVE && value.im.abs() >= d.abs() * rotated;
+    let accurate = value.im.abs() >= d.abs() * rotated;
     (accurate && value.is_finite()).then_some(Cancelled { value, ..series })
 }
 
@@ -1457,6 +1485,110 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     result
 }
 
+/// The offset of a - b from an integer below which `hyp2f1_inverse` pairs the two 1/z series,
+/// whose poles cancel between them: an empirical cutoff, beyond which the pairing was measured
+/// to be less accurate
+const TRANSFORM2_POLE_OFFSET: f64 = 1.0 / 1024.0;
+
+/// The 1/z series (DLMF 15.8.2) for a - b near an integer m, uniformly in the offset, and its
+/// estimated cancellation as in `series_eval_cancellation`, without and with the rounding of the
+/// powers of -z (which the unpaired estimate omits too), where that is accurate
+//
+// With a = b + m + d, the k-th term of the first series is paired with the (k + m)-th term of
+// the second, whose poles in d cancel. With p = b + m, their sum is -Gamma(c) Gamma(-m-d) /
+// (Gamma(b) Gamma(c-a)) (-z)^(-a) times the sum of `hyp2f1_paired` for p, p - c + 1, w = 1/z,
+// log_power = -d log(-z) and log_ratio = log(Gamma(1+m+d) Gamma(p) Gamma(c-a) / (m! Gamma(1-d)
+// Gamma(a) Gamma(c-a+d))).
+//
+// Each parameter is passed with its complement to c, and a - b exactly, so that for the Euler
+// transform c - (c - a) does not lose a tiny a, as in `hyp2f1_transform2_euler_generator`.
+fn hyp2f1_transform2_near_integer(
+    (a, ca): (f64, f64),
+    (b, cb): (f64, f64),
+    a_minus_b: Dd,
+    c: f64,
+    z: C64,
+) -> Option<(Cancelled, f64)> {
+    let ((a, ca), (b, cb), a_minus_b) = if a_minus_b < 0.0 {
+        ((b, cb), (a, ca), -a_minus_b)
+    } else {
+        ((a, ca), (b, cb), a_minus_b)
+    };
+    let m = f64::from(a_minus_b).round();
+    let d = f64::from(a_minus_b - m);
+    // Not if the first series terminates, which the pairing divides by, or if c - b is an integer
+    // of at most m, where the second series stops before its poles or vanishes, and those of the
+    // first cancel in its gamma ratio.
+    let terminates = ca > 0.0 && ca.fract() == 0.0;
+    let stops = cb.fract() == 0.0 && cb <= m;
+    if d.abs() >= TRANSFORM2_POLE_OFFSET || m > HYP2F1_MAXITER as f64 || terminates || stops {
+        return None;
+    }
+    let w = 1.0 / z;
+    let p = b + m;
+    let log_ratio = || {
+        let log_ratio = digamma_integral(m + 1.0, d) - crate::lgam1p(-d);
+        log_ratio - digamma_integral(p, d) - digamma_integral(ca, d)
+    };
+    // Gamma(-m-d) / Gamma(b) = (-1)^m (b)_m / (1+d)_m Gamma(-d) / Gamma(p), a balanced ratio.
+    let rising = neg_one_pow(m) * (poch(b, m) / poch(1.0 + d, m));
+    let prefactor = (-z).powf(-a) * (rising * -four_gammas(c, -d, p, ca));
+    let log_z = (-z).ln();
+    let log_power = log_z * -d;
+    // (1 - (c - b) keeps the exact zero of the second series if c - b is an integer)
+    let tail = hyp2f1_paired((p, 1.0 - cb + m), m, d, w, log_ratio, log_power, prefactor)?;
+    // The pairing rebuilds a, 1 - (c - a) and c - b - m from d, with its rounding error.
+    let rebuilt = a.abs().min((1.0 - ca).abs()).min((cb - m).abs());
+    let tail = Cancelled {
+        // (from zero like the unpaired series, so that a zero imaginary part is +0)
+        value: C64::ZERO + tail.value,
+        cancellation: tail.cancellation.max(d.abs() / rebuilt),
+    };
+    if m == 0.0 {
+        return Some((tail, tail.cancellation));
+    }
+    // The first m terms of the second series.
+    let mut terms = hypergeometric_series_generator(b, 1.0 - cb, 1.0 - f64::from(a_minus_b), w);
+    let (head, head_abs) = (0..m as u64)
+        .map(|_| terms())
+        .fold((C64::ZERO, 0.0), |(sum, abs), term| (sum + term, abs + term.norm()));
+    let factor = (-z).powf(-b) * four_gammas(c, f64::from(a_minus_b), a, cb);
+    let value = factor * head + tail.value;
+    let abs_sum = factor.norm() * head_abs + tail.value.norm() * tail.cancellation;
+    // (-z)^(-b) and (-z)^(-a) lose about |b log(-z)| and |a log(-z)| to rounding.
+    let powers =
+        (factor * head).norm() * (b * log_z).norm() + tail.value.norm() * (a * log_z).norm();
+    let series = Cancelled {
+        value,
+        cancellation: cancellation(abs_sum, value),
+    };
+    Some((series, cancellation(abs_sum + powers, value)))
+}
+
+/// The factor by which the paired 1/z series must cancel less than the unpaired ones to be used,
+/// as their estimates are rough: an empirical choice
+const TRANSFORM2_PAIRED_MARGIN: f64 = 1.25;
+
+/// The `unpaired` sum and its cancellation, or, if that loses more than HYP2F1_EPS, the `paired`
+/// sum and its full cancellation if its comparable one is clearly less and keeps some digits
+fn hyp2f1_transform2_pick(
+    unpaired: Cancelled,
+    paired: impl FnOnce() -> Option<(Cancelled, f64)>,
+) -> Cancelled {
+    if !unpaired.is_lossy() {
+        return unpaired;
+    }
+    paired()
+        .filter(|(paired, _)| {
+            let lost = paired.cancellation;
+            TRANSFORM2_PAIRED_MARGIN * lost < unpaired.cancellation && lost * f64::EPSILON < 1.0
+        })
+        .map_or(unpaired, |(paired, full)| Cancelled {
+            cancellation: full,
+            ..paired
+        })
+}
+
 fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
     // reduces a and b, as for |z| < 0.9.
@@ -1481,12 +1613,19 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         // cancellation estimate, is less accurate.
         return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
-    let series_generator = hyp2f1_transform2_generator(a, b, c, z);
-    let mut series = series_eval_cancellation(series_generator);
+    // Unlike in xsf, pair the two series for a - b near an integer if that clearly cancels less,
+    // counting for a near b both parts of each unpaired term, whose poles cancel within it.
+    let near = (a - b).abs() < TRANSFORM2_POLE_OFFSET;
+    let mut series = hyp2f1_transform2_pick(
+        series_eval_pairs(hyp2f1_transform2_generator(a, b, c, z), near),
+        || hyp2f1_transform2_near_integer((a, c - a), (b, c - b), Dd::new(a) - b, c, z),
+    );
     if euler {
-        // use the one that cancels less
-        let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
-        let euler_series = series_eval_cancellation(series_generator);
+        // use the one that cancels less (also paired)
+        let euler_series = hyp2f1_transform2_pick(
+            series_eval_pairs(hyp2f1_transform2_euler_generator(a, b, c, z), near),
+            || hyp2f1_transform2_near_integer((c - a, a), (c - b, b), Dd::new(b) - a, c, z),
+        );
         if euler_series.cancellation < series.cancellation {
             if let Some(value) = euler_scaled(euler_series.value) {
                 series = Cancelled {
