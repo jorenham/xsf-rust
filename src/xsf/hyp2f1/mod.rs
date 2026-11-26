@@ -837,6 +837,9 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     // For |1 - z| > 1, this is NaN unless the terms first decrease below the tolerance.
     let (w3, w3_cancellation, w3_tail) =
         series_eval_tail(hypergeometric_series_generator(a, b, a + b + 1.0 - c, w));
+    if !(w3.is_finite() && w3_tail.is_finite()) {
+        return None;
+    }
     let (f2, f2_cancellation, f2_tail) =
         series_eval_tail(hypergeometric_series_generator(1.0 - a, 1.0 - b, 2.0 - c, z));
     // The gamma ratios can over- or underflow where the terms do not, so keep their logs.
