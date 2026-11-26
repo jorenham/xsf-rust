@@ -1526,19 +1526,7 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
      * handling of situations like a < c < b <= 0, a, b, c all non-positive
      * integers, where terminating at a would lead to a term of the form 0 / 0. */
     if a_neg_int || b_neg_int {
-        let degree = if !b_neg_int {
-            -a
-        } else if !a_neg_int {
-            -b
-        } else {
-            -a.max(b)
-        };
-        // Unlike in xsf, cap the number of terms in the finite series.
-        return if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
-            polynomial::evaluate(a, b, c, z, degree as u64)
-        } else {
-            C64::NAN
-        };
+        return polynomial::terminating(a, b, c, z).value;
     }
     // Unlike in xsf, try a beta contour for a large negative nonintegral upper parameter.
     if let Some(value) = beta_endpoints::evaluate(a, b, c, z, z_abs) {
@@ -1587,17 +1575,47 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 }
             }
             let w = 1.0 - z;
+            let regular = w.is_finite() && w != C64::ZERO;
             // Unlike in xsf, retain the phase of exactly integral Euler powers across the cut.
-            let integral = other.fract() == 0.0
-                && w.is_finite()
-                && w != C64::ZERO
-                && two_sum(c, -terminating).1 == 0.0;
+            let integral = other.fract() == 0.0 && regular && two_sum(c, -terminating).1 == 0.0;
             let prefactor = integral
                 .then(|| cpow_integral(w, Dd::new(-max_degree) - other))
                 .filter(|power| power.is_finite())
                 .unwrap_or_else(|| w.powf(c - a - b));
-            let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
-            return prefactor * series_eval_finite(series_generator, (max_degree + 2.0) as u64);
+            // Unlike in xsf, sum the polynomial like a directly terminating one.
+            let estimate = polynomial::terminating(c - a, c - b, c, z);
+            let polynomial = estimate.value;
+            let value = prefactor * polynomial;
+            // Unlike in xsf, carry the scale of a prefactor or product that under- or overflows.
+            let peak = prefactor.linf_norm();
+            let in_range = peak.is_normal();
+            // (a prefactor below the range needs a resolved polynomial, as the error of a
+            // cancelled sum would surface instead of underflowing; otherwise a finite nonzero
+            // one is rescaled when the prefactor overflows or the product is not finite)
+            let scale = if peak < f64::MIN_POSITIVE {
+                estimate.resolved()
+            } else {
+                !(value.is_finite() && in_range)
+                    && polynomial.is_finite()
+                    && polynomial != C64::ZERO
+            };
+            if regular && scale {
+                // (with the exponent as the sum of two words, which keeps an integral one exact)
+                let Dd { hi, lo } = Dd::new(c) - a - b;
+                let power = power::one_minus_z_pow_sqrt(z, hi) * power::one_minus_z_pow_sqrt(z, lo);
+                let scaled = (power * polynomial).to_c64();
+                // Keep a finite component of a product with the prefactor in range, and an
+                // infinite one where the scaled power loses a component far below the other.
+                let pick = |scaled: f64, value: f64| {
+                    if (in_range && value.is_finite()) || (scaled == 0.0 && value.is_infinite()) {
+                        value
+                    } else {
+                        scaled
+                    }
+                };
+                return c64(pick(scaled.re, value.re), pick(scaled.im, value.im));
+            }
+            return value;
         }
         return C64::NAN;
     }

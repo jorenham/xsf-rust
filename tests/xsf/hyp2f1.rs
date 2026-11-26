@@ -875,6 +875,98 @@ fn test_hyp2f1_c64_integral_euler_power() {
 }
 
 #[test]
+fn test_hyp2f1_c64_euler_power_overflow() {
+    // Arb at the binary64 inputs, where a half power near the cut overflows.
+    for (a, b, c, z, expected) in [
+        (
+            -3.019_339_683_446_933_3,
+            -27.5,
+            -12.019_339_683_446_933,
+            c64(6.804_317_682_837_257e29, 8.095e-320),
+            c64(f64::INFINITY, f64::NEG_INFINITY),
+        ),
+        (
+            -97.5,
+            -289.5,
+            -301.5,
+            c64(5.886_203_089_524_244e19, 2.4e-181),
+            c64(f64::NEG_INFINITY, f64::INFINITY),
+        ),
+        (
+            -206.522_940_928_326_3,
+            825.5,
+            -440.522_940_928_326_3,
+            c64(1.656_692_523_841_373_4, -1e-40),
+            c64(f64::NEG_INFINITY, f64::INFINITY),
+        ),
+    ] {
+        assert_eq!(xsf::hyp2f1(a, b, c, z), expected);
+    }
+
+    // Arb, where only the real part overflows.
+    for im in [-5e-324_f64, 5e-324] {
+        let z = c64(1.5, im);
+        let actual = xsf::hyp2f1(-60.282_220_454_807_145, 697.0, -304.282_220_454_807_15, z);
+        assert_eq!(actual.re, f64::NEG_INFINITY);
+        np_assert_allclose!([actual.im], [1.754_357_958_579_083_2e176 * im.signum()], rtol = 1e-5);
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_euler_power_underflow() {
+    // (1 - 15z/16) / (1 - z)^2, where (1 - z)^-2 underflows.
+    let z = c64(-2.0_f64.powi(1021), 0.0);
+    for (a, b) in [(1.0, 17.0), (17.0, 1.0)] {
+        assert_eq!(xsf::hyp2f1(a, b, 16.0, z), c64(4.172_013_484_701_002_6e-308, 0.0));
+    }
+
+    // (1 - z)^(-A - 1) (1 + (A/16 - 1) z) with A = 720 2^52 (Arb), where -A - 1 rounds.
+    let big = 720.0 * 2.0_f64.powi(52);
+    let z = c64(1.0, 1.0 + f64::EPSILON);
+    for (a, b) in [(big, 17.0), (17.0, big)] {
+        let actual = xsf::hyp2f1(a, b, 16.0, z);
+        np_assert_allclose!(
+            [actual.re, actual.im],
+            [-4.118_559_248_038_33e-296, 4.118_559_248_038_329e-296],
+            rtol = 1e-12
+        );
+    }
+
+    assert!(xsf::hyp2f1(f64::INFINITY, 17.0, 16.0, c64(0.5, 0.0)).is_nan());
+}
+
+#[test]
+fn test_hyp2f1_c64_euler_polynomial_cancellation() {
+    // Arb at the exact binary64 inputs. The first is ((1 - z)^-37 - 1) / (37 z).
+    for (a, b, c, z, expected) in [
+        (
+            38.0,
+            1.0,
+            2.0,
+            c64(2.0, 0.25),
+            c64(-0.009_058_578_399_532_28, 0.002_685_488_481_771_803_6),
+        ),
+        (
+            35.0,
+            0.5,
+            2.0,
+            c64(1.875, 0.125),
+            c64(0.073_108_585_745_817_23, 0.131_363_053_533_884_8),
+        ),
+        (
+            144.0,
+            2.500_000_000_000_000_4,
+            5.0,
+            c64(0.53, 0.8875),
+            c64(7.398_391_777_232_239e-5, -6.000_132_525_033_908e-5),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        assert!((actual - expected).norm() <= 2e-14 * expected.norm());
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_transform1_maclaurin() {
     // unlike in xsf: the Maclaurin series if the 1 - z transformation cancels (mpmath references)
     for (a, b, c, z, expected) in [

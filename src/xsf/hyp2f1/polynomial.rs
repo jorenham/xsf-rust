@@ -1,4 +1,4 @@
-use super::hypergeometric_series_generator;
+use super::{HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
 use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
@@ -15,27 +15,58 @@ fn dd_candidate(y: Scaled) -> Option<(f64, Option<[f64; 2]>)> {
     (v.is_finite() && y.err <= HYP2F1_ETHRESH).then_some((v, open.then_some([lo, hi])))
 }
 
-struct Estimate {
-    value: C64,
+pub(super) struct Estimate {
+    pub(super) value: C64,
     // Absolute evaluation roundoff, before accounting for the final rounding to f64.
     abs_roundoff: f64,
 }
 
-impl Estimate {
-    // Whether the estimate leaves at least half the significand.
-    fn accurate(&self) -> bool {
-        self.value.is_finite()
-            && self.abs_roundoff <= pow2(-26) * self.value.re.abs().max(self.value.im.abs())
+// A value whose only error is its final rounding to f64
+impl From<C64> for Estimate {
+    fn from(value: C64) -> Self {
+        Self {
+            value,
+            abs_roundoff: 0.0,
+        }
     }
 }
 
-pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
+impl Estimate {
+    // Whether the estimate is finite with an estimated error below its magnitude.
+    pub(super) fn resolved(&self) -> bool {
+        self.value.is_finite() && self.abs_roundoff < self.value.linf_norm()
+    }
+
+    // Whether the estimate leaves at least half the significand.
+    fn accurate(&self) -> bool {
+        self.value.is_finite() && self.abs_roundoff <= pow2(-26) * self.value.linf_norm()
+    }
+}
+
+/// The series terminated by the negative integer `a` or `b`, or NaN if it is too long.
+pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> Estimate {
+    let neg_int = |p: f64| p == p.trunc() && p < 0.0;
+    let degree = match (neg_int(a), neg_int(b)) {
+        (true, true) => -a.max(b),
+        (true, false) => -a,
+        _ => -b,
+    };
+    // Unlike in xsf, cap the number of terms in the finite series.
+    if degree < HYP2F1_MAX_FIXED_TERMS as f64 {
+        evaluate(a, b, c, z, degree as u64)
+    } else {
+        Estimate::from(C64::NAN)
+    }
+}
+
+// The polynomial and the estimated absolute error of a plain origin sum (zero for other forms).
+fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> Estimate {
     let other = if a == -(n as f64) { b } else { a };
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
     if other == 1.0 && c == 2.0 && z.is_finite() {
         let mean = uniform_beta_binomial(n + 1, z);
         if mean.is_finite() {
-            return mean;
+            return Estimate::from(mean);
         }
     }
     // Unlike in xsf, use the double-double polynomial on the real axis (at z = 1 the
@@ -43,14 +74,11 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     // series if it lies within an open subnormal rounding of it.
     if z.is_real() {
         match hyp2f1_poly_dd(a, b, c, z.re).and_then(dd_candidate) {
-            Some((y, None)) => return c64(y, 0.0),
+            Some((y, None)) => return Estimate::from(c64(y, 0.0)),
             Some((y, Some([lo, hi]))) => {
-                let value = series(a, b, c, z, n, other);
-                return if (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0 {
-                    value
-                } else {
-                    c64(y, 0.0)
-                };
+                let value = series(a, b, c, z, n, other).value;
+                let inside = (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0;
+                return Estimate::from(if inside { value } else { c64(y, 0.0) });
             },
             None => {},
         }
@@ -58,26 +86,26 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     series(a, b, c, z, n, other)
 }
 
-// The series, with `other` the upper parameter that is not `-n`.
-fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> C64 {
+// The series as in `evaluate`, with `other` the upper parameter that is not `-n`.
+fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
     // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
     let positive_beta = other > 0.0 && other < c && c.is_finite();
     let finite_population = other < 0.0
         && other == other.trunc()
         && n as f64 - 1.0 < -c
         && (-other).max(-c) <= pow2(53);
-    let value = if (finite_population || positive_beta)
+    let estimate = if (finite_population || positive_beta)
         && (z.re > 0.0 || z.im != 0.0)
         // Headroom for the squared ordinate in the centered recurrence.
         && z.re.abs().max(z.im.abs()) <= pow2(256)
     {
-        population(a, b, c, n, z)
+        Estimate::from(population(a, b, c, n, z))
     } else {
-        series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, n + 1)
+        estimated_sum(a, b, c, n, z)
     };
     // Unlike in xsf, recover a finite linear result when forming its
     // coefficient overflows for a subnormal denominator.
-    if n == 1 && c.is_subnormal() && !value.is_finite() {
+    if n == 1 && c.is_subnormal() && !estimate.value.is_finite() {
         let coefficient = -other;
         if coefficient.is_finite() && z.is_finite() && (coefficient / c).is_infinite() {
             let (p, ep) = frexp_f64(coefficient);
@@ -90,11 +118,11 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> C64 {
             };
             let candidate = c64((linear(z.re) + 1.0).hi, 0.0 + linear(z.im).hi);
             if candidate.is_finite() {
-                return candidate;
+                return Estimate::from(candidate);
             }
         }
     }
-    value
+    estimate
 }
 
 // Mean of 1, w, ..., w^(count-1), with w = 1-z.
