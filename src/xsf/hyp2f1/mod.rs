@@ -1480,9 +1480,9 @@ fn hyp2f1_near_balance_retry(a: f64, b: f64, c: f64, w: C64, value: C64, cancell
         .then(|| small_balance(a, b, c))
         .flatten()
         .and_then(|d| hyp2f1_transform1_paired(a, b, c, d, w))
-        .map(|(series, error)| Estimate {
-            value: series.value,
-            error,
+        .map(|paired| Estimate {
+            value: paired.series.value,
+            error: paired.error,
         })
         .filter(|paired| {
             let usable = paired.error <= USABLE_ERROR * paired.value.norm();
