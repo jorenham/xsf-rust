@@ -491,42 +491,64 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
             return sum;
         }
     }
-    let generate = || lopez_temme_series_generator(a, b, c, z);
-    if a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite() {
-        let mut terms = generate();
-        // Unlike in xsf, bound both tails using decreasing absolute beta moments.
-        // For odd moments, reflection gives a beta-weight difference of fixed sign.
-        let w2 = (z / (z - 2.0)).norm_sqr();
-        let upper = a.max(1.0);
-        let mut sum = C64::ZERO;
-        for n in (0..HYP2F1_MAXITER - 1).step_by(2) {
-            let even = terms();
-            let odd = terms();
-            sum += even;
-            sum += odd;
-            // Unlike in xsf, skip Euclidean norms when the pair is too large to stop.
-            // Two bounds sqrt(2) with rounding room; half-MAX keeps the norms finite.
-            let pair_abs = even.l1_norm() + odd.l1_norm();
-            let sum_abs = sum.l1_norm();
-            if pair_abs.max(sum_abs) <= 0.5 * f64::MAX && pair_abs > 2.0 * HYP2F1_EPS * sum_abs {
-                continue;
-            }
-            let last = even.norm() + odd.norm();
-            let tol = sum.norm() * HYP2F1_EPS;
-            if !last.is_finite() || !tol.is_finite() {
-                break;
-            }
-            if last < tol {
-                let n = n as f64;
-                let ratio = w2 * ((upper + n) / (n + 1.0)) * ((upper + n + 1.0) / (n + 2.0));
-                if last * ratio < tol * (1.0 - ratio) {
-                    return sum;
-                }
+    // Unlike in xsf, restart with the single-term rule if the paired sum fails.
+    lopez_temme_paired(a, b, c, z)
+        .unwrap_or_else(|| series_eval(lopez_temme_series_generator(a, b, c, z)))
+}
+
+/// The Lopez-Temme series, once a tail bound holds for a pair of terms, or `None` (always unless
+/// a, b > 0 and b < c)
+fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
+    if !(a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite()) {
+        return None;
+    }
+    let mut terms = lopez_temme_series_generator(a, b, c, z);
+    // Unlike in xsf, bound both tails using decreasing absolute beta moments.
+    // For odd moments, reflection gives a beta-weight difference of fixed sign.
+    let w2 = (z / (z - 2.0)).norm_sqr();
+    let upper = a.max(1.0);
+    let mut sum = C64::ZERO;
+    for n in (0..HYP2F1_MAXITER - 1).step_by(2) {
+        let even = terms();
+        let odd = terms();
+        sum += even;
+        sum += odd;
+        // Unlike in xsf, skip Euclidean norms when the pair is too large to stop.
+        // Two bounds sqrt(2) with rounding room; half-MAX keeps the norms finite.
+        let pair_abs = even.l1_norm() + odd.l1_norm();
+        let sum_abs = sum.l1_norm();
+        if pair_abs.max(sum_abs) <= 0.5 * f64::MAX && pair_abs > 2.0 * HYP2F1_EPS * sum_abs {
+            continue;
+        }
+        let last = even.norm() + odd.norm();
+        let tol = sum.norm() * HYP2F1_EPS;
+        if !last.is_finite() || !tol.is_finite() {
+            return None;
+        }
+        if last < tol {
+            let n = n as f64;
+            let ratio = w2 * ((upper + n) / (n + 1.0)) * ((upper + n + 1.0) / (n + 2.0));
+            if last * ratio < tol * (1.0 - ratio) {
+                return Some(sum);
             }
         }
     }
-    // Unlike in xsf, restart with the single-term rule if the paired sum fails.
-    series_eval(generate())
+    None
+}
+
+/// The parameters (p, q) of the Lopez-Temme series F(p, q; c; z) for F(a, b; c; z), its
+/// prefactor, and the Euler transform prefactor if that applies
+fn lopez_temme_form(a: f64, b: f64, c: f64, z: C64) -> (f64, f64, C64, Option<C64>) {
+    /* This condition for applying Euler Transformation (DLMF 15.8.1)
+     * was determined empirically to work better for this case than that
+     * used in Zhang and Jin's implementation for |z| < 0.9,
+     *  real(z) >= 0. */
+    if (c - a <= a && c - b < b) || (c - a < a && c - b <= b) {
+        let prefactor = (1.0 - z * 0.5).powf(a - c); // Lopez-Temme prefactor
+        let euler = (1.0 - z).powf(c - a - b); // Euler transform prefactor.
+        return (c - a, c - b, prefactor, Some(euler));
+    }
+    (a, b, (1.0 - z * 0.5).powf(-a), None) // Lopez-Temme prefactor.
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
@@ -1263,17 +1285,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
      * were not correctly handled by Zhang and Jin's implementation.
      * -------------------------------------------------------------------------*/
     if (0.9..1.1).contains(&z_abs) && (1.0 - z).norm() >= 0.9 && z.re >= 0.0 {
-        /* This condition for applying Euler Transformation (DLMF 15.8.1)
-         * was determined empirically to work better for this case than that
-         * used in Zhang and Jin's implementation for |z| < 0.9,
-         *  real(z) >= 0. */
-        if (c - a <= a && c - b < b) || (c - a < a && c - b <= b) {
-            let prefactor = (1.0 - z * 0.5).powf(a - c); // Lopez-Temme prefactor
-            let result = prefactor * lopez_temme_series(c - a, c - b, c, z);
-            return (1.0 - z).powf(c - a - b) * result; // Euler transform prefactor.
-        }
-        let result = lopez_temme_series(a, b, c, z);
-        return (1.0 - z * 0.5).powf(-a) * result; // Lopez-Temme prefactor.
+        let (p, q, prefactor, euler) = lopez_temme_form(a, b, c, z);
+        let result = prefactor * lopez_temme_series(p, q, c, z);
+        return euler.map_or(result, |euler| euler * result);
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
      * occur with Maclaurin series for real(z) < 0.
