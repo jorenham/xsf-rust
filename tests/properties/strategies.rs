@@ -8,10 +8,10 @@ fn log_uniform(exponents: Range<f64>) -> impl Strategy<Value = f64> {
     (any::<bool>(), exponents).prop_map(|(neg, e)| if neg { -e.exp2() } else { e.exp2() })
 }
 
-/// Integers in [-200, 200), some of them perturbed, e.g. -3 or 2 + 1e-9
-fn near_int() -> impl Strategy<Value = f64> {
+/// Integers in `range`, some of them perturbed, e.g. -3 or 2 + 1e-9
+fn near_int(range: Range<i32>) -> impl Strategy<Value = f64> {
     let delta = prop_oneof![Just(0.0), -1e-6..1e-6, -1e-14..1e-14];
-    (-200_i32..200, delta).prop_map(|(n, d)| f64::from(n) + d)
+    (range, delta).prop_map(|(n, d)| f64::from(n) + d)
 }
 
 /// Boundaries and branch points, e.g. -0.0, 1 - 2^-30 or f64::MAX
@@ -41,12 +41,17 @@ fn special() -> impl Strategy<Value = f64> {
 
 /// Any `f64`, but mostly the interesting ones
 pub(super) fn arg() -> impl Strategy<Value = f64> {
-    prop_oneof![ANY, log_uniform(-64.0..64.0), near_int(), special()]
+    prop_oneof![ANY, log_uniform(-64.0..64.0), near_int(-200..200), special()]
 }
 
 /// Magnitudes up to 2^8, or near an integer
 pub(super) fn moderate() -> impl Strategy<Value = f64> {
-    prop_oneof![log_uniform(-64.0..8.0), near_int()]
+    prop_oneof![log_uniform(-64.0..8.0), near_int(-200..200)]
+}
+
+/// Magnitudes up to 2^4, or near an integer
+pub(super) fn small() -> impl Strategy<Value = f64> {
+    prop_oneof![log_uniform(-64.0..4.0), near_int(-16..16)]
 }
 
 /// Not NaN

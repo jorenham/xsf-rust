@@ -13,7 +13,7 @@ fn close(actual: f64, expected: f64, tol: f64) -> bool {
 }
 
 /// A pole of Gamma, e.g. -3 or -0
-fn is_pole(x: f64) -> bool {
+pub(super) fn is_pole(x: f64) -> bool {
     x <= 0.0 && x.fract() == 0.0
 }
 
