@@ -831,6 +831,123 @@ fn test_hyp2f1_c64_euler_polynomial_cancellation() {
 }
 
 #[test]
+fn test_hyp2f1_c64_pfaff_polynomial() {
+    // Arb at the exact binary64 inputs, where the terms in z cancel.
+    for (a, b, c, z, expected) in [
+        (-26.0, 29.5, 27.75, c64(0.781_25, 0.0), c64(3.890_826_082_506_454e-16, 0.0)),
+        (
+            -19.0,
+            -35.5,
+            -36.75,
+            c64(0.95, 0.25),
+            c64(1.236_696_750_629_711_3e-11, 6.406_230_812_945_963e-12),
+        ),
+        (
+            -40.0,
+            33.0,
+            9.5,
+            c64(0.95, 0.125),
+            c64(-1.030_992_516_789_373_6e-11, -7.086_575_071_894_045e-13),
+        ),
+        (-40.0, 33.0, 9.5, c64(0.95, 0.0), c64(6.340_337_088_462_662e-20, 0.0)),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            assert!((actual - expected).norm() <= 1e-14 * expected.norm());
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_pfaff_polynomial_limits() {
+    // (1 - z)(1 - 3z), where (1 - z)^2 underflows in a component or in full.
+    let tiny = 2.0_f64.powi(-600);
+    let actual = xsf::hyp2f1(-2.0, 2.0, 1.0, c64(1.0, tiny));
+    assert_eq!(actual, c64(0.0, 2.0 * tiny));
+    let below_one = f64::from_bits(1.0_f64.to_bits() - 1);
+    let actual = xsf::hyp2f1(-2.0, 2.0, 1.0, c64(below_one, f64::from_bits(1)));
+    np_assert_allclose!([actual.re], [-2.220_446_049_250_312_8e-16], rtol = 5e-16);
+    assert_eq!(actual.im, f64::from_bits(2));
+
+    // Rational arithmetic gives -0.008 + 0.0192i at the binary64 inputs, but 2(c + 1)
+    // overflows: NaN.
+    assert!(xsf::hyp2f1(-2.0, 1.2e308, 1e308, c64(0.9, 0.1)).is_nan());
+
+    // 1 + (-32/3)(3/32), a positive zero.
+    let actual = xsf::hyp2f1(-1.0, 32.0, 3.0, c64(0.093_75, 0.0));
+    assert_eq!([actual.re.to_bits(), actual.im.to_bits()], [0, 0]);
+
+    // Arb at the binary64 inputs, where c - a rounds.
+    let z = c64(0.728_030_478_673_954_3, 0.867_436_485_373_291_8);
+    let actual = xsf::hyp2f1(38.5, -160.0, -21.999_999_999, z);
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-1.031_291_498_685_774_2e75, -1.378_021_763_441_624_9e75],
+        rtol = 2e-14
+    );
+}
+
+#[test]
+fn test_hyp2f1_c64_pfaff_polynomial_components() {
+    // Arb at the binary64 inputs, where only the real part of the Pfaff polynomial is resolved.
+    let z = c64(1.0 - f64::EPSILON, 2.0_f64.powi(-450));
+    let expected = c64(-0.042_035_401_442_955_29, 1.165_295_602_809_008_4e-137);
+    for (a, b) in [(-18.0, 0.75), (0.75, -18.0)] {
+        let actual = xsf::hyp2f1(a, b, 0.5, z);
+        np_assert_allclose!([actual.re], [expected.re], rtol = 5e-16);
+        np_assert_allclose!([actual.im], [expected.im], rtol = 1e-8);
+    }
+
+    // 1 - 6x + 8x^2 at x = 1/4, and Arb for 1 - 6.4x + 9.6x^2 near x = 1/4.
+    let x = 0.249_999_999_999_999_94;
+    let expected = 8.881_784_197_001_255e-17;
+    for (a, b) in [(-2.0, 15.0), (15.0, -2.0)] {
+        let actual = xsf::hyp2f1(a, b, 5.0, c64(0.25, 0.0));
+        assert_eq!([actual.re.to_bits(), actual.im.to_bits()], [0, 0]);
+    }
+    for (a, b) in [(-2.0, 32.0), (32.0, -2.0)] {
+        let actual = xsf::hyp2f1(a, b, 10.0, c64(x, 0.0)).re;
+        assert!(actual > 0.0 && (actual - expected).abs() < f64::EPSILON / 4.0);
+    }
+
+    // Arb, with a positive zero imaginary part on both lips of the cut.
+    for (a, b) in [(-19.0, -4.5), (-4.5, -19.0)] {
+        for im in [0.0, -0.0] {
+            let actual = xsf::hyp2f1(a, b, -7.5, c64(2.0, im));
+            np_assert_allclose!([actual.re], [103.486_713_286_713_28], rtol = 5e-16);
+            assert_eq!(actual.im.to_bits(), 0.0_f64.to_bits());
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_pfaff_polynomial_choice() {
+    // Arb at the binary64 inputs, where the origin sum keeps the imaginary part.
+    let z = c64(1.000_000_000_000_005_8, 2.780_885_689_443_515e-15);
+    let actual = xsf::hyp2f1(-17.0, 11.25, -3.078_209_853_523_439_2, z);
+    np_assert_allclose!([actual.re], [-33.311_434_158_034_42], rtol = 1e-14);
+    np_assert_allclose!([actual.im], [1.059_732_248_933_062e-11], rtol = 1e-4);
+    let z = c64(1.000_000_000_718_648_3, -4.301_370_674_414_646e-9);
+    let actual = xsf::hyp2f1(-21.5, -16.0, -18.5, z);
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [0.383_730_473_252_956_1, -3.154_416_939_670_981e-8],
+        rtol = 1e-10
+    );
+
+    // Both components overflow.
+    let z = c64(9.324_507_004_751_248e30, -1.997_223_793_753_443_4e31);
+    let actual = xsf::hyp2f1(-20.5, 21_895.476_365_024_74, 21_885.476_365_024_74, z);
+    assert_eq!(actual, c64(f64::NEG_INFINITY, f64::NEG_INFINITY));
+
+    // (1 - z)^(-1/2) F(-256, 1/2; c; z/(z - 1)) with Arb (DLMF 15.8.1).
+    let c = 2.0_f64.powi(60);
+    let actual = xsf::hyp2f1(c + 256.0, 0.5, c, c64(2.0, 1e-10));
+    np_assert_allclose!([actual.re], [4.999_999_999_999_998e-11], rtol = 1e-4);
+    np_assert_allclose!([actual.im], [0.999_999_999_999_999_8], rtol = 1e-15);
+}
+
+#[test]
 fn test_hyp2f1_c64_transform1_maclaurin() {
     // unlike in xsf: the Maclaurin series if the 1 - z transformation cancels (mpmath references)
     for (a, b, c, z, expected) in [
