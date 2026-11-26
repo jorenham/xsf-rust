@@ -2,8 +2,7 @@
 
 use num_complex::Complex;
 
-/// `std::numeric_limits<double>::denorm_min()`
-const DENORM_MIN: f64 = f64::from_bits(1);
+use crate::utils::DENORM_MIN;
 
 // max_float * 2**-(mantissa_bits + 1) = ulp(max_float)
 const ULP_MAX: f64 = f64::EPSILON / 2.0 * f64::MAX;

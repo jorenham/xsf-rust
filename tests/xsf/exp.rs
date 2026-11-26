@@ -1,5 +1,7 @@
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_expm1_f64: "expm1", "d-d", |x| xsf::expm1(x[0]);
     test_expm1_c64: "expm1", "cd-cd", |x| xsf::expm1(c64(x[0], x[1]));
@@ -49,7 +51,7 @@ fn test_expm1_c64_overflow() {
     assert_eq!((w.re, w.im.to_bits()), (inf, 0.0_f64.to_bits()));
 
     // e^(x / 2) overflows too (MPFR)
-    let w = xsf::expm1(c64(1420.0, f64::from_bits(1)));
+    let w = xsf::expm1(c64(1420.0, DENORM_MIN));
     assert_eq!(w.re, inf);
     xsref::np_assert_allclose!([w.im], [2.465_749_532_768_495e293], rtol = 1e-14);
     let w = xsf::expm1(c64(1e300, 1.0));

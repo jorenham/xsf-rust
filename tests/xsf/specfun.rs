@@ -1,5 +1,7 @@
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     // the table is called "hyperu" instead of "hypu"
     test_hypu: "hyperu", "d_d_d-d", |x| xsf::hypu(x[0], x[1], x[2]);
@@ -375,7 +377,7 @@ fn test_hypu_poly_rounded() {
     // Arb recurrence at the exact inputs. Scaling by x^73 can underflow, or
     // the inverse powers can overflow before the scale is applied.
     for (x, expected) in [
-        (f64::from_bits(1), [7.884_041_973_434_29e69, 0.0, -7.884_041_973_434_323e69]),
+        (DENORM_MIN, [7.884_041_973_434_29e69, 0.0, -7.884_041_973_434_323e69]),
         (1e-10, [7.884_041_975_647_887e69, 4.105_215_404_714_555e-193, -7.884_041_975_647_919e69]),
         (
             2.0_f64.powi(-13),
@@ -1070,7 +1072,7 @@ fn test_pmv_integer_degree_near_parity_zero() {
         xsref::np_assert_allclose!(values, [expected, -expected], rtol = 1e-14);
     }
 
-    for x in [0.0_f64, -0.0, f64::from_bits(1), -f64::from_bits(1)] {
+    for x in [0.0_f64, -0.0, DENORM_MIN, -DENORM_MIN] {
         assert_eq!(xsf::pmv(0, 1.0, x).to_bits(), x.to_bits());
     }
     assert_eq!(xsf::pmv(1, 2.0, 0.0).to_bits(), (-0.0_f64).to_bits());
@@ -1085,7 +1087,7 @@ fn test_pmv_integer_degree_near_parity_zero() {
     }
 
     // Control a negative-order subnormal and a point beside a nonzero root.
-    assert_eq!(xsf::pmv(-1, 4.0, f64::from_bits(4)).to_bits(), (-f64::from_bits(1)).to_bits());
+    assert_eq!(xsf::pmv(-1, 4.0, f64::from_bits(4)).to_bits(), (-DENORM_MIN).to_bits());
     assert!(xsf::pmv(0, 8.0, 0.183_434_642_495_649_8) < 0.0);
 }
 

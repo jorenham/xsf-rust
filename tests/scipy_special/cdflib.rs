@@ -1,5 +1,7 @@
 use xsref::np_assert_allclose;
 
+use crate::DENORM_MIN;
+
 #[test]
 fn test_pdtrik() {
     // `TestPdtrik` in scipy/special/tests/test_cdflib.py
@@ -160,7 +162,7 @@ fn test_chdtriv() {
     assert!(xsf::chdtriv(0.5, f64::INFINITY).is_nan());
     assert!(xsf::chdtriv(0.5, 0.0).is_nan());
     // the smallest subnormal, which `x/2` loses, and the next one, with a root from mpmath
-    assert!(xsf::chdtriv(0.5, f64::from_bits(1)).is_nan());
+    assert!(xsf::chdtriv(0.5, DENORM_MIN).is_nan());
     np_assert_allclose!(
         [xsf::chdtriv(0.5, f64::from_bits(2))],
         [0.001_863_640_484_035_382_4],
@@ -260,7 +262,7 @@ fn test_chndtr() {
     np_assert_allclose!(
         [
             xsf::chndtr(1e-310, 1.0, 1.0),
-            xsf::chndtr(f64::from_bits(1), 1.0, 1.0),
+            xsf::chndtr(DENORM_MIN, 1.0, 1.0),
             xsf::chndtr(f64::from_bits(3), 1.0, 1.0),
             xsf::chndtr(f64::from_bits(3), 0.5, 1.0),
             xsf::chndtr(f64::from_bits(5), 1e-3, 800.0),
@@ -372,7 +374,7 @@ fn test_ncfdtr_ncfdtri() {
     );
     // `dfn f` and `x` underflow, where the series is its first term; from mpmath
     np_assert_allclose!(
-        [xsf::ncfdtr(1.0, 2.0, 1.0, f64::from_bits(1))],
+        [xsf::ncfdtr(1.0, 2.0, 1.0, DENORM_MIN)],
         [9.533_010_901_443_612e-163],
         rtol = 1e-15
     );

@@ -1,6 +1,8 @@
 use core::f64::consts::PI;
 use xsf::{hyp0f0, hyp0f1, hyp0f2, hyp1f0, hyp1f1, hyp1f2, hyp2f0, hyp2f1, hyp2f2, hyp3f2, hyppfq};
 
+use crate::DENORM_MIN;
+
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
     let actual = hyp3f2(a[0], a[1], a[2], b[0], b[1], z);
@@ -1107,7 +1109,7 @@ fn test_pfq_extreme_products() {
     // terms, from Python `fractions`, rounded)
     let (a, b, z) = ([-1.0, 2.0_f64.powi(600)], [2.0, 2.0_f64.powi(-425)], f64::MIN_POSITIVE);
     assert_eq!(hyppfq(a, b, z), Some(-3.0));
-    let (a, z) = ([-3.0, -f64::from_bits(1)], 2.0_f64.powi(500));
+    let (a, z) = ([-3.0, -DENORM_MIN], 2.0_f64.powi(500));
     assert_eq!(hyppfq(a, [1.5], z), Some(2.640_637_803_924_586e127));
     // the power of 2 of a product exceeds `i32`, and the second term overflows
     let mut a = vec![huge; 4_198_404];

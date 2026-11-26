@@ -1245,6 +1245,7 @@ fn rj_unscaled<T: Num>(
 mod tests {
     use super::rjimpl::rc_term;
     use super::{C64, Cell, ExitStatus, Num, pow2, rj_far_p, rj_nested};
+    use crate::utils::DENORM_MIN;
     use crate::xsf::c64::c64;
 
     /// Whether `rj` nests `n` evaluations: it is finite with that many, and NaN with fewer
@@ -1262,7 +1263,7 @@ mod tests {
         // the asymptotic fallback for a huge `z` doesn't make up for its direct evaluation
         assert!(nests(1.0, 1.0, 1e50, 1.0, 2));
         // the duplication step and the upscaling alternate
-        let [x, y, z] = [0.0, f64::from_bits(1), pow2(253)].map(C64::from);
+        let [x, y, z] = [0.0, DENORM_MIN, pow2(253)].map(C64::from);
         assert!(nests(x, y, z, c64(pow2(-1020), pow2(-1020)), 5));
     }
 

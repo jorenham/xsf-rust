@@ -3,6 +3,8 @@ use num_complex::c64;
 use xsf::hyp0f1;
 use xsref::np_assert_allclose;
 
+use crate::DENORM_MIN;
+
 #[test]
 fn test_hyp0f0_f64() {
     np_assert_allclose!([xsf::hyp0f0(0.0)], [1.0], atol = 1e-15);
@@ -139,7 +141,7 @@ fn test_hyp1f0_c64_inexact_1mz() {
     assert!(y.re.is_nan() && y.im.is_nan());
     let y = xsf::hyp1f0(0.0, c64(0.125, -0.125));
     assert_eq!((y.re, y.im.to_bits()), (1.0, 0f64.to_bits()));
-    let y = xsf::hyp1f0(-0.25, c64(-t, f64::from_bits(1)));
+    let y = xsf::hyp1f0(-0.25, c64(-t, DENORM_MIN));
     assert_eq!((y.re, y.im.to_bits()), (1.0, (-0.0f64).to_bits()));
 }
 
@@ -564,7 +566,7 @@ fn test_hyp0f1_small_z() {
 
 #[test]
 fn test_hyp0f1_tiny_v_overflow() {
-    let v = f64::from_bits(1);
+    let v = DENORM_MIN;
 
     // only the real part overflows
     let res = hyp0f1(v, c64(-1e-8, 1e-100));
@@ -579,7 +581,7 @@ fn test_hyp0f1_tiny_v_overflow() {
 #[test]
 fn test_hyp0f1_tiny_v_cancelling_real_part() {
     // Arb at the exact binary64 inputs.
-    let v = f64::from_bits(1);
+    let v = DENORM_MIN;
     let z = c64(0.004_999_306_433_889_944, 0.1);
     let expected = 1.259_823_081_651_658e304;
     for sign in [-1.0, 1.0] {
@@ -597,7 +599,7 @@ fn test_hyp0f1_tiny_v_cancelling_real_part() {
 #[test]
 fn test_hyp0f1_near_imaginary_axis_overflow() {
     // Arb at the exact binary64 inputs, near both component overflow midpoints.
-    for x in [-f64::from_bits(1), 0.0, f64::from_bits(1)] {
+    for x in [-DENORM_MIN, 0.0, DENORM_MIN] {
         for sign_v in [-1.0, 1.0] {
             for sign_y in [-1.0, 1.0] {
                 let at = |v, y| xsf::hyp0f1(sign_v * v, c64(x, sign_y * y));
@@ -647,7 +649,7 @@ fn test_hyp0f1_scaled_retry() {
     assert_eq!(hyp0f1(f64::INFINITY, 1.0), 1.0);
 
     // the scaled `z.im` underflows
-    let v = f64::from_bits(1);
+    let v = DENORM_MIN;
     let res = hyp0f1(v, c64(-1e-8, v));
     np_assert_allclose!([res.im], [0.999_999_99], rtol = 1e-14);
 

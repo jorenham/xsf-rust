@@ -1,5 +1,7 @@
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     // erf
     test_erf_f64: "erf", "d-d", |x| xsf::erf(x[0]);
@@ -88,7 +90,7 @@ fn test_complex_erf_axis_near_overflow() {
 
 #[test]
 fn test_complex_erfc_underflow_signs() {
-    for (y, negative_re) in [(0.03125, true), (f64::from_bits(1), false)] {
+    for (y, negative_re) in [(0.03125, true), (DENORM_MIN, false)] {
         let z = c64(40.0, y);
         let value = xsf::erfc(z);
         assert_eq!(value, c64(0.0, 0.0));
@@ -362,7 +364,7 @@ fn test_complex_erfc_overrange_diagonal() {
     let x = 8.988_465_674_311_05e307;
     let r = f64::from_bits(0x0003_05a4_7c24_0ed3);
     let i = f64::from_bits(0x0001_06b8_2891_590f);
-    let tol = 2.0 * f64::from_bits(1);
+    let tol = 2.0 * DENORM_MIN;
     for sy in [-1.0, 1.0] {
         let right = xsf::erfc(c64(x, sy * x));
         assert!(right.re.is_subnormal() && right.im.is_subnormal());

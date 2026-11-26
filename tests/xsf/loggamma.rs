@@ -1,5 +1,7 @@
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_loggamma_f64: "loggamma", "d-d", |x| xsf::loggamma(x[0]);
     test_loggamma_c64: "loggamma", "cd-cd", |x| xsf::loggamma(c64(x[0], x[1]));
@@ -65,7 +67,7 @@ fn test_loggamma_c64_subnormal_angle() {
     xsref::np_assert_allclose!([w.im], [7.090_895_657_128_241e-28], rtol = 4.0 * f64::EPSILON);
     assert_eq!(xsf::loggamma(z.conj()), w.conj());
 
-    for y in [f64::from_bits(1), -f64::from_bits(1)] {
+    for y in [DENORM_MIN, -DENORM_MIN] {
         let w = xsf::loggamma(c64(x, y));
         assert_eq!(w.re, f64::INFINITY);
         assert_eq!(w.im.to_bits(), f64::from_bits(709).copysign(y).to_bits());
@@ -131,9 +133,8 @@ fn test_rgamma_c64_negative_real_axis() {
             assert_eq!(z.im.to_bits(), if im_neg { -im } else { im }.to_bits());
         }
 
-        let min_subnormal = f64::from_bits(1);
-        let z = xsf::rgamma(c64(-min_subnormal, im));
-        assert_eq!(z.re, -min_subnormal);
+        let z = xsf::rgamma(c64(-DENORM_MIN, im));
+        assert_eq!(z.re, -DENORM_MIN);
         assert_eq!(z.im.to_bits(), im.to_bits());
     }
 }
@@ -142,7 +143,7 @@ fn test_rgamma_c64_negative_real_axis() {
 fn test_rgamma_c64_overflow_at_large_even_real_part() {
     let inf = f64::INFINITY;
     for (x, y, expected) in [
-        (-9_007_199_254_740_992.0, f64::from_bits(1), c64(inf, inf)),
+        (-9_007_199_254_740_992.0, DENORM_MIN, c64(inf, inf)),
         (-2.998_076_996_061_15e154, 1.268_434_288_203_711_7e-10, c64(inf, inf)),
         (-2.998_076_996_061_15e154, 8.333_333_333_333_334, c64(-inf, inf)),
         (-8.988_465_674_311_05e307, 10.0, c64(-inf, -inf)),

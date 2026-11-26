@@ -3,6 +3,8 @@
 use num_complex::{Complex64, c64};
 use xsref::{np_assert_allclose, np_assert_equal};
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     // Bessel J
     test_bessel_j0: "cyl_bessel_j0", "d-d", |x| xsf::bessel_j0(x[0]);
@@ -51,7 +53,7 @@ fn test_bessel_j1_subnormal_midpoints() {
 fn test_bessel_y_and_k_signed_half_order_overflow() {
     // Arb signs on both sides of the positive and negative real axes.
     let inf = f64::INFINITY;
-    for x in [1e-100, f64::from_bits(1)] {
+    for x in [1e-100, DENORM_MIN] {
         for re in [-x, x] {
             for im in [-x, x] {
                 let z = c64(re, im);
@@ -63,7 +65,7 @@ fn test_bessel_y_and_k_signed_half_order_overflow() {
         }
     }
     // A nonreal point close to the cut can still have a finite component.
-    let near_cut = c64(-1e-208, f64::from_bits(1));
+    let near_cut = c64(-1e-208, DENORM_MIN);
     for value in [xsf::bessel_y(1.5, near_cut), xsf::bessel_k(1.5, near_cut)] {
         assert!(!(value.re.is_infinite() && value.im.is_infinite()));
     }
@@ -219,7 +221,7 @@ fn test_bessel_i_complex_reflection_overflow_signs() {
         assert_eq!(xsf::bessel_i(v, z.conj()), expected.conj());
     }
     // The near-axis imaginary component is finite.
-    let z = c64(1e-100, f64::from_bits(1));
+    let z = c64(1e-100, DENORM_MIN);
     assert!(!xsf::bessel_i(-3.5, z).im.is_infinite());
 }
 
@@ -1576,7 +1578,7 @@ fn test_hankel_finite_real_axis_small_components() {
                 (xsf::hankel_2(v, cut), parity * triple_j, -parity * y),
                 (xsf::hankel_2(-v, cut), triple_j, -y),
             ] {
-                assert!((h.re - re).abs() <= f64::from_bits(1));
+                assert!((h.re - re).abs() <= DENORM_MIN);
                 assert!((h.im / im - 1.0).abs() < 8.0 * f64::EPSILON);
             }
         }

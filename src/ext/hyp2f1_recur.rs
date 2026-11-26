@@ -130,7 +130,7 @@ use core::cmp::Ordering;
 use core::f64::consts::{LN_2, LOG2_E, PI};
 
 use crate::numpy::sinc;
-use crate::utils::{neg_one_pow, pow2};
+use crate::utils::{DENORM_MIN, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
@@ -1167,7 +1167,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd, scale_c: bool) -> Option<Scaled> {
     let (xm, xe) = x.frexp();
     // The relative error of `x` if it was computed, as its low word can be subnormal, e.g.
     // for `1 / (1 - x)` with `x = -1.3e308`. A term `t_k` has `k` factors `x`.
-    let x_err = (f64::from_bits(1) / x.hi.abs()).min(1.0);
+    let x_err = (DENORM_MIN / x.hi.abs()).min(1.0);
     let rounding = |k: f64, sum_abs: f64, k_sum_abs: f64| {
         DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + x_err * k_sum_abs
     };
@@ -1396,6 +1396,7 @@ mod tests {
         Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, gamma_quot, hyp2f1_recur, ln_gamma, psi_dd,
         recur_down,
     };
+    use crate::utils::DENORM_MIN;
 
     #[test]
     fn test_ln_gamma_near_pole() {
@@ -1429,7 +1430,7 @@ mod tests {
         }
         // psi(v) at a subnormal e, whatever the branch, and to within the bound at the smallest
         // normal ones, where e / (v + i) is subnormal
-        let tiny = f64::from_bits(1);
+        let tiny = DENORM_MIN;
         for (v, e, desired) in [
             (1.0, tiny, -0.577_215_664_901_532_9),
             (-7.3, -tiny, 4.337_307_305_510_05),

@@ -1,6 +1,8 @@
 use xsf::eval_hahn;
 use xsref::np_assert_allclose;
 
+use crate::DENORM_MIN;
+
 /// `(a)_k`
 fn poch(a: f64, k: u32) -> f64 {
     (0..k).map(|j| a + f64::from(j)).product()
@@ -45,7 +47,7 @@ fn test_eval_hahn_edges() {
         eval_hahn(100, 100, 0.0, 0.0, 100.0 - 1e-10),
         eval_hahn(100, 100, 0.5, 2.0, 1e-300),
         // no premature underflow for subnormal x
-        eval_hahn(1000, 1000, 0.0, 0.0, -f64::from_bits(1)),
+        eval_hahn(1000, 1000, 0.0, 0.0, -DENORM_MIN),
         eval_hahn(1000, 1000, 0.3, 1.7, -1e-310),
     ];
     let desired = [

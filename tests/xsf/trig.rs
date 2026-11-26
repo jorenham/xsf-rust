@@ -2,6 +2,8 @@ use core::f64::consts::{FRAC_PI_4, PI};
 
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 xsref::tests! {
     test_sinpi_f64: "sinpi", "d-d", |x| xsf::sinpi(x[0]);
     test_sinpi_c64: "sinpi", "cd-cd", |x| xsf::sinpi(c64(x[0], x[1]));
@@ -230,7 +232,7 @@ fn test_sinpi_cospi_complex_large_imag() {
     assert!(z.re > 0.0 && z.im < 0.0);
 
     // subnormal sin(pi x), for which the result is finite up to |y| ~ 462.7
-    let x = f64::from_bits(1);
+    let x = DENORM_MIN;
     let sx = xsf::sinpi(x);
     for y in [222.9, 226.0, 300.0, 452.0, 462.0, 463.0] {
         let z = c64(x, y);

@@ -777,6 +777,7 @@ pub(super) fn pfq_series_sorted(a: &[f64], b: &[f64], z: f64) -> Estimate {
 mod tests {
     use super::super::recip_up;
     use super::*;
+    use crate::utils::DENORM_MIN;
 
     #[test]
     fn test_pfq_sum_rescales_repeatedly() {
@@ -808,7 +809,7 @@ mod tests {
         let rho = pfq_ratio_bound(&[1.5, 0.5], &[0.75], -1.0, 1.0);
         assert!((1.25..1.3).contains(&rho), "{rho}");
         // subnormal scaling rounds upward, never down or to zero
-        let u = f64::from_bits(1);
+        let u = DENORM_MIN;
         assert!(pfq_ratio_bound(&[], &[4.0], 5.0 * u, 0.0) >= 2.0 * u);
         assert!(pfq_ratio_bound(&[], &[4.0], u, 0.0) >= u);
         // reciprocal bound rounds upward even on the exact-z fast path
@@ -870,7 +871,7 @@ mod tests {
         // smallest subnormal term is not double-rounded to zero by the rescaled path
         let a = [f64::from_bits(0x0010_0000_0000_0001)];
         let z = f64::from_bits(0x3c9f_ffff_ffff_ffff);
-        assert_eq!(pfq_next::<f64>(&a, &[], 0.0, z, 1.0, true), f64::from_bits(1));
+        assert_eq!(pfq_next::<f64>(&a, &[], 0.0, z, 1.0, true), DENORM_MIN);
     }
 
     #[test]

@@ -1,5 +1,7 @@
 use num_complex::c64;
 
+use crate::DENORM_MIN;
+
 #[test]
 fn test_stdtr() {
     const NU: [f64; 6] = [0.5, 1.0, 2.0, 3.0, 4.0, 10.0];
@@ -337,12 +339,11 @@ xsref::tests! {
 
 #[test]
 fn test_ndtr_complex_small_phase_overflow() {
-    let min_subnormal = f64::from_bits(1);
     let phase_limit = 0.5 / 64.0;
     for (x, y) in [
         (1e-30, 316.227_766_016_837_96),
-        (min_subnormal, f64::MAX),
-        (min_subnormal, 64.0),
+        (DENORM_MIN, f64::MAX),
+        (DENORM_MIN, 64.0),
         (f64::from_bits(f64::to_bits(phase_limit) - 1), 64.0),
     ] {
         for x in [-x, x] {
@@ -359,7 +360,7 @@ fn test_ndtr_complex_small_phase_overflow() {
 
 #[test]
 fn test_ndtr_complex_underflow_signs() {
-    for (y, negative_re) in [(-0.0625, true), (-f64::from_bits(1), false)] {
+    for (y, negative_re) in [(-0.0625, true), (-DENORM_MIN, false)] {
         let z = c64(-40.0, y);
         let p = xsf::ndtr(z);
         assert_eq!(p, c64(0.0, 0.0));
@@ -392,7 +393,7 @@ fn test_ndtr_tails() {
     let y = [-38.0, -38.4].map(xsf::ndtr);
     xsref::np_assert_allclose!(&y, &[2.885_428_35e-316, 6.4e-323], atol = 5e-324);
     // ~0.50016 and ~0.419 times 2^-1074
-    assert_eq!(xsf::ndtr(-38.4854), f64::from_bits(1));
+    assert_eq!(xsf::ndtr(-38.4854), DENORM_MIN);
     assert_eq!(xsf::ndtr(-38.49), 0.0);
     let y = xsf::log_ndtr(30.0);
     xsref::np_assert_allclose!(&[y], &[-4.906_713_927_148_187e-198], rtol = 1e-15);
@@ -882,7 +883,7 @@ fn test_fdtr_tiny_w() {
 fn test_chdtr_fdtr_subnormal() {
     // reference values from mpmath; `x / 2`, `a x` or `w = a x / (b + a x)` is subnormal and rounds
     let p = [
-        xsf::chdtr(1.0, f64::from_bits(1)),
+        xsf::chdtr(1.0, DENORM_MIN),
         xsf::chdtr(1.0, f64::from_bits(3)),
         xsf::chdtr(0.5, 2.5e-322),
         xsf::chdtr(1.0, 1e-310),
@@ -902,14 +903,14 @@ fn test_chdtr_fdtr_subnormal() {
         1.311_231_953_921_511_3e-118,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
-    assert_eq!(xsf::chdtr(2.002, f64::from_bits(3)), f64::from_bits(1));
+    assert_eq!(xsf::chdtr(2.002, f64::from_bits(3)), DENORM_MIN);
     // the chi-square limit if `b = inf`
     assert_eq!(xsf::fdtr(1.0, f64::INFINITY, 1e-300), xsf::chdtr(1.0, 1e-300));
     // `x^(a / 2)` underflows, but the subnormal result does not; from mpmath
     let p = [xsf::fdtr(2.2, 1e-290, 1e-310), xsf::ncfdtr(2.2, 1e-290, 0.0, 1e-310)];
     xsref::np_assert_allclose!(&p, &[1.082_037_389_82e-312; 2], rtol = 1e-11);
     // `df / 2` rounds to 0
-    let tiny = f64::from_bits(1);
+    let tiny = DENORM_MIN;
     assert_eq!(xsf::chdtr(tiny, 0.0), 0.0);
     assert_eq!(xsf::chdtrc(tiny, 0.0), 1.0);
     assert_eq!(xsf::fdtr(tiny, 2.0, 0.0), 0.0);
@@ -1139,7 +1140,7 @@ fn test_domain_ends() {
 
 #[test]
 fn test_poisson_zero_count() {
-    let minsub = f64::from_bits(1);
+    let minsub = DENORM_MIN;
     let p = 0.367_879_441_171_442_33;
     assert!((xsf::pdtr(0.0, 1.0) - p).abs() <= p * f64::EPSILON);
     assert_eq!(xsf::pdtrc(0.0, minsub), minsub);
