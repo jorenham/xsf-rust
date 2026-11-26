@@ -759,6 +759,67 @@ fn test_hyp2f1_c64_large_near_zero_balance() {
 }
 
 #[test]
+fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
+    // Large a and b outside the unit circle, where the 1/z and Maclaurin series cancel: an exact
+    // balance and an integer a - b.
+    for (a, b, c, x, y, re, im) in [
+        (
+            35.672_428_368_194_73,
+            39.25,
+            74.922_428_320_253_62,
+            1.122_345_052_724_406_5,
+            -0.217_285_801_179_134_7,
+            22_818_029_254_577.574,
+            3_152_305_726_487.289,
+        ),
+        (
+            34.25,
+            33.25,
+            67.5,
+            1.120_760_142_922_645_3,
+            0.225_001_041_654_064_87,
+            -646_162_001_297.730_7,
+            -415_616_178_762.879_1,
+        ),
+    ] {
+        for sign in [1.0, -1.0] {
+            let actual = xsf::hyp2f1(a, b, c, c64(x, sign * y));
+            np_assert_allclose!([actual.re, actual.im], [re, sign * im], rtol = 1e-14);
+        }
+    }
+    // An integer a - b with a tiny a, whose Maclaurin terms at 1/2 decay and then grow
+    let actual =
+        xsf::hyp2f1(1e-20, 150.0, 112.5, c64(1.156_055_063_705_178_3, 0.340_986_535_059_630_6));
+    np_assert_allclose!([actual.re, actual.im], [1.0, 2.447_334_736_479_153_5e-20], rtol = 1e-14);
+    // If finite, then accurate.
+    for (a, b, c, x, y, re, im) in [
+        (1.25, 331.25, 128.125, 1.0625, 0.3125, -7.248_754_802_291_216_5, -184.468_986_796_544_4),
+        (
+            1e-20,
+            700.0,
+            240.125,
+            1.125,
+            0.125,
+            1.887_566_949_173_823_6e116,
+            8.835_528_861_246_3e116,
+        ),
+        (0.5, 0.5, 10_000.5, 1.125, 0.125, 1.000_028_127_109_545_5, 3.125_634_892_208_265e-6),
+        (0.5, 0.5, 1e100, 1.125, 0.125, 1.0, 3.125e-102),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, c64(x, y));
+        if actual.is_finite() {
+            np_assert_allclose!([actual.re, actual.im], [re, im], rtol = 1e-13);
+        }
+    }
+    // A weak imaginary part on both lips of the cut keeps its sign.
+    for y in [0.0_f64, -0.0] {
+        let actual = xsf::hyp2f1(0.5, 0.5, 20.5, c64(1.125, y));
+        np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 1e-11);
+        assert_eq!(actual.im.is_sign_negative(), y.is_sign_negative(), "{actual}");
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
