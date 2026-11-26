@@ -3,8 +3,6 @@
 // exact values, e.g. integer parameters
 #![allow(clippy::float_cmp)]
 
-use std::ops::RangeInclusive;
-
 use num_complex::{Complex64, c64};
 use proptest::prelude::*;
 
@@ -18,14 +16,9 @@ const MAX_N: u32 = 20;
 /// The unit roundoff
 const U: f64 = f64::EPSILON / 2.0;
 
-/// Multiples `m / 8` of 1/8, e.g. -3, 2.5 or 0.125, so that `t + k` is exact for `|m| <= 256`
-fn eighths(m: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
-    m.prop_map(|m| f64::from(m) / 8.0)
-}
-
-/// `eighths` for all `|m| <= 256`
+/// Multiples `m / 8` of 1/8 for `|m| <= 256`, e.g. -3, 2.5 or 0.125, so that `t + k` is exact
 fn param() -> impl Strategy<Value = f64> {
-    eighths(-256..=256)
+    (-256..=256).prop_map(|m| f64::from(m) / 8.0)
 }
 
 /// An upper bound on `m u / (1 - m u)`, the relative error of `m` roundings (Higham, Accuracy
@@ -172,24 +165,9 @@ fn within<T: Into<Complex64>>(
     Ok(())
 }
 
-/// `(n, c, x)` for the real `hyp2f1(-n, b, c, x)`, but not where it is known to be inaccurate:
-/// `2 < n < 10` with `|c| + 1 < n` (#2261)
-fn real_hyp2f1_args() -> impl Strategy<Value = (u32, f64, f64)> {
-    (0..=MAX_N).prop_flat_map(|n| {
-        let min_c = if 2 < n && n < 10 {
-            8 * (n.cast_signed() - 1)
-        } else {
-            0
-        };
-        let c = (any::<bool>(), eighths(min_c..=256)).prop_map(|(neg, c)| if neg { -c } else { c });
-        (Just(n), c, moderate())
-    })
-}
-
 property!(
     within,
-    hyp2f1_terminating(ncx in real_hyp2f1_args(), b in param()) => {
-        let (n, c, x) = ncx;
+    hyp2f1_terminating(n in 0..=MAX_N, b in param(), c in param(), x in moderate()) => {
         let a = -f64::from(n);
         // known: n >= 10 with b < 0 and x > 1, where x is negated (#2258), and (1 - x)^n for a
         // negative non-integer b = c, n >= 9 and x < -1 (#2262)

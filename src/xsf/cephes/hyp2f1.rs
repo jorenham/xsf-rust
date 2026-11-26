@@ -1485,13 +1485,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
-        // Unlike in xsf, retry a non-finite polynomial in scaled double-double (in the outermost
-        // call, as above): the power series stops at its first infinite term, whose sign can
-        // differ from that of the sum, and the recurrence in `a` can add infinities of both signs
-        // (NaN)
-        if outer && inexact.is_none() && !y.is_finite() && (neg_int_a || neg_int_b) {
+        // Unlike in xsf, take the polynomial in scaled double-double (in the outermost call, as
+        // above) if `y` is not finite or differs from it by more than twice its bound, as the
+        // power series can lose digits and the recurrence in `a` can amplify rounding. Only if
+        // `y` is estimated to be inaccurate, or for a degree below `HYP2F1_RECUR_MIN`, as the
+        // polynomial takes a step per degree.
+        let low_degree = |p: f64| is_nonpos_int(p) && p > -HYP2F1_RECUR_MIN;
+        let retry =
+            !(y.is_finite() && err_full <= HYP2F1_ETHRESH) || low_degree(a) || low_degree(b);
+        if outer && inexact.is_none() && retry && (neg_int_a || neg_int_b) {
+            // Not `less_accurate`: the bound is proven, so a larger disagreement means that the
+            // error of `y` exceeds that of `alt`
+            let better = |&(alt, bound): &(f64, f64)| {
+                !y.is_finite() || (y - alt).abs() > 2.0 * bound * alt.abs()
+            };
             let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
-            if let Some((y, _)) = poly.filter(accurate) {
+            if let Some((y, _)) = poly.filter(accurate).filter(better) {
                 return y;
             }
         }
