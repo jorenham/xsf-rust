@@ -3102,7 +3102,7 @@ RGAMMA: Final = (
 @functools.cache
 def _rust() -> list[str]:
     """The command of xsf-rust's dump program."""
-    return [accuracy.build_rust(), "xsf"]
+    return [*accuracy.build_rust(), "xsf"]
 
 
 @functools.cache

@@ -696,7 +696,7 @@ def main() -> None:
     lines = (TABLES / "MANIFEST.tsv").read_text().splitlines()
     manifest = [line.split("\t") for line in lines]
     index = {(line[0], line[1]): line for line in manifest}
-    cmds = ([accuracy.build_rust(), "xsf"], accuracy.build_cpp())
+    cmds = ([*accuracy.build_rust(), "xsf"], accuracy.build_cpp())
 
     results: list[Result] = []
     # recycle the workers, since mpmath caches grow at high precision

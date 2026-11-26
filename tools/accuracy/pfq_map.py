@@ -262,7 +262,7 @@ def main() -> None:
         if pq[0] in ps
     }
     lines = [(f"hyppfq{p}", args) for ((p, _), _), xs in pts.items() for *_, args in xs]
-    ys = iter(accuracy.run([accuracy.build_rust(), "xsf"], lines))
+    ys = iter(accuracy.run([*accuracy.build_rust(), "xsf"], lines))
     jobs = [
         accuracy.Job(
             specs.BY_NAME[SPECS[pq]], MAP_DOMAINS[int_diff], [a for *_, a in xs]
