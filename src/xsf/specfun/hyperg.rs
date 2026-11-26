@@ -29,6 +29,11 @@ use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
 /// overflowing sum in `chgul`
 const MAX_TERMS: i32 = 100_000;
 
+/// The largest relative error bound of `hyp1f1_series` with which `cchg` skips a forward recurrence
+/// of at least `MAX_TERMS` steps (for large b and real z > 0, the bound is about
+/// `4 (1 + |a z / b|) eps`)
+const SKIP_RECURRENCE_TOL: f64 = 128.0 * f64::EPSILON;
+
 /// Above this `|a|`, `hyp1f1_neg_b` is only tried if `chgm` gives NaN, as its initial values can
 /// be slow there (e.g. a polynomial of degree `-a`)
 const NEG_B_MAX_A: f64 = 1e5;
@@ -360,22 +365,32 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
             }
         }
         if a0 >= 2.0 {
-            for _i in 1..la {
-                chg = ((2.0 * a - b + z) * cy1 + (b - a) * cy0) / a;
-                cy0 = cy1;
-                cy1 = chg;
-                a += 1.0;
-            }
-            // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
-            // recurrence in a above if they differ by more than twice the series' error bound.
-            if b > 0.0 {
-                if let Some((s, _)) =
-                    hyp1f1_series(a0, b, z, C64::ONE, 0.0, None).filter(|&(s, err)| {
-                        err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
-                    })
-                {
+            let series = (b > 0.0)
+                .then(|| hyp1f1_series(a0, b, z, C64::ONE, 0.0, None))
+                .flatten()
+                .filter(|&(_, err)| err.is_finite());
+            match series {
+                // Unlike in xsf, skip the recurrence if it takes at least as many steps as the
+                // series can take terms and the series' error bound is tight.
+                Some((s, err)) if la > MAX_TERMS && err <= SKIP_RECURRENCE_TOL * s.norm() => {
                     chg = s;
-                }
+                },
+                _ => {
+                    for _i in 1..la {
+                        chg = ((2.0 * a - b + z) * cy1 + (b - a) * cy0) / a;
+                        cy0 = cy1;
+                        cy1 = chg;
+                        a += 1.0;
+                    }
+                    // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the
+                    // forward recurrence in a above if they differ by more than twice the
+                    // series' error bound.
+                    if let Some((s, _)) =
+                        series.filter(|&(s, err)| !chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                    {
+                        chg = s;
+                    }
+                },
             }
         }
         if reflected {
