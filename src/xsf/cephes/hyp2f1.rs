@@ -229,9 +229,7 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
     if !(x > 0.0 && x < 1.0 && a + n > 0.0 && b + n > 0.0 && c + n > 0.0) {
         return 0.0;
     }
-    // x (a + m) (b + m) - (c + m) (m + 1) = p m^2 + q m + r, with p < 0
-    let (p, q, r) = (x - 1.0, x * (a + b) - c - 1.0, x * a * b - c);
-    let m = ((-q - (q * q - 4.0 * p * r).sqrt()) / (2.0 * p)).ceil();
+    let m = max_term_index(a, b, c, x);
     if !(m > n) {
         return 0.0;
     }
@@ -246,6 +244,13 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
         }
     };
     (m - n) * x.ln() + ln_ratio(a, 1.0) + ln_ratio(b, c)
+}
+
+/// The index of the largest term in `ln_max_growth`
+fn max_term_index(a: f64, b: f64, c: f64, x: f64) -> f64 {
+    // x (a + m) (b + m) - (c + m) (m + 1) = p m^2 + q m + r, with p < 0
+    let (p, q, r) = (x - 1.0, x * (a + b) - c - 1.0, x * a * b - c);
+    ((-q - (q * q - 4.0 * p * r).sqrt()) / (2.0 * p)).ceil()
 }
 
 /// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, the third
