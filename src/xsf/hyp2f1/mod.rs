@@ -1741,68 +1741,73 @@ fn hyp2f1_transform2_pick(
         })
 }
 
+/// `hyp2f1_transform2_limiting_case` of the Euler transform (DLMF 15.8.1), if c - a and c - b
+/// are exact, and both it and the result before the power are nonzero and finite
+fn hyp2f1_inverse_euler_limit(a: f64, b: f64, c: f64, m: f64, z: C64) -> Option<Cancelled> {
+    // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
+    let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
+    if c - (c - a) != a || c - (c - b) != b || b_near_int {
+        return None;
+    }
+    let (result, lost) = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
+    // Unlike in xsf, multiply by the power with a separate scale, as it can underflow or
+    // overflow alone. (The result before it must be in range, as elsewhere the Euler form
+    // tends to be less accurate.) Its degree is rounded, so correct it to first order.
+    let degree = Dd::new(c) - a - b;
+    let rounding = 1.0 + degree.lo * (1.0 - z).ln();
+    let value = (power::one_minus_z_pow(z, degree.hi) * result * rounding).to_c64();
+    let in_range = |x: C64| x.norm().is_finite() && x != C64::ZERO;
+    let cancelled = Cancelled {
+        value,
+        cancellation: lost,
+    };
+    (in_range(result.to_c64()) && in_range(value)).then_some(cancelled)
+}
+
 /// `hyp2f1_inverse` for a - b near an integer, from the limit of the 1/z transform, also on the
 /// Euler transform if `euler`
 fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let m = (a - b).round();
-    // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
-    let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
-    let mut best = Cancelled {
-        value: C64::NAN,
-        cancellation: f64::INFINITY,
+    let euler_limit = if euler {
+        hyp2f1_inverse_euler_limit(a, b, c, m, z)
+    } else {
+        None
     };
-    let exact = c - (c - a) == a && c - (c - b) == b && !b_near_int;
-    let euler_limit = || {
-        let (result, lost) = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
-        // Unlike in xsf, multiply by the power with a separate scale, as it can underflow or
-        // overflow alone. (The result before it must be in range, as elsewhere the Euler form
-        // tends to be less accurate.) Its degree is rounded, so correct it to first order.
-        let degree = Dd::new(c) - a - b;
-        let rounding = 1.0 + degree.lo * (1.0 - z).ln();
-        let value = (power::one_minus_z_pow(z, degree.hi) * result * rounding).to_c64();
-        let in_range = |x: C64| x.norm().is_finite() && x != C64::ZERO;
-        let cancelled = Cancelled {
-            value,
-            cancellation: lost,
-        };
-        (in_range(result.to_c64()) && in_range(value)).then_some(cancelled)
-    };
-    if let Some(limit) = (euler && exact).then(euler_limit).flatten() {
-        best = limit;
-    }
     // Unlike in xsf, if the Euler result is not used or loses more than HYP2F1_EPS to
     // cancellation, use the one that cancels less, or NaN if that overflows or is not usable
     // (unless it is zero, as if it underflows).
-    if best.is_lossy() {
+    let best = euler_limit.filter(|l| !l.is_lossy()).unwrap_or_else(|| {
         let (result, lost) = hyp2f1_transform2_limiting_case(a, b, c, m, z);
-        if lost <= best.cancellation {
-            best = Cancelled {
-                value: result.to_c64(),
-                cancellation: lost,
-            };
-        }
-    }
-    let lossy = best.value != C64::ZERO && !best.is_usable();
-    let result = if !best.value.norm().is_finite() || lossy {
-        C64::NAN
-    } else {
+        let limit = Cancelled {
+            value: result.to_c64(),
+            cancellation: lost,
+        };
+        euler_limit
+            .filter(|l| l.cancellation < lost)
+            .unwrap_or(limit)
+    });
+    let usable = best.value == C64::ZERO || best.is_usable();
+    let result = if best.value.norm().is_finite() && usable {
         best.value
+    } else {
+        C64::NAN
     };
-    // Unlike in xsf, continue the Maclaurin series analytically if the limit is less
-    // accurate.
+    // Unlike in xsf, continue the Maclaurin series analytically if the limit is less accurate.
     let error = f64::EPSILON * best.cancellation * result.norm();
+    if let Some(value) = hyp2f1_continuation(a, b, c, z, result, error) {
+        return value;
+    }
     // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
     // reduce a and b, if usable.
-    let euler_value = || {
-        (!euler && exact && result.is_nan())
-            .then(euler_limit)
-            .flatten()
-            .filter(|l| l.is_usable())
-            .map(|l| l.value)
+    let fallback = if !euler && result.is_nan() {
+        hyp2f1_inverse_euler_limit(a, b, c, m, z)
+    } else {
+        None
     };
-    let continued = hyp2f1_continuation(a, b, c, z, result, error);
-    continued.or_else(euler_value).unwrap_or(result)
+    fallback
+        .filter(|l| l.is_usable())
+        .map_or(result, |l| l.value)
 }
 
 fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
