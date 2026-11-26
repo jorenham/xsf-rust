@@ -1253,9 +1253,11 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let m = (a - b).round();
         // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
         let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
-        let euler_limit = (euler && c - (c - a) == a && c - (c - b) == b && !b_near_int)
-            .then(|| euler_scaled(hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z)))
-            .flatten();
+        let euler_limit = if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
+            euler_scaled(hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z))
+        } else {
+            None
+        };
         let result = euler_limit.unwrap_or_else(|| hyp2f1_transform2_limiting_case(a, b, c, m, z));
         // Unlike in xsf, continue the Maclaurin series analytically if the limit, which has no
         // cancellation estimate, is less accurate.

@@ -793,7 +793,7 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
     let actual =
         xsf::hyp2f1(1e-20, 150.0, 112.5, c64(1.156_055_063_705_178_3, 0.340_986_535_059_630_6));
     np_assert_allclose!([actual.re, actual.im], [1.0, 2.447_334_736_479_153_5e-20], rtol = 1e-14);
-    // If finite, then accurate.
+    // If finite, then accurate (these give NaN, as on master, so this guards against wrong values).
     let tiny = 2.0_f64.powi(-538);
     for (a, b, c, x, y, re, im) in [
         (1.25, 331.25, 128.125, 1.0625, 0.3125, -7.248_754_802_291_216_5, -184.468_986_796_544_4),
