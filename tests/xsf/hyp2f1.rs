@@ -2633,6 +2633,12 @@ fn test_hyp2f1_c64_real_polynomial_near_one() {
         let y = xsf::hyp2f1(-1075.0, -3.0 * p80, -p81, c64(1.0, imag));
         assert!(y.re.is_nan() || y.re.to_bits() == (-f64::from_bits(1)).to_bits());
     }
+
+    // Arb: 70368752623712.5049 times the smallest subnormal, which rounds up.
+    for imag in [0.0, -0.0] {
+        let y = xsf::hyp2f1(-1028.0, 2.0_f64.powi(41), 2.0_f64.powi(42), c64(1.0, imag));
+        assert_eq!(y.re.to_bits(), 0x0000_4000_0080_e061);
+    }
 }
 
 #[test]
