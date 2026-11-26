@@ -375,11 +375,6 @@ impl Estimate {
     }
 }
 
-/// Whether a sum with the estimated cancellation `lost` loses two thirds of the digits
-fn loses_most_digits(lost: f64) -> bool {
-    f64::EPSILON * lost >= f64::EPSILON.cbrt()
-}
-
 /// A value with its estimated cancellation
 #[derive(Clone, Copy)]
 struct Cancelled {
@@ -399,7 +394,7 @@ impl Cancelled {
     }
 }
 
-/// The largest estimated relative error of a usable Lopez-Temme sum
+/// The largest estimated relative error of a usable sum
 const USABLE_ERROR: f64 = 0.125;
 
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
@@ -896,7 +891,7 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
     result += prefactor * series.value;
     let lost = cancellation(abs_sum, result);
     // Unlike in xsf, the sum with a cancelled ratio is NaN if it loses two thirds of the digits.
-    if recovered && loses_most_digits(lost) {
+    if recovered && f64::EPSILON * lost >= f64::EPSILON.cbrt() {
         result = C64::NAN;
     }
     Cancelled {
@@ -930,7 +925,8 @@ fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> Sc
     })
 }
 
-/// The result, and its estimated cancellation as in `series_eval_cancellation`
+/// The result, and its estimated cancellation as in `series_eval_cancellation`, but with the norm of
+/// the k-th term (from 1) of the infinite series times k, as each step of its recurrence rounds
 fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (ScaledC64, f64) {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
@@ -956,23 +952,28 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
     factor.mantissa *= neg_one_pow(m);
     let n = c - a;
     let n_int = n.round();
+    let (mut series_abs, mut k) = (0.0, 0.0);
+    let mut weigh = |term: C64| {
+        k += 1.0;
+        series_abs += k * term.norm();
+        term
+    };
     let series = if (n - n_int).abs() < HYP2F1_EPS {
         // Unlike in xsf, pass an integer at the positive-parameter coefficient switch.
         let n = if n_int > 0.0 && b > 0.0 { n_int } else { n };
-        series_eval_cancellation(hyp2f1_transform2_limit_series_cminus_a_int_generator(
-            a, b, c, m, n, factor, z,
-        ))
+        let mut g = hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, factor, z);
+        series_eval(|| weigh(g()))
     } else {
-        let factor = factor.mantissa.re;
-        series_eval_cancellation(hyp2f1_transform2_limit_series_generator(a, b, c, m, factor, z))
+        let mut g = hyp2f1_transform2_limit_series_generator(a, b, c, m, factor.mantissa.re, z);
+        series_eval(|| weigh(g()))
     };
     let prefactor = power::neg_z_pow(z, -a);
     // (each part, its sum of absolute terms, and its scale)
     let parts = [
         (finite, finite_factor.mantissa.norm() * finite_abs, finite_factor.exponent),
         (
-            prefactor.mantissa * series.value,
-            prefactor.mantissa.norm() * series.value.norm() * series.cancellation,
+            prefactor.mantissa * series,
+            prefactor.mantissa.norm() * series_abs,
             prefactor.exponent + factor.exponent,
         ),
     ];
@@ -1755,8 +1756,8 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             }
         }
         // Unlike in xsf, if the Euler result is not used or loses more than HYP2F1_EPS to
-        // cancellation, use the one that cancels less, or NaN if that overflows or loses most
-        // digits (unless it is zero, as if it underflows).
+        // cancellation, use the one that cancels less, or NaN if that overflows or is not usable
+        // (unless it is zero, as if it underflows).
         if best.is_lossy() {
             let (result, lost) = hyp2f1_transform2_limiting_case(a, b, c, m, z);
             if lost <= best.cancellation {
@@ -1766,7 +1767,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 };
             }
         }
-        let lossy = best.value != C64::ZERO && loses_most_digits(best.cancellation);
+        let lossy = best.value != C64::ZERO && !best.is_usable();
         let result = if !best.value.norm().is_finite() || lossy {
             C64::NAN
         } else {
