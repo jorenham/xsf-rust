@@ -149,7 +149,7 @@ fn test_eval_integer_degree_reflection() {
 #[test]
 fn test_eval_integer_degree_below_minus_one() {
     // the recurrence lost all digits or was NaN for alpha or beta below -1 (Arb, or exact)
-    let cases: [(i32, f64, f64, f64, f64); 8] = [
+    let cases: [(i32, f64, f64, f64, f64); 12] = [
         // beta < -1 near x = -1
         (
             85,
@@ -172,6 +172,11 @@ fn test_eval_integer_degree_below_minus_one() {
         (3, 2.0, -2.0, 0.0, 0.0),
         // integer alpha = -3, where both were NaN: -45 / 256
         (4, -3.0, 2.0, 0.5, -45.0 / 256.0),
+        // the recurrence away from an endpoint whose exponent is below -1 (exact)
+        (7, 2.0, -2.0, 2.0_f64.powi(-53), 3.122_502_256_758_253_3e-16),
+        (5, -1.0, -1.0, 2.0_f64.powi(-50), 6.661_338_147_750_939e-16),
+        (2, 2.5, -1.5, -0.5, 0.0),
+        (1, 2.0_f64.powi(53), -2.5, -1.0 + 2.0_f64.powi(-53), 2.0),
     ];
     np_assert_allclose!(
         cases.map(|(n, a, b, x, _)| xsf::eval_jacobi(n, a, b, x)),

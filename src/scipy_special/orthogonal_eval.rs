@@ -550,6 +550,16 @@ fn jacobi_large_quadratic(a: f64, b: f64, z: num_complex::Complex64) -> Option<f
     Some(8.0 * eighth.hi)
 }
 
+/// max_k |binom(k + e, k)| / |binom(n + e, n)| for 0 <= k <= n
+fn endpoint_growth(n: i32, e: f64) -> f64 {
+    let (mut b, mut max) = (1.0_f64, 1.0_f64);
+    for k in 1..=n {
+        b *= 1.0 + e / f64::from(k);
+        max = max.max(b.abs());
+    }
+    max / b.abs()
+}
+
 impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
@@ -559,13 +569,16 @@ impl JacobiArg<i32> for f64 {
         // Unlike in xsf, x < 0 is reflected if alpha, beta > -1, unless that is nonfinite
         let p = eval_jacobi_l_reflected(n, alpha, beta, self)
             .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self));
-        if is_classical(alpha, beta) {
+        // Unlike in xsf, for alpha or beta <= -1, use `q` if it is finite and disagrees with `p`,
+        // where `p` is nonfinite or x is on the side of an endpoint whose exponent e < -1 makes
+        // the recurrence cancel the growth of P_k there, binom(k + e, k), beyond the error
+        // threshold of the 2F1.
+        let amplifies =
+            |e: f64| e < -1.0 && !(endpoint_growth(n, e) <= HYP2F1_ETHRESH / f64::EPSILON);
+        let near = (self < 0.0 && amplifies(beta)) || (self > 0.0 && amplifies(alpha));
+        if is_classical(alpha, beta) || (p.is_finite() && !near) {
             return p;
         }
-        // Unlike in xsf, for alpha or beta <= -1, where the recurrence can lose all digits (e.g.
-        // near x = -1 for beta < -1), keep it only where it agrees with `q` within the error
-        // threshold of the 2F1.
-        //
         // For an integer alpha = -l with 1 <= l <= n, the terms below l of DLMF 18.5.7 vanish, so
         // `q` is binom(n + beta, l) / binom(n, l) ((x - 1) / 2)^l P_m^{(l, beta)} with m = n - l,
         // as the 2F1 cancels near x = 1. For such a beta, reflect (DLMF Table 18.6.1).
