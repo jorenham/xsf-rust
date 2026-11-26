@@ -2597,6 +2597,35 @@ fn test_hyp2f1_c64_nonnegative_population_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_c64_real_polynomial_near_one() {
+    // Arb; the terms of the series cancel near z = 1 (jorenham/xsf-rust#2211).
+    for (a, b, c, x, expected) in [
+        (-44.0, 1.06, -1.856_984_912_833_326, 1.0, -0.035_524_249_588_294_71),
+        (-30.0, 20.25, -9.75, 1.0, 2_276_618_356.587_293_6),
+        (
+            -70.0,
+            34.547_259_441_692_82,
+            -23.998_630_037_442_19,
+            1.000_000_000_011_891_6,
+            -716_883_681.526_757_1,
+        ),
+        (
+            0.914_864_001_003_731_6,
+            -75.0,
+            -24.971_086_673_375_95,
+            0.999_999_999_013_385,
+            -2.156_742_200_728_316_6,
+        ),
+    ] {
+        for imag in [0.0, -0.0] {
+            let y = xsf::hyp2f1(a, b, c, c64(x, imag));
+            np_assert_allclose!([y.re], [expected], rtol = 4e-16);
+            assert_eq!(y.im.to_bits(), 0.0_f64.to_bits());
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_beta_binomial_polynomial() {
     // Pearson, Olver and Porter, Table A.2 case 18, and its off-axis continuation.
     for (a, b) in [(-300.0, 5.0), (5.0, -300.0)] {
