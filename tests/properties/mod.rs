@@ -8,6 +8,7 @@ mod macros;
 mod strategies;
 
 mod continuity;
+mod exact;
 mod no_panic;
 mod ranges;
 mod symmetry;
