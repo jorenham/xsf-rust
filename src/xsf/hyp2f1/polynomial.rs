@@ -170,12 +170,11 @@ fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<Estimate> {
     })
 }
 
-/// Compare the origin and centered sums by their estimated absolute rounding errors.
-#[cold]
-fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
+// The sum of the terms up to z^n, and its estimated absolute error.
+fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64) -> (C64, f64) {
     let mut terms = hypergeometric_series_generator(a, b, c, z);
     let mut mass = 0.0;
-    let origin = series_eval_fixed_length(
+    let value = series_eval_fixed_length(
         || {
             let term = terms();
             mass += term.l1_norm();
@@ -184,13 +183,19 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
         C64::ZERO,
         n + 1,
     );
-    let error = (6.0 * n as f64 + 8.0) * f64::EPSILON * mass;
-    let origin_finite = origin.is_finite();
-    // Keep the origin sum when the estimate leaves at least half the significand.
-    if (c <= 0.0 || ((c + n as f64) * n as f64).is_finite())
-        && origin_finite
-        && error <= pow2(-26) * origin.re.abs().max(origin.im.abs())
-    {
+    (value, (6.0 * n as f64 + 8.0) * f64::EPSILON * mass)
+}
+
+// Whether the estimate leaves at least half the significand.
+fn accurate(value: C64, error: f64) -> bool {
+    value.is_finite() && error <= pow2(-26) * value.re.abs().max(value.im.abs())
+}
+
+/// Compare the origin and centered sums by their estimated absolute rounding errors.
+#[cold]
+fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
+    let (origin, error) = estimated_sum(a, b, c, n, z);
+    if (c <= 0.0 || ((c + n as f64) * n as f64).is_finite()) && accurate(origin, error) {
         return origin;
     }
 
@@ -205,7 +210,7 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     }
     let magnitude = centered.re.abs().max(centered.im.abs());
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
-    let limit = if origin_finite { error } else { magnitude };
+    let limit = if origin.is_finite() { error } else { magnitude };
     if estimate.abs_roundoff + f64::EPSILON * magnitude < limit {
         centered
     } else {

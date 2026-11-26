@@ -28,17 +28,7 @@ pub(super) fn pow_1mz(z: C64, p: f64) -> C64 {
     } else {
         (z, None)
     };
-    // Unlike in xsf, a half power is a square root, which keeps a component that vanishes on
-    // the cut.
-    let half = p - p.round();
-    let scaled = if half.abs() == 0.5 {
-        let power = one_minus_z_pow(axis, p.round());
-        let root = c64(1.0 - axis.re, -axis.im).sqrt();
-        let mantissa = power.mantissa * if half > 0.0 { root } else { 1.0 / root };
-        ScaledC64 { mantissa, ..power }
-    } else {
-        one_minus_z_pow(axis, p)
-    };
+    let scaled = one_minus_z_pow_sqrt(axis, p);
     let ScaledC64 { mantissa, exponent } = scaled;
     // The squarings lose about |p| 2^-104 of the power, or |p z| 2^-53 where 1-z rounds to 1.
     // Unlike in xsf, beyond the accepted error only a real or imaginary power, or an
@@ -86,6 +76,21 @@ impl ScaledC64 {
     pub(super) fn to_c64(self) -> C64 {
         let Self { mantissa, exponent } = self;
         c64(ldexp_sat(mantissa.re, exponent), ldexp_sat(mantissa.im, exponent))
+    }
+}
+
+// (1-z)^p, for finite z != 1.
+fn one_minus_z_pow_sqrt(z: C64, p: f64) -> ScaledC64 {
+    // Unlike in xsf, a half power is a square root, which keeps a component that vanishes on
+    // the cut.
+    let half = p - p.round();
+    if half.abs() == 0.5 {
+        let power = one_minus_z_pow(z, p.round());
+        let root = c64(1.0 - z.re, -z.im).sqrt();
+        let mantissa = power.mantissa * if half > 0.0 { root } else { 1.0 / root };
+        ScaledC64 { mantissa, ..power }
+    } else {
+        one_minus_z_pow(z, p)
     }
 }
 
