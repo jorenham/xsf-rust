@@ -3580,6 +3580,24 @@ fn test_hyp2f1_f64_x_gt_1() {
 }
 
 #[test]
+fn test_hyp2f1_f64_c_eq_b_x_lt_minus_1() {
+    // for c = b, (1 - x)^-a (DLMF 15.4.6), in either order of a and b; references: Arb
+    let args = [
+        (-20.0, -15.5, -2.0, 3_486_784_401.0),
+        (-20.0, -11.5, -1.796_264_745_767_867, 854_212_153.609_603_8),
+        (-40.0, -0.5, -3.5, 1.344_313_472_276_061_7e26),
+        // (not inf for a tiny `a`)
+        (-1e-15, 5.0, -1.5, 1.000_000_000_000_000_9),
+        (-1e-14, 5.0, -10.0, 1.000_000_000_000_024),
+        (-1e-15, 2.5, -1e5, 1.000_000_000_000_011_5),
+    ];
+    for (a, b, x, expected) in args {
+        let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
+        np_assert_allclose!(actual, [expected; 2], rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_rounded_euler_exponent_on_cut() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {

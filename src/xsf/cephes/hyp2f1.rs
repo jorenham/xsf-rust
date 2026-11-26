@@ -1048,6 +1048,24 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         }
     }
 
+    // Unlike in xsf, for |x| > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
+    // DLMF 15.4.6: the paths below lose digits (or diverge for a tiny `a` or `b`), and the Euler
+    // transformation rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`. For
+    // x > 1 only if its exponent is an integer, else inf, as for the other powers (see below).
+    // Not for an integer c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above),
+    // nor for x > 1 and an exponent within `HYP2F1_EPS` of an integer, which the paths below can
+    // take as one, nor in the transformations, whose `c - a` or `c - b` can round to `c`.
+    if outer && ax > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
+        let e = if a == c { b } else { a };
+        if x < -1.0 {
+            return pow_1mx(x, -e);
+        } else if e == e.round() {
+            return s.powf(-e);
+        } else if (e - e.round()).abs() >= HYP2F1_EPS {
+            return f64::INFINITY;
+        }
+    }
+
     let neg_int_a = near_neg_int(a);
     let neg_int_b = near_neg_int(b);
 
@@ -1137,21 +1155,6 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             hys2f1_pfaff(a, b, c, x)
         };
         return if err < HYP2F1_ETHRESH { y } else { f64::NAN };
-    }
-
-    // Unlike in xsf, for x > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
-    // DLMF 15.4.6 if its exponent is an integer, else inf, as for the other powers (see below), as the
-    // Euler transformation rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`.
-    // Not for an integer c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above),
-    // nor for an exponent within `HYP2F1_EPS` of an integer, which the paths below can take as
-    // one, nor in the transformations, whose `c - a` or `c - b` can round to `c`.
-    if outer && x > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
-        let e = if a == c { b } else { a };
-        if e == e.round() {
-            return s.powf(-e);
-        } else if (e - e.round()).abs() >= HYP2F1_EPS {
-            return f64::INFINITY;
-        }
     }
 
     // Unlike in xsf, do not use a rounded Euler exponent as an integer on the cut.
