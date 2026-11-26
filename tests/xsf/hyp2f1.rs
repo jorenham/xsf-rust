@@ -1125,6 +1125,72 @@ fn test_hyp2f1_c64_near_zero_balance() {
 }
 
 #[test]
+fn test_hyp2f1_c64_near_zero_balance_negative_c() {
+    // Negative a and b, with c near a negative integer, where the 1 - z series cancel less than
+    // the Maclaurin and 1/z series, but still lose some digits.
+    for (a, b, c, x, y, re, im, rtol) in [
+        (
+            -31.75,
+            -34.25,
+            -65.999_999_693_934_81,
+            1.111_527_917_750_359_4,
+            -0.071_614_529_258_482_75,
+            -8.218_492_782_914_247e-16,
+            5.182_703_601_267_862e-16,
+            3e-6,
+        ),
+        (
+            -79.883_757_861_129_3,
+            -25.116_340_954_345_39,
+            -105.000_098_815_500_5,
+            0.975_999_044_618_518_4,
+            -0.050_499_958_477_150_91,
+            -1.407_582_488_324_221_5e-18,
+            7.984_825_915_304_145e-19,
+            2e-12,
+        ),
+        (
+            -71.227_971_733_996_21,
+            -91.772_634_571_667_96,
+            -163.000_606_296_790_98,
+            0.850_523_800_721_516_7,
+            -0.046_410_898_515_068,
+            4.813_639_943_325_936e-26,
+            2.979_389_289_495_024e-26,
+            5e-11,
+        ),
+        (
+            -74.25,
+            -13.75,
+            -88.000_000_000_001_14,
+            1.151_487_500_192_246,
+            -0.011_937_689_339_899_776,
+            0.001_257_727_832_269_475,
+            0.000_216_018_873_573_971_47,
+            1.5e-9,
+        ),
+    ] {
+        // The rtols are the measured error with a margin for platform libm differences.
+        // Also F(a, b; c; z) = F(b, a; c; z) and F(conj z) = conj F(z) for real parameters.
+        for (p, q, sign) in [(a, b, 1.0), (b, a, 1.0), (a, b, -1.0)] {
+            let actual = xsf::hyp2f1(p, q, c, c64(x, sign * y));
+            let actual = c64(actual.re, sign * actual.im);
+            np_assert_allclose!([actual.re, actual.im], [re, im], rtol = rtol);
+        }
+    }
+    // The Maclaurin series, which is closer than the 1 - z series here.
+    let z = c64(0.498_707_522_594_598_5, -7.473_799_592_329_046e-11);
+    let actual =
+        xsf::hyp2f1(-12.004_498_129_149_503, -47.991_834_156_029_31, -59.999_999_621_167_88, z);
+    let desired = [0.001_971_747_020_860_578_7, 2.469_384_030_490_331_8e-12];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 2e-13);
+    // NaN or the Arb value, not the 1 - z series, which are off by 1e31 (a known limitation).
+    let actual = xsf::hyp2f1(369.125, -629.125_09, -259.999_999_999_9, c64(0.98, 0.08));
+    let expected = c64(-1.233_741_701_722_953_4e269, -1.291_405_834_001_087_4e268);
+    assert!(actual.is_nan() || (actual - expected).norm() <= 1e-9 * expected.norm());
+}
+
+#[test]
 fn test_hyp2f1_c64_near_zero_balance_edges() {
     // A vanishing term at a balance of 1/8.
     let actual = xsf::hyp2f1(4.375, 4.375, 8.875, c64(0.904_973_484_375_869_2, 0.0));
