@@ -550,16 +550,94 @@ fn jacobi_large_quadratic(a: f64, b: f64, z: num_complex::Complex64) -> Option<f
     Some(8.0 * eighth.hi)
 }
 
+/// max_k |binom(k + e, k)| / |binom(n + e, n)| for 0 <= k <= n
+fn endpoint_growth(n: i32, e: f64) -> f64 {
+    let (mut b, mut max) = (1.0_f64, 1.0_f64);
+    for k in 1..=n {
+        b *= 1.0 + e / f64::from(k);
+        max = max.max(b.abs());
+    }
+    max / b.abs()
+}
+
+/// The recurrence of `eval_jacobi_l` in double-double, for real x, `n >= 1` and `alpha != -1`,
+/// rounded to `f64`
+fn eval_jacobi_l_dd(n: i32, alpha: f64, beta: f64, x: f64) -> f64 {
+    let (a1, b) = (DoubleDouble::new(alpha) + 1.0, DoubleDouble::new(beta));
+    let (ab2, xm1) = (a1 + (b + 1.0), DoubleDouble::new(x) - 1.0);
+    let mut d = xm1 * ab2 / (a1 * 2.0);
+    let (mut p, mut binom) = (d + 1.0, a1);
+    for kk in 0..n - 1 {
+        let k = f64::from(kk) + 1.0;
+        let t = ab2 + 2.0 * (k - 1.0);
+        d = (xm1 * (t * (t + 1.0) * (t + 2.0)) * p + d * ((b + k) * (t + 2.0) * (2.0 * k)))
+            / ((a1 + k) * (ab2 + (k - 1.0)) * t * 2.0);
+        p = p + d;
+        binom = binom * (a1 + k) / (k + 1.0);
+    }
+    f64::from(p * binom)
+}
+
 impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
         if n < 0 {
-            self.eval_jacobi(f64::from(n), alpha, beta)
-        } else {
-            // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
-            eval_jacobi_l_reflected(n, alpha, beta, self)
-                .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self))
+            return self.eval_jacobi(f64::from(n), alpha, beta);
         }
+        // Unlike in xsf, x < 0 is reflected if alpha, beta > -1, unless that is nonfinite
+        let p = eval_jacobi_l_reflected(n, alpha, beta, self)
+            .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self));
+        if is_classical(alpha, beta) {
+            return p;
+        }
+        // Unlike in xsf, on the side of an endpoint whose exponent e < -1, the recurrence cancels
+        // the growth of P_k there, binom(k + e, k), beyond the error threshold of the 2F1. Repeat
+        // it in double-double, whose error is then about EPSILON times that of `p`, and use it
+        // while that stays below the threshold. An exact zero of either gives no estimate. For
+        // alpha = -1, `p` is already the 2F1 of P_{n-1}^{(1, beta)}.
+        let amplifies =
+            |e: f64| e < -1.0 && !(endpoint_growth(n, e) <= HYP2F1_ETHRESH / f64::EPSILON);
+        let near = (self < 0.0 && amplifies(beta)) || (self > 0.0 && amplifies(alpha));
+        if p.is_finite() && (!near || alpha == -1.0) {
+            return p;
+        }
+        let p_dd = if alpha == -1.0 {
+            // no p_dd for alpha = -1
+            f64::NAN
+        } else {
+            eval_jacobi_l_dd(n, alpha, beta, self)
+        };
+        let close =
+            |u: f64, v: f64| (u - v).abs() * f64::EPSILON < HYP2F1_ETHRESH * u.abs().min(v.abs());
+        if close(p, p_dd) {
+            return p_dd;
+        }
+        // Unlike in xsf, use the 2F1 where those are nonfinite or cancel. For an integer
+        // alpha = -l with 1 <= l <= n, the terms below l of DLMF 18.5.7 vanish, so it is
+        // binom(n + beta, l) / binom(n, l) ((x - 1) / 2)^l P_m^{(l, beta)} with m = n - l. For
+        // such a beta, reflect (DLMF Table 18.6.1).
+        let int_in_range = |t: f64| t.fract() == 0.0 && (-f64::from(n)..=-1.0).contains(&t);
+        let f = if int_in_range(alpha) {
+            let (l, m) = (-alpha as i32, n + alpha as i32);
+            let c: f64 = (m + 1..=n)
+                .map(|k| (f64::from(k) + beta) / f64::from(k))
+                .product();
+            c * (0.5 * (self - 1.0)).powi(l) * self.eval_jacobi(m, -alpha, beta)
+        } else if int_in_range(beta) {
+            neg_one_pow(n) * (-self).eval_jacobi(n, beta, alpha)
+        } else {
+            self.eval_jacobi(f64::from(n), alpha, beta)
+        };
+        // At a root, the 2F1 can be NaN or noise where `p` is an exact zero, so keep that zero
+        // unless the 2F1 is close to `p_dd`. Where the 2F1 is nonfinite, use a finite `p_dd` or
+        // `p`, and else `p` where the 2F1 is NaN.
+        if p == 0.0 && !close(f, p_dd) {
+            return p;
+        }
+        [f, p_dd, p]
+            .into_iter()
+            .find(|v| v.is_finite())
+            .unwrap_or(if f.is_nan() { p } else { f })
     }
 
     /// Corresponds to `xsf::detail::eval_legendre_l`

@@ -147,6 +147,97 @@ fn test_eval_integer_degree_reflection() {
 }
 
 #[test]
+fn test_eval_integer_degree_below_minus_one() {
+    // the recurrence lost all digits or was NaN for alpha or beta below -1 (Arb, or exact)
+    let cases: [(i32, f64, f64, f64, f64); 12] = [
+        // beta < -1 near x = -1
+        (
+            85,
+            0.923_528_596_985_787_5,
+            -20.066_479_948_825_68,
+            -0.999_999_549_074_469_4,
+            -2.169_024_416_715_375e-22,
+        ),
+        // beta < -1 at x = -1
+        (91, 14.9, -13.004_252_634_573_632, -1.0, 1.692_867_567_181_582e-19),
+        // alpha < -1 near x = 1
+        (50, -7.6, 3.3, 0.95, -2.415_984_839_942_639_5e-7),
+        // alpha + beta = -2, where the recurrence divides by 2k + alpha + beta = 0 at k = 1
+        (40, -0.3, -1.7, -1.0, -4.489_754_303_000_653e-4),
+        // alpha + beta = -3, where it divides by k + alpha + beta + 1 = 0 at k = 2
+        (200, 0.5, -3.5, 0.3, 0.020_564_176_834_305_885),
+        // integer beta = -7, where the 2F1 cancels: 16467 / 2^55
+        (8, -2.5, -7.0, -0.9375, 16_467.0 * 2.0_f64.powi(-55)),
+        // integer beta = -2, at the root x = 0
+        (3, 2.0, -2.0, 0.0, 0.0),
+        // integer alpha = -3, where both were NaN: -45 / 256
+        (4, -3.0, 2.0, 0.5, -45.0 / 256.0),
+        // the recurrence away from an endpoint whose exponent is below -1 (exact)
+        (7, 2.0, -2.0, 2.0_f64.powi(-53), 3.122_502_256_758_253_3e-16),
+        (5, -1.0, -1.0, 2.0_f64.powi(-50), 6.661_338_147_750_939e-16),
+        (2, 2.5, -1.5, -0.5, 0.0),
+        (1, 2.0_f64.powi(53), -2.5, -1.0 + 2.0_f64.powi(-53), 2.0),
+    ];
+    np_assert_allclose!(
+        cases.map(|(n, a, b, x, _)| xsf::eval_jacobi(n, a, b, x)),
+        cases.map(|(.., p)| p),
+        rtol = 1e-12
+    );
+
+    // near an endpoint whose exponent is below -1, where the recurrence was already accurate
+    // (exact fmpq)
+    let cases: [(i32, f64, f64, f64, f64); 6] = [
+        (10, -2.999_999_988_749_566_5, -7.0, 0.999_999_993_232_022_6, 3.125_120_500_667_126e-11),
+        (18, -15.961_638_268_161_28, -10.0, 0.999_999_997_573_687_2, -1.458_441_313_669_469e-5),
+        (
+            69,
+            -1.000_973_909_359_745_4,
+            -64.0,
+            0.999_999_999_999_978_7,
+            -1.404_873_347_783_695_6e-5,
+        ),
+        (
+            8,
+            -10.725_628_301_220_318,
+            -5.131_978_098_266_71,
+            -0.999_999_999_999_696_9,
+            -4.754_161_641_195_356e-4,
+        ),
+        (26, -24.632_818_425_881_993, -18.0, 2.852_865_821_119_017_7, 11.578_077_486_328_505),
+        (10, -1.0, -10.168_444_857_822_982, -0.005_812_199_767_006_993, 0.023_268_633_162_342_966),
+    ];
+    np_assert_allclose!(
+        cases.map(|(n, a, b, x, _)| xsf::eval_jacobi(n, a, b, x)),
+        cases.map(|(.., p)| p),
+        rtol = 1e-14
+    );
+
+    // roots of P_2 there, where the 2F1 was NaN or noise (exact fmpq: 0)
+    let roots: [(i32, f64, f64, f64); 5] = [
+        (2, -1.000_213_611_871_004, 4.998_992_953_449_488, 0.5),
+        (2, -1.000_427_201_390_266_4, -2.000_549_182_295_799_3, 0.5),
+        (2, 4.999_496_468_342_841, -1.000_106_808_729_469_8, -0.5),
+        (2, -2.000_068_662_455_305_5, -1.000_053_405_063_226_8, -0.5),
+        (2, -1.000_366_181_135_177_6, -4.999_023_497_104_645, 3.0),
+    ];
+    let actual = roots.map(|(n, a, b, x)| xsf::eval_jacobi(n, a, b, x));
+    // the recurrence is exactly zero at the first three
+    assert!(actual[..3].iter().all(|&p| p == 0.0), "{actual:?}");
+    np_assert_allclose!(actual, [0.0; 5], atol = 1e-30);
+
+    // overflows there, where the 2F1 was NaN (exact fmpq: above f64::MAX)
+    assert_eq!(
+        xsf::eval_jacobi(
+            78,
+            -2.000_000_000_000_050_6,
+            -1.004_978_025_239_240_4,
+            1.034_940_720_309_175_8e15
+        ),
+        f64::INFINITY
+    );
+}
+
+#[test]
 fn test_eval_integer_degree_f64() {
     // integer degrees use the integer-degree recurrence, where `hyp2f1` was NaN or cancelled (Arb)
     let x = 1.0 - f64::EPSILON / 2.0; // the largest f64 below 1
