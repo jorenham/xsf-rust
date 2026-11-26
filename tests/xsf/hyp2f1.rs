@@ -1334,10 +1334,34 @@ fn test_hyp2f1_c64_large_balanced_disk() {
     let actual = xsf::hyp2f1(2.0, 1.0, 2.5, c64(-1e15, 9.99e14));
     let expected = c64(7.507_503_749_998_12e-16, 7.499_996_246_247_988e-16);
     assert!((actual - expected).norm() <= 1e-14 * expected.norm(), "{actual}");
-    // (1 - z)^(-a) is subnormal
-    let actual = xsf::hyp2f1(1060.0, 1060.0, 2120.0, c64(-0.75, 1.0));
-    let expected = c64(-1.259_118_513_108_502_5e-168, 6.434_381_829_782_831e-169);
-    assert!(actual.is_nan() || (actual - expected).norm() <= 1e-12 * expected.norm(), "{actual}");
+    // (1 - z)^(-a) is subnormal or zero
+    for (a, b, c, z, expected) in [
+        (
+            1060.0,
+            1060.0,
+            2120.0,
+            c64(-0.75, 1.0),
+            c64(-1.259_118_513_108_502_5e-168, 6.434_381_829_782_831e-169),
+        ),
+        (
+            1164.25,
+            10.0,
+            11.5,
+            c64(-0.8, 0.6),
+            c64(3.032_046_757_850_353_6e-24, 4.557_849_294_707_913e-25),
+        ),
+        (
+            1163.25,
+            17.0,
+            20.5,
+            c64(-0.8, 0.6),
+            c64(-1.081_784_204_781_903_6e-36, -1.374_113_847_294_581_3e-35),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        let close = (actual - expected).norm() <= 1e-12 * expected.norm();
+        assert!(actual.is_nan() || close, "{actual}");
+    }
 }
 
 #[test]

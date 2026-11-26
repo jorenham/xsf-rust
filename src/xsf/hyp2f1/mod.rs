@@ -1262,7 +1262,8 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Unlike in xsf, sum this positive-parameter Pfaff series to machine epsilon, and continue it
     // analytically if it cancels.
     let series = series_eval_cancellation_to(series_generator, f64::EPSILON);
-    let sum = if series.is_continued() {
+    // (only for a normal power, as the continuation's error is then relative to its value)
+    let sum = if series.is_continued() && power.norm().is_normal() {
         hyp2f1_continuation(a, c - b, c, z_pfaff, series.value.into()).unwrap_or(series.value)
     } else {
         series.value
@@ -1530,7 +1531,10 @@ fn hyp2f1_continuation(
     // if z is not, and off the cut for Re z < 1.
     let (power, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
         // (only if normal, as the error estimate omits the rounding of a subnormal power)
-        let power = Some(pfaff_power(a, z)).filter(|power| power.norm().is_normal())?;
+        let power = pfaff_power(a, z);
+        if !power.norm().is_normal() {
+            return None;
+        }
         (Some(power), c - b, z / (z - 1.0))
     } else {
         (None, b, z)
