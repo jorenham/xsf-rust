@@ -405,8 +405,8 @@ impl Cancelled {
     }
 }
 
-/// The estimated relative roundoff of a series above which to try `hyp2f1_continuation`, as
-/// below it the continuation gains little accuracy at much more cost
+/// The estimated relative roundoff of a series above which to try `hyp2f1_continuation`; below
+/// it the continuation gains little accuracy at much more cost
 const CONTINUED_ROUNDOFF: f64 = 100.0 * HYP2F1_EPS;
 
 /// The largest estimated relative error of a usable sum
@@ -1534,10 +1534,7 @@ fn hyp2f1_continuation(
     // if z is not, and off the cut for Re z < 1.
     let (power, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
         // (only if normal, as the error estimate omits the rounding of a subnormal power)
-        let power = pfaff_power(a, z);
-        if !power.norm().is_normal() {
-            return None;
-        }
+        let power = Some(pfaff_power(a, z)).filter(|p| p.norm().is_normal())?;
         (Some(power), c - b, z / (z - 1.0))
     } else {
         (None, b, z)
@@ -1849,12 +1846,16 @@ fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
     } else {
         C64::NAN
     };
-    // Unlike in xsf, continue the Maclaurin series analytically if the limit is less accurate.
+    // Unlike in xsf, continue the Maclaurin series analytically if the limit is NaN or lossy and
+    // the continuation is more accurate.
     let estimate = Estimate {
         value: result,
         error: f64::EPSILON * best.cancellation * result.norm(),
     };
-    hyp2f1_continuation(a, b, c, z, estimate).unwrap_or_else(|| {
+    let continued = (result.is_nan() || best.is_lossy())
+        .then(|| hyp2f1_continuation(a, b, c, z, estimate))
+        .flatten();
+    continued.unwrap_or_else(|| {
         // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
         // reduce a and b, if usable.
         if euler || !result.is_nan() {
