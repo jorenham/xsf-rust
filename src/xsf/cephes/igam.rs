@@ -29,6 +29,7 @@
 use core::f64::consts::{E, TAU};
 
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::{erfc, lgam, lgam1p, pow_rgamma, rgamma};
 use crate::xsf::expint::exp1;
@@ -44,7 +45,7 @@ const IGAM_SMALLRATIO: f64 = 0.3;
 const IGAM_LARGERATIO: f64 = 4.5;
 // `igamc` uses `igamc_cf` only above this
 const IGAMC_CF_MIN_X: f64 = 1.1;
-// with a margin, as `igamc_cf` can overflow from `x ~ 1e38` where `igamc` underflows
+// where `igamc_exp_scaled` switches from `igamc_cf` to the asymptotic series or `igamc_large_x_sum`
 const IGAMC_CF_MAX_X: f64 = 1e20;
 
 /// If `x <= 1` and `m = a max(|ln(x)|, 1)` is at most this, `igamc` uses `igamc_series`, which is
@@ -171,49 +172,50 @@ fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
     igamc_cf(a, x) * ax
 }
 
+// a call, since inlined rescaling slows `igamc_cf` down by ~25% (measured)
+#[cold]
+#[inline(never)]
+fn igam_rescale(qk: f64, qkm1: f64) -> (f64, f64) {
+    (qk * IGAM_BIGINV, qkm1 * IGAM_BIGINV)
+}
+
 /// The continued fraction of DLMF 8.9.2, i.e. `igamc(a, x) / igam_fac(a, x)`
 ///
 /// Unlike in xsf, split out of `igamc_continued_fraction` for its log, where `igamc` underflows
 fn igamc_cf(a: f64, x: f64) -> f64 {
-    let mut y = 1.0 - a;
-    let mut z = x + y + 1.0;
-    let mut c = 0.0;
-    let mut pkm2 = 1.0;
-    let mut qkm2 = x;
-    let mut pkm1 = x + 1.0;
-    let mut qkm1 = z * x;
-    let mut ans = pkm1 / qkm1;
+    // `1 / (b_0 + a_1 / (b_1 + a_2 / (b_2 + ...)))`
+    //
+    // Unlike in xsf, with `x - a` first, which is exact for `x <= 2 a`.
+    let gap = x - a;
+    let b_k = |k: f64| gap + (2.0 * k + 1.0);
+    let a_k = |k: f64| k * (a - k);
 
-    for _ in 0..IGAM_MAXITER {
-        c += 1.0;
-        y += 1.0;
-        z += 2.0;
-        let yc = y * c;
-        let pk = pkm1 * z - pkm2 * yc;
-        let qk = qkm1 * z - qkm2 * yc;
-        let t = if qk != 0.0 {
-            let r = pk / qk;
-            let t = ((ans - r) / r).abs();
-            ans = r;
-            t
-        } else {
-            1.0
-        };
-        pkm2 = pkm1;
-        pkm1 = pk;
-        qkm2 = qkm1;
+    // Unlike in xsf, a compensated sum of the differences of the convergents (Steed's algorithm),
+    // since the rounding errors of the `pk` and `qk` recurrences accumulate in `pk / qk` where the
+    // fraction converges slowly
+    let mut qkm1 = 1.0;
+    let mut qk = b_k(1.0);
+    let mut dh = a_k(1.0) / qk;
+    let (mut h, mut err) = two_sum(b_k(0.0), dh);
+    for n in 2..=IGAM_MAXITER {
+        let k = f64::from(n);
+        let aq = a_k(k) * qkm1;
         qkm1 = qk;
-        if pk.abs() > IGAM_BIG {
-            pkm2 *= IGAM_BIGINV;
-            pkm1 *= IGAM_BIGINV;
-            qkm2 *= IGAM_BIGINV;
-            qkm1 *= IGAM_BIGINV;
+        qk = b_k(k) * qk + aq;
+        let ratio = -aq / qk;
+        if qk.abs() > IGAM_BIG {
+            (qk, qkm1) = igam_rescale(qk, qkm1);
         }
-        if t <= MACHEP {
+        dh *= ratio;
+        let (sum, e) = two_sum(h, dh);
+        h = sum;
+        err += e;
+        // estimates the remaining terms as a geometric series with this ratio
+        if dh.abs() <= MACHEP * (1.0 - ratio.abs()) * h.abs() {
             break;
         }
     }
-    ans
+    1.0 / (h + err)
 }
 
 /// `(m, ln_f)` with `igamc(a, x) = m exp(ln_f)` for `x > a`, also where `igamc` underflows

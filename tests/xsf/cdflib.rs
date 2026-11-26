@@ -3,6 +3,19 @@ xsref::tests! {
 }
 
 #[test]
+fn test_gdtrib_adjacent_p() {
+    // in decreasing order, as in Arb, although other adjacent `p` can still reverse by a few ulp
+    let (p, x) = (0.721_501_767_635_344_3, 1.126_986_861_228_942_9);
+    let actual = [xsf::gdtrib(1.0, p, x), xsf::gdtrib(1.0, p.next_up(), x)];
+    xsref::np_assert_allclose!(
+        &actual,
+        &[0.886_729_400_369_774, 0.886_729_400_369_773_7],
+        rtol = 5e-16
+    );
+    assert!(actual[0] >= actual[1], "{actual:?}");
+}
+
+#[test]
 fn test_gdtria_gdtrix() {
     // reference values from scipy.special
     xsref::np_assert_allclose!([xsf::gdtria(0.5, 2.0, 3.0)], [0.559_448_996_672_220_4]);
