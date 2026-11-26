@@ -1477,20 +1477,17 @@ fn hyp2f1_taylor_step<const N: usize>(
 /// F(a, b; c; z) for a, b, c > 0 and |1 - z| <= 1/2 by analytic continuation of the Maclaurin
 /// series at 1/2, along the real axis to 1 - |1 - z| and then along the circle about 1 through
 /// z, if its error estimate is below half its distance from `result`, which is then less accurate,
-/// or below `result_error`, the estimated absolute error of `result` (or 0).
+/// or below the estimated error of `result`.
 /// For Re z > 1, where a small component may stem from the cut, a `result` within sqrt(eps)
 /// relative to it is also kept if the estimate exceeds a component, or only that component if
-/// `result_error` is larger.
+/// the error of `result` is larger.
 //
 // On that path, 1 is the nearest singular point.
-fn hyp2f1_continuation(
-    a: f64,
-    b: f64,
-    c: f64,
-    z: C64,
-    result: C64,
-    result_error: f64,
-) -> Option<C64> {
+fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: Estimate) -> Option<C64> {
+    let Estimate {
+        value: result,
+        error: result_error,
+    } = result;
     let w = 1.0 - z;
     let r = w.norm();
     let (end, angle) = (1.0 - r, w.im.atan2(w.re));
@@ -1634,7 +1631,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
     if estimate.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, result, 0.0).unwrap_or(result);
+        return hyp2f1_continuation(a, b, c, z, result.into()).unwrap_or(result);
     }
     result
 }
@@ -1796,8 +1793,11 @@ fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
         C64::NAN
     };
     // Unlike in xsf, continue the Maclaurin series analytically if the limit is less accurate.
-    let error = f64::EPSILON * best.cancellation * result.norm();
-    if let Some(value) = hyp2f1_continuation(a, b, c, z, result, error) {
+    let limit = Estimate {
+        value: result,
+        error: f64::EPSILON * best.cancellation * result.norm(),
+    };
+    if let Some(value) = hyp2f1_continuation(a, b, c, z, limit) {
         return value;
     }
     // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
@@ -1852,7 +1852,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
     if series.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, series.value, 0.0).unwrap_or(series.value);
+        return hyp2f1_continuation(a, b, c, z, series.value.into()).unwrap_or(series.value);
     }
     series.value
 }
@@ -2283,7 +2283,7 @@ mod tests {
     fn test_hyp2f1_continuation_maclaurin_growth() {
         // The Maclaurin terms at 1/2 first decay below eps and then grow.
         let half = c64(0.5, 0.0);
-        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN, 0.0).unwrap();
+        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN.into()).unwrap();
         xsref::np_assert_allclose!(
             [value.re, value.im],
             [1.000_007_275_456_677, 0.0],
@@ -2291,6 +2291,6 @@ mod tests {
         );
         // Its terms stay below eps, so the sum rounds to 1, which the error estimate covers.
         let exact = c64(1.000_000_000_000_007_3, 0.0);
-        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact, 0.0), None);
+        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact.into()), None);
     }
 }
