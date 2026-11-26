@@ -1569,10 +1569,13 @@ fn hyp2f1_continuation(
     let (tolerance, distance) = (f64::EPSILON.sqrt() * f.norm(), (result - f).norm());
     let less_accurate = result_error > error;
     let accurate = error < tolerance && (less_accurate || !(distance <= 2.0 * error));
+    if !accurate {
+        return None;
+    }
     // (keep a close `result` if the estimate does not resolve a component)
     let unresolved = z.re > 1.0 && error >= f.re.abs().min(f.im.abs()) && distance < tolerance;
-    if !(accurate && unresolved) {
-        return accurate.then_some(f);
+    if !unresolved {
+        return Some(f);
     }
     // (only that smaller component if `result` is less accurate)
     less_accurate.then(|| {
