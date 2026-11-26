@@ -189,7 +189,7 @@ property!(
     within,
     hyp2f1_terminating(ncx in real_hyp2f1_args(), b in eighths(-256..=256)) => {
         let (n, c, x) = ncx;
-        // known (unfiled): (1 - x)^n for b = c < 0 and x < -1
+        // known: (1 - x)^n for b = c < 0 and x < -1 (#2262)
         prop_assume!(!(b == c && x < -1.0), "known");
         (xsf::hyp2f1(-f64::from(n), b, c, x), terminating(&[-f64::from(n), b], &[c], x)?)
     }
