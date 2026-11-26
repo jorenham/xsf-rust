@@ -17,7 +17,7 @@
 use core::iter;
 
 use crate::ext::{
-    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp,
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, exp_rounded, fold_exp,
     hyp2f1_poly_dd, hyp2f1_recur, ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, neg_one_pow, pow2};
@@ -552,8 +552,11 @@ fn pow_1mx(x: f64, m: f64) -> f64 {
         ln_dd(Dd::ONE - x)
     };
     let l = ln_1mx * m;
-    let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
-    y.map_or_else(|| (1.0 - x).powf(m), |y| y.with_l(l).to_f64().0)
+    if l.is_finite() {
+        exp_rounded(l)
+    } else {
+        (1.0 - x).powf(m)
+    }
 }
 
 /// Whether `sum_{k <= m} (b)_k x^k / k!` (DLMF 15.2.5) is exactly 0, as are all its terms and
@@ -1056,10 +1059,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     if outer && ax > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
         let e = if a == c { b } else { a };
         if x < -1.0 {
-            // (by `powf` if `1 - x` is exact, i.e. if `s - (-x)` is exactly 1, and the power is
-            // normal, as `powf` can round a subnormal to the wrong side of a halfway point)
-            let exact = (s + x == 1.0).then(|| s.powf(-e)).filter(|p| p.is_normal());
-            return exact.unwrap_or_else(|| pow_1mx(x, -e));
+            return pow_1mx(x, -e);
         } else if e == e.round() {
             return s.powf(-e);
         } else if (e - e.round()).abs() >= HYP2F1_EPS {
