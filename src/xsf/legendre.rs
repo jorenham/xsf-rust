@@ -1149,6 +1149,8 @@ fn lqmn_extreme<T>(
     )]
     const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
     const TERMS: usize = 3;
+    // The double-double unit roundoff, with a factor 4 of slack
+    const EPS2: f64 = f64::EPSILON * f64::EPSILON;
 
     // `m 2^e` as `(m, e)`, with `m` zero or normalized
     type Part = (DoubleDouble, i64);
@@ -1216,14 +1218,56 @@ fn lqmn_extreme<T>(
         let units = a.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32);
         units.round_subnormal_units()
     };
-    let scaled = |a: [Part; 2]| c64(scaled(a[0]), scaled(a[1]));
+    // Bound the absolute errors of the parts of `conj(z)^k` by running error analysis. A product
+    // with a double-double part, and a sum, round by at most `EPS^2` of their results. On the axes
+    // and diagonals, the parts are exact zeros or do not cancel.
+    let symmetric = z.re == 0.0 || z.im == 0.0 || z.re.abs() == z.im.abs();
+    let zero: Part = (DoubleDouble::ZERO, 0);
+    let bound = |(m, e): Part, roundings: f64| norm((m.abs() * (roundings * EPS2), e));
+    // The parts of `conj(z) a` with their errors, given those of `a`
+    let power = |a: [Part; 2], error: [Part; 2]| {
+        let product = cmul(a, conj);
+        if symmetric {
+            return (product, [zero; 2]);
+        }
+        // Each part sums `a_j` times `x` for `j == i`, and times `y` otherwise.
+        let part = |i: usize| {
+            (0..2).fold(bound(product[i], 1.0), |sum, j| {
+                let factor = if j == i { x } else { y };
+                let factor = (factor.0.abs(), factor.1);
+                let rounding = if a[j].0.lo == 0.0 {
+                    zero
+                } else {
+                    bound(mul(a[j], factor), 1.0)
+                };
+                add(sum, add(mul(error[j], factor), rounding))
+            })
+        };
+        (product, [part(0), part(1)])
+    };
+    let log2 = |(m, e): Part| e as f64 + m.hi.abs().log2();
+    // Unlike in xsf, return NaN for a part where that error exceeds one ulp.
+    let checked = |num: [Part; 2], error: [Part; 2], den: Part, k: [Part; TERMS]| {
+        let sum = series(num, den, k);
+        let part = |i: usize| {
+            let ulp = log2(sum[i]).max(f64::from(f64::MIN_EXP - 1)) + f64::EPSILON.log2();
+            let error = log2(div(mul(error[i], k[0]), den));
+            if error > ulp {
+                f64::NAN
+            } else {
+                scaled(sum[i])
+            }
+        };
+        c64(part(0), part(1))
+    };
     // `conj(z)^(n+1)` over `|z|^(2n+2)`, and `c_{n,0}`
     let (mut seed, mut den, mut c0) = (conj, abs2, DoubleDouble::ONE);
+    let mut seed_error = [zero; 2];
     for n in 0..int(qm.extent(1)) {
         let next = f64::from(n) + 1.0;
         // Multiply by `conj(z)` before the rounded order factors, as a cancelling part would
         // amplify their errors.
-        let mut slope = cmul(seed, conj);
+        let (mut slope, mut slope_error) = power(seed, seed_error);
         if n == 2 {
             // Factored, the part of Re conj(z)^4 that can vanish has no rounding before its sum.
             let (a, b) = (z.re.abs().max(z.im.abs()), z.re.abs().min(z.im.abs()));
@@ -1231,6 +1275,8 @@ fn lqmn_extreme<T>(
             let two_b = (b.0, b.1 + 1);
             let quadratic = |two_b: Part| add(mul(a, add(a, two_b)), neg(mul(b, b)));
             slope[0] = mul(quadratic(neg(two_b)), quadratic(two_b));
+            // Each quadratic rounds twice, and their product once.
+            slope_error[0] = bound(slope[0], 5.0);
         }
         let mut c = real(c0);
         for m in 0..int(qm.extent(0)) {
@@ -1243,25 +1289,45 @@ fn lqmn_extreme<T>(
                 dk
             });
             let ck = |k: [DoubleDouble; TERMS]| k.map(|k| mul(c, real(k)));
-            let derivative = series(slope, mul(den, abs2), ck(dk));
-            (qm[(m, n)], qd[(m, n)]) = output(scaled(series(seed, den, ck(k))), scaled(derivative));
+            (qm[(m, n)], qd[(m, n)]) = output(
+                checked(seed, seed_error, den, ck(k)),
+                checked(slope, slope_error, mul(den, abs2), ck(dk)),
+            );
             c = mul(c, real(DoubleDouble::new(order_sign * (next + f64::from(m)))));
         }
         c0 = c0 * next / (2.0 * next + 1.0);
-        (seed, den) = (slope, mul(den, abs2));
+        (seed, den, seed_error) = (slope, mul(den, abs2), slope_error);
     }
 }
 
 /// `lqmn_extreme` for complex `z`, where on the real axis the imaginary parts are zeros on the
 /// side of `Im z`
-fn lqmn_extreme_c64(z: C64, cqm: Mdspan<'_, C64, 2>, cqd: Mdspan<'_, C64, 2>) {
+fn lqmn_extreme_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
+    let views =
+        (Mdspan::new(&mut *cqm.data, cqm.extents), Mdspan::new(&mut *cqd.data, cqd.extents));
     if z.is_real() {
         // The lateral imaginary signs come from Q' and Q'', respectively.
         // In the leading term, Q'' has the same sign as Q.
         let lateral = |value, slope| c64(value, z.im * 1.0_f64.copysign(slope));
-        lqmn_extreme(z, cqm, cqd, |q, d| (lateral(q.re, d.re), lateral(d.re, q.re)));
+        lqmn_extreme(z, views.0, views.1, |q, d| (lateral(q.re, d.re), lateral(d.re, q.re)));
     } else {
-        lqmn_extreme(z, cqm, cqd, |q, d| (q, d));
+        lqmn_extreme(z, views.0, views.1, |q, d| (q, d));
+    }
+    // On the imaginary axis, these zero parts keep the signs of their limits from the side of
+    // `Re z`, as in `Q_0^2(z) = 2z / (z^2 - 1)`, and `Re Q_0` that of `atanh(1 / z)`.
+    if z.re == 0.0 {
+        let (m, n) = (cqm.extent(0), cqm.extent(1));
+        let side = 0.0_f64.copysign(z.re.signum() * z.im.signum());
+        (cqm[(0, 0)].re, cqd[(0, 0)].im) = (0.0_f64.copysign(z.im), side);
+        if n > 1 {
+            cqm[(0, 1)].im = -side;
+        }
+        if m > 1 && n > 1 {
+            cqm[(1, 1)].im = 0.0_f64.copysign(z.im);
+        }
+        if m > 2 {
+            cqm[(2, 0)].re = z.re;
+        }
     }
 }
 
@@ -1382,17 +1448,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
 
     // Unlike in xsf, use the leading terms before the backward recurrence can overflow.
     if lq_is_extreme(z) {
-        lqmn_extreme_c64(z, Mdspan::new(&mut *cqm.data, cqm.extents), cqd);
-        // On the imaginary axis, these zero parts keep the signs of their limits from the side of
-        // `Re z`, as in `Q_0^2(z) = 2z / (z^2 - 1)`.
-        if z.re == 0.0 {
-            if m >= 2 {
-                cqm[(2, 0)].re = z.re;
-            }
-            if m >= 1 && n >= 1 {
-                cqm[(1, 1)].im = 0.0_f64.copysign(z.im);
-            }
-        }
+        lqmn_extreme_c64(z, cqm, cqd);
         return;
     }
 

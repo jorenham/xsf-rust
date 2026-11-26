@@ -423,6 +423,20 @@ fn test_legendre_q_all_extreme_complex() {
             assert_eq!(q[1][0].im.to_bits(), (-sx * sy * 0.0).to_bits());
             assert_eq!(dq[0][0].re.to_bits(), (-f64::MIN_POSITIVE).to_bits());
             assert_eq!(dq[0][0].im.to_bits(), (sx * sy * 0.0).to_bits());
+
+            let z = c64(sx * 0.0, sy * 1e160);
+            let (q, dq) = xsf::legendre_q_all(1, z);
+            let (qm, dqm) = xsf::assoc_legendre_q_all(1, 0, z);
+            for (q, dq) in [(q[0], dq[0]), (qm[0][0], dqm[0][0])] {
+                assert_eq!(q.re.to_bits(), (sy * 0.0).to_bits());
+                assert_eq!(q.im, -sy * 1e-160);
+                assert_eq!(dq.re, 1e-320);
+                assert_eq!(dq.im.to_bits(), (sx * sy * 0.0).to_bits());
+            }
+            for q in [q[1], qm[1][0]] {
+                assert_eq!(q.re, -f64::from_bits(0x2a3));
+                assert_eq!(q.im.to_bits(), (-sx * sy * 0.0).to_bits());
+            }
         }
     }
 
@@ -655,6 +669,16 @@ fn test_assoc_legendre_q_all_extreme_complex_orders() {
     xsref::np_assert_allclose!(
         [dq[2][200].re, dq[2][333].re, q[3][200].re],
         [1.686_547_975_285_891e-292, -6.090_345_402_686_098e30, -1.630_329_709_443_028e-291],
+        rtol = 1e-15
+    );
+
+    // Arb. Here `x^2 - 3y^2 = 1` before scaling, so `Re z^-3` cancels to about 2^-105.
+    let z = c64(5_170_128_475_599_457.0 * x, 2_984_975_067_132_296.0 * x);
+    let (q, dq) = xsf::assoc_legendre_q_all(2, 200, z);
+    assert!(q[2][200].re.is_nan() && dq[1][200].re.is_nan());
+    xsref::np_assert_allclose!(
+        [q[2][200].im, dq[1][200].im],
+        [-2.638_328_859_165_686_3e-102, 1.306_103_395_626_577_4e-103],
         rtol = 1e-15
     );
 
