@@ -1254,6 +1254,35 @@ fn test_hyp2f1_c64_euler_polynomial_cancellation() {
 }
 
 #[test]
+fn test_hyp2f1_c64_euler_polynomial_tiny_a() {
+    // Arb at the exact binary64 inputs. Here c - b is a negative integer, and c - a rounds to c
+    // (#2247).
+    for (a, b, c, x, expected, rtol) in [
+        (1e-20, 300.5, 20.5, 0.5, 5.702_567_468_803_259e37, 2e-16),
+        (-1e-20, 300.5, 20.5, 0.5, -5.702_567_468_803_259e37, 2e-16),
+        (300.5, 1e-20, 20.5, 0.5, 5.702_567_468_803_259e37, 2e-16),
+        (1e-20, 300.5, 20.5, 0.9, 1.602_722_697_015_226_8e228, 2e-16),
+        // (here the exponent c - a - b of the Euler factor rounds)
+        (1e-10, 300.5, 20.5, 0.5, 5.702_567_472_298_491_4e47, 2e-14),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, c64(x, 0.0));
+        np_assert_allclose!([actual.re, actual.im], [expected, 0.0], rtol = rtol, atol = 0.0);
+    }
+    for (a, expected, rtol) in [
+        (1e-20, c64(9.366_954_165_364_594e34, 1.251_049_345_038_304_3e35), 2e-14),
+        (1e-10, c64(9.366_954_170_578_047e44, 1.251_049_345_846_006_5e45), 1e-13),
+    ] {
+        let actual = xsf::hyp2f1(a, 300.5, 20.5, c64(0.5, 0.1));
+        np_assert_allclose!(
+            [actual.re, actual.im],
+            [expected.re, expected.im],
+            rtol = rtol,
+            atol = 0.0
+        );
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_pfaff_polynomial_arb() {
     // Arb at the exact binary64 inputs, for both orders of (a, b): (a, b, c, z, expected, rtols).
     for (a, b, c, z, expected, rtol) in [

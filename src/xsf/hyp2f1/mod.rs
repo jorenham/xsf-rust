@@ -1865,7 +1865,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 .filter(|power| power.is_finite())
                 .unwrap_or_else(|| w.powf(c - a - b));
             // Unlike in xsf, sum the polynomial like a directly terminating one.
-            let estimate = polynomial::terminating(c - a, c - b, c, z);
+            let terminating = polynomial::terminating(c - a, c - b, c, z);
+            // Unlike in xsf, keep a small other parameter that c - other loses.
+            let estimate = polynomial::complement(other, c, max_degree as u64, z, terminating);
             let polynomial = estimate.value;
             let value = prefactor * polynomial;
             // Unlike in xsf, carry the scale of a prefactor or product that under- or overflows.
