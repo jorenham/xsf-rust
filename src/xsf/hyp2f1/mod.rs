@@ -347,6 +347,32 @@ fn cancellation(abs_sum: f64, sum: C64) -> f64 {
     if ratio.is_nan() { f64::INFINITY } else { ratio }
 }
 
+/// A value with its estimated absolute error
+#[derive(Clone, Copy)]
+struct Estimate {
+    value: C64,
+    error: f64,
+}
+
+// A value whose only error is its final rounding to f64
+impl From<C64> for Estimate {
+    fn from(value: C64) -> Self {
+        Self { value, error: 0.0 }
+    }
+}
+
+impl Estimate {
+    // Whether the estimate is finite with an estimated error below its magnitude.
+    fn resolved(&self) -> bool {
+        self.value.is_finite() && self.error < self.value.linf_norm()
+    }
+
+    // Whether the estimate leaves at least half the significand.
+    fn accurate(&self) -> bool {
+        self.value.is_finite() && self.error <= pow2(-26) * self.value.linf_norm()
+    }
+}
+
 /// A value with its estimated cancellation
 #[derive(Clone, Copy)]
 struct Cancelled {
