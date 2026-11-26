@@ -5,50 +5,55 @@ Usage (from the repository root; or `just diff-fuzz`):
     uv run --project tools tools/accuracy/diff_fuzz.py [--base REV] [--head REV]
         [--only NAME ...] [--cases N] [--seed S] [--max-refs N] [--jobs N]
 
+(e.g. `--cases 10 --max-refs 10` for a quick run of all specs).
+
 Steps:
 
 1. Build the dump program of `accuracy.py` for both revisions; a revision other than the working
-   tree is exported with `git archive`, and its program is cached in `.cache/diff-fuzz/`.
+   tree is exported with `git archive` and built in a temporary directory, and its program is
+   cached in `.cache/diff-fuzz/`.
 2. Evaluate both on the same `--cases` seeded inputs per spec of `specs.py` (or of `--only`, by
    spec or function name): samples of its domains, with the parameters scaled log-uniformly or
    rounded to (half-)integers, single arguments moved to log-uniform, (half-)integer, boundary
    or special values, a parameter or real argument set to (nearly) a signed sum of others plus
    an integer, and the imaginary parts of complex arguments set to 0 or tiny values of either
-   sign.
+   sign. Skip the specs whose function a revision does not have.
 3. Flag the inputs where the results differ by more than `RTOL` relative to the larger, in a part
-   of a complex result, or where one is NaN, infinite, zero, or a panic and the other is not, or
-   where the signs of zeros differ.
-4. Compute references for a share of the flagged inputs (at most `--max-refs` in all; those that
-   differ in kind first, then spread over the signs and magnitudes of the arguments), with Arb
-   where `specs.ARB` or `ARB` has the function, else with the reference of the spec. Classify
-   each by the largest relative error of the parts that differ: regressed (more than `WORSE`
-   times the base error, and more than `FLOOR`), improved (vice versa), both wrong, or both
-   right.
+   of a complex result, or where one is NaN, infinite, zero, a panic or a timeout and the other is
+   not, or where the signs of zeros differ.
+4. Count a panic or timeout of one revision as a regression (or an improvement). For a share of
+   the other flagged inputs (at most `--max-refs` in all; those that differ in kind first),
+   compute references in `REF_TIMEOUT` seconds, with Arb where `specs.ARB` or `ARB` has the
+   function (NaN if it is not real for a real function), else with the reference of the spec.
+   Classify each by the largest relative error of the parts that differ, from the reference
+   rounded to binary64: regressed (more than `WORSE` times the base error, and more than
+   `FLOOR`), improved (vice versa), both wrong, or both right.
 5. For `NEAR_ROUNDS` rounds, repeat 3 and 4 for `--cases` mutants of the regressions and the
-   flagged inputs so far, with the parameters scaled (keeping that sum), two arguments shifted
-   together, or one moved slightly or as in 2 (or, if none are flagged yet, for new inputs as
-   in 2).
+   flagged inputs so far (or, if none are flagged yet, of new inputs as in 2), with the
+   parameters scaled (keeping that sum), two arguments shifted together, or one moved slightly
+   or as in 2.
 6. Print the counts, write the regressions to `.cache/diff-fuzz.tsv`, and exit with 1 if there
    are any.
 """
 
 import argparse
 import concurrent.futures
+import contextlib
 import io
-import json
 import math
 import multiprocessing
 import os
 import random
 import shutil
-import signal
+import struct
 import subprocess
 import sys
 import tarfile
+import tempfile
+import time
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
-from multiprocessing.pool import Pool
+from multiprocessing.connection import Connection, wait
 from pathlib import Path
 from typing import Final, NamedTuple
 
@@ -61,15 +66,20 @@ import accuracy
 RTOL: Final = 1e-12
 WORSE: Final = 2.0
 FLOOR: Final = 4e-16
-# a part of a reference below this share of its modulus counts as 0, so that its error is
+# a part of a reference below 2^-TINY_BITS of its modulus counts as 0, so that its error is
 # relative to the modulus
-TINY_PART: Final = 2.0**-200
-ARB_PRECS: Final = (128, 256, 512, 1024, 2048)
+TINY_BITS: Final = 200
+# the bits of the Arb references, relative to their modulus, so that the other parts have 64
+# (more than the 53 of binary64)
+ARB_PREC: Final = 64 + TINY_BITS
+# the magnitude of a signed zero imaginary argument for Arb, for the side of a branch cut: far
+# below what its working precision resolves
+ARB_ZERO: Final = flint.arb(2) ** -(2 * specs.ARB_MAX_PREC)
 # seconds per reference, so that a few slow ones cannot stall a run
 REF_TIMEOUT: Final = 10
 CACHE: Final = accuracy.CACHE / "diff-fuzz"
 TSV: Final = accuracy.CACHE / "diff-fuzz.tsv"
-# lines per run of a dump program; a failed run is bisected down to the panicking inputs
+# lines per run of a dump program; a failed run is bisected down to the failing inputs
 CHUNK: Final = 1000
 NEAR_ROUNDS: Final = 3
 
@@ -91,48 +101,37 @@ SPECIAL: Final = (0.0, -0.0, 1.0, -1.0, 0.5, -0.5, 2.0, -2.0, 5e-324, 1e-300, 1e
 SPECIAL_NONFINITE: Final = (math.inf, -math.inf, math.nan)
 
 type Args = tuple[float, ...]
-type Value = Args | None  # None for a panic or a timeout
+type Value = complex | str  # a result, or "unsupported", "panic" or "timeout"
+type Ref = list[str] | str  # the parts of a reference, or why there is none
 
 
-def build(manifest: Path, target: Path | None = None) -> Path:
-    """Build a dump program in release mode; returns its path."""
-    cmd = ["cargo", "build", "--release", "--manifest-path", str(manifest)]
-    cmd.append("--message-format=json-render-diagnostics")
-    env = os.environ | ({} if target is None else {"CARGO_TARGET_DIR": str(target)})
-    out = subprocess.run(
-        cmd, capture_output=True, text=True, check=True, env=env
-    ).stdout
-    exes = [m.get("executable") for m in map(json.loads, out.splitlines())]
-    return Path([e for e in exes if e][-1])
-
-
-def program(rev: str | None) -> Path:
+def program(rev: str | None) -> str:
     """The dump program of the working tree (`rev` None), or of a commit (cached)."""
     if rev is None:
-        return build(accuracy.HERE / "Cargo.toml")
+        return accuracy.build_rust()
     git = ["git", "-C", str(accuracy.ROOT)]
     sha = subprocess.check_output(
         [*git, "rev-parse", f"{rev}^{{commit}}"], text=True
-    ).strip()[:12]
+    ).strip()
     exe = CACHE / f"xsf-accuracy-{sha}"
     if not exe.exists():
-        accuracy.log(f"building {rev} ({sha})")
-        # (a source directory per commit, since cargo would take the old mtimes of the
-        # exported files for a fresh build of another commit, and a target directory of its
-        # own, since the program of the working tree has the same name)
-        src = CACHE / f"src-{sha}"
-        tar = subprocess.check_output([*git, "archive", sha])
-        with tarfile.open(fileobj=io.BytesIO(tar)) as tf:
-            tf.extractall(src, filter="data")
-        shutil.copy2(
-            build(src / "tools" / "accuracy" / "Cargo.toml", CACHE / "target"), exe
-        )
-        shutil.rmtree(src)
-    return exe
+        accuracy.log(f"building {rev} ({sha[:12]})")
+        # (outside the working tree, so that cargo takes no config from it, and published by a
+        # rename, for concurrent runs)
+        with tempfile.TemporaryDirectory() as tmp:
+            tar = subprocess.check_output([*git, "archive", sha])
+            with tarfile.open(fileobj=io.BytesIO(tar)) as tf:
+                tf.extractall(tmp, filter="data")
+            built = accuracy.build_rust(Path(tmp), Path(tmp) / "target")
+            fd, part = tempfile.mkstemp(dir=CACHE)
+            os.close(fd)
+            shutil.copy2(built, part)
+            os.replace(part, exe)
+    return str(exe)
 
 
-def evaluate(exe: Path, lines: list[str]) -> list[Value]:
-    """The results of the input lines, or None where the program fails on them."""
+def evaluate(exe: str, lines: list[tuple[str, Args]]) -> list[Value]:
+    """The results of the input lines, or why the program fails on them."""
     if len(lines) > CHUNK:
         return [
             v
@@ -140,39 +139,30 @@ def evaluate(exe: Path, lines: list[str]) -> list[Value]:
             for v in evaluate(exe, lines[i : i + CHUNK])
         ]
     try:
-        out = subprocess.run(
-            [str(exe), "xsf"],
-            input="".join(lines),
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10 + 0.02 * len(lines),
-        ).stdout
-        return [tuple(map(float, line.split())) for line in out.splitlines()]
-    except subprocess.CalledProcessError, subprocess.TimeoutExpired:
-        if len(lines) == 1:
-            return [None]
-        mid = len(lines) // 2
-        return evaluate(exe, lines[:mid]) + evaluate(exe, lines[mid:])
+        timeout = 10 + 0.02 * len(lines)
+        return list[Value](accuracy.run([exe, "xsf"], lines, timeout))
+    except subprocess.CalledProcessError as e:
+        fail = "unsupported" if "unknown function" in e.stderr else "panic"
+    except subprocess.TimeoutExpired:
+        fail = "timeout"
+    if len(lines) == 1:
+        return [fail]
+    mid = len(lines) // 2
+    return evaluate(exe, lines[:mid]) + evaluate(exe, lines[mid:])
 
 
-@dataclass(frozen=True)
-class Case:
+class Case(NamedTuple):
     fuzzer: Fuzzer
     args: Args
     # a parameter i set to sum(sign * args[j]) + offset, as (i, [(sign, j), ...], offset)
     rel: tuple[int, list[tuple[int, int]], float] | None = None
-
-    @property
-    def line(self) -> str:
-        return f"{self.fuzzer.name} {' '.join(map(repr, self.args))}\n"
 
     def related(self, a: list[float]) -> Case:
         """The case of the arguments `a`, with the parameter of `rel` set again."""
         if self.rel is not None:
             i, terms, offset = self.rel
             a[i] = sum(s * a[j] for s, j in terms) + offset
-        return Case(self.fuzzer, tuple(a), self.rel)
+        return self._replace(args=tuple(a))
 
 
 class Fuzzer:
@@ -180,29 +170,28 @@ class Fuzzer:
 
     def __init__(self, spec: specs.Spec, dom: specs.Domain, rng: random.Random) -> None:
         self.dom, self.name = dom, dom.call or spec.func
-        # the integer arguments (by their distribution, or for a sampler, by its samples) stay
+        # the arguments that are mutated (of an array, its first element), but not the integers
+        # (by their distribution, or for a sampler, by its samples)
+        n = len(spec.args)
         samples = [dom.sample(rng) for _ in range(20)]
-        n = len(samples[0])
         dists = dom.dists or [None] * n
         self.free = [
             i
-            for i, d in enumerate(dists)
-            if not isinstance(d, specs.Int | specs.ILU | specs.Each)
-            and not all(s[i] == int(s[i]) for s in samples)
+            for i in range(n)
+            if not isinstance(dists[i], specs.Int | specs.ILU | specs.Each)
+            and not all(s[i].is_integer() for s in samples)
         ]
-        names = spec.args
-        self.imag = [i for i in self.free if names[i] in IMAG]
+        self.imag = [i for i in self.free if spec.args[i] in IMAG]
         # the parameters: all but the complex arguments, or else the last argument
-        last = -1 if spec.complex else n - 1
+        last = -1 if spec.complex else len(spec.args) - 1
         self.params = [
             i
             for i in self.free
-            if i != last and names[i] not in IMAG and i + 1 not in self.imag
+            if i != last and i not in self.imag and i + 1 not in self.imag
         ]
         # what a relation links: the parameters, and a real argument
         self.linked = self.params + [i for i in self.free if i == last]
-        self.bounds = {i: [0.0, 1.0, -1.0, *_bounds(d)] for i, d in enumerate(dists)}
-        self.top = {i: max(map(abs, self.bounds[i])) for i in self.free}
+        self.bounds = {i: [0.0, 1.0, -1.0, *_bounds(dists[i])] for i in self.free}
 
     def sample(self, rng: random.Random) -> Case:
         a = list(self.dom.sample(rng))
@@ -211,7 +200,7 @@ class Fuzzer:
         if (r := rng.random()) < 0.3:
             k = 1 if r < 0.2 else 2
             for i in self.params:
-                a[i] = round(k * a[i]) / k
+                a[i] = round(k * a[i], 0) / k
         # (the arguments more often, e.g. to a singular point)
         for i in self.free:
             if rng.random() < (0.25 if i in self.params else 0.5):
@@ -228,7 +217,7 @@ class Fuzzer:
     def near(self, rng: random.Random, case: Case) -> Case:
         """A mutant of `case` with one or two changes."""
         a, rel = list(case.args), case.rel
-        for _ in range(rng.randint(1, 2)):
+        for _ in range(rng.randint(1, 2) if self.free else 0):
             i, j = rng.choice(self.free), rng.choice(self.free)
             match rng.randrange(4):
                 case 0:
@@ -266,12 +255,13 @@ class Fuzzer:
         weights = (2, 2, 2, 2, 1, 0.2) if i in self.params else (1, 1, 1, 4, 1, 0.2)
         match rng.choices(range(6), weights)[0]:
             case 0:
-                mag = 10 ** rng.uniform(-8, math.log10(max(self.top[i], 1.0)) + 2)
+                top = math.log10(max(*map(abs, self.bounds[i]), 1.0)) + 2
+                mag = 10 ** min(rng.uniform(-8, top), sys.float_info.max_10_exp)
                 return rng.choice((-1, 1)) * mag
             case 1:
-                return _nudge(rng, round(x))
+                return _nudge(rng, round(x, 0))
             case 2:
-                return _nudge(rng, round(2 * x) / 2)
+                return _nudge(rng, round(2 * x, 0) / 2)
             case 3:
                 return _nudge(rng, rng.choice(self.bounds[i]))
             case 4:
@@ -303,13 +293,17 @@ def _nudge(rng: random.Random, t: float) -> float:
     return t + _small(rng) * max(1.0, abs(t)) if math.isfinite(t) else t
 
 
+def _parts(y: complex) -> tuple[float, ...]:
+    return (y.real, y.imag) if isinstance(y, complex) else (y,)
+
+
 def diffs(x: Value, y: Value) -> list[float]:
     """How much the parts of two results differ: 0 if by at most `RTOL` relative to the larger,
     `RTOL` for zeros of different signs, else their relative difference, or infinity if they
-    differ in kind (NaN, infinite, zero, or a panic)."""
-    if x is None or y is None:
+    differ in kind (NaN, infinite, zero, or a failure)."""
+    if isinstance(x, str) or isinstance(y, str):
         return [0.0 if x == y else math.inf]
-    return list(map(_diff, x, y))
+    return list(map(_diff, _parts(x), _parts(y)))
 
 
 def _diff(u: float, v: float) -> float:
@@ -323,51 +317,24 @@ def _diff(u: float, v: float) -> float:
     return d if d > RTOL else 0.0
 
 
-def _arb(name: str, args: Args) -> list[str] | None:
-    """The Arb value at the lowest of `ARB_PRECS` where each part is accurate, or tiny."""
-    spec = specs.BY_NAME[name]
-    # (a signed zero imaginary part as a tiny one, for the side of a branch cut)
-    args_arb = [
-        math.copysign(1, x) * flint.arb(2) ** -(2 * ARB_PRECS[-1])
-        if x == 0 and arg in IMAG
-        else flint.arb(x)
-        for x, arg in zip(args, spec.args, strict=True)
-    ]
-    for prec in ARB_PRECS:
-        with flint.ctx.workprec(prec):
-            y = flint.acb(ARB[name](*args_arb))
-        parts = [y.real, y.imag] if spec.complex else [y.real]
-        if not all(p.is_finite() for p in parts):
-            continue
-        mod = abs(y).abs_lower()
-        if all(
-            p.rel_accuracy_bits() >= 64
-            or (p.contains(0) and p.abs_upper() <= TINY_PART * mod)
-            or p.is_zero()
-            for p in parts
-        ) and (mod > 0 or y.is_zero()):
-            return [p.mid().str(40, radius=False) for p in parts]
-    return None
-
-
-def _cap_timeouts() -> None:
-    for spec in specs.BY_NAME.values():
-        spec.timeout = min(spec.timeout, REF_TIMEOUT)
-
-
-def ref_task(task: tuple[str, Args]) -> list[str] | str:
+def ref_task(task: tuple[str, Args]) -> Ref:
     """The reference (its parts), or why there is none."""
     name, args = task
+    spec = specs.BY_NAME[name]
     if name in ARB:
-        signal.signal(signal.SIGALRM, accuracy._alarm)
-        signal.alarm(specs.BY_NAME[name].timeout)
-        try:
-            if (y := _arb(name, args)) is not None:
-                return y
-        except accuracy.Timeout:
-            return "timeout"
-        finally:
-            signal.alarm(0)
+        xs = [
+            math.copysign(1, x) * ARB_ZERO if x == 0 and arg in IMAG else flint.arb(x)
+            for x, arg in zip(args, spec.args, strict=True)
+        ]
+        y = specs.arb_ball(lambda: flint.acb(ARB[name](*xs)), ARB_PREC)
+        if y is not None:
+            if spec.complex:
+                parts = [y.real, y.imag]
+            elif y.imag.contains(0):
+                parts = [y.real]
+            else:  # (a complex continuation)
+                return ["nan"]
+            return [p.mid().str(40, radius=False) for p in parts]
     match accuracy.ref_task(task):
         case [list(v), _]:
             return v
@@ -377,30 +344,79 @@ def ref_task(task: tuple[str, Args]) -> list[str] | str:
             return str(e)
 
 
+def _worker(conn: Connection) -> None:
+    # (until the parent closes its end)
+    with contextlib.suppress(EOFError):
+        while True:
+            conn.send(ref_task(conn.recv()))
+
+
+class Refs:
+    """Worker processes for `ref_task`, each killed and replaced when a reference takes longer
+    than `REF_TIMEOUT` (or the timeout of its spec)."""
+
+    def __init__(self, n: int) -> None:
+        self.n = n
+        self.idle: list[tuple[multiprocessing.Process, Connection]] = []
+
+    def map(self, tasks: list[tuple[str, Args]]) -> list[Ref]:
+        out: list[Ref] = ["timeout"] * len(tasks)
+        todo = list(enumerate(tasks))[::-1]
+        busy: dict[Connection, tuple[multiprocessing.Process, int, float]] = {}
+        while todo or busy:
+            while todo and len(busy) < self.n:
+                proc, conn = self.idle.pop() if self.idle else _start()
+                i, task = todo.pop()
+                conn.send(task)
+                limit = min(specs.BY_NAME[task[0]].timeout, REF_TIMEOUT)
+                busy[conn] = proc, i, time.monotonic() + limit
+            first = min(t for _, _, t in busy.values())
+            ready = wait(list(busy), max(first - time.monotonic(), 0))
+            for conn in [c for c in busy if c in ready]:
+                proc, i, _ = busy.pop(conn)
+                try:
+                    out[i] = conn.recv()
+                    self.idle.append((proc, conn))
+                except EOFError:
+                    out[i] = "worker died"
+            now = time.monotonic()
+            for conn, (proc, _, t) in list(busy.items()):
+                if t <= now:
+                    proc.kill()
+                    del busy[conn]
+        return out
+
+
+def _start() -> tuple[multiprocessing.Process, Connection]:
+    conn, child = multiprocessing.Pipe()
+    proc = multiprocessing.Process(target=_worker, args=(child,), daemon=True)
+    proc.start()
+    return proc, conn
+
+
 def error(y: Value, ref: list[str], parts: list[bool]) -> float:
-    """The largest relative error of the given parts, where the parts of `ref` below `TINY_PART`
-    of its modulus are relative to that."""
-    if y is None:
+    """The largest relative error of the given parts from those of `ref` rounded to binary64,
+    where the parts below 2^-TINY_BITS of the modulus (of the finite rounded parts) count as 0
+    and their errors are relative to that."""
+    if isinstance(y, str):
         return math.inf
-    f = [mp.mpf(v) for v in ref]
-    mod = mp.sqrt(sum(v * v for v in f))
-    errs = []
-    for u, v, part in zip(y, f, parts, strict=True):
-        if not part:
-            continue
-        if abs(v) <= TINY_PART * mod:
-            v = mp.mpf(0)
-        if math.isnan(u):
-            errs.append(math.inf)
-        elif abs(v) > accuracy.DBL_MAX:
-            errs.append(0.0 if math.isinf(u) and (u > 0) == (v > 0) else math.inf)
-        elif math.isinf(u):
-            errs.append(math.inf)
-        elif abs(v) < accuracy.DBL_MIN and abs(u) < accuracy.DBL_MIN:
-            errs.append(0.0)
-        else:
-            errs.append(float(abs(u - v) / max(abs(v) or mod, accuracy.DBL_MIN)))
-    return max(errs, default=0.0)
+    mod = mp.sqrt(sum(mp.mpf(r) ** 2 for r in map(float, ref) if math.isfinite(r)))
+    return max(
+        (_error(u, s, mod) for u, s, p in zip(_parts(y), ref, parts, strict=True) if p),
+        default=0.0,
+    )
+
+
+def _error(u: float, s: str, mod: mp.mpf) -> float:
+    r, v = float(s), mp.mpf(s)  # (r correctly rounded)
+    if not (math.isfinite(u) and math.isfinite(r)):
+        return 0.0 if u == r or (math.isnan(u) and math.isnan(r)) else math.inf
+    if abs(v) <= mp.ldexp(mod, -TINY_BITS):
+        return float(abs(u) / mod) if mod else (0.0 if u == 0 else math.inf)
+    if r == 0:  # (an underflow, whose sign is that of v)
+        same = u == 0 and math.copysign(1, u) == math.copysign(1, r)
+        return 0.0 if same else float(abs(u - v) / abs(v))
+    return abs(u - r) / abs(r)
 
 
 def classify(eb: float, eh: float) -> str:
@@ -411,26 +427,8 @@ def classify(eb: float, eh: float) -> str:
     return "both wrong" if min(eb, eh) > FLOOR else "both right"
 
 
-def spread(rng: random.Random, todo: list[int], cases: list[Case]) -> list[int]:
-    """The cases `todo` in a random order that takes one of each cell in turn: of the same
-    signs and magnitudes (in steps of 16, from 2^-12 to 2^12) of the arguments."""
-
-    def cell(x: float) -> object:
-        if not math.isfinite(x) or x == 0:
-            return x
-        return x > 0, min(max(math.floor(math.log2(abs(x)) / 4), -3), 3)
-
-    ranks: dict[object, int] = {}
-    order = {}
-    for i in rng.sample(todo, len(todo)):
-        key = (cases[i].fuzzer, *map(cell, cases[i].args))
-        ranks[key] = ranks.get(key, -1) + 1
-        order[i] = ranks[key]
-    return sorted(todo, key=order.__getitem__)
-
-
 def show(y: Value) -> str:
-    return "panic" if y is None else " ".join(map(repr, y))
+    return y if isinstance(y, str) else " ".join(map(repr, _parts(y)))
 
 
 class Verdict(NamedTuple):
@@ -441,24 +439,23 @@ class Verdict(NamedTuple):
 
 
 def check(
-    pool: Pool,
+    refs: Refs,
     spec: specs.Spec,
     cases: list[Case],
     ys: list[list[Value]],
     todo: list[int],
 ) -> dict[int, Verdict]:
     """Compare the results of the cases `todo` with their references."""
-    refs = pool.map(ref_task, [(spec.name, cases[i].args) for i in todo], chunksize=1)
     out: dict[int, Verdict] = {}
-    for i, ref in zip(todo, refs, strict=True):
+    tasks = [(spec.name, cases[i].args) for i in todo]
+    for i, ref in zip(todo, refs.map(tasks), strict=True):
         if isinstance(ref, str):
             out[i] = Verdict("no ref", [], math.nan, math.nan)
             continue
         # (only the parts that differ, e.g. not the real part if only the sign of a zero
         # imaginary part does)
         x, y = ys[0][i], ys[1][i]
-        both = x is not None and y is not None
-        parts = [d > 0 for d in diffs(x, y)] if both else [True] * len(ref)
+        parts = [d > 0 for d in diffs(x, y)]
         eb, eh = error(x, ref, parts), error(y, ref, parts)
         out[i] = Verdict(classify(eb, eh), ref, eb, eh)
     return out
@@ -468,52 +465,59 @@ def fuzz(
     spec: specs.Spec,
     opts: argparse.Namespace,
     run: Callable[[list[Case]], list[list[Value]]],
-    pool: Pool,
+    refs: Refs,
 ) -> tuple[list[str | int], list[str]] | None:
-    """The row of the table and the TSV lines of the regressions, or None if a revision fails
-    on an unmutated sample (e.g. lacks the function)."""
+    """The row of the table and the TSV lines of the regressions, or None if a revision lacks
+    the function."""
     rng = random.Random(f"{opts.seed}:{spec.name}")
     fuzzers = [Fuzzer(spec, dom, rng) for dom in spec.domains]
     cases = [Case(fuzzers[0], spec.domains[0].sample(rng))]
-    cases += [f.sample(rng) for f in rng.choices(fuzzers, k=opts.cases)]
     ys = run(cases)
-    if ys[0][0] is None or ys[1][0] is None:
+    if "unsupported" in (ys[0][0], ys[1][0]):
         return None
 
     def diff(i: int) -> float:
         return max(diffs(ys[0][i], ys[1][i]))
 
-    seen: set[Args] = set()
+    def failed(i: int) -> bool:
+        return isinstance(ys[0][i], str) != isinstance(ys[1][i], str)
+
+    seen: set[tuple[str, bytes]] = set()
     flagged: list[int] = []
     checked: dict[int, Verdict] = {}
-    done = 0
     for r in range(NEAR_ROUNDS + 1):
-        for i in range(done, len(cases)):
-            if cases[i].args not in seen:
-                seen.add(cases[i].args)
-                if diff(i):
-                    flagged.append(i)
-        done = len(cases)
-        # a share of the references: for those that differ in kind first, then spread over the
-        # cells of the inputs, since most can be in one region
-        todo = spread(rng, [i for i in flagged if i not in checked], cases)
-        todo.sort(key=lambda i: diff(i) < math.inf)
-        share = (opts.max_refs - len(checked)) // (NEAR_ROUNDS + 1 - r)
-        checked |= check(pool, spec, cases, ys, todo[:share])
-        if r == NEAR_ROUNDS:
-            break
         # mutants of the regressions, and of the flagged inputs, but not of those that only
         # differ in the sign of a zero, which can be many
         worse = [cases[i] for i, v in checked.items() if v.kind == "regressed"]
         other = [cases[i] for i in flagged if diff(i) > RTOL]
         seeds = rng.choices(worse, k=opts.cases // 2) if worse else []
         seeds += rng.choices(other, k=opts.cases - len(seeds)) if other else []
-        if seeds:
-            more = [c.fuzzer.near(rng, c) for c in seeds]
-        else:  # (nothing to mutate yet)
-            more = [f.sample(rng) for f in rng.choices(fuzzers, k=opts.cases)]
+        if not seeds:  # (nothing to mutate yet)
+            seeds = [f.sample(rng) for f in rng.choices(fuzzers, k=opts.cases)]
+        more = [c.fuzzer.near(rng, c) for c in seeds] if r else seeds
+        done = len(cases) if r else 0
         cases += more
         ys = [y + z for y, z in zip(ys, run(more), strict=True)]
+        for i in range(done, len(cases)):
+            c = cases[i]
+            key = (c.fuzzer.name, struct.pack(f"{len(c.args)}d", *c.args))
+            if key not in seen:
+                seen.add(key)
+                if diff(i):
+                    flagged.append(i)
+        # a panic or timeout of one revision needs no reference; then a share of the others,
+        # those that differ in kind first
+        for i in flagged:
+            if failed(i) and i not in checked:
+                eb, eh = (
+                    (math.inf, 0.0) if isinstance(ys[0][i], str) else (0.0, math.inf)
+                )
+                checked[i] = Verdict(classify(eb, eh), [], eb, eh)
+        todo = [i for i in flagged if i not in checked]
+        rng.shuffle(todo)
+        todo.sort(key=lambda i: diff(i) < math.inf)
+        share = max(opts.max_refs - len(checked), 0) // (NEAR_ROUNDS + 1 - r)
+        checked |= check(refs, spec, cases, ys, todo[:share])
 
     n = Counter(v.kind for v in checked.values())
     row = [spec.name, len(seen), len(flagged), *(n[c] for c in COLUMNS[3:-1])]
@@ -526,7 +530,7 @@ def fuzz(
         "\t".join(
             [
                 spec.name,
-                show(cases[i].args),
+                " ".join(map(repr, cases[i].args)),
                 show(ys[0][i]),
                 show(ys[1][i]),
                 " ".join(mp.nstr(mp.mpf(p), 17) for p in v.ref),
@@ -563,19 +567,19 @@ def main() -> None:
     threads = concurrent.futures.ThreadPoolExecutor(len(exes))
 
     def run(cases: list[Case]) -> list[list[Value]]:
-        lines = [c.line for c in cases]
+        lines = [(c.fuzzer.name, c.args) for c in cases]
         return list(threads.map(evaluate, exes, [lines] * len(exes)))
 
     rows: list[list[str | int]] = []
     regressions: list[str] = []
-    with multiprocessing.Pool(opts.jobs, _cap_timeouts) as pool:
-        for spec in chosen:
-            if (res := fuzz(spec, opts, run, pool)) is None:
-                accuracy.log(f"{spec.name}: skipped, since a revision fails on it")
-                continue
-            rows.append(res[0])
-            regressions += res[1]
-            accuracy.log("  ".join(map(str, res[0])))
+    refs = Refs(opts.jobs)
+    for spec in chosen:
+        if (res := fuzz(spec, opts, run, refs)) is None:
+            accuracy.log(f"{spec.name}: skipped, since a revision lacks it")
+            continue
+        rows.append(res[0])
+        regressions += res[1]
+        accuracy.log("  ".join(map(str, res[0])))
 
     widths = [
         max(len(str(r[j])) for r in [COLUMNS, *rows]) for j in range(len(COLUMNS))

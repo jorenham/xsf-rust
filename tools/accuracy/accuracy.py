@@ -31,6 +31,7 @@ import itertools
 import json
 import math
 import multiprocessing
+import os
 import platform
 import random
 import signal
@@ -130,17 +131,30 @@ def build_cpp() -> list[str]:
     return [str(exe)]
 
 
-def build_rust() -> list[str]:
-    opts = ["--release", "--quiet", "--manifest-path", str(HERE / "Cargo.toml")]
-    subprocess.run(["cargo", "build", *opts], check=True)
-    return ["cargo", "run", *opts, "--"]
+def build_rust(root: Path = ROOT, target: Path | None = None) -> str:
+    """Build the dump program of the source tree `root` in release mode, in that tree (for its
+    cargo config), and into `target` if given; returns its path."""
+    fmt = "--message-format=json-render-diagnostics"
+    env = os.environ | ({} if target is None else {"CARGO_TARGET_DIR": str(target)})
+    out = subprocess.run(
+        ["cargo", "build", "--release", "--quiet", fmt],
+        cwd=root / HERE.relative_to(ROOT),
+        env=env,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout
+    msgs = map(json.loads, out.splitlines())
+    return [m["executable"] for m in msgs if m.get("executable")][-1]
 
 
-def run(cmd: list[str], lines: list[tuple[str, Args]]) -> list[complex]:
+def run(
+    cmd: list[str], lines: list[tuple[str, Args]], timeout: float | None = None
+) -> list[complex]:
     """Feed `<name> <args>...` lines to a dump program; return the f64 (or complex) results."""
     inp = "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
     out = subprocess.run(
-        cmd, input=inp, capture_output=True, text=True, check=True
+        cmd, input=inp, capture_output=True, text=True, check=True, timeout=timeout
     ).stdout
     res: list[complex] = []
     for line in out.splitlines():
@@ -658,9 +672,9 @@ def main() -> None:
     )
     rust = build_rust()
     outs: dict[str, Iterator[complex]] = {
-        "rust": iter(run([*rust, "xsf"], lines("rust"))),
+        "rust": iter(run([rust, "xsf"], lines("rust"))),
         "cpp": iter(run(build_cpp(), lines("cpp"))),
-        "std": iter(run([*rust, "std"], lines("std"))),
+        "std": iter(run([rust, "std"], lines("std"))),
     }
 
     refs = compute_refs(jobs, not opts.no_cache, opts.jobs)

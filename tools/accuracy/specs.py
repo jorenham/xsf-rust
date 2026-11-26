@@ -890,16 +890,28 @@ def r_ellip_normal(h2, k2, n, p):
     return 8 * (j(2) * i_(0) - j(0) * i_(2))
 
 
+ARB_MAX_PREC: Final = 2**14
+
+
+def arb_ball(f, prec):
+    """The Arb ball `f()`, with increasing working precision from `prec` bits until it is
+    accurate to `prec` bits; None if it is not by `ARB_MAX_PREC`."""
+    wp = prec
+    while wp <= ARB_MAX_PREC:
+        with flint.ctx.workprec(wp):
+            y = f()
+        if y.rel_accuracy_bits() >= prec:
+            return y
+        wp *= 2
+    return None
+
+
 def _arb(name, *args):
     """`ARB[name]` with increasing precision, until it is accurate to the working precision."""
-    prec = mp.mp.prec
-    while prec <= 2**14:
-        with flint.ctx.workprec(prec):
-            y = ARB[name](*map(flint.arb, args))
-        if y.rel_accuracy_bits() >= mp.mp.prec:
-            return mp.mpf(y)
-        prec *= 2
-    raise NoConvergence
+    y = arb_ball(lambda: ARB[name](*map(flint.arb, args)), mp.mp.prec)
+    if y is None:
+        raise NoConvergence
+    return mp.mpf(y)
 
 
 def _hyp0f1_series(b, z):
