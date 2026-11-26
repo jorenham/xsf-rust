@@ -197,6 +197,62 @@ fn test_hyp2f1_c64_transform2_euler() {
     }
 }
 
+#[test]
+fn test_hyp2f1_c64_inverse_lopez_temme() {
+    // The 1/z terms cancel, but the Lopez-Temme series does not. Arb at the binary64 inputs.
+    for (a, b, c, z, expected) in [
+        (
+            15.75,
+            16.5,
+            32.625,
+            c64(0.75, 1.0),
+            c64(-1.587_295_690_150_468_2, -4.321_281_223_476_627),
+        ),
+        (
+            27.048,
+            29.901,
+            46.704,
+            c64(-1.483_752_897_983_188, 0.369_995_905_609_408_26),
+            c64(-3.999_435_224_208_415e-8, 9.445_129_048_405_783e-9),
+        ),
+        (
+            4.551,
+            9.229,
+            40.233,
+            c64(0.487_808_055_590_822_96, -1.306_392_206_115_161_6),
+            c64(0.109_329_995_590_975_23, -1.193_178_024_137_373_5),
+        ),
+        // With a < 0 the paired Lopez-Temme sum does not apply, so keep the 1/z sum.
+        (
+            -10.5,
+            -32.75,
+            -60.25,
+            c64(0.0, 12.0),
+            c64(-74_172_362.262_856_14, 60_548_017.841_367_66),
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            assert!(
+                (actual - expected).norm() <= 2e-14 * expected.norm(),
+                "hyp2f1({a}, {b}, {c}, {z}) = {actual} != {expected}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_tiny_imag() {
+    // The imaginary part of the Lopez-Temme prefactor underflows, so keep the 1/z sum.
+    // Arb at the binary64 inputs, compared componentwise.
+    let z = c64(-2.0, 2.0_f64.powi(-970));
+    let expected = c64(1.415_783_188_282_483_4e-5, 4.484_815_861_380_78e-297);
+    for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+        let actual = xsf::hyp2f1(128.25, 8.75, 100.125, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-14);
+    }
+}
+
 /// Compares each component, so that a small one is checked too.
 fn assert_components_close(actual: num_complex::Complex64, expected: num_complex::Complex64) {
     np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 3e-15);

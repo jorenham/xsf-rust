@@ -68,6 +68,9 @@ const HYP2F1_EPS: f64 = 1e-15;
  * at a reasonable level of accuracy. We've bumped the iteration limit to 3000,
  * and may adjust it again based on further analysis. */
 const HYP2F1_MAXITER: u64 = 3000;
+// Unlike in xsf, bound the work of the optional Lopez-Temme retry in `hyp2f1_inverse` by the
+// smaller limit of Zhang and Jin.
+const LOPEZ_TEMME_RETRY_MAXITER: u64 = 500;
 
 /// `tools::series_eval` with the tolerance and term limit of hyp2f1
 fn series_eval(g: impl FnMut() -> C64) -> C64 {
@@ -492,13 +495,13 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
     }
     // Unlike in xsf, restart with the single-term rule if the paired sum fails.
-    lopez_temme_paired(a, b, c, z)
-        .unwrap_or_else(|| series_eval(lopez_temme_series_generator(a, b, c, z)))
+    lopez_temme_paired(a, b, c, z, HYP2F1_MAXITER)
+        .map_or_else(|| series_eval(lopez_temme_series_generator(a, b, c, z)), |(sum, _)| sum)
 }
 
-/// The Lopez-Temme series, once a tail bound holds for a pair of terms, or `None` (always unless
-/// a, b > 0 and b < c)
-fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
+/// The Lopez-Temme series and its estimated cancellation, once a tail bound holds for a pair of
+/// terms within `max_terms` terms, or `None` (always unless a, b > 0 and b < c)
+fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64, max_terms: u64) -> Option<(C64, f64)> {
     if !(a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite()) {
         return None;
     }
@@ -507,8 +510,13 @@ fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     // For odd moments, reflection gives a beta-weight difference of fixed sign.
     let w2 = (z / (z - 2.0)).norm_sqr();
     let upper = a.max(1.0);
-    let mut sum = C64::ZERO;
-    for n in (0..HYP2F1_MAXITER - 1).step_by(2) {
+    let ratio = |n: f64| w2 * ((upper + n) / (n + 1.0)) * ((upper + n + 1.0) / (n + 2.0));
+    // The ratio does not increase with n, so no pair can stop if the last one cannot.
+    if ratio((max_terms - 2) as f64) >= 1.0 {
+        return None;
+    }
+    let (mut sum, mut abs_sum) = (C64::ZERO, 0.0);
+    for n in (0..max_terms - 1).step_by(2) {
         let even = terms();
         let odd = terms();
         sum += even;
@@ -516,6 +524,7 @@ fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
         // Unlike in xsf, skip Euclidean norms when the pair is too large to stop.
         // Two bounds sqrt(2) with rounding room; half-MAX keeps the norms finite.
         let pair_abs = even.l1_norm() + odd.l1_norm();
+        abs_sum += pair_abs;
         let sum_abs = sum.l1_norm();
         if pair_abs.max(sum_abs) <= 0.5 * f64::MAX && pair_abs > 2.0 * HYP2F1_EPS * sum_abs {
             continue;
@@ -526,10 +535,9 @@ fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
             return None;
         }
         if last < tol {
-            let n = n as f64;
-            let ratio = w2 * ((upper + n) / (n + 1.0)) * ((upper + n + 1.0) / (n + 2.0));
+            let ratio = ratio(n as f64);
             if last * ratio < tol * (1.0 - ratio) {
-                return Some(sum);
+                return Some((sum, abs_sum / sum_abs));
             }
         }
     }
@@ -1033,18 +1041,43 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         return hyp2f1_transform2_limiting_case(a, b, c, m, z);
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
-    let (result, cancellation) = series_eval_cancellation(series_generator);
+    let (mut result, mut cancellation) = series_eval_cancellation(series_generator);
     if euler {
         // use the one that cancels less
         let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
         let (euler_result, euler_cancellation) = series_eval_cancellation(series_generator);
         if euler_cancellation < cancellation {
             if let Some(euler_result) = euler_scaled(euler_result) {
-                return euler_result;
+                (result, cancellation) = (euler_result, euler_cancellation);
             }
         }
     }
+    // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, also sum the
+    // Lopez-Temme series for Re z < 1 where its tail is bounded.
+    if z.re < 1.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
+        if let Some(value) = hyp2f1_lopez_temme_retry(a, b, c, z, cancellation) {
+            return value;
+        }
+    }
     result
+}
+
+/// F(a, b; c; z) from the Lopez-Temme series, if it cancels less than half as much as the 1/z
+/// series lost to `cancellation` (the estimates use different norms) and its estimated summation
+/// roundoff is below sqrt(EPSILON)
+fn hyp2f1_lopez_temme_retry(a: f64, b: f64, c: f64, z: C64, cancellation: f64) -> Option<C64> {
+    let (p, q, prefactor, euler) = lopez_temme_form(a, b, c, z);
+    // (not if a prefactor component is subnormal or zero, as the result would lose it)
+    let normal = |f: C64| f.re.is_normal() && (f.im.is_normal() || z.is_real());
+    if !normal(prefactor) || !euler.is_none_or(normal) {
+        return None;
+    }
+    let (sum, lt_cancellation) = lopez_temme_paired(p, q, c, z, LOPEZ_TEMME_RETRY_MAXITER)?;
+    let result = prefactor * sum;
+    let value = euler.map_or(result, |euler| euler * result);
+    let roundoff = f64::EPSILON * lt_cancellation;
+    let accurate = 2.0 * lt_cancellation < cancellation && roundoff < f64::EPSILON.sqrt();
+    (accurate && value.norm().is_normal()).then_some(value)
 }
 
 // Unlike in xsf, raise the Ferrers order for F(1/2,1/2;1/2-n;z) (DLMF 14.3.1,
