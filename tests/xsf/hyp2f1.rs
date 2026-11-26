@@ -591,14 +591,20 @@ fn test_hyp2f1_c64_inverse_integer_euler_fallback() {
 }
 
 #[test]
-fn test_hyp2f1_c64_inverse_integer_near_pole() {
-    // a - b is an integer and c - a is near, but not at, one; the 1/z limit then returns NaN or
-    // the Arb value.
+fn test_hyp2f1_c64_inverse_integer_near_pole_finite() {
+    // a - b is an integer and c - a is near, but not at, an integer.
     let z = c64(-1.023_981_775_301_804_3, -1.260_979_692_347_46);
     let actual =
         xsf::hyp2f1(182.117_051_931_292_1, 5.117_051_931_292_097, 186.117_051_956_216_07, z);
+    // (Arb)
     let expected = [-0.011_965_009_978_679_648, -0.003_908_985_103_382_528];
     np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_integer_near_pole() {
+    // a - b is an integer and c - a is near, but not at, one; the 1/z limit then returns NaN or
+    // the Arb value.
     for (a, b, c, z, expected) in [
         (
             213.248_643_689_586_17,

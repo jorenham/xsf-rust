@@ -565,13 +565,13 @@ fn hyp2f1_transform2_limit_series_generator(
         d1 += 1.0 / (1.0 + k_); // d1 = digamma(1 + k)
         d2 += 1.0 / (1.0 + m + k_); // d2 = digamma(1 + m + k)
         let ak = a + k_;
-        // Unlike in xsf, restart d3 past a near pole of digamma(a + k), as the recurrence would
-        // keep the rounding error of 1/(a + k) in every later term.
+        // Unlike in xsf, restart d3 = digamma(a + k) when a + k is within 1/2 of its pole at 0, as
+        // the recurrence keeps the rounding error of 1/(a + k) in every later term.
         d3 = if (-0.5..0.5).contains(&ak) {
             digamma(ak + 1.0)
         } else {
             d3 + 1.0 / ak
-        }; // d3 = digamma(a + k)
+        };
         let s = c - a - k_ - 1.0;
         d4 -= 1.0 / s; // d4 = digamma(c - a - k)
         // Unlike in xsf, take 1 - c + b + m as 1 - c + a, so that the zero of the factor cancels
