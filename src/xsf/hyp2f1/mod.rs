@@ -1082,29 +1082,44 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<Canc
     }
     let w = 1.0 - z;
     let log_power = w.ln() * d;
+    let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
+    let log_ratio = log_ratio - digamma_integral(b, d); // log(A_0 / B_0)
+    let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
+    hyp2f1_paired((a, b), 0.0, d, w, log_ratio, log_power, prefactor)
+}
+
+/// `prefactor` times the sum of w^k B_k expm1(log_ratio + log(A_k / B_k) - log_power) over k,
+/// with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k), and
+/// its estimated cancellation as in `series_eval_cancellation`, where that is accurate
+fn hyp2f1_paired(
+    (a, b): (f64, f64),
+    m: f64,
+    d: f64,
+    w: C64,
+    mut log_ratio: f64,
+    log_power: C64,
+    prefactor: C64,
+) -> Option<Cancelled> {
     // The phase of w^d must not underflow before the prefactor restores its scale.
-    if z.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE {
+    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE {
         return None;
     }
-    let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
-    let mut log_ratio = log_ratio - digamma_integral(b, d); // log(A_k / B_k)
     if !log_ratio.is_finite() {
         return None;
     }
-    let mut upper = C64::ONE; // B_k w^k / B_0
+    let mut upper = C64::ONE; // w^k B_k
     let mut k = 0.0;
     let series = series_eval_settled(|| {
         let term = upper * crate::xsf::cexpm1(log_ratio - log_power);
         let (p, q, n) = (a + k, b + k, k + 1.0);
         let (shifted, nd) = ((p + d) * (q + d), n - d);
         // A_k+1 / B_k+1 = (A_k / B_k) (1 + d step)
-        let step = (2.0 * p * q - (p + q + d) * nd) / (nd * shifted);
+        let step = ((1.0 + n / (n + m)) * p * q - (p + q + d) * nd) / (nd * shifted);
         log_ratio += (d * step).ln_1p();
-        upper *= w * (shifted / (n * (n + d)));
+        upper *= w * (shifted / (n * (n + m + d)));
         k = n;
         term
     });
-    let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
     let value = series.value * prefactor;
     // An underflowed prefactor loses the scale, and a product whose imaginary part cancels by
     // more than 1 / |d| loses more than the unpaired series.
