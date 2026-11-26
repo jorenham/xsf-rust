@@ -1,3 +1,5 @@
+use std::f64::consts::FRAC_PI_4;
+
 use num_complex::c64;
 use xsref::np_assert_allclose;
 
@@ -787,11 +789,12 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
             np_assert_allclose!([actual.re, actual.im], [re, sign * im], rtol = 1e-14);
         }
     }
-    // An integer a - b with a tiny a, whose Maclaurin terms at 1/2 decay and then grow
+    // An integer a - b with a tiny a, and an imaginary part below the error bound
     let actual =
         xsf::hyp2f1(1e-20, 150.0, 112.5, c64(1.156_055_063_705_178_3, 0.340_986_535_059_630_6));
     np_assert_allclose!([actual.re, actual.im], [1.0, 2.447_334_736_479_153_5e-20], rtol = 1e-14);
     // If finite, then accurate.
+    let tiny = 2.0_f64.powi(-538);
     for (a, b, c, x, y, re, im) in [
         (1.25, 331.25, 128.125, 1.0625, 0.3125, -7.248_754_802_291_216_5, -184.468_986_796_544_4),
         (
@@ -805,14 +808,27 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
         ),
         (0.5, 0.5, 10_000.5, 1.125, 0.125, 1.000_028_127_109_545_5, 3.125_634_892_208_265e-6),
         (0.5, 0.5, 1e100, 1.125, 0.125, 1.0, 3.125e-102),
+        // (a b underflows)
+        (tiny, tiny, 5e-324, 1.125, 0.125, 1.433_216_987_849_965_9, 0.589_048_622_548_086_2),
+        (
+            2.0 * tiny,
+            3.0 * tiny,
+            5e-324,
+            1.125,
+            0.125,
+            3.599_301_927_099_795,
+            3.534_291_735_288_517_3,
+        ),
+        (tiny, tiny, 5e-324, 1.125, 0.0, 1.519_860_385_419_959, FRAC_PI_4),
+        (tiny, tiny, 5e-324, 1.125, -0.0, 1.519_860_385_419_959, -FRAC_PI_4),
     ] {
         let actual = xsf::hyp2f1(a, b, c, c64(x, y));
         if actual.is_finite() {
             np_assert_allclose!([actual.re, actual.im], [re, im], rtol = 1e-13);
         }
     }
-    // A weak imaginary part on both lips of the cut keeps its sign.
-    for y in [0.0_f64, -0.0] {
+    // A weak imaginary part on both lips of the cut, and just off it, keeps its sign.
+    for y in [0.0_f64, -0.0, 1e-100, -1e-100] {
         let actual = xsf::hyp2f1(0.5, 0.5, 20.5, c64(1.125, y));
         np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 1e-11);
         assert_eq!(actual.im.is_sign_negative(), y.is_sign_negative(), "{actual}");
