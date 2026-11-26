@@ -998,8 +998,7 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (S
 fn sum_scaled_parts(parts: [(C64, f64, f64); 2]) -> (ScaledC64, f64) {
     let exponent = parts
         .iter()
-        .filter(|(part, ..)| *part != C64::ZERO)
-        .map(|&(.., exponent)| exponent)
+        .filter_map(|&(part, _, exponent)| (part != C64::ZERO).then_some(exponent))
         .reduce(f64::max)
         .unwrap_or(0.0);
     let [(first, first_abs), (second, second_abs)] =
@@ -1805,12 +1804,10 @@ fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
     hyp2f1_continuation(a, b, c, z, estimate).unwrap_or_else(|| {
         // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
         // reduce a and b, if usable.
-        let fallback = if !euler && result.is_nan() {
-            hyp2f1_inverse_euler_limit(a, b, c, m, z)
-        } else {
-            None
-        };
-        fallback
+        if euler || !result.is_nan() {
+            return result;
+        }
+        hyp2f1_inverse_euler_limit(a, b, c, m, z)
             .filter(|l| l.is_usable())
             .map_or(result, |l| l.value)
     })
