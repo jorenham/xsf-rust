@@ -170,8 +170,7 @@ fn within<T: Into<Complex64>>(
 }
 
 /// `(n, c, x)` for the real `hyp2f1(-n, b, c, x)`, but not where it is known to be inaccurate:
-/// `2 < n < 10` with `|c| + 1 < n` (#2261), and `n >= 10` with `x > 1`, where `x` is negated
-/// (#2258)
+/// `2 < n < 10` with `|c| + 1 < n` (#2261)
 fn real_hyp2f1_args() -> impl Strategy<Value = (u32, f64, f64)> {
     (0..=MAX_N).prop_flat_map(|n| {
         let min_c = if 2 < n && n < 10 {
@@ -180,8 +179,7 @@ fn real_hyp2f1_args() -> impl Strategy<Value = (u32, f64, f64)> {
             0
         };
         let c = (any::<bool>(), eighths(min_c..=256)).prop_map(|(neg, c)| if neg { -c } else { c });
-        let x = moderate().prop_map(move |x| if n >= 10 && x > 1.0 { -x } else { x });
-        (Just(n), c, x)
+        (Just(n), c, moderate())
     })
 }
 
@@ -189,8 +187,10 @@ property!(
     within,
     hyp2f1_terminating(ncx in real_hyp2f1_args(), b in eighths(-256..=256)) => {
         let (n, c, x) = ncx;
-        // known: (1 - x)^n for b = c < 0 and x < -1 (#2262)
-        prop_assume!(!(b == c && x < -1.0), "known");
+        // known: n >= 10 with b < 0 and x > 1, where x is negated (#2258), and (1 - x)^n for a
+        // negative non-integer b = c, n >= 9 and x < -1 (#2262)
+        let x = if n >= 10 && b < 0.0 && x > 1.0 { -x } else { x };
+        prop_assume!(!(b == c && c < 0.0 && c.fract() != 0.0 && n >= 9 && x < -1.0), "known");
         (xsf::hyp2f1(-f64::from(n), b, c, x), terminating(&[-f64::from(n), b], &[c], x)?)
     }
 );
