@@ -98,7 +98,7 @@ pub fn multifactorial<N: PrimInt + Unsigned>(n: N, k: N) -> N {
 #[inline]
 pub fn multifactorial_checked<N: PrimInt + Unsigned>(n: N, k: N) -> Option<N> {
     if k.is_zero() {
-        if n.is_zero() { Some(n) } else { None }
+        n.is_zero().then_some(n)
     } else if n <= k {
         Some(if n.is_zero() { N::one() } else { n })
     } else {

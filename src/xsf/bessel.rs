@@ -923,10 +923,9 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
                 let j = cyl_bessel_j_f64(order, x);
                 let re = if cut && m == 2 {
                     hankel_cut_triple_j(v, x, log_leading, j)
-                } else if j.is_finite() && bessel_j_axis_rounding_is_clear(v, x, log_leading, j) {
-                    Some(j)
                 } else {
-                    None
+                    (j.is_finite() && bessel_j_axis_rounding_is_clear(v, x, log_leading, j))
+                        .then_some(j)
                 };
                 if let Some(j) = re {
                     let parity = if cut { cephes_cospi(v) } else { 1.0 };
