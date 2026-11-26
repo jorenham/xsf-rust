@@ -41,7 +41,8 @@ fn test_riemann_zeta_c64_moderate_imag() {
 
 #[test]
 fn test_riemann_zeta_c64_large_imag() {
-    // Euler-Maclaurin would sum |Im z| / 4 terms here (reference values from Arb)
+    // Euler-Maclaurin would sum up to |Im z| / 4 terms here, with phase errors up to
+    // eps |Im z| ln(2) 2^-Re z (reference values from Arb)
     for (z, expected) in [
         (c64(0.5, 10_000.0), c64(-0.339_373_802_638_834_43, -0.037_091_505_973_206_03)),
         (c64(0.5, 100_000.0), c64(1.073_032_014_857_753_2, 5.780_848_544_363_504)),
@@ -54,6 +55,8 @@ fn test_riemann_zeta_c64_large_imag() {
         (c64(0.75, -628.5), c64(0.740_383_413_795_038, -0.382_837_596_823_132_84)),
         (c64(1.5, 700.0), c64(0.758_349_527_857_669_7, -0.409_880_732_288_318)),
         (c64(20.0, -2e6), c64(0.999_999_229_164_378_6, -5.610_598_763_844_825e-7)),
+        (c64(29.0, 1e9), c64(1.000_000_001_652_524_3, -8.594_330_484_188_579e-10)),
+        (c64(0.5, 964_381_495.922_987_8), c64(0.262_192_322_970_139_8, 0.185_758_082_473_349_63)),
     ] {
         let rel = (xsf::riemann_zeta(z) - expected).norm() / expected.norm();
         assert!(rel < 1e-14, "riemann_zeta({z}): rel = {rel:e}");

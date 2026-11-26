@@ -10,10 +10,11 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, LN_2, PI, TAU};
 
 use crate::utils::{LN_PI, LN_TAU, neg_if_odd, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LN_SQRT_2PI_DD};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_2_PI_DD, LN_SQRT_2PI_DD};
 use crate::xsf::gamma::cgamma;
 use crate::xsf::log::clog1p;
 use crate::xsf::loggamma::cloggamma;
+use crate::xsf::tools::kahan_step;
 
 /// `std::pow(x, z)` for real `x > 0` and complex `z`, as in libstdc++
 fn rpow(x: f64, z: C64) -> C64 {
@@ -332,8 +333,9 @@ const RS_F_COEFFS: [C64; 30] = [
 /// Number of terms `C_k / a^k` of the Riemann-Siegel correction
 const RS_TERMS: usize = 10;
 
-/// Smallest `a = sqrt(|Im z| / (2 pi))` for the Riemann-Siegel formula: there, the first omitted
-/// correction term `|C_10(p)| / a^10 < 1.1e-6 / a^10` (for `0 <= Re z <= 1`) is below eps.
+/// Smallest `a = sqrt(|Im z| / (2 pi))` for the Riemann-Siegel formula. The cutoff is empirical:
+/// on a grid of `|p| <= 1` and the dispatched `Re z`, the first omitted correction terms, weighted
+/// as `a^(-Re z - 10) (|C_10(Re z, p)| + |C_10(1 - Re z, p)|)`, stay below eps.
 const RS_MIN_A: f64 = 10.0;
 
 /// `sum_k C_k(sigma, p) / a^k` of the Riemann-Siegel formula, with
@@ -377,8 +379,32 @@ fn rs_correction(sigma: f64, a: f64, fp: &[C64; 3 * RS_TERMS - 2]) -> C64 {
     sum
 }
 
+/// `sum_{n <= n_max} n^-z` and `sum_{n <= n_max} n^(z - 1)`, compensated and from the smallest
+/// terms.
+fn dirichlet_sums(z: C64, n_max: u32) -> (C64, C64) {
+    let (sigma, t) = (z.re, z.im);
+    let (mut x, mut y) = (C64::ZERO, C64::ZERO);
+    let (mut x_comp, mut y_comp) = (C64::ZERO, C64::ZERO);
+    for n in (1..=n_max).rev().map(f64::from) {
+        let w = n.powf(-sigma);
+        // The f64 phase t ln(n) is off by about eps t ln(n), which this and the smaller terms
+        // weigh by at most n^-sigma (1 + n / (sigma - 1)), so it is computed in double-double
+        // where that exceeds eps. For sigma >= 1/2, the terms of the second sum weigh no more in
+        // the Riemann-Siegel formula.
+        let (sin, cos) = if sigma <= 1.0 || t * n.ln() * w * (1.0 + n / (sigma - 1.0)) > 1.0 {
+            (Dd::new(n).log() * t).sin_cos()
+        } else {
+            (t * n.ln()).sin_cos()
+        };
+        kahan_step(&mut x, &mut x_comp, w * c64(cos, -sin));
+        kahan_step(&mut y, &mut y_comp, c64(cos, sin) / (n * w));
+    }
+    (x, y)
+}
+
 /// Compute riemann_zeta for complex z with `|Im z| >= 2 pi RS_MIN_A^2` by the Riemann-Siegel
-/// formula of Arias de Reyna (2011, Math. Comp. 80, 995-1009), as in mpmath's `rszeta`.
+/// formula of Arias de Reyna (2011, Math. Comp. 80, 995-1009), as in mpmath's `rszeta`, or by
+/// the Dirichlet series where that needs fewer terms.
 ///
 /// For `s = sigma + i t`, `a = sqrt(t / (2 pi))`, `N = floor(a)` and `p = 1 - 2 (a - N)`,
 /// `zeta(s) = R(s) + chi(s) conj(R(1 - conj(s)))`, with
@@ -390,19 +416,25 @@ fn zeta_riemann_siegel(z: C64) -> C64 {
         return zeta_riemann_siegel(z.conj()).conj();
     }
     let (sigma, t) = (z.re, z.im);
-    let a = (t / TAU).sqrt();
+    // a in double-double, as the error eps a of p = 1 - 2 (a - N) is not relative
+    let a_dd = (FRAC_2_PI_DD.mul_pwr2(0.25) * t).sqrt();
+    let a = a_dd.hi;
     let n_max = a as u32;
-    let p = 1.0 - 2.0 * (a - f64::from(n_max));
+    let p = (1.0 - (a_dd - f64::from(n_max)).mul_pwr2(2.0)).hi;
 
-    // The phases t ln(n) and phi in double-double: their f64 rounding errors grow like eps t ln(t).
-    // The terms n^-s are summed from the smallest.
-    let (mut x, mut y) = (C64::ZERO, C64::ZERO);
-    for n in (1..=n_max).rev().map(f64::from) {
-        let (sin, cos) = (Dd::new(n).log() * t).sin_cos();
-        let w = n.powf(-sigma);
-        x += w * c64(cos, -sin);
-        y += c64(cos, sin) / (n * w);
+    // The Dirichlet series needs fewer terms than the two sums below where its tail after m terms,
+    // below m^(1 - sigma) / (sigma - 1), is below eps for some m <= 2 N.
+    if sigma > 1.0 {
+        let m = ((sigma - 1.0) * f64::EPSILON)
+            .powf(-1.0 / (sigma - 1.0))
+            .ceil();
+        if m <= f64::from(2 * n_max) {
+            return dirichlet_sums(z, m as u32).0;
+        }
     }
+
+    // phi in double-double, as its f64 rounding error grows like eps t ln(t)
+    let (x, y) = dirichlet_sums(z, n_max);
     let phi = (Dd::new(t).log().mul_pwr2(0.5) - LN_SQRT_2PI_DD - 0.5) * t - FRAC_PI_8;
     let (sin, cos) = (-phi).sin_cos();
     let u = c64(cos, sin);
@@ -452,9 +484,10 @@ fn zeta_right_halfplane(z: C64) -> C64 {
              * region, so just give up and return NaN instead. */
             return C64::NAN;
         }
-        // Unlike in xsf, the Riemann-Siegel formula is used up to that limit: Euler-Maclaurin sums
-        // about |Im z| / 4 terms, with phase errors eps |Im z| ln(n) n^-Re z, which are below eps
-        // only for Re z >= log2 |Im z|. Above the limit, its sum still stops early (Re z >= 2.5).
+        // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to that
+        // limit: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
+        // eps |Im z| ln(n) n^-Re z, which are below eps only for Re z >= log2 |Im z|. Above the
+        // limit, its sum still stops early (Re z >= 2.5).
         let t = z.im.abs();
         if (TAU * RS_MIN_A * RS_MIN_A..=1e9).contains(&t) && z.re < t.log2() {
             return zeta_riemann_siegel(z);
