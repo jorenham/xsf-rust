@@ -46,13 +46,13 @@ mod beta_endpoints;
 mod polynomial;
 mod power;
 
-use core::f64::consts::{FRAC_1_PI, PI};
+use core::f64::consts::{FRAC_1_PI, PI, TAU};
 
-use crate::ext::{Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
+use crate::ext::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
-use crate::xsf::cephes::hyp2f1::hyp2f1_at_1;
+use crate::xsf::cephes::hyp2f1::{hyp2f1_at_1, ln_max_growth, max_term_index};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::complex::cpow_integral;
@@ -215,6 +215,77 @@ fn hypergeometric_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut
         term = term * (a + k_) * (b + k_) / ((k + 1) as f64 * (c + k_)) * z;
         k += 1;
         output
+    }
+}
+
+/// `series_eval` of the Maclaurin series for |z| < 1, where `rounding` is the relative error of
+/// the later terms from rounding `a` and `b`
+//
+// Unlike in xsf, a small term only ends the sum if the later ones can add up to the tolerance,
+// e.g. after a tiny first term from a tiny `a`. They are then summed as a series of their own, as
+// they can be far below the sum, and kept only if their estimated error (each of the n terms errs
+// by about n eps) implies an accurate result, and their sum exceeds that error plus the rounding
+// of the earlier terms, so that the result is closer than without them.
+fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
+    let mut series_generator = hypergeometric_series_generator(a, b, c, z);
+    let (mut n, mut last) = (0.0, C64::ZERO);
+    let (head, head_cancellation) = series_eval_cancellation(|| {
+        (n, last) = (n + 1.0, series_generator());
+        last
+    });
+    let x = z.norm();
+    let growth = ln_max_growth(a, b, c, x, n - 1.0);
+    // A subnormal term would pass its rounding on to the larger later ones.
+    if !(growth > 0.0 && last.norm() >= f64::MIN_POSITIVE) {
+        return head;
+    }
+    let peak = (last.norm().ln() + growth).exp();
+    // As a heuristic, the later terms have the magnitudes of the real ones at |z|, which grow up to
+    // the largest one, at m, and then fall like a Gaussian, from the slope of the logarithm of the
+    // term ratio there, but no faster than a geometric series in the limit |z| of that ratio (also
+    // if the slope is negative, as `max` drops the NaN).
+    let m = max_term_index(a, b, c, x);
+    let slope = 1.0 / (c + m) + 1.0 / (m + 1.0) - 1.0 / (a + m) - 1.0 / (b + m);
+    let width = (TAU / slope).sqrt().max(1.0 / (1.0 - x));
+    let mass = peak * (m - n + 1.0 + width);
+    let negligible = head.norm() * HYP2F1_EPS;
+    if !(mass >= negligible) {
+        return head;
+    }
+    // Their sum, as they turn by the angle of z (the Fourier transform of the Gaussian), unless
+    // negligible, and the number of them until one is below `HYP2F1_EPS` times that sum
+    let angle = z.im.atan2(z.re);
+    let sum = (peak * width * (-angle * angle / (2.0 * slope)).exp()).max(negligible);
+    let length = m - n + (2.0 * (peak / (HYP2F1_EPS * sum)).ln() / slope).sqrt();
+    // Unlike in xsf, NaN if z is real, as then (with z.re >= 0) the later terms have the same
+    // sign, so that `head` is wrong.
+    let fallback = if z.is_real() && peak > head.norm() {
+        C64::NAN
+    } else {
+        head
+    };
+    // Give up if the sum would take too long, or be below the rounding of the terms.
+    if !(length <= HYP2F1_MAXITER as f64 && mass * f64::EPSILON <= sum) {
+        return fallback;
+    }
+    let n_head = n as u64;
+    let (tail, cancellation) = series_eval_cancellation(|| {
+        n += 1.0;
+        series_generator()
+    });
+    if tail.is_nan() {
+        return fallback;
+    }
+    // Add the first term 1 last, so that the rounding of the rest of `head` isn't lost.
+    let mut head_terms = hypergeometric_series_generator(a, b, c, z);
+    let value = head_terms() + series_eval_fixed_length(head_terms, tail, n_head - 1);
+    let error = (n * f64::EPSILON + rounding) * cancellation * tail.norm();
+    // The first term 1 is exact.
+    let head_rounding = f64::EPSILON * (head_cancellation * head.norm() - 1.0);
+    if error <= HYP2F1_RECUR_TOL * value.norm() && error + head_rounding <= tail.norm() {
+        value
+    } else {
+        head
     }
 }
 
@@ -1550,10 +1621,10 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if z_abs < 0.9 && z.re >= 0.0 {
         if c - a < a && c - b < b {
             let prefactor = (1.0 - z).powf(c - a - b);
-            let mut series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             // Unlike in xsf, track cancellation and try a certified recurrence down in c, or else
             // `hyp2f1_negative_c`.
             if a > 0.0 && b > 0.0 && c < 0.0 {
+                let mut series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
                 let (mut mass, mut terms) = (0.0, 0.0);
                 let sum = series_eval(|| {
                     let term = series_generator();
@@ -1583,10 +1654,19 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 }
                 return value;
             }
-            return prefactor * series_eval(series_generator);
+            // Unlike in xsf, account for the rounding of `c - a` or `c - b` near a nonpositive
+            // integer, as the later terms are proportional to their distance to it.
+            let relative_rounding = |p: f64| {
+                if p.round() > 0.0 {
+                    0.0
+                } else {
+                    f64::EPSILON * p.abs() / (p - p.round()).abs()
+                }
+            };
+            let rounding = relative_rounding(c - a).max(relative_rounding(c - b));
+            return prefactor * hypergeometric_series(c - a, c - b, c, z, rounding);
         }
-        let series_generator = hypergeometric_series_generator(a, b, c, z);
-        return series_eval(series_generator);
+        return hypergeometric_series(a, b, c, z, 0.0);
     }
     /* Points near exp(iπ/3), exp(-iπ/3) not handled by any of the standard
      * transformations. Use series of López and Temme [5]. These regions

@@ -225,7 +225,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// `c + n > 0`, else 0. The ratios are at least 1 between the roots of a quadratic in `m`, so the
 /// largest term is at its larger root (rounded up). Not for alternating ratios, as summing
 /// growing terms then cancels.
-fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
+pub(crate) fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
     if !(x > 0.0 && x < 1.0 && a + n > 0.0 && b + n > 0.0 && c + n > 0.0) {
         return 0.0;
     }
@@ -247,7 +247,7 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
 }
 
 /// The index of the largest term in `ln_max_growth`
-fn max_term_index(a: f64, b: f64, c: f64, x: f64) -> f64 {
+pub(crate) fn max_term_index(a: f64, b: f64, c: f64, x: f64) -> f64 {
     // x (a + m) (b + m) - (c + m) (m + 1) = p m^2 + q m + r, with p < 0
     let (p, q, r) = (x - 1.0, x * (a + b) - c - 1.0, x * a * b - c);
     ((-q - (q * q - 4.0 * p * r).sqrt()) / (2.0 * p)).ceil()

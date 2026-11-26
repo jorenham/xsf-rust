@@ -3151,3 +3151,58 @@ fn test_hyp2f1_c64_negative_lower_parameter_slow_tail() {
         np_assert_allclose!([actual.im], [expected.im], rtol = rtol[1], atol = 0.0);
     }
 }
+
+#[test]
+fn test_hyp2f1_c64_maclaurin_tiny_a_growth() {
+    // Arb at the exact binary64 inputs, componentwise. An early term is negligible, but later
+    // ones grow back.
+    for (a, b, c, x, expected, rtol) in [
+        (1e-20, 700.0, 240.125, 0.5, 1.000_007_275_456_677, 2e-16),
+        (1e-20, 700.0, 240.125, 0.45, 1.000_000_000_000_087_5, 2e-16),
+        (-1e-20, 700.0, 240.125, 0.5, 0.999_992_724_543_323_1, 2e-16),
+        (6e-29, 700.0, 240.125, 0.5, 1.000_000_000_000_043_7, 2e-16),
+        (1e-300, 1600.0, 10.125, 0.5, 8.067_451_349_912_805e154, 1e-14),
+        (-1.000_000_000_000_003_8, 0.0534, -1.63, 0.8914, 1.029_202_920_245_400_3, 2e-16),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, c64(x, 0.0));
+        np_assert_allclose!([actual.re], [expected], rtol = rtol, atol = 0.0);
+        assert_eq!(actual.im.to_bits(), 0.0_f64.to_bits());
+    }
+    // For a complex z, the terms cancel strongly.
+    for (a, b, c, z, expected, rtol) in [
+        (
+            1e-20,
+            700.0,
+            240.125,
+            c64(0.5, 0.1),
+            c64(1.000_000_000_003_764_8, -5.632_690_310_646_517e-12),
+            [2e-16, 1e-8],
+        ),
+        (1e-16, 100.0, 50.125, c64(0.5, 0.5), c64(1.0, 1.578_452_919_583_920_6e-16), [0.0, 1e-12]),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re], [expected.re], rtol = rtol[0], atol = 0.0);
+        np_assert_allclose!([actual.im], [expected.im], rtol = rtol[1], atol = 0.0);
+    }
+    // Arb: 1.119560506102335e168 and 1.2112660936866382e213, but the later terms take too many
+    // steps to sum.
+    for x in [0.84, 0.875] {
+        assert!(xsf::hyp2f1(1e-20, 700.0, 240.125, c64(x, 0.0)).is_nan());
+    }
+    // Here the later terms cancel to below their rounding errors.
+    let (a, b, c) = (6.077_191_929_165_988e-17, 1_109.068_702_298_363_9, 50.284_871_626_278_594);
+    let actual = xsf::hyp2f1(a, b, c, c64(0.332_873_860_275_033_1, -0.666_992_080_834_871_5));
+    let expected = c64(0.999_999_999_999_999_8, -1.202_633_650_545_082_3e-16);
+    assert!((actual - expected).norm() <= 2e-15, "{actual}");
+}
+
+#[test]
+fn test_hyp2f1_c64_maclaurin_tail_below_head_rounding() {
+    // Arb at the exact binary64 inputs, componentwise. The later terms after a small one are
+    // below the rounding of the earlier ones.
+    let (a, b, c) = (-1.000_001_899_260_690_3, -1.001_935_782_943_842_2, -16.999_997_374_621_41);
+    let actual = xsf::hyp2f1(a, b, c, c64(0.122_588_934_300_364_26, 0.301_389_961_311_846_87));
+    let expected = c64(0.992_774_912_227_954_1, -0.017_763_176_883_007_648);
+    np_assert_allclose!([actual.re], [expected.re], rtol = 2e-16, atol = 0.0);
+    np_assert_allclose!([actual.im], [expected.im], rtol = 2e-13, atol = 0.0);
+}
