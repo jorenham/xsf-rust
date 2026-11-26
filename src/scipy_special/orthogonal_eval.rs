@@ -602,6 +602,7 @@ impl JacobiArg<i32> for f64 {
             return p;
         }
         let p_dd = if alpha == -1.0 {
+            // no p_dd for alpha = -1
             f64::NAN
         } else {
             eval_jacobi_l_dd(n, alpha, beta, self)
@@ -628,14 +629,15 @@ impl JacobiArg<i32> for f64 {
             self.eval_jacobi(f64::from(n), alpha, beta)
         };
         // At a root, the 2F1 can be NaN or noise where `p` is an exact zero, so keep that zero
-        // unless the 2F1 is close to `p_dd`. Where the 2F1 is nonfinite, use `p_dd` or `p`.
+        // unless the 2F1 is close to `p_dd`. Where the 2F1 is nonfinite, use a finite `p_dd` or
+        // `p`, and else `p` where the 2F1 is NaN.
         if p == 0.0 && !close(f, p_dd) {
             return p;
         }
         [f, p_dd, p]
             .into_iter()
             .find(|v| v.is_finite())
-            .unwrap_or(f)
+            .unwrap_or(if f.is_nan() { p } else { f })
     }
 
     /// Corresponds to `xsf::detail::eval_legendre_l`

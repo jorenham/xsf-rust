@@ -224,6 +224,17 @@ fn test_eval_integer_degree_below_minus_one() {
     // the recurrence is exactly zero at the first three
     assert!(actual[..3].iter().all(|&p| p == 0.0), "{actual:?}");
     np_assert_allclose!(actual, [0.0; 5], atol = 1e-30);
+
+    // overflows there, where the 2F1 was NaN (exact fmpq: above f64::MAX)
+    assert_eq!(
+        xsf::eval_jacobi(
+            78,
+            -2.000_000_000_000_050_6,
+            -1.004_978_025_239_240_4,
+            1.034_940_720_309_175_8e15
+        ),
+        f64::INFINITY
+    );
 }
 
 #[test]
