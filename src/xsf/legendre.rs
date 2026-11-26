@@ -1127,13 +1127,13 @@ fn lq_is_extreme(z: C64) -> bool {
     z.is_finite() && z.re.abs().max(z.im.abs()) >= LQ_LARGE_X
 }
 
-// Use the first terms of the expansion in 1/z (DLMF 14.3.7 and 14.8.15), with the exterior
+// Use the first two terms of the expansion in 1/z (DLMF 14.3.7 and 14.8.15), with the exterior
 // branch sqrt(z^2 - 1) ~ sign(Re z) z:
 //
-//   Q_n^m(z) ~ c_{n,m} z^-(n+1) (1 + k_1 / z^2 + k_2 / z^4).
+//   Q_n^m(z) ~ c_{n,m} z^-(n+1) (1 + k / z^2),
+//   c_{n,m} = (-sign(Re z))^m (n+1)_m n! / (2n+1)!!,   k = (m^2 + (n+1)(n+2)) / (2 (2n+3)).
 //
-// The corrections supply the parts where the leading term cancels, and the direction at rounding
-// midpoints. On the diagonals z^-2 is imaginary, so only z^-4 resolves those.
+// The correction supplies the parts where the leading term vanishes, on the diagonals.
 //
 // Keep the exponent of each part separate, because raising the order can bring an underflowed
 // part back into range, also one far below the other part.
@@ -1143,12 +1143,9 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
         reason = "the binary64 mantissa width fits i32"
     )]
     const MIN_SUB_EXP: i32 = f64::MIN_EXP - f64::MANTISSA_DIGITS as i32;
-    const EPS2: f64 = f64::EPSILON * f64::EPSILON;
 
     // `m 2^e` as `(m, e)`, with `m` zero or normalized
     type Part = (DoubleDouble, i64);
-    // Complex parts, with bounds on their errors as `f64` mantissas and a common exponent
-    type Bounded = ([Part; 2], ([f64; 2], i64));
     let norm = |(m, e): Part| {
         if m.hi == 0.0 {
             return (m, e);
@@ -1157,13 +1154,14 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
         (m, e + i64::from(k))
     };
     let real = |v: f64| norm((DoubleDouble::new(v), 0));
-    // Zero parts, as on the axes, skip the arithmetic.
+    // Exact zero parts, as on the axes, stay +0.
     let mul = |a: Part, b: Part| {
         if a.0.hi == 0.0 || b.0.hi == 0.0 {
-            return (DoubleDouble::ZERO, 0);
+            return real(0.0);
         }
         norm((a.0 * b.0, a.1 + b.1))
     };
+    let div = |a: Part, b: Part| norm((a.0 / b.0, a.1 - b.1));
     let add = |a: Part, b: Part| {
         if b.0.hi == 0.0 {
             return a;
@@ -1177,206 +1175,80 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
         norm((align(a) + align(b), e))
     };
     let neg = |(m, e): Part| (-m, e);
+    let twice = |(m, e): Part| (m, e + 1);
     let cmul = |a: [Part; 2], b: [Part; 2]| {
         [add(mul(a[0], b[0]), neg(mul(a[1], b[1]))), add(mul(a[0], b[1]), mul(a[1], b[0]))]
     };
-    // The exponent of the larger nonzero part
-    let exponent = |p: &[Part]| {
-        p.iter()
-            .filter(|p| p.0.hi != 0.0)
-            .map(|p| p.1)
-            .max()
-            .unwrap_or(0)
-    };
-    // Error bounds only need `f64` mantissas, here with the exponent of the larger part.
-    let magnitudes = |p: [Part; 2]| {
-        let e = exponent(&p);
-        (p.map(|(m, k)| ldexp_f64(m.hi.abs(), (k - e).max(i64::from(MIN_SUB_EXP)) as i32)), e)
-    };
-    let rescale = |v: f64, by: i64| ldexp_f64(v, by.clamp(i32::MIN.into(), i32::MAX.into()) as i32);
 
     let (x, y) = (real(z.re), real(z.im));
-    let (abs2, (xy, xy_exp)) = (add(mul(x, x), mul(y, y)), mul(x, y));
-    // Steps by `conj(z)^2 = x^2 - y^2 - 2ixy` keep the parts that vanish on the diagonals as
-    // products with that exact zero.
-    let step = [add(mul(x, x), neg(mul(y, y))), (-xy, xy_exp + 1)];
-    let abs4 = mul(abs2, abs2);
-    // A double-double sum rounds by less than `EPS^2` of its result, and a product by less than
-    // twice that, or once that when a factor is a double. Of `conj(z)^2`, only the sum rounds.
-    let roundings = |a: Part, b: Part| {
-        if a.0.lo == 0.0 || b.0.lo == 0.0 {
-            EPS2
-        } else {
-            2.0 * EPS2
-        }
-    };
-    let ([step_re, _], e) = magnitudes(step);
-    let step: Bounded = (step, ([EPS2 * step_re, 0.0], e));
-    let conj: Bounded = ([x, neg(y)], ([0.0; 2], 0));
-    // The product of complex parts, with a bound on its error from those of the factors
-    let product = |(a, ae): Bounded, (b, be): Bounded| {
-        let (([a0, a1], ea), ([b0, b1], eb)) = (magnitudes(a), magnitudes(b));
-        let [ae0, ae1] = ae.0.map(|v| rescale(v, ae.1 - ea));
-        let [be0, be1] = be.0.map(|v| rescale(v, be.1 - eb));
-        let r = |i: usize, j: usize| roundings(a[i], b[j]);
-        let error = [
-            ae0 * b0 + a0 * be0 + a0 * b0 * r(0, 0) + ae1 * b1 + a1 * be1 + a1 * b1 * r(1, 1),
-            ae0 * b1 + a0 * be1 + a0 * b1 * r(0, 1) + ae1 * b0 + a1 * be0 + a1 * b0 * r(1, 0),
-        ];
-        let c = cmul(a, b);
-        let (sums, k) = magnitudes(c);
-        let e = ea + eb;
-        (c, ([0, 1].map(|i| error[i] + EPS2 * rescale(sums[i], k - e)), e))
-    };
-    // `conj(z)^p` for the last even `p`, with bounds on its errors, and `|z|^2p`
-    let mut even = (step, abs4);
-    let mut p = 0;
-    // The parts of `z^-p` for the next `p`, with bounds on their rounding errors by running error
-    // analysis. Odd powers are `conj(z)` times the even ones.
-    let mut next_inverse = || {
-        p += 1;
-        let ((num, error), den) = match p {
-            1 => (conj, abs2),
-            2 => even,
-            _ if p % 2 == 1 => (product(conj, even.0), mul(even.1, abs2)),
-            _ => {
-                even = (product(even.0, step), mul(even.1, abs4));
-                if p == 4 {
-                    // Factored, the part of Re conj(z)^4 that can vanish rounds only in its sum,
-                    // because `a - 2b` is exact there. With the other quadratic and the product,
-                    // that is less than `6 EPS^2` in all.
-                    let (a, b) = (z.re.abs().max(z.im.abs()), z.re.abs().min(z.im.abs()));
-                    let [a, b] = [a, b].map(real);
-                    let two_b = (b.0, b.1 + 1);
-                    let quadratic = |two_b: Part| add(mul(a, add(a, two_b)), neg(mul(b, b)));
-                    let ((num, error), _) = &mut even;
-                    num[0] = mul(quadratic(neg(two_b)), quadratic(two_b));
-                    error.0[0] = 6.0 * EPS2 * rescale(num[0].0.hi.abs(), num[0].1 - error.1);
-                }
-                even
-            },
-        };
-        [0, 1].map(|r| {
-            let bound = norm((DoubleDouble::new(error.0[r] / den.0.hi), error.1 - den.1));
-            let value = if num[r].0.hi == 0.0 {
-                num[r]
-            } else {
-                norm((num[r].0 / den.0, num[r].1 - den.1))
+    let conj = [x, neg(y)];
+    let abs2 = add(mul(x, x), mul(y, y));
+    // Even powers step by `conj(z)^2`, which is exactly imaginary on the diagonals.
+    let step = cmul(conj, conj);
+    // For the larger and smaller magnitudes `a` and `b` of the parts of `z`, the parts of
+    // `conj(z)^3` and `conj(z)^4` that can vanish are `(a^2 - 3b^2)` times that of the larger one,
+    // and `(a^2 - 2ab - b^2) (a^2 + 2ab - b^2)`. Factored, they round only in their last sums,
+    // because `a - b` and `a - 2b` are exact there (Sterbenz).
+    let major = usize::from(z.im.abs() > z.re.abs());
+    let (a, b) = (real(z.re.abs().max(z.im.abs())), real(z.re.abs().min(z.im.abs())));
+    let (a_b, a_2b, b2) = (add(a, neg(b)), add(a, neg(twice(b))), mul(b, b));
+    let cubic = mul([x, y][major], add(mul(a_b, a_b), mul(twice(b), a_2b)));
+    let quartic = mul(add(mul(a, a_2b), neg(b2)), add(mul(a, add(a, twice(b))), neg(b2)));
+    // `inv[p]` holds the parts of `z^-p = conj(z)^p / |z|^2p`.
+    let (mut even, mut den) = ([real(1.0), real(0.0)], real(1.0));
+    let inv: Vec<[Part; 2]> = (0..qm.extent(1) + 4)
+        .map(|p| {
+            let num = match p {
+                0 => even,
+                3 => {
+                    let mut num = cmul(even, conj);
+                    num[major] = cubic;
+                    num
+                },
+                _ if p % 2 == 1 => cmul(even, conj),
+                _ => {
+                    even = cmul(even, step);
+                    if p == 4 {
+                        even[0] = quartic;
+                    }
+                    even
+                },
             };
-            (value, bound)
+            let inv = num.map(|v| div(v, den));
+            den = mul(den, abs2);
+            inv
         })
-    };
-    // `u[i]` holds the parts of `z^-(n+1+i)`.
-    let mut u: [_; 6] = core::array::from_fn(|_| next_inverse());
+        .collect();
 
     let order_sign = -z.re.signum();
-    // The product of two normalized mantissas lies in [1/4, 1), so it is normal above `MIN_EXP`, and
-    // rounds to zero below half the least subnormal.
-    let scaled = |(a, e): Part| {
-        if e > i64::from(f64::MIN_EXP) {
-            return ldexp_f64(a.hi, e.min(i64::from(i32::MAX)) as i32);
+    // A normalized part `m 2^e` is normal for `e >= MIN_EXP`, and otherwise rounds in units of the
+    // least subnormal.
+    let scaled = |(m, e): Part| {
+        if e >= i64::from(f64::MIN_EXP) {
+            return ldexp_f64(m.hi, e.min(i64::from(i32::MAX)) as i32);
         }
-        if e < i64::from(MIN_SUB_EXP) {
-            return 0.0_f64.copysign(a.hi);
-        }
-        let units = a.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32);
+        let units = m.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32);
         units.round_subnormal_units()
     };
     // `c_{n,0}`
     let mut c0 = real(1.0);
-    for n in 0..int(qm.extent(1)) {
+    for (n, u) in (0..int(qm.extent(1))).zip(inv.windows(4).skip(1)) {
         let next = f64::from(n) + 1.0;
-        // The parts of the terms `w_j z^-(n+1+i+2j)` of the series, aligned to the exponent of the
-        // largest, with the error bound of the first, and the weights of the others
-        let terms = |i: usize, w: [f64; 3]| -> [([DoubleDouble; 3], i64, f64, [f64; 2]); 2] {
-            core::array::from_fn(|r| {
-                let t: [Part; 3] = core::array::from_fn(|j| u[i + 2 * j][r].0);
-                let t = [mul(t[0], real(w[0])), t[1], t[2]];
-                let e = exponent(&t);
-                // Relative to the part before it, a negligible part stays as a sticky normal
-                // number, far below the double-double precision even after the factors `k_j`.
-                let mut shift = 0;
-                let t = t.map(|(m, k)| {
-                    if m.hi != 0.0 {
-                        shift = (k - e).max(shift + i64::from(f64::MIN_EXP / 3));
-                    }
-                    m.ldexp(shift as i32)
-                });
-                let (b, k) = u[i][r].1;
-                (
-                    t,
-                    e,
-                    ldexp_f64(b.hi * w[0].abs(), (k - e).max(i64::from(MIN_SUB_EXP)) as i32),
-                    [w[1], w[2]],
-                )
-            })
-        };
-        // d/dz z^-p = -p z^-(p+1)
-        let value = terms(0, [1.0; 3]);
-        let slope = terms(1, [0.0, 2.0, 4.0].map(|j| -(next + j)));
-        // The series of DLMF 14.3.7 times that of (1 - 1/z^2)^(m/2) has
-        //
-        //   k_1 = (m^2 + (n+1)_2) / (2 (2n+3)),
-        //   k_2 = (m^4 + 2 (n+2) (n+5) m^2 + (n+1)_4) / (8 (2n+3) (2n+5)).
-        let (rising2, quadratic) = (next * (next + 1.0), 2.0 * (next + 1.0) * (next + 4.0));
-        let rising4 = DoubleDouble::new(rising2) * ((next + 2.0) * (next + 3.0));
-        let den = [2.0 * (2.0 * next + 1.0), 8.0 * (2.0 * next + 1.0) * (2.0 * next + 3.0)];
         let mut c = c0;
         for m in 0..int(qm.extent(0)) {
-            let m2 = f64::from(m) * f64::from(m);
-            let k = [m2 + rising2, (m2 + quadratic) * m2 + rising4.hi];
-            let k = [k[0] / den[0], k[1] / den[1]];
-            // Unlike in xsf, return NaN for a part where the error bound exceeds one ulp.
-            let part = |&(t, e, bound, w): &([DoubleDouble; 3], i64, f64, [f64; 2])| {
-                if t.iter().all(|t| t.hi == 0.0) {
-                    return 0.0;
-                }
-                let minor = [w[0] * k[0] * t[1].hi, w[1] * k[1] * t[2].hi];
-                // Negligible corrections only set the direction at exact midpoints of the leading
-                // term. Two least subnormals keep that through a product with `c` above 1/2.
-                let (s, norm_s) = if minor[0].abs() + minor[1].abs() <= EPS2 * t[0].hi.abs() {
-                    let sticky = f64::from_bits(2).copysign(minor[0] + minor[1]);
-                    let s = if t[0].lo == 0.0 && minor != [0.0; 2] {
-                        DoubleDouble {
-                            hi: t[0].hi,
-                            lo: sticky,
-                        }
-                    } else {
-                        t[0]
-                    };
-                    (s, (s, e))
-                } else {
-                    let k = [
-                        DoubleDouble::ONE,
-                        DoubleDouble::new(m2 + rising2) / den[0] * w[0],
-                        (DoubleDouble::new(m2 + quadratic) * m2 + rising4) / den[1] * w[1],
-                    ];
-                    let s = DoubleDouble::dot(t.into_iter().zip(k));
-                    (s, norm((s, e)))
-                };
-                let v = scaled((c.0 * norm_s.0, c.1 + norm_s.1));
-                let units = || {
-                    let shift = c.1 + e - i64::from(MIN_SUB_EXP);
-                    ldexp_f64(
-                        bound * c.0.hi.abs(),
-                        shift.clamp(i32::MIN.into(), i32::MAX.into()) as i32,
-                    )
-                };
-                if bound <= f64::EPSILON * s.hi.abs()
-                    || (v.abs() < f64::MIN_POSITIVE && units() <= 1.0)
-                {
-                    v
-                } else {
-                    f64::NAN
-                }
+            let k = f64::from(m) * f64::from(m) + next * (next + 1.0);
+            let k = norm((DoubleDouble::new(k) / (4.0 * next + 2.0), 0));
+            // The parts of `c (w_0 z^-(n+1+i) + w_1 z^-(n+3+i))`
+            let series = |i: usize, w: [Part; 2]| {
+                [0, 1].map(|r| scaled(mul(c, add(mul(w[0], u[i][r]), mul(w[1], u[i + 2][r])))))
             };
-            let [vr, vi, sr, si] = [&value[0], &value[1], &slope[0], &slope[1]].map(part);
+            let [vr, vi] = series(0, [real(1.0), k]);
+            // d/dz z^-p = -p z^-(p+1)
+            let [sr, si] = series(1, [real(-next), mul(k, real(-next - 2.0))]);
             (qm[(m, n)], qd[(m, n)]) = (c64(vr, vi), c64(sr, si));
-            c = norm((c.0 * (order_sign * (next + f64::from(m))), c.1));
+            c = mul(c, real(order_sign * (next + f64::from(m))));
         }
         c0 = norm((c0.0 * next / (2.0 * next + 1.0), c0.1));
-        u.rotate_left(1);
-        u[5] = next_inverse();
     }
 }
 

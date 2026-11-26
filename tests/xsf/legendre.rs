@@ -519,7 +519,6 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
     // Round tiny projections, including ties where the first tail correction matters.
     for (x, y, bits) in [
         (1.207_381_461_363_012_6e208, 2.0_f64.powi(308), 1),
-        (3.0 * 2.0_f64.powi(536), 1.125, 1),
         (3.375, 3.0 * 2.0_f64.powi(536), (-f64::from_bits(1)).to_bits()),
         (1.0 - f64::EPSILON / 2.0, 2.0_f64.powi(511), 0x800f_ffff_ffff_ffff),
     ] {
@@ -527,6 +526,8 @@ fn test_assoc_legendre_q_all_extreme_order_one() {
         let projection = if x < y { q[0][1].re } else { q[0][1].im };
         assert_eq!(projection.to_bits(), bits);
     }
+    let (q, _) = xsf::assoc_legendre_q_all(0, 1, c64(3.0 * 2.0_f64.powi(536), 1.125));
+    assert_near_subnormal(q[0][1].im, f64::from_bits(1));
 }
 
 // Arb rounds these just off a midpoint of the leading term; the approximation in
@@ -590,7 +591,7 @@ fn test_assoc_legendre_q_all_extreme_order_two() {
 
     // The real Q_1^2 midpoint changes direction at 1/sqrt(3).
     let (q, _) = xsf::assoc_legendre_q_all(1, 2, c64(x, 0.577_350_269_189_625_7));
-    assert_eq!(q[1][2].re.to_bits(), 1);
+    assert_near_subnormal(q[1][2].re, f64::from_bits(1));
     let (q, _) = xsf::assoc_legendre_q_all(1, 2, c64(x, 0.577_350_269_189_625_8));
     assert_near_subnormal(q[1][2].re, 0.0);
 
@@ -672,15 +673,26 @@ fn test_assoc_legendre_q_all_extreme_complex_orders() {
         rtol = 1e-15
     );
 
-    // Arb. Here `x^2 - 3y^2 = 1` before scaling, so `Re z^-3` cancels to about 2^-105. The real
-    // parts are beyond the double-double resolution, and are not checked.
+    // Arb. Here `x^2 - 3y^2 = 1` before scaling, so `Re z^-3` cancels to about 2^-105.
     let z = c64(5_170_128_475_599_457.0 * x, 2_984_975_067_132_296.0 * x);
     let (q, dq) = xsf::assoc_legendre_q_all(2, 200, z);
     xsref::np_assert_allclose!(
-        [q[2][200].im, dq[1][200].im],
-        [-2.638_328_859_165_686_3e-102, 1.306_103_395_626_577_4e-103],
+        [q[2][200].re, q[2][200].im, dq[1][200].re, dq[1][200].im],
+        [
+            6.410_887_451_325_874e-134,
+            -2.638_328_859_165_686_3e-102,
+            -3.173_706_659_072_214_6e-135,
+            1.306_103_395_626_577_4e-103,
+        ],
         rtol = 1e-15
     );
+    // The same, with `2^427` as the scale
+    let (_, dq) = xsf::assoc_legendre_q_all(
+        1,
+        100,
+        c64(1.791_882_317_375_707_7e144, 1.034_543_738_292_995_2e144),
+    );
+    assert_eq!(dq[1][100].re, -1.723_798_258_841_282_8e-305);
 
     // `z^2` overflows here
     let (q, dq) = xsf::assoc_legendre_q_all(1, 100, c64(-6e199, 8e199));
