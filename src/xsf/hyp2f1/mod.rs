@@ -1794,10 +1794,10 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let error = f64::EPSILON * best.cancellation * result.norm();
         // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
         // reduce a and b, if usable.
-        let untried = !euler && exact && result.is_nan();
         let euler_value = || {
-            untried
-                .then(euler_limit)?
+            (!euler && exact && result.is_nan())
+                .then(euler_limit)
+                .flatten()
                 .filter(|l| l.is_usable())
                 .map(|l| l.value)
         };
