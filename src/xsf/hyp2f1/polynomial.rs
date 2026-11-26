@@ -1,8 +1,9 @@
+use super::power::{ldexp_sat, one_minus_z_pow};
 use super::{HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
 use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::hyp2f1::HYP2F1_ETHRESH;
 use crate::xsf::tools::series_eval_fixed_length;
 
@@ -17,29 +18,26 @@ fn dd_candidate(y: Scaled) -> Option<(f64, Option<[f64; 2]>)> {
 
 pub(super) struct Estimate {
     pub(super) value: C64,
-    // Absolute evaluation roundoff, before accounting for the final rounding to f64.
-    abs_roundoff: f64,
+    // Estimated absolute error, before accounting for the final rounding to f64.
+    error: f64,
 }
 
 // A value whose only error is its final rounding to f64
 impl From<C64> for Estimate {
     fn from(value: C64) -> Self {
-        Self {
-            value,
-            abs_roundoff: 0.0,
-        }
+        Self { value, error: 0.0 }
     }
 }
 
 impl Estimate {
     // Whether the estimate is finite with an estimated error below its magnitude.
     pub(super) fn resolved(&self) -> bool {
-        self.value.is_finite() && self.abs_roundoff < self.value.linf_norm()
+        self.value.is_finite() && self.error < self.value.linf_norm()
     }
 
     // Whether the estimate leaves at least half the significand.
     fn accurate(&self) -> bool {
-        self.value.is_finite() && self.abs_roundoff <= pow2(-26) * self.value.linf_norm()
+        self.value.is_finite() && self.error <= pow2(-26) * self.value.linf_norm()
     }
 }
 
@@ -59,7 +57,8 @@ pub(super) fn terminating(a: f64, b: f64, c: f64, z: C64) -> Estimate {
     }
 }
 
-// The polynomial and the estimated absolute error of a plain origin sum (zero for other forms).
+// The polynomial and the estimated absolute error of an origin or Pfaff sum (zero for other
+// forms).
 fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> Estimate {
     let other = if a == -(n as f64) { b } else { a };
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
@@ -88,7 +87,8 @@ fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> Estimate {
 
 // The series as in `evaluate`, with `other` the upper parameter that is not `-n`.
 fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
-    // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
+    // Unlike in xsf, try one alternate form when the origin sum cancels: a centered
+    // polynomial where it applies, else the Pfaff transformation.
     let positive_beta = other > 0.0 && other < c && c.is_finite();
     let finite_population = other < 0.0
         && other == other.trunc()
@@ -101,7 +101,14 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
     {
         Estimate::from(population(a, b, c, n, z))
     } else {
-        estimated_sum(a, b, c, n, z)
+        // Keep a linear sum, which keeps exact roots, and real terms of one sign, which cannot
+        // cancel.
+        let origin = estimated_sum(a, b, c, n, z, 0.0);
+        if n == 1 || one_sign(other, c, n, z) || origin.accurate() {
+            origin
+        } else {
+            pfaff(other, c, n, z, origin)
+        }
     };
     // Unlike in xsf, recover a finite linear result when forming its
     // coefficient overflows for a subnormal denominator.
@@ -202,12 +209,22 @@ fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<Estimate> {
     });
     (lower == upper && lower.is_finite()).then_some(Estimate {
         value: c64(lower, 0.0),
-        abs_roundoff: lower * relative,
+        error: lower * relative,
     })
 }
 
-// The sum of the terms up to z^n, and its estimated absolute error.
-fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64) -> Estimate {
+// Whether the real terms share a sign: the factors of the term ratio
+// (k - n)(b + k)z / ((k + 1)(c + k)) keep their signs for 0 <= k < n, and its sign is positive.
+fn one_sign(b: f64, c: f64, n: u64, z: C64) -> bool {
+    let last = (n - 1) as f64;
+    let fixed = |p: f64| p >= 0.0 || p + last <= 0.0;
+    z.im == 0.0 && fixed(b) && fixed(c) && ((b < 0.0) == (c < 0.0)) == (z.re < 0.0)
+}
+
+// The sum of the terms up to z^n, and its estimated absolute error, for terms with an extra
+// relative uncertainty. The estimate is infinite where a coefficient denominator can overflow
+// and silently drop a term.
+fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64, relative: f64) -> Estimate {
     let mut terms = hypergeometric_series_generator(a, b, c, z);
     let mut mass = 0.0;
     let value = series_eval_fixed_length(
@@ -219,22 +236,70 @@ fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64) -> Estimate {
         C64::ZERO,
         n + 1,
     );
+    let n = n as f64;
+    let error = if (n * (c.abs() + n)).is_finite() {
+        ((6.0 * n + 8.0) * f64::EPSILON + relative) * mass
+    } else {
+        f64::INFINITY
+    };
+    Estimate { value, error }
+}
+
+// F(-n, b; c; z) = (1 - z)^n F(-n, c - b; c; z / (z - 1)) (DLMF 15.8.1)
+#[cold]
+fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
+    let x = z / (z - 1.0);
+    if !x.is_finite() {
+        return origin;
+    }
+    // Rounding c - b changes each term by a relative n |rounding| / min |c - b + j| for
+    // 0 <= j < n to first order, and by at most twice that while it is below one.
+    let (c_minus_b, rounding) = two_sum(c, -b);
+    let degree = n as f64;
+    let change = degree * rounding.abs();
+    let distance = (c_minus_b + (-c_minus_b).round().clamp(0.0, degree - 1.0)).abs();
+    let relative = if change == 0.0 {
+        0.0
+    } else if change <= distance {
+        2.0 * change / distance
+    } else {
+        f64::INFINITY
+    };
+    let sum = estimated_sum(-degree, c_minus_b, c, n, x, relative);
+    let power = one_minus_z_pow(z, degree);
+    let value = (power * sum.value).to_c64();
+    // The power and the product each round a component by at most eps |power| |sum|, and the
+    // final scaling by less than the spacing of the subnormals.
+    let product_error = 2.0 * f64::EPSILON * sum.value.norm();
+    let pfaff_error =
+        ldexp_sat(power.mantissa.norm() * (sum.error + product_error), power.exponent)
+            + f64::from_bits(1);
+    // Take each finite component that the Pfaff estimate resolves, and that differs from a
+    // less certain origin one by more than its error.
+    let select = |new: f64, old: f64| {
+        let differs = pfaff_error < origin.error && (new - old).abs() > pfaff_error;
+        if new.is_finite() && pfaff_error < new.abs() && (differs || !old.is_finite()) {
+            (new, pfaff_error)
+        } else {
+            (old, origin.error)
+        }
+    };
+    let (re, re_error) = select(value.re, origin.value.re);
+    let (im, im_error) = select(value.im, origin.value.im);
     Estimate {
-        value,
-        abs_roundoff: (6.0 * n as f64 + 8.0) * f64::EPSILON * mass,
+        value: c64(re, im),
+        error: re_error.max(im_error),
     }
 }
 
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
 #[cold]
 fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
-    let origin = estimated_sum(a, b, c, n, z);
-    let degree = n as f64;
-    if (c <= 0.0 || ((c + degree) * degree).is_finite()) && origin.accurate() {
+    let origin = estimated_sum(a, b, c, n, z, 0.0);
+    if origin.accurate() {
         return origin.value;
     }
-
-    let other = if a == -degree { b } else { a };
+    let other = if a == -(n as f64) { b } else { a };
     let estimate = centered(n, other, c, z);
     let centered = estimate.value;
     if !centered.is_finite() {
@@ -246,11 +311,11 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let magnitude = centered.re.abs().max(centered.im.abs());
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
     let limit = if origin.value.is_finite() {
-        origin.abs_roundoff
+        origin.error
     } else {
         magnitude
     };
-    if estimate.abs_roundoff + f64::EPSILON * magnitude < limit {
+    if estimate.error + f64::EPSILON * magnitude < limit {
         centered
     } else {
         origin.value
@@ -271,13 +336,13 @@ fn select_positive_beta(origin: C64, centered: &Estimate, n: u64, z: C64) -> C64
     // |Im(F)| <= n |Im(z)| on the closed disk |1-z| <= 1.
     let imag_uncertainty = if z.re >= z.im.abs() && 2.0 - z.re >= z.im.abs() {
         centered
-            .abs_roundoff
+            .error
             .min(centered.value.im.abs() + (2.0 * n as f64) * z.im.abs())
     } else {
-        centered.abs_roundoff
+        centered.error
     };
     c64(
-        select(origin.re, centered.value.re, centered.abs_roundoff),
+        select(origin.re, centered.value.re, centered.error),
         if z.is_real() {
             0.0
         } else {
@@ -404,6 +469,6 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
     let rounding = ldexp_f64(mass * leading.hi * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
     Estimate {
         value: c64(round(re, scale), imag),
-        abs_roundoff: rounding,
+        error: rounding,
     }
 }
