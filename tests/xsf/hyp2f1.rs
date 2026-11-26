@@ -1334,6 +1334,12 @@ fn test_hyp2f1_c64_large_balanced_disk() {
     let actual = xsf::hyp2f1(2.0, 1.0, 2.5, c64(-1e15, 9.99e14));
     let expected = c64(7.507_503_749_998_12e-16, 7.499_996_246_247_988e-16);
     assert!((actual - expected).norm() <= 1e-14 * expected.norm(), "{actual}");
+    // large a + b and |1 - z| near 1, so the continuation starts near 0
+    let z = c64(0.000_243_474_571_997_206_93, 0.000_535_538_300_541_918_2);
+    let actual =
+        xsf::hyp2f1(2.293_017_702_656_493, 19_300.623_616_428_114, 5.174_393_649_592_053, z);
+    let expected = c64(1.099_993_544_550_123_7, 2.066_579_583_230_746_3);
+    assert!((actual - expected).norm() <= 1e-13 * expected.norm(), "{actual}");
     // (1 - z)^(-a) is subnormal or zero
     for (a, b, c, z, expected) in [
         (

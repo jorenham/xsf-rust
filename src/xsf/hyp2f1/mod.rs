@@ -1469,9 +1469,13 @@ fn hyp2f1_taylor_step<const N: usize>(
     terms: &mut u64,
 ) -> Option<([[C64; 2]; N], [f64; 2])> {
     let g = h / (p * (1.0 - p));
-    // c - (a + b + 1) p, without rounding a + b near p = 1
-    let (a_plus_b, low) = two_sum(a, b);
-    let t = (c - a_plus_b - low - 1.0) + (1.0 - p) * (a + b + 1.0);
+    // c - (a + b + 1) p, without rounding a + b near p = 1 or cancelling near p = 0
+    let t = if p.norm() < (1.0 - p).norm() {
+        c - (a + b + 1.0) * p
+    } else {
+        let (a_plus_b, low) = two_sum(a, b);
+        (c - a_plus_b - low - 1.0) + (1.0 - p) * (a + b + 1.0)
+    };
     let (u, v, s) = (g * h, g * (1.0 - 2.0 * p), g * t);
     // For each solution, [e_k, e_(k+1)], the sums of the terms of F and h F', their absolute
     // values, and whether they have yet to converge
