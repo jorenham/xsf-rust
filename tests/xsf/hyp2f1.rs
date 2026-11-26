@@ -367,7 +367,7 @@ fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
     // (NaN is also accepted)
     let actual = xsf::hyp2f1(147.25 + 2.0_f64.powi(-42), -2.75, -1.25, c64(-1.125, 0.0));
     let expected = 5_745_264.598_748_462;
-    assert!(actual.re.is_nan() || ((actual.re - expected) / expected).abs() < 1e-14);
+    assert!(actual.re.is_nan() || ((actual.re - expected) / expected).abs() < 1e-14, "{actual:?}");
 }
 
 #[test]
