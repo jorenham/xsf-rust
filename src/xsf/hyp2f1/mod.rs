@@ -221,14 +221,17 @@ fn hypergeometric_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut
 }
 
 /// `series_eval` of the Maclaurin series for |z| < 1, where `rounding` is the relative error of
-/// the later terms from rounding `a` and `b`
+/// the later terms from rounding `a` and `b`, and its estimated cancellation as in
+/// `series_eval_cancellation`
 //
 // Unlike in xsf, a small term only ends the sum if the later ones can add up to the tolerance,
 // e.g. after a tiny first term from a tiny `a`. They are then summed as a series of their own, as
 // they can be far below the sum, and kept only if their estimated error (each of the n terms errs
 // by about n eps) implies an accurate result, and their sum exceeds that error plus the rounding
 // of the earlier terms, so that the result is closer than without them.
-fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
+//
+// Unlike in xsf, also return the estimated cancellation.
+fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> Cancelled {
     let mut series_generator = hypergeometric_series_generator(a, b, c, z);
     let (mut n, mut last) = (0.0, C64::ZERO);
     let head = series_eval_cancellation(|| {
@@ -238,14 +241,14 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     // Unlike in xsf, continue the series analytically if it cancels.
     if head.is_continued() {
         if let Some(value) = hyp2f1_continuation(a, b, c, z, head.value.into()) {
-            return value;
+            return Cancelled { value, ..head };
         }
     }
     let x = z.norm();
     let growth = ln_max_growth(a, b, c, x, n - 1.0);
     // A subnormal term would pass its rounding on to the larger later ones.
     if !(growth > 0.0 && last.norm() >= f64::MIN_POSITIVE) {
-        return head.value;
+        return head;
     }
     let peak = (last.norm().ln() + growth).exp();
     // As a heuristic, the later terms have the magnitudes of the real ones at |z|, which grow up to
@@ -258,7 +261,7 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let mass = peak * (m - n + 1.0 + width);
     let negligible = head.value.norm() * HYP2F1_EPS;
     if !(mass >= negligible) {
-        return head.value;
+        return head;
     }
     // Their sum, as they turn by the angle of z (the Fourier transform of the Gaussian), unless
     // negligible, and the number of them until one is below `HYP2F1_EPS` times that sum
@@ -268,9 +271,12 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     // Unlike in xsf, NaN if z is real, as then (with z.re >= 0) the later terms have the same
     // sign, so that `head` is wrong.
     let fallback = if z.is_real() && peak > head.value.norm() {
-        C64::NAN
+        Cancelled {
+            value: C64::NAN,
+            cancellation: f64::INFINITY,
+        }
     } else {
-        head.value
+        head
     };
     // Give up if the sum would take too long, or be below the rounding of the terms.
     if !(length <= HYP2F1_MAXITER as f64 && mass * f64::EPSILON <= sum) {
@@ -289,11 +295,16 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let value = head_terms() + series_eval_fixed_length(head_terms, tail.value, n_head - 1);
     let error = (n * f64::EPSILON + rounding) * tail.cancellation * tail.value.norm();
     // The first term 1 is exact.
-    let head_rounding = f64::EPSILON * (head.cancellation * head.value.norm() - 1.0);
+    let head_abs = head.cancellation * head.value.norm();
+    let head_rounding = f64::EPSILON * (head_abs - 1.0);
     if error <= HYP2F1_RECUR_TOL * value.norm() && error + head_rounding <= tail.value.norm() {
-        value
+        let abs_sum = head_abs + tail.cancellation * tail.value.norm();
+        Cancelled {
+            value,
+            cancellation: cancellation(abs_sum, value),
+        }
     } else {
-        head.value
+        head
     }
 }
 
@@ -2203,9 +2214,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 }
             };
             let rounding = relative_rounding(c - a).max(relative_rounding(c - b));
-            return prefactor * hypergeometric_series(c - a, c - b, c, z, rounding);
+            return prefactor * hypergeometric_series(c - a, c - b, c, z, rounding).value;
         }
-        return hypergeometric_series(a, b, c, z, 0.0);
+        return hypergeometric_series(a, b, c, z, 0.0).value;
     }
     /* Points near exp(iπ/3), exp(-iπ/3) not handled by any of the standard
      * transformations. Use series of López and Temme [5]. These regions
