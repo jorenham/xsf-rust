@@ -482,6 +482,59 @@ fn test_hyp2f1_c64_inverse_near_equal_edges() {
 }
 
 #[test]
+fn test_hyp2f1_c64_inverse_integer_large_a() {
+    // a - b is an integer and Gamma(a) overflows (gh-2244); in the last two, (1 - z)^(c - a - b)
+    // underflows. Arb at the binary64 inputs, compared componentwise.
+    for (a, b, c, z, expected) in [
+        (
+            180.0,
+            100.0,
+            125.5,
+            c64(-2.0, 0.5),
+            c64(3.020_509_328_819_671_4e-66, 1.708_047_496_988_71e-65),
+        ),
+        (
+            187.0,
+            105.0,
+            125.5,
+            c64(-2.0, 0.5),
+            c64(-2.482_296_999_002_554_6e-71, 2.983_532_921_504_48e-72),
+        ),
+        (
+            187.0,
+            90.0,
+            125.5,
+            c64(-2.0, 0.5),
+            c64(7.206_274_521_205_293e-60, -6.691_889_189_747_599e-60),
+        ),
+        (
+            197.46,
+            -0.539_999_999_999_992,
+            24.096,
+            c64(4.319_960_734_025_822, 9.391_402_568_842_924),
+            c64(5.236_383_181_499_285, -9.689_051_624_988_759),
+        ),
+        (
+            187.0,
+            105.0,
+            124.999_999_661_270_98,
+            c64(-22.0, 0.999_999_999_767_169_4),
+            c64(1.338_564_001_322_857_7e-176, -2.992_835_631_306_290_3e-174),
+        ),
+        (
+            231.0,
+            80.0,
+            6.5,
+            c64(-14.817_493_273_898_183, 23.847_506_713_102_423),
+            c64(5.414_467_502_777_059e-190, 4.912_107_071_492_364e-190),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-14);
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
     // a - b is near an integer, but the paired 1/z series cancel more than the unpaired ones.
     // Arb at the binary64 inputs, compared componentwise.

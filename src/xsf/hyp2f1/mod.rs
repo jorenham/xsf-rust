@@ -543,6 +543,7 @@ fn hyp2f1_transform2_limit_series_generator(
     b: f64,
     c: f64,
     m: f64,
+    factor: f64,
     z: C64,
 ) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m. (Can swap a and b to
@@ -552,7 +553,8 @@ fn hyp2f1_transform2_limit_series_generator(
     let mut d3 = digamma(a);
     let mut d4 = digamma(c - a);
     let log_neg_z = (-z).ln();
-    let mut factor = c64(poch(b, m) * poch(1.0 - c + b, m) * rgamma(m + 1.0), 0.0);
+    // Unlike in xsf, start from the caller's factor, which includes the gammas of the prefactor.
+    let mut factor = c64(factor, 0.0);
     let mut k: u64 = 0;
     move || {
         let term = (d1 + d2 - d3 - d4 + log_neg_z) * factor;
@@ -575,6 +577,7 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     c: f64,
     m: f64,
     n: f64,
+    factor: f64,
     z: C64,
 ) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m, and c - a approaches
@@ -584,7 +587,8 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     let mut d3 = digamma(a);
     let mut d4 = digamma(n);
     let log_neg_z = (-z).ln();
-    let mut factor = c64(poch(b, m) * poch(1.0 - c + b, m) * rgamma(m + 1.0), 0.0);
+    // Unlike in xsf, start from the caller's factor, which includes the gammas of the prefactor.
+    let mut factor = c64(factor, 0.0);
     let mut k: u64 = 0;
     move || {
         let k_ = k as f64;
@@ -632,9 +636,11 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
              * (-1)**(a - b + k) * gamma(c - b) * (-1)**(k + a - c + 1)(k + a - c)!
              * = (-1)**(c - b - 1)*Gamma(k + a - c + 1)
              */
+            // Unlike in xsf, times the gammas of the prefactor.
             let f = (-1.0_f64).powf(m + n)
                 * crate::binom(c - 1.0, b - 1.0)
-                * poch(c - a + 1.0, m - 1.0);
+                * poch(c - a + 1.0, m - 1.0)
+                * gamma_ratio([c.into()], [a.into(), (c - b).into()]);
             // Unlike in xsf, use an integer power for the rounded index to retain small phases.
             factor = if n != c - a {
                 (1.0 / z).powi(k as i32) * f
@@ -659,7 +665,8 @@ fn hyp2f1_transform2_limit_finite_part_generator(
     /* Initial finite sum in limit as a - b approaches a non-negative integer m. The limiting series
      * for the 1 - z transform also has an initial finite sum, but it is a standard hypergeometric
      * series. */
-    let mut term = c64(gamma(m) * rgamma(c - b), 0.0);
+    // Unlike in xsf, start from 1, as the caller includes Gamma(m) / Gamma(c - b).
+    let mut term = C64::ONE;
     let mut k: u64 = 0;
     move || {
         let output = term;
@@ -889,24 +896,36 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
     }
 }
 
+/// The product of the gamma functions at `num` divided by that at `den`, or 0 at a pole
+fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> f64 {
+    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(0.0, |y| y.to_f64().0)
+}
+
 fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C64 {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
+    // Unlike in xsf, take each ratio of gammas, including those of the first term of the series,
+    // in logs, as its factors can overflow or underflow alone. The second is free of poles by
+    // (1 - x)_m / Gamma(x) = (-1)^m / Gamma(x - m) for x = c - b, rounded as in the Euler
+    // transform, where it is the original a.
+    let (a_dd, b_dd, c_dd, cb) = (Dd::new(a), Dd::new(b), Dd::new(c), Dd::new(c - b));
     let series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
-    let mut result = (-z).powf(-b) * (gamma(c) * rgamma(a));
+    let mut result = (-z).powf(-b) * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
     result *= series_eval_finite(series_generator1, m as u64);
-    let prefactor = (-z).powf(-a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
+    let prefactor = (-z).powf(-a);
+    let factor =
+        neg_one_pow(m) * gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, cb - m, (m + 1.0).into()]);
     let n = c - a;
     let n_int = n.round();
     if (n - n_int).abs() < HYP2F1_EPS {
         // Unlike in xsf, pass an integer at the positive-parameter coefficient switch.
         let n = if n_int > 0.0 && b > 0.0 { n_int } else { n };
         let series_generator2 =
-            hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
+            hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, factor, z);
         result += prefactor * series_eval(series_generator2);
         return result;
     }
-    let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
+    let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, factor, z);
     result += prefactor * series_eval(series_generator2);
     result
 }
@@ -1630,7 +1649,12 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
         let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
         let euler_limit = if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
-            euler_scaled(hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z))
+            let result = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
+            // (times the power with a separate scale, as it can underflow or overflow alone)
+            let mut power = power::one_minus_z_pow(z, c - a - b);
+            power.mantissa *= result;
+            let value = power.to_c64();
+            (result.norm().is_normal() && value.norm().is_normal()).then_some(value)
         } else {
             None
         };
