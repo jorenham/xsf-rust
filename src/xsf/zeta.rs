@@ -6,12 +6,15 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use std::f64::consts::{LN_2, PI, TAU};
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, LN_2, PI, TAU};
 
 use crate::utils::{LN_PI, LN_TAU, neg_if_odd, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_2_PI_DD, LN_SQRT_2PI_DD};
 use crate::xsf::gamma::cgamma;
+use crate::xsf::log::clog1p;
 use crate::xsf::loggamma::cloggamma;
+use crate::xsf::tools::kahan_step;
 
 /// `std::pow(x, z)` for real `x > 0` and complex `z`, as in libstdc++
 fn rpow(x: f64, z: C64) -> C64 {
@@ -278,6 +281,210 @@ fn zeta_borwein(z: C64, eta_factor: C64) -> C64 {
     -result / eta_factor
 }
 
+/// Taylor coefficients `c_2k`, up to `k = 29`, of the even entire function
+/// `F(p) = (exp(pi i (p^2/2 + 3/8)) - i sqrt(2) cos(pi p/2)) / (2 cos(pi p))` of the
+/// Riemann-Siegel correction.
+///
+/// Generated with the python-flint script
+///
+/// ```python
+/// from flint import acb, acb_series, arb, ctx
+///
+/// ctx.prec, ctx.cap = 256, 60
+/// z, i = acb_series([0, 1]), acb(0, 1)
+/// F = ((i * arb.pi() * (z * z / 2 + acb(3) / 8)).exp() - i * arb(2).sqrt() * (z / 2).cos_pi()) / (
+///     2 * z.cos_pi()
+/// )
+/// coeffs = [complex(c) for c in F.coeffs()[::2]]
+/// ```
+const RS_F_COEFFS: [C64; 30] = [
+    c64(0.191_341_716_182_544_9, -0.245_167_014_930_904_15),
+    c64(0.218_620_234_038_760_21, -0.036_933_834_884_962_956),
+    c64(0.066_188_287_740_171_76, 0.063_534_393_856_146_02),
+    c64(-0.006_802_513_023_837_094, 0.027_223_912_663_570_066),
+    c64(-0.006_783_810_985_051_790_5, 0.001_385_760_877_106_652),
+    c64(-0.000_811_862_661_572_232_7, -0.001_189_449_446_101_378),
+    c64(0.000_148_526_768_666_898_45, -0.000_212_698_201_928_933_23),
+    c64(3.971_650_439_760_735e-5, 1.117_132_740_199_015_1e-5),
+    c64(2.327_806_230_725_225_2e-7, 5.872_858_398_652_07e-6),
+    c64(-7.163_625_815_477_553e-7, 2.498_212_552_923_518e-7),
+    c64(-5.177_423_556_156_473e-8, -7.308_700_305_101_552e-8),
+    c64(6.178_963_541_930_869e-9, -7.536_791_448_164_02e-9),
+    c64(8.940_541_928_977_453e-10, 4.104_425_797_331_228_4e-10),
+    c64(-1.695_707_194_963_518e-11, 9.106_559_550_294_084e-11),
+    c64(-8.163_316_951_282_953e-12, 4.348_099_095_249_618_7e-13),
+    c64(-1.892_554_659_270_610_3e-13, -6.520_913_261_540_13e-13),
+    c64(4.663_711_629_600_862_5e-14, -2.574_698_839_194_822e-14),
+    c64(2.610_921_507_989_068_5e-15, 2.978_335_196_086_287_4e-15),
+    c64(-1.675_336_536_372_132e-16, 2.241_756_964_196_517e-16),
+    c64(-1.706_213_261_405_863_2e-17, -7.993_661_378_773_457e-18),
+    c64(2.875_601_670_716_199_6e-19, -1.176_894_351_646_754_5e-18),
+    c64(7.447_650_681_605_753e-20, 3.424_141_569_957_982e-21),
+    c64(6.282_686_358_510_708e-22, 4.354_432_465_678_006e-21),
+    c64(-2.360_647_625_071_713e-22, 8.042_677_010_875_067e-23),
+    c64(-6.634_534_681_519_81e-24, -1.187_404_814_328_495e-23),
+    c64(5.526_719_997_560_709e-25, -4.533_873_522_499_421e-25),
+    c64(2.749_823_188_763_732_5e-26, 2.362_213_241_963_689_5e-26),
+    c64(-9.115_688_251_159_012e-28, 1.524_413_235_942_887e-27),
+    c64(-7.844_701_868_860_44e-29, -3.053_767_696_325_618_7e-29),
+    c64(7.919_817_544_119_006e-31, -3.781_590_707_554_057_6e-30),
+];
+
+/// Number of terms `C_k / a^k` of the Riemann-Siegel correction
+const RS_TERMS: usize = 10;
+
+/// Number of derivatives `F^(m)`, `m <= 3 (RS_TERMS - 1)`, in the Riemann-Siegel correction
+const RS_DERIVATIVES: usize = 3 * RS_TERMS - 2;
+
+/// Smallest `a = sqrt(|Im z| / (2 pi))` for the Riemann-Siegel formula. The cutoff is empirical:
+/// on a grid of `|p| <= 1` and the dispatched `Re z`, the first omitted correction terms, weighted
+/// as `a^(-Re z - 10) (|C_10(Re z, p)| + |C_10(1 - Re z, p)|)`, stay below eps.
+const RS_MIN_A: f64 = 10.0;
+
+/// Smallest `|Im z|` for the Riemann-Siegel formula
+const RS_MIN_IM: f64 = TAU * RS_MIN_A * RS_MIN_A;
+
+/// Largest `|Im z|` with `0 <= Re z < 2.5` for which zeta is computed (NaN above)
+const MAX_IM: f64 = 1e9;
+
+/// Cost of a Dirichlet term (a power, a double-double logarithm and a sine and cosine) in steps
+/// of `RS_CORRECTION_TERMS`. Calibrated by timing at large `|Im z|`; at small `|Im z|` the
+/// Dirichlet sum stays cheaper somewhat beyond the resulting cutoff.
+const DIRICHLET_TERM_STEPS: usize = 16;
+
+/// Cost of the Riemann-Siegel correction in Dirichlet terms, counting `2 RS_F_COEFFS.len()` steps
+/// for each of its `RS_DERIVATIVES` derivatives of `F`.
+const RS_CORRECTION_TERMS: u32 =
+    (RS_DERIVATIVES * 2 * RS_F_COEFFS.len() / DIRICHLET_TERM_STEPS) as u32;
+
+/// `sum_k C_k(sigma, p) / a^k` of the Riemann-Siegel formula, with
+/// `C_k(sigma, p) = sum_l d_kl(sigma) F^(3k - 2l)(p) / (pi^(2k - l) (2i)^l)`, given the derivatives
+/// `fp[m] = F^(m)(p)`.
+fn rs_correction(sigma: f64, a: f64, fp: &[C64; RS_DERIVATIVES]) -> C64 {
+    // Row k of d_kl(sigma) by the recurrence of mpmath's `Rzeta_simul`, with d_kl at d[l + 2] so
+    // that d_k,-2 = d_k,-1 = 0
+    let mut d = [0.0; 3 * RS_TERMS / 2 + 3];
+    d[2] = 1.0;
+    let mut sum = fp[0];
+    let mut scale = 1.0;
+    for k in 1..RS_TERMS {
+        let prev = d;
+        // 1 / (a^k pi^(2k - l) (2i)^l) = (pi^2 a)^-k (-i pi / 2)^l
+        scale /= PI * PI * a;
+        let mut g = C64::from(scale);
+        for l in 0..=3 * k / 2 {
+            let m = 3 * k - 2 * l;
+            d[l + 2] = if m == 0 {
+                -(0..l)
+                    .map(|r| {
+                        let j = l - r;
+                        neg_if_odd(j, d[r + 2])
+                            * ((j + 1)..=2 * j).map(|i| i as f64).product::<f64>()
+                    })
+                    .sum::<f64>()
+            } else {
+                let m = m as f64;
+                -(m + 1.0) * prev[l]
+                    + prev[l + 2] / (4.0 * m)
+                    + (1.0 - 2.0 * sigma) / (2.0 * m) * prev[l + 1]
+            };
+            sum += d[l + 2] * g * fp[m];
+            g *= c64(0.0, -FRAC_PI_2);
+        }
+    }
+    sum
+}
+
+/// `sum_{n <= n_max} n^-z` and `sum_{n <= n_max} n^(z - 1)`, compensated and from the smallest
+/// terms.
+fn dirichlet_sums(z: C64, n_max: u32) -> (C64, C64) {
+    let (sigma, t) = (z.re, z.im);
+    let (mut x, mut y) = (C64::ZERO, C64::ZERO);
+    let (mut x_comp, mut y_comp) = (C64::ZERO, C64::ZERO);
+    for n in (1..=n_max).rev().map(f64::from) {
+        let w = n.powf(-sigma);
+        // The f64 phase t ln(n) is off by about eps t ln(n), which this and the smaller terms
+        // weigh by at most n^-sigma (1 + n / (sigma - 1)), so it is computed in double-double
+        // where that exceeds eps. For sigma >= 1/2, the terms of the second sum weigh no more in
+        // the Riemann-Siegel formula.
+        let (sin, cos) = if sigma <= 1.0 || t * n.ln() * w * (1.0 + n / (sigma - 1.0)) > 1.0 {
+            (Dd::new(n).log() * t).sin_cos()
+        } else {
+            (t * n.ln()).sin_cos()
+        };
+        kahan_step(&mut x, &mut x_comp, w * c64(cos, -sin));
+        kahan_step(&mut y, &mut y_comp, c64(cos, sin) / (n * w));
+    }
+    (x, y)
+}
+
+/// Compute riemann_zeta for complex z with `|Im z| >= RS_MIN_IM` by the Riemann-Siegel
+/// formula of Arias de Reyna (2011, Math. Comp. 80, 995-1009), as in mpmath's `rszeta`, or by
+/// the Dirichlet series where that needs fewer terms.
+///
+/// For `s = sigma + i t`, `a = sqrt(t / (2 pi))`, `N = floor(a)` and `p = 1 - 2 (a - N)`,
+/// `zeta(s) = R(s) + chi(s) conj(R(1 - conj(s)))`, with
+/// `chi(s) = exp(-2i theta(t + i(1/2 - sigma)))` and
+/// `R(s) = sum_{n <= N} n^-s + (-1)^(N-1) U a^-sigma sum_k C_k(sigma, p) / a^k`. Here
+/// `U = exp(-i phi)`, and `phi = t ln(a) - t/2 - pi/8` is theta(t) without its O(1/t) terms.
+fn zeta_riemann_siegel(z: C64) -> C64 {
+    if z.im < 0.0 {
+        return zeta_riemann_siegel(z.conj()).conj();
+    }
+    let (sigma, t) = (z.re, z.im);
+    // a in double-double, as the error eps a of p = 1 - 2 (a - N) is not relative
+    let a_dd = (FRAC_2_PI_DD.mul_pwr2(0.25) * t).sqrt();
+    let a = a_dd.hi;
+    let n_max = a as u32;
+    let p = (1.0 - (a_dd - f64::from(n_max)).mul_pwr2(2.0)).hi;
+
+    // The Dirichlet series is cheaper than the two sums below and the correction where its tail
+    // after m terms, below m^(1 - sigma) / (sigma - 1), is below eps for some m <= N + the cost
+    // of the correction.
+    if sigma > 1.0 {
+        let m = ((sigma - 1.0) * f64::EPSILON)
+            .powf(-1.0 / (sigma - 1.0))
+            .ceil();
+        if m <= f64::from(n_max + RS_CORRECTION_TERMS) {
+            return dirichlet_sums(z, m as u32).0;
+        }
+    }
+
+    let (x, y) = dirichlet_sums(z, n_max);
+    // phi in double-double, as its f64 rounding error grows like eps t ln(t)
+    let phi = (Dd::new(t).log().mul_pwr2(0.5) - LN_SQRT_2PI_DD - 0.5) * t - FRAC_PI_8;
+    let (sin, cos) = (-phi).sin_cos();
+    let u = c64(cos, sin);
+
+    // The derivatives F^(m)(p) = sum_k coeffs[k] p^(2k - m)
+    let q = p * p;
+    let mut coeffs = RS_F_COEFFS;
+    let mut fp = [C64::ZERO; RS_DERIVATIVES];
+    for (m, f) in fp.iter_mut().enumerate() {
+        let even = coeffs[m.div_ceil(2)..]
+            .iter()
+            .rev()
+            .fold(C64::ZERO, |acc, &c| acc * q + c);
+        *f = if m % 2 == 0 { even } else { p * even };
+        for (k, c) in coeffs.iter_mut().enumerate().skip(m.div_ceil(2)) {
+            *c *= (2 * k) as f64 - m as f64;
+        }
+    }
+
+    let cx = rs_correction(sigma, a, &fp);
+    let cy = rs_correction(1.0 - sigma, a, &fp).conj();
+
+    // chi(s) = u^2 exp(-2i delta), with delta = theta(t + i(1/2 - sigma)) - phi from the Stirling
+    // series of theta (DLMF 5.11.1), whose next term 31 / (80640 t^5) is below eps / 50.
+    let beta = sigma - 0.5;
+    let w = c64(t, -beta);
+    let delta = 0.5 * (w * clog1p(c64(0.0, -beta / t)) - C64::I * beta * (2.0 * a.ln() - 1.0))
+        + (1.0 / 48.0 + 7.0 / (5760.0 * w * w)) / w;
+    let e = (-2.0 * C64::I * delta).exp();
+    let sign = neg_one_pow(n_max - 1);
+    x + sign * u * a.powf(-sigma) * cx + u * e * (u * y + sign * a.powf(sigma - 1.0) * cy)
+}
+
 /// Smallest `|1 - 2^(1 - z)|` for the Borwein sum: dividing by it at most doubles the
 /// absolute error of the eta sum.
 const ETA_FACTOR_MIN: f64 = 0.5;
@@ -290,10 +497,15 @@ fn zeta_right_halfplane(z: C64) -> C64 {
     // Unlike in xsf, Euler-Maclaurin is used for |Im z| > 30 instead of 50: the error of the
     // 50-term Borwein sum grows like exp(pi |Im z| / 2) / (3 + sqrt(8))^50 (2e-7 at 1/2 + 48i).
     if z.re < 50.0 && z.im.abs() > 30.0 {
-        if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > 1e9 {
+        if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > MAX_IM {
             /* Euler-MacLaurin summation starts to take an unreasonable amount of time in this
              * region, so just give up and return NaN instead. */
             return C64::NAN;
+        }
+        // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to
+        // |Im z| = MAX_IM, as the phase errors of Euler-Maclaurin grow with |Im z|.
+        if (RS_MIN_IM..=MAX_IM).contains(&z.im.abs()) {
+            return zeta_riemann_siegel(z);
         }
         return zeta_euler_maclaurin(z);
     }
