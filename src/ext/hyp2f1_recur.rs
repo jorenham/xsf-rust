@@ -209,7 +209,15 @@ impl Scaled {
     /// the rounding of an underflow)
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
-        (ldexp_f64(y.m, y.e), y.err)
+        let v = ldexp_f64(y.m, y.e);
+        if v.abs() < f64::MIN_POSITIVE {
+            // a subnormal rounded once, from `m exp(r)` in double-double, as `y.m` can round to a
+            // halfway point
+            let (r, e) = split_exp(self);
+            let units = (Dd::new(self.m) * r.exp()).ldexp(e + 1074);
+            return (units.round_subnormal_units(), y.err);
+        }
+        (v, y.err)
     }
 }
 
@@ -1299,14 +1307,18 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     }
 }
 
+/// `(r, y.e + k)` with `exp(y.l) = 2^k exp(r)` and `|r| <= ln(2) / 2`
+fn split_exp(y: Scaled) -> (Dd, i32) {
+    // If `|k|` is so large that it's clamped, then so is `e + k`, since `|e|` is at most about 1e9
+    // (2^1000 per term), and the value overflows or underflows.
+    let k = (y.l.hi / LN_2).round().clamp(-1e12, 1e12);
+    let e = (f64::from(y.e) + k).clamp(-1e9, 1e9) as i32;
+    (y.l - LOG2 * k, e)
+}
+
 /// `y` with `exp(l)` folded into `m 2^e` (so `l = 0`), and its roundings into the error bound
 pub(crate) fn fold_exp(y: Scaled) -> Scaled {
-    // `exp(l) = 2^k exp(r)` with `|r| <= ln(2) / 2`. If `|k|` is so large that it's clamped, then
-    // so is `e + k`, since `|e|` is at most about 1e9 (2^1000 per term), and the value overflows
-    // or underflows.
-    let k = (y.l.hi / LN_2).round().clamp(-1e12, 1e12);
-    let r = y.l - LOG2 * k;
-    let e = (f64::from(y.e) + k).clamp(-1e9, 1e9) as i32;
+    let (r, e) = split_exp(y);
     // For an unclamped `k`, `exp(r.lo)` rounds to 1. It is left out, as `r` is huge for a clamped
     // `k`, where `m` must keep its sign.
     let (m, l) = (y.m * r.hi.exp(), Dd::ZERO);

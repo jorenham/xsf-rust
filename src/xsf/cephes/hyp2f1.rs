@@ -1049,16 +1049,17 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     }
 
     // Unlike in xsf, for |x| > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
-    // DLMF 15.4.6: the paths below lose digits (or diverge for a tiny `a` or `b`), and the Euler
-    // transformation rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`. For
-    // x > 1 only if its exponent is an integer, else inf, as for the other powers (see below).
-    // Not for an integer c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above),
-    // nor for x > 1 and an exponent within `HYP2F1_EPS` of an integer, which the paths below can
-    // take as one, nor in the transformations, whose `c - a` or `c - b` can round to `c`.
+    // DLMF 15.4.6, as the paths below lose digits or diverge. For x > 1 only if the exponent is an
+    // integer, else inf, as for the other powers (see below). Not for an integer c <= 0 (see above),
+    // nor for x > 1 with an exponent within `HYP2F1_EPS` of an integer, nor in the transformations,
+    // where c - a or c - b can round to c.
     if outer && ax > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
         let e = if a == c { b } else { a };
         if x < -1.0 {
-            return pow_1mx(x, -e);
+            // (by `powf` if `1 - x` is exact, i.e. if `s - (-x)` is exactly 1, and the power is
+            // normal, as `powf` can round a subnormal to the wrong side of a halfway point)
+            let exact = (s + x == 1.0).then(|| s.powf(-e)).filter(|p| p.is_normal());
+            return exact.unwrap_or_else(|| pow_1mx(x, -e));
         } else if e == e.round() {
             return s.powf(-e);
         } else if (e - e.round()).abs() >= HYP2F1_EPS {

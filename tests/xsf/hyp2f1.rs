@@ -3595,6 +3595,15 @@ fn test_hyp2f1_f64_c_eq_b_x_lt_minus_1() {
         let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
         np_assert_allclose!(actual, [expected; 2], rtol = 1e-15);
     }
+    // correctly rounded (Arb: 2.068_550_481_565_191_884_6e-17)
+    let (a, b, x) = (34.968_75, 5.0, -2.0);
+    let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
+    assert_eq!(actual, [2.068_550_481_565_192e-17; 2]);
+    // the smallest subnormal (Arb: 2.470_328_229_206_232_833_8e-324, just above half of it)
+    let (a, b, x) = (302.149_535_879_118_96, 5.0, -10.776_516_745_244_6);
+    for actual in [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)] {
+        assert_eq!(actual.to_bits(), 1);
+    }
 }
 
 #[test]
