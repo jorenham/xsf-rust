@@ -162,6 +162,24 @@ fn test_gammainc_far_from_a() {
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
+#[test]
+fn test_gammaincc_continued_fraction() {
+    // where the continued fraction converges slowly (Arb)
+    let actual = [
+        xsf::gammaincc(0.8152, 1.145),
+        xsf::gammaincc(0.4907, 1.523),
+        xsf::gammaincc(0.06597, 1.336),
+        xsf::gammaincc(1e18, 1.000_000_005e18), // where `1 - a` rounds, but `x - a` is exact
+    ];
+    let expected = [
+        0.245_234_450_295_688_4,
+        0.078_856_959_512_796_04,
+        0.009_146_010_528_532_237,
+        2.866_515_837_729_502_4e-7,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
 xsref::tests! {
     test_gammaincinv: "gammaincinv", "d_d-d", |x| xsf::gammaincinv(x[0], x[1]);
     test_gammainccinv: "gammainccinv", "d_d-d", |x| xsf::gammainccinv(x[0], x[1]);
