@@ -8,6 +8,7 @@ use core::f64::consts::{LN_2, SQRT_2};
 use core::ops::Range;
 use num_traits::Zero;
 
+use crate::ext::hyp2f1_poly_dd;
 use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2, frexp_f64, ldexp_f64, two_prod, two_sum};
@@ -361,6 +362,14 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         let tried = degree.is_some();
         if let Some(p) = degree.and_then(|n| eval_jacobi_l_reflected(n, a, b, self.clone())) {
             return p;
+        }
+        // Unlike in xsf, use `P_n(-1) = (-1)^n (beta + 1)_n / n!` (DLMF Table 18.6.1) for the
+        // other integer degrees, as `2F1(-n, -beta; 1; 1)` (DLMF 15.4.24) with exact parameters,
+        // since the 2F1 below rounds `n + alpha + beta + 1`.
+        let at_minus_one = self.as_f64() == Some(-1.0) && n > 0.0 && n.fract() == 0.0;
+        let p = (at_minus_one && a.is_finite()).then(|| hyp2f1_poly_dd(-n, -b, 1.0, 1.0));
+        if let Some(p) = p.flatten() {
+            return (Self::ZERO + p.to_f64().0) * neg_one_pow(n);
         }
         if a == -1.0 && b.abs() == 1.0 {
             if n == 0.0 {

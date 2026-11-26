@@ -1173,6 +1173,29 @@ fn test_eval_jacobi_alpha_lt_minus_one() {
 }
 
 #[test]
+fn test_eval_jacobi_minus_one() {
+    // P_n(-1) = (-1)^n (beta + 1)_n / n! (Arb); the last three were 0.611, -2.39e-11 and NaN
+    let actual = [
+        eval_jacobi(91.0, 14.9, -13.004_252_634_573_632, -1.0),
+        eval_jacobi(35.0, -46.922, -1.7, -1.0),
+        eval_jacobi(20.0, 19.9, -21.2, -1.0),
+        eval_jacobi(38.0, -39.4, -19.653_415_738_132_338, -1.0),
+        xsf::eval_sh_jacobi(17.0, -3.0, 37.86, 0.0),
+    ];
+    let desired = [
+        1.692_867_567_181_582e-19,
+        5.646_143_852_553_384e-4,
+        1.994_615_199_834_204_5,
+        -4.150_153_191_184_249e-13,
+        -6.483_688_927_341_96e13,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+    // a zero factor `beta + 1 + k` for some `k < n`
+    assert_eq!(eval_jacobi(284.0, 43.971_282_060_204_07, -2.0, -1.0), 0.0);
+    assert_eq!(eval_jacobi(5.0, -3.0, -2.0, -1.0), 0.0);
+}
+
+#[test]
 fn test_shifted_and_scaled() {
     // reference values from scipy.special
     let r = [
