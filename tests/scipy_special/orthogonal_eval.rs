@@ -148,32 +148,36 @@ fn test_eval_integer_degree_reflection() {
 
 #[test]
 fn test_eval_integer_degree_below_minus_one() {
-    // the recurrence lost all digits or was NaN for alpha or beta below -1 (Arb)
-    let actual = [
+    // the recurrence lost all digits or was NaN for alpha or beta below -1 (Arb, or exact)
+    let cases: [(i32, f64, f64, f64, f64); 8] = [
         // beta < -1 near x = -1
-        xsf::eval_jacobi(
-            85_i32,
+        (
+            85,
             0.923_528_596_985_787_5,
             -20.066_479_948_825_68,
             -0.999_999_549_074_469_4,
+            -2.169_024_416_715_375e-22,
         ),
         // beta < -1 at x = -1
-        xsf::eval_jacobi(91_i32, 14.9, -13.004_252_634_573_632, -1.0),
+        (91, 14.9, -13.004_252_634_573_632, -1.0, 1.692_867_567_181_582e-19),
         // alpha < -1 near x = 1
-        xsf::eval_jacobi(50_i32, -7.6, 3.3, 0.95),
+        (50, -7.6, 3.3, 0.95, -2.415_984_839_942_639_5e-7),
         // alpha + beta = -2, where the recurrence divides by 2k + alpha + beta = 0 at k = 1
-        xsf::eval_jacobi(40_i32, -0.3, -1.7, -1.0),
+        (40, -0.3, -1.7, -1.0, -4.489_754_303_000_653e-4),
         // alpha + beta = -3, where it divides by k + alpha + beta + 1 = 0 at k = 2
-        xsf::eval_jacobi(200_i32, 0.5, -3.5, 0.3),
+        (200, 0.5, -3.5, 0.3, 0.020_564_176_834_305_885),
+        // integer beta = -7, where the 2F1 cancels: 16467 / 2^55
+        (8, -2.5, -7.0, -0.9375, 16_467.0 * 2.0_f64.powi(-55)),
+        // integer beta = -2, at the root x = 0
+        (3, 2.0, -2.0, 0.0, 0.0),
+        // integer alpha = -3, where both were NaN: -45 / 256
+        (4, -3.0, 2.0, 0.5, -45.0 / 256.0),
     ];
-    let desired = [
-        -2.169_024_416_715_375e-22,
-        1.692_867_567_181_582e-19,
-        -2.415_984_839_942_639_5e-7,
-        -4.489_754_303_000_653e-4,
-        0.020_564_176_834_305_885,
-    ];
-    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    np_assert_allclose!(
+        cases.map(|(n, a, b, x, _)| xsf::eval_jacobi(n, a, b, x)),
+        cases.map(|(.., p)| p),
+        rtol = 1e-12
+    );
 }
 
 #[test]

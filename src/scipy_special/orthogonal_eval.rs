@@ -554,24 +554,37 @@ impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
         if n < 0 {
-            self.eval_jacobi(f64::from(n), alpha, beta)
+            return self.eval_jacobi(f64::from(n), alpha, beta);
+        }
+        // Unlike in xsf, x < 0 is reflected if alpha, beta > -1, unless that is nonfinite
+        let p = eval_jacobi_l_reflected(n, alpha, beta, self)
+            .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self));
+        if is_classical(alpha, beta) {
+            return p;
+        }
+        // Unlike in xsf, for alpha or beta <= -1, where the recurrence can lose all digits (e.g.
+        // near x = -1 for beta < -1), keep it only where it agrees with `q` within the error
+        // threshold of the 2F1.
+        //
+        // For an integer alpha = -l with 1 <= l <= n, the terms below l of DLMF 18.5.7 vanish, so
+        // `q` is binom(n + beta, l) / binom(n, l) ((x - 1) / 2)^l P_m^{(l, beta)} with m = n - l,
+        // as the 2F1 cancels near x = 1. For such a beta, reflect (DLMF Table 18.6.1).
+        let int_in_range = |t: f64| t.fract() == 0.0 && (-f64::from(n)..=-1.0).contains(&t);
+        let q = if int_in_range(alpha) {
+            let (l, m) = (-alpha as i32, n + alpha as i32);
+            let c: f64 = (m + 1..=n)
+                .map(|k| (f64::from(k) + beta) / f64::from(k))
+                .product();
+            c * (0.5 * (self - 1.0)).powi(l) * self.eval_jacobi(m, -alpha, beta)
+        } else if int_in_range(beta) {
+            neg_one_pow(n) * (-self).eval_jacobi(n, beta, alpha)
         } else {
-            // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
-            let p = eval_jacobi_l_reflected(n, alpha, beta, self)
-                .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self));
-            // Unlike in xsf, for alpha or beta <= -1, where the recurrence can lose all digits
-            // (e.g. near x = -1 for beta < -1), keep it only where it agrees with the 2F1 up to
-            // the error threshold of the 2F1.
-            let q = if is_classical(alpha, beta) {
-                p
-            } else {
-                self.eval_jacobi(f64::from(n), alpha, beta)
-            };
-            if q.is_finite() && !((p - q).abs() <= HYP2F1_ETHRESH * q.abs()) {
-                q
-            } else {
-                p
-            }
+            self.eval_jacobi(f64::from(n), alpha, beta)
+        };
+        if q.is_finite() && !((p - q).abs() <= HYP2F1_ETHRESH * q.abs()) {
+            q
+        } else {
+            p
         }
     }
 
