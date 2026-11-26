@@ -1,14 +1,14 @@
 """Find inputs where the working tree (or `--head`) is less accurate than a base revision.
 
-Usage (from the repository root; or `just diff-fuzz`):
+Usage (from the repository root; or `just fuzz-diff`):
 
-    uv run --project tools tools/accuracy/diff_fuzz.py [--base REV] [--head REV]
+    uv run --project tools tools/accuracy/fuzz_diff.py [--base REV] [--head REV]
         [--only NAME ...] [--cases N] [--seed S] [--max-refs N] [--jobs N]
 
 Steps:
 
 1. Build the dump program of `accuracy.py` for both revisions; that of a commit is built from
-   `git archive` and cached in `.cache/diff-fuzz/`.
+   `git archive` and cached in `.cache/fuzz-diff/`.
 2. Evaluate both on the same `--cases` seeded inputs per spec of `specs.py` (or of `--only`, by
    spec or function name): samples of its domains, with arguments moved to (near) integers,
    half-integers, domain bounds or special values, one set to (near) an integer plus a signed
@@ -19,7 +19,7 @@ Steps:
    those whose results differ at all, else of new samples).
 4. Compute the references of at most `--max-refs` flagged inputs per spec, with Arb where `ARB`
    has the function, else as `accuracy.py` does, and compare the errors of both revisions.
-5. Print the counts, write the regressions to `.cache/diff-fuzz.tsv`, and exit with 1 if there
+5. Print the counts, write the regressions to `.cache/fuzz-diff.tsv`, and exit with 1 if there
    are any (including a timeout of the head alone).
 """
 
@@ -58,8 +58,8 @@ RUN_TIMEOUT: Final = 10
 LINE_TIMEOUT: Final = 0.02
 # rounds of mutants of the flagged inputs
 NEAR_ROUNDS: Final = 3
-CACHE: Final = accuracy.CACHE / "diff-fuzz"
-TSV: Final = accuracy.CACHE / "diff-fuzz.tsv"
+CACHE: Final = accuracy.CACHE / "fuzz-diff"
+TSV: Final = accuracy.CACHE / "fuzz-diff.tsv"
 IMAG: Final = {"im", "xi", "yi", "zi", "pi"}
 # (of a random sign)
 SPECIAL: Final = (0.0, math.ulp(0), DBL_MIN, DBL_MAX, math.inf, math.nan)

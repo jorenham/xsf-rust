@@ -25,8 +25,8 @@ accuracy *args:
 pfq-map *args:
     uv run --project tools tools/accuracy/pfq_map.py {{ args }}
 
-diff-fuzz *args:
-    uv run --project tools tools/accuracy/diff_fuzz.py {{ args }}
+fuzz-diff *args:
+    uv run --project tools tools/accuracy/fuzz_diff.py {{ args }}
 
 [working-directory("tools")]
 lint-py:

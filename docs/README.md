@@ -12,7 +12,7 @@
 | ------------- | ---------------------------------------------------------------------------------------------------- |
 | `accuracy`    | regenerates [`accuracy.md`](accuracy.md)                                                             |
 | `pfq-map`     | regenerates the maps of [`hyppfq.md`](hyppfq.md)                                                     |
-| `diff-fuzz`   | finds random inputs where the working tree (or `--head`) is less accurate than `--base` (Arb checks) |
+| `fuzz-diff`   | finds random inputs where the working tree (or `--head`) is less accurate than `--base` (Arb checks) |
 
-Usage: `just diff-fuzz [--base REV] [--head REV] [--only NAME ...] [--cases N]`; see
-[`diff_fuzz.py`](../tools/accuracy/diff_fuzz.py).
+Usage: `just fuzz-diff [--base REV] [--head REV] [--only NAME ...] [--cases N]`; see
+[`fuzz_diff.py`](../tools/accuracy/fuzz_diff.py).
