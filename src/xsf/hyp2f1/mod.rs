@@ -229,7 +229,7 @@ fn hypergeometric_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut
 fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let mut series_generator = hypergeometric_series_generator(a, b, c, z);
     let (mut n, mut last) = (0.0, C64::ZERO);
-    let (head, head_cancellation) = series_eval_cancellation(|| {
+    let head = series_eval_cancellation(|| {
         (n, last) = (n + 1.0, series_generator());
         last
     });
@@ -237,7 +237,7 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let growth = ln_max_growth(a, b, c, x, n - 1.0);
     // A subnormal term would pass its rounding on to the larger later ones.
     if !(growth > 0.0 && last.norm() >= f64::MIN_POSITIVE) {
-        return head;
+        return head.value;
     }
     let peak = (last.norm().ln() + growth).exp();
     // As a heuristic, the later terms have the magnitudes of the real ones at |z|, which grow up to
@@ -248,9 +248,9 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let slope = 1.0 / (c + m) + 1.0 / (m + 1.0) - 1.0 / (a + m) - 1.0 / (b + m);
     let width = (TAU / slope).sqrt().max(1.0 / (1.0 - x));
     let mass = peak * (m - n + 1.0 + width);
-    let negligible = head.norm() * HYP2F1_EPS;
+    let negligible = head.value.norm() * HYP2F1_EPS;
     if !(mass >= negligible) {
-        return head;
+        return head.value;
     }
     // Their sum, as they turn by the angle of z (the Fourier transform of the Gaussian), unless
     // negligible, and the number of them until one is below `HYP2F1_EPS` times that sum
@@ -259,33 +259,33 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let length = m - n + (2.0 * (peak / (HYP2F1_EPS * sum)).ln() / slope).sqrt();
     // Unlike in xsf, NaN if z is real, as then (with z.re >= 0) the later terms have the same
     // sign, so that `head` is wrong.
-    let fallback = if z.is_real() && peak > head.norm() {
+    let fallback = if z.is_real() && peak > head.value.norm() {
         C64::NAN
     } else {
-        head
+        head.value
     };
     // Give up if the sum would take too long, or be below the rounding of the terms.
     if !(length <= HYP2F1_MAXITER as f64 && mass * f64::EPSILON <= sum) {
         return fallback;
     }
     let n_head = n as u64;
-    let (tail, cancellation) = series_eval_cancellation(|| {
+    let tail = series_eval_cancellation(|| {
         n += 1.0;
         series_generator()
     });
-    if tail.is_nan() {
+    if tail.value.is_nan() {
         return fallback;
     }
     // Add the first term 1 last, so that the rounding of the rest of `head` isn't lost.
     let mut head_terms = hypergeometric_series_generator(a, b, c, z);
-    let value = head_terms() + series_eval_fixed_length(head_terms, tail, n_head - 1);
-    let error = (n * f64::EPSILON + rounding) * cancellation * tail.norm();
+    let value = head_terms() + series_eval_fixed_length(head_terms, tail.value, n_head - 1);
+    let error = (n * f64::EPSILON + rounding) * tail.cancellation * tail.value.norm();
     // The first term 1 is exact.
-    let head_rounding = f64::EPSILON * (head_cancellation * head.norm() - 1.0);
-    if error <= HYP2F1_RECUR_TOL * value.norm() && error + head_rounding <= tail.norm() {
+    let head_rounding = f64::EPSILON * (head.cancellation * head.value.norm() - 1.0);
+    if error <= HYP2F1_RECUR_TOL * value.norm() && error + head_rounding <= tail.value.norm() {
         value
     } else {
-        head
+        head.value
     }
 }
 
