@@ -1428,6 +1428,29 @@ fn test_hyp1f1_complex_large_a() {
 }
 
 #[test]
+fn test_hyp1f1_complex_huge_a_or_b() {
+    // Arb; #2259, a or b - a (for Re z < 0) of 1e8 to 1e9, which took seconds
+    let abz = [
+        (1e8, 1e20, c64(0.0, 1e10)),
+        (1e9, 1e20, c64(0.0, 1e10)),
+        (1_038_646_717.74, 1.78e244, c64(0.0, 8.2e49)),
+        (1e8, 1e20, c64(1.0, 0.0)),
+        (1e6, 1e9, c64(-3.0, 0.0)),
+        (1.0, 1e9, c64(-3.0, 0.0)),
+    ];
+    let expected = [
+        c64(0.999_950_000_416_165_3, 0.009_999_833_334_161_665),
+        c64(0.995_004_165_273_050_8, 0.099_833_416_646_328_98),
+        c64(1.0, 4.784_777_014_307_866e-186),
+        c64(1.000_000_000_001, 0.0),
+        c64(0.997_004_495_507_855, 0.0),
+        c64(0.999_999_997, 0.0),
+    ];
+    let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_hyp1f1_complex_asymptotic() {
     // mpmath; scipy/xsf#398 (~1e-8 because the asymptotic expansion is truncated)
     let abz =

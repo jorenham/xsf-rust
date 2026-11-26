@@ -360,22 +360,30 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
             }
         }
         if a0 >= 2.0 {
-            for _i in 1..la {
-                chg = ((2.0 * a - b + z) * cy1 + (b - a) * cy0) / a;
-                cy0 = cy1;
-                cy1 = chg;
-                a += 1.0;
-            }
-            // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
-            // recurrence in a above if they differ by more than twice the series' error bound.
-            if b > 0.0 {
-                if let Some((s, _)) =
-                    hyp1f1_series(a0, b, z, C64::ONE, 0.0, None).filter(|&(s, err)| {
-                        err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
-                    })
-                {
-                    chg = s;
-                }
+            let series = (b > 0.0)
+                .then(|| hyp1f1_series(a0, b, z, C64::ONE, 0.0, None))
+                .flatten()
+                .filter(|&(_, err)| err.is_finite());
+            match series {
+                // Unlike in xsf, skip the recurrence if it takes more steps than the series can
+                // take terms, as the check below keeps it only if it agrees with the series.
+                Some((s, _)) if la > MAX_TERMS => chg = s,
+                _ => {
+                    for _i in 1..la {
+                        chg = ((2.0 * a - b + z) * cy1 + (b - a) * cy0) / a;
+                        cy0 = cy1;
+                        cy1 = chg;
+                        a += 1.0;
+                    }
+                    // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the
+                    // forward recurrence in a above if they differ by more than twice the
+                    // series' error bound.
+                    if let Some((s, _)) =
+                        series.filter(|&(s, err)| !chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                    {
+                        chg = s;
+                    }
+                },
             }
         }
         if reflected {
