@@ -53,6 +53,7 @@ import tempfile
 import time
 from collections import Counter
 from collections.abc import Callable
+from enum import StrEnum
 from multiprocessing.connection import Connection, wait
 from pathlib import Path
 from typing import Final, NamedTuple
@@ -81,6 +82,14 @@ CACHE: Final = accuracy.CACHE / "diff-fuzz"
 TSV: Final = accuracy.CACHE / "diff-fuzz.tsv"
 # lines per run of a dump program; a failed run is bisected down to the failing inputs
 CHUNK: Final = 1000
+# seconds per run of a dump program, and per line in it
+RUN_TIMEOUT: Final = 10
+LINE_TIMEOUT: Final = 0.02
+# seconds per spec and revision that timeouts of runs may cost, after which the lines of a timed
+# out run are not bisected further (a library call can hang)
+TIMEOUT_BUDGET: Final = 120
+# references per worker process, since mpmath caches grow
+WORKER_TASKS: Final = 500
 NEAR_ROUNDS: Final = 3
 
 
@@ -100,9 +109,30 @@ IMAG: Final = {"im", "xi", "yi"}
 SPECIAL: Final = (0.0, -0.0, 1.0, -1.0, 0.5, -0.5, 2.0, -2.0, 5e-324, 1e-300, 1e300)
 SPECIAL_NONFINITE: Final = (math.inf, -math.inf, math.nan)
 
-type Args = tuple[float, ...]
-type Value = complex | str  # a result, or "unsupported", "panic" or "timeout"
-type Ref = list[str] | str  # the parts of a reference, or why there is none
+type Args = accuracy.Args
+# a result, or "unsupported", "panic", "timeout" or "skipped" (not run, after too many timeouts)
+type Value = complex | str
+type RefParts = list[str] | str  # the parts of a reference, or why there is none
+
+
+class Kind(StrEnum):
+    """The verdict on a flagged input."""
+
+    REGRESSED = "regressed"
+    IMPROVED = "improved"
+    BOTH_WRONG = "both wrong"
+    BOTH_RIGHT = "both right"
+    NO_REF = "no ref"
+
+
+COLUMNS: Final = ["function", "cases", "flagged", *Kind, "unchecked"]
+
+
+class Budget:
+    """The seconds that timeouts may still cost for one revision of a spec."""
+
+    def __init__(self) -> None:
+        self.left: float = TIMEOUT_BUDGET
 
 
 def program(rev: str | None) -> str:
@@ -130,25 +160,28 @@ def program(rev: str | None) -> str:
     return str(exe)
 
 
-def evaluate(exe: str, lines: list[tuple[str, Args]]) -> list[Value]:
+def evaluate(exe: str, lines: list[tuple[str, Args]], budget: Budget) -> list[Value]:
     """The results of the input lines, or why the program fails on them."""
     if len(lines) > CHUNK:
         return [
             v
             for i in range(0, len(lines), CHUNK)
-            for v in evaluate(exe, lines[i : i + CHUNK])
+            for v in evaluate(exe, lines[i : i + CHUNK], budget)
         ]
+    if budget.left <= 0:
+        return ["skipped"] * len(lines)
+    timeout = RUN_TIMEOUT + LINE_TIMEOUT * len(lines)
     try:
-        timeout = 10 + 0.02 * len(lines)
         return list[Value](accuracy.run([exe, "xsf"], lines, timeout))
     except subprocess.CalledProcessError as e:
         fail = "unsupported" if "unknown function" in e.stderr else "panic"
     except subprocess.TimeoutExpired:
         fail = "timeout"
+        budget.left -= timeout
     if len(lines) == 1:
         return [fail]
     mid = len(lines) // 2
-    return evaluate(exe, lines[:mid]) + evaluate(exe, lines[mid:])
+    return evaluate(exe, lines[:mid], budget) + evaluate(exe, lines[mid:], budget)
 
 
 class Case(NamedTuple):
@@ -301,6 +334,8 @@ def diffs(x: Value, y: Value) -> list[float]:
     """How much the parts of two results differ: 0 if by at most `RTOL` relative to the larger,
     `RTOL` for zeros of different signs, else their relative difference, or infinity if they
     differ in kind (NaN, infinite, zero, or a failure)."""
+    if "skipped" in (x, y):
+        return [0.0]
     if isinstance(x, str) or isinstance(y, str):
         return [0.0 if x == y else math.inf]
     return list(map(_diff, _parts(x), _parts(y)))
@@ -317,7 +352,7 @@ def _diff(u: float, v: float) -> float:
     return d if d > RTOL else 0.0
 
 
-def ref_task(task: tuple[str, Args]) -> Ref:
+def ref_parts(task: tuple[str, Args]) -> RefParts:
     """The reference (its parts), or why there is none."""
     name, args = task
     spec = specs.BY_NAME[name]
@@ -348,19 +383,20 @@ def _worker(conn: Connection) -> None:
     # (until the parent closes its end)
     with contextlib.suppress(EOFError):
         while True:
-            conn.send(ref_task(conn.recv()))
+            conn.send(ref_parts(conn.recv()))
 
 
 class Refs:
-    """Worker processes for `ref_task`, each killed and replaced when a reference takes longer
-    than `REF_TIMEOUT` (or the timeout of its spec)."""
+    """Worker processes for `ref_parts`, each killed and replaced when a reference takes longer
+    than `REF_TIMEOUT` (or the timeout of its spec), or after `WORKER_TASKS` references."""
 
     def __init__(self, n: int) -> None:
         self.n = n
+        self.count = Counter[multiprocessing.Process]()
         self.idle: list[tuple[multiprocessing.Process, Connection]] = []
 
-    def map(self, tasks: list[tuple[str, Args]]) -> list[Ref]:
-        out: list[Ref] = ["timeout"] * len(tasks)
+    def map(self, tasks: list[tuple[str, Args]]) -> list[RefParts]:
+        out: list[RefParts] = ["timeout"] * len(tasks)
         todo = list(enumerate(tasks))[::-1]
         busy: dict[Connection, tuple[multiprocessing.Process, int, float]] = {}
         while todo or busy:
@@ -376,7 +412,11 @@ class Refs:
                 proc, i, _ = busy.pop(conn)
                 try:
                     out[i] = conn.recv()
-                    self.idle.append((proc, conn))
+                    self.count[proc] += 1
+                    if self.count[proc] < WORKER_TASKS:
+                        self.idle.append((proc, conn))
+                    else:
+                        proc.kill()
                 except EOFError:
                     out[i] = "worker died"
             now = time.monotonic()
@@ -419,12 +459,12 @@ def _error(u: float, s: str, mod: mp.mpf) -> float:
     return abs(u - r) / abs(r)
 
 
-def classify(eb: float, eh: float) -> str:
+def classify(eb: float, eh: float) -> Kind:
     if eh > max(WORSE * eb, FLOOR):
-        return "regressed"
+        return Kind.REGRESSED
     if eb > max(WORSE * eh, FLOOR):
-        return "improved"
-    return "both wrong" if min(eb, eh) > FLOOR else "both right"
+        return Kind.IMPROVED
+    return Kind.BOTH_WRONG if min(eb, eh) > FLOOR else Kind.BOTH_RIGHT
 
 
 def show(y: Value) -> str:
@@ -432,7 +472,7 @@ def show(y: Value) -> str:
 
 
 class Verdict(NamedTuple):
-    kind: str  # one of `classify`, or "no ref"
+    kind: Kind
     ref: list[str]
     eb: float
     eh: float
@@ -450,7 +490,7 @@ def check(
     tasks = [(spec.name, cases[i].args) for i in todo]
     for i, ref in zip(todo, refs.map(tasks), strict=True):
         if isinstance(ref, str):
-            out[i] = Verdict("no ref", [], math.nan, math.nan)
+            out[i] = Verdict(Kind.NO_REF, [], math.nan, math.nan)
             continue
         # (only the parts that differ, e.g. not the real part if only the sign of a zero
         # imaginary part does)
@@ -488,7 +528,7 @@ def fuzz(
     for r in range(NEAR_ROUNDS + 1):
         # mutants of the regressions, and of the flagged inputs, but not of those that only
         # differ in the sign of a zero, which can be many
-        worse = [cases[i] for i, v in checked.items() if v.kind == "regressed"]
+        worse = [cases[i] for i, v in checked.items() if v.kind == Kind.REGRESSED]
         other = [cases[i] for i in flagged if diff(i) > RTOL]
         seeds = rng.choices(worse, k=opts.cases // 2) if worse else []
         seeds += rng.choices(other, k=opts.cases - len(seeds)) if other else []
@@ -520,10 +560,10 @@ def fuzz(
         checked |= check(refs, spec, cases, ys, todo[:share])
 
     n = Counter(v.kind for v in checked.values())
-    row = [spec.name, len(seen), len(flagged), *(n[c] for c in COLUMNS[3:-1])]
+    row = [spec.name, len(seen), len(flagged), *(n[k] for k in Kind)]
     row.append(len(flagged) - len(checked))
     worst = sorted(
-        ((i, v) for i, v in checked.items() if v.kind == "regressed"),
+        ((i, v) for i, v in checked.items() if v.kind == Kind.REGRESSED),
         key=lambda iv: -iv[1].eh,
     )
     lines = [
@@ -547,39 +587,68 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__.splitlines()[0] if __doc__ else None
     )
-    ap.add_argument("--base", default="origin/master", help="the base revision")
-    ap.add_argument("--head", help="the revision to check (default: the working tree)")
-    ap.add_argument("--only", nargs="+", help="spec or function names")
     ap.add_argument(
-        "--cases", type=int, default=20000, help="inputs per spec and round"
+        "--base",
+        default="origin/master",
+        help="the base revision (default: %(default)s)",
     )
-    ap.add_argument("--seed", default="0", help="the seed of the inputs")
-    ap.add_argument("--max-refs", type=int, default=2000, help="references per spec")
-    ap.add_argument("--jobs", type=int, default=8, help="reference worker processes")
+    ap.add_argument("--head", help="the revision to check (default: the working tree)")
+    ap.add_argument("--only", nargs="+", help="spec or function names (default: all)")
+    ap.add_argument(
+        "--cases",
+        type=int,
+        default=20000,
+        help="inputs per spec and round (default: %(default)s)",
+    )
+    ap.add_argument(
+        "--seed", default="0", help="the seed of the inputs (default: %(default)s)"
+    )
+    ap.add_argument(
+        "--max-refs",
+        type=int,
+        default=2000,
+        help="references per spec (default: %(default)s)",
+    )
+    ap.add_argument(
+        "--jobs",
+        type=int,
+        default=8,
+        help="reference worker processes, at least 1 (default: %(default)s)",
+    )
     opts = ap.parse_args()
+    if opts.jobs < 1:
+        ap.error("--jobs must be at least 1")
     mp.mp.dps = specs.DPS
     only = {n for arg in opts.only or [] for n in arg.split(",")}
     chosen = [s for s in specs.SPECS if not only or only & {s.name, s.func}]
     if unknown := only - {n for s in chosen for n in (s.name, s.func)}:
-        sys.exit(f"unknown: {', '.join(sorted(unknown))}")
+        ap.error(f"unknown spec or function: {', '.join(sorted(unknown))}")
     CACHE.mkdir(parents=True, exist_ok=True)
-    exes = [program(opts.base), program(opts.head)]
+    try:
+        exes = [program(opts.base), program(opts.head)]
+    except subprocess.CalledProcessError as e:
+        ap.exit(
+            2, f"error: building the revisions failed (exit status {e.returncode})\n"
+        )
     threads = concurrent.futures.ThreadPoolExecutor(len(exes))
+    budgets = [Budget() for _ in exes]
 
     def run(cases: list[Case]) -> list[list[Value]]:
         lines = [(c.fuzzer.name, c.args) for c in cases]
-        return list(threads.map(evaluate, exes, [lines] * len(exes)))
+        return list(threads.map(evaluate, exes, [lines] * len(exes), budgets))
 
     rows: list[list[str | int]] = []
     regressions: list[str] = []
     refs = Refs(opts.jobs)
     for spec in chosen:
+        for b in budgets:
+            b.left = TIMEOUT_BUDGET
         if (res := fuzz(spec, opts, run, refs)) is None:
             accuracy.log(f"{spec.name}: skipped, since a revision lacks it")
             continue
         rows.append(res[0])
         regressions += res[1]
-        accuracy.log("  ".join(map(str, res[0])))
+        accuracy.log(f"{spec.name}: {res[0][COLUMNS.index(Kind.REGRESSED)]} regressed")
 
     widths = [
         max(len(str(r[j])) for r in [COLUMNS, *rows]) for j in range(len(COLUMNS))
@@ -589,22 +658,9 @@ def main() -> None:
     head = "function\tinput\tbase\thead\treference\tbase error\thead error"
     TSV.write_text("".join(f"{line}\n" for line in [head, *regressions]))
     print(f"\n{len(regressions)} regressions, in {TSV}")
-    for line in regressions[:10]:
+    for line in [head, *regressions[:10]]:
         print(line.replace("\t", "  "))
     sys.exit(1 if regressions else 0)
-
-
-COLUMNS: Final = [
-    "function",
-    "cases",
-    "flagged",
-    "regressed",
-    "improved",
-    "both wrong",
-    "both right",
-    "no ref",
-    "unchecked",
-]
 
 
 if __name__ == "__main__":
