@@ -338,11 +338,15 @@ const RS_TERMS: usize = 10;
 /// as `a^(-Re z - 10) (|C_10(Re z, p)| + |C_10(1 - Re z, p)|)`, stay below eps.
 const RS_MIN_A: f64 = 10.0;
 
-/// Cost of the Riemann-Siegel correction in Dirichlet terms: its `3 RS_TERMS - 2` derivatives of
-/// `F` take `2 RS_F_COEFFS.len()` Horner and differentiation steps each, and a Dirichlet term
-/// (a power, a double-double logarithm and a sine and cosine) costs about 16 of them. The factor
-/// 16 is calibrated by timing.
-const RS_CORRECTION_TERMS: u32 = ((3 * RS_TERMS - 2) * 2 * RS_F_COEFFS.len() / 16) as u32;
+/// Cost of a Dirichlet term (a power, a double-double logarithm and a sine and cosine) in steps
+/// of `RS_CORRECTION_TERMS`. Calibrated by timing at large `|Im z|`; at small `|Im z|` the
+/// Dirichlet sum stays cheaper somewhat beyond the resulting cutoff.
+const DIRICHLET_TERM_STEPS: usize = 16;
+
+/// Cost of the Riemann-Siegel correction in Dirichlet terms, counting `2 RS_F_COEFFS.len()` steps
+/// for each of its `3 RS_TERMS - 2` derivatives of `F`.
+const RS_CORRECTION_TERMS: u32 =
+    ((3 * RS_TERMS - 2) * 2 * RS_F_COEFFS.len() / DIRICHLET_TERM_STEPS) as u32;
 
 /// `sum_k C_k(sigma, p) / a^k` of the Riemann-Siegel formula, with
 /// `C_k(sigma, p) = sum_l d_kl(sigma) F^(3k - 2l)(p) / (pi^(2k - l) (2i)^l)`, given the derivatives
@@ -491,8 +495,8 @@ fn zeta_right_halfplane(z: C64) -> C64 {
              * region, so just give up and return NaN instead. */
             return C64::NAN;
         }
-        // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to that
-        // limit: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
+        // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to
+        // |Im z| = 1e9: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
         // eps |Im z| ln(n) n^-Re z, which can exceed eps for Re z < log2 |Im z|. Above the limit,
         // its sum still stops early (Re z >= 2.5).
         let t = z.im.abs();
