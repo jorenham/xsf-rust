@@ -664,7 +664,7 @@ const F64_ROUNDING: f64 = 4.0 * MACHEP;
 const DD_ROUNDING: f64 = 4.0 * MACHEP * MACHEP;
 
 /// `ln|Gamma(g)|`, the sign of `Gamma(g)`, and a bound of the absolute error of the former, or
-/// `None` at a pole:
+/// `None` at a pole or for a non-finite `g`:
 ///
 /// - for `g >= 13`, by Stirling's formula in double-double, with the correction of cephes' `lgam`
 ///   (DLMF 5.11.1)
@@ -677,6 +677,10 @@ const DD_ROUNDING: f64 = 4.0 * MACHEP * MACHEP;
 /// `g < 1/2`, and `f'' < 1/g + 1/g^2` if `g > 0`.
 pub(crate) fn ln_gamma(g: impl Into<Dd>) -> Option<(Dd, f64, f64)> {
     let g = g.into();
+    // (a non-finite `g` would recurse forever in the reflection)
+    if !g.hi.is_finite() || !g.lo.is_finite() {
+        return None;
+    }
     if g.hi >= 13.0 {
         let v = (g - 0.5) * ln_dd(g) - g + LN_SQRT_2PI_DD + lgam_stirling_corr(g.hi);
         // (the correction is below 0.01, and its error below eps)
@@ -1407,6 +1411,13 @@ mod tests {
         assert_eq!(ln_gamma_at(1.0, -1e-17), Some((39.143_946_580_898_78, 1.0)));
         assert_eq!(ln_gamma_at(2.0, 1e-17), Some((38.450_799_400_338_83, 1.0)));
         assert_eq!(ln_gamma_at(1.0, 0.0), None);
+    }
+
+    #[test]
+    fn test_ln_gamma_non_finite() {
+        for (hi, lo) in [(1.0, f64::NAN), (1.0, f64::INFINITY), (f64::NAN, 0.0)] {
+            assert!(ln_gamma(Dd { hi, lo }).is_none(), "{hi:e} + {lo:e}");
+        }
     }
 
     #[test]

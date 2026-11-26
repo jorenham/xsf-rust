@@ -307,3 +307,10 @@ fn test_roots_hermite_asy() {
 fn test_roots_genlaguerre_alpha_invalid() {
     let _ = xsf::roots_genlaguerre(3, -1.1);
 }
+
+#[test]
+fn test_roots_genlaguerre_alpha_infinite() {
+    // This used to overflow the stack.
+    let (x, w) = xsf::roots_genlaguerre(3, f64::INFINITY);
+    assert!(x.iter().chain(&w).all(|v| v.is_nan()));
+}

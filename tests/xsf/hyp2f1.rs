@@ -853,6 +853,17 @@ fn test_hyp2f1_c64_binomial_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_c64_infinite_c_inverse() {
+    // This used to overflow the stack.
+    let (a, b, z) = (
+        1.567_132_625_001_231_5e-16,
+        1.284_758_354_935_429_4e-168,
+        c64(277_030_705.063_883_84, 1.0),
+    );
+    assert!(xsf::hyp2f1(a, b, f64::INFINITY, z).is_nan());
+}
+
+#[test]
 fn test_hyp2f1_c64_inverse_near_integer_index() {
     // Arb references at the exact binary64 arguments.
     for (a, b, c, z, expected) in [
