@@ -23,22 +23,21 @@ struct Estimate {
 
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     let other = if a == -(n as f64) { b } else { a };
-    let count = n + 1;
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
     if other == 1.0 && c == 2.0 && z.is_finite() {
-        let mean = uniform_beta_binomial(count, z);
+        let mean = uniform_beta_binomial(n + 1, z);
         if mean.is_finite() {
             return mean;
         }
     }
     // Unlike in xsf, use the double-double polynomial on the real axis (at z = 1 the
-    // Chu-Vandermonde product, DLMF 15.4.24), as the terms of the series can cancel.
+    // Chu-Vandermonde product, DLMF 15.4.24), as the terms of the series can cancel, or the
+    // series if it lies within an open subnormal rounding of it.
     if z.is_real() {
         match hyp2f1_poly_dd(a, b, c, z.re).and_then(dd_candidate) {
             Some((y, None)) => return c64(y, 0.0),
-            // Unlike in xsf, take the series if it lies within the open rounding.
             Some((y, Some([lo, hi]))) => {
-                let value = series(a, b, c, z, n);
+                let value = series(a, b, c, z, n, other);
                 return if (lo.min(hi)..=lo.max(hi)).contains(&value.re) && value.im == 0.0 {
                     value
                 } else {
@@ -48,12 +47,11 @@ pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
             None => {},
         }
     }
-    series(a, b, c, z, n)
+    series(a, b, c, z, n, other)
 }
 
-fn series(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
-    let other = if a == -(n as f64) { b } else { a };
-    let count = n + 1;
+// The series, with `other` the upper parameter that is not `-n`.
+fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> C64 {
     // Unlike in xsf, compare a centered polynomial when the origin sum can cancel.
     let positive_beta = other > 0.0 && other < c && c.is_finite();
     let finite_population = other < 0.0
@@ -67,7 +65,7 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     {
         population(a, b, c, n, z)
     } else {
-        series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, count)
+        series_eval_fixed_length(hypergeometric_series_generator(a, b, c, z), C64::ZERO, n + 1)
     };
     // Unlike in xsf, recover a finite linear result when forming its
     // coefficient overflows for a subnormal denominator.
