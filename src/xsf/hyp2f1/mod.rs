@@ -918,15 +918,10 @@ fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> Sc
         let direct = num_f64.map(gamma).iter().product::<f64>()
             * den_f64.map(rgamma).iter().product::<f64>();
         if direct.is_normal() {
-            let mantissa = c64(direct, 0.0);
-            return ScaledC64 {
-                mantissa,
-                ..ScaledC64::ZERO
-            }
-            .normalized();
+            return ScaledC64::from(c64(direct, 0.0)).normalized();
         }
     }
-    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(ScaledC64::ZERO, |y| {
+    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(C64::ZERO.into(), |y| {
         let Scaled { m, e, .. } = fold_exp(y);
         ScaledC64 {
             mantissa: c64(m, 0.0),

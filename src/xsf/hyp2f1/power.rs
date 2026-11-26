@@ -75,11 +75,6 @@ impl ScaledC64 {
         exponent: 0.0,
     };
 
-    pub(super) const ZERO: Self = Self {
-        mantissa: C64::ZERO,
-        exponent: 0.0,
-    };
-
     pub(super) fn to_c64(self) -> C64 {
         let Self { mantissa, exponent } = self;
         c64(ldexp_sat(mantissa.re, exponent), ldexp_sat(mantissa.im, exponent))
@@ -92,6 +87,16 @@ impl ScaledC64 {
         Self {
             mantissa: c64(ldexp_f64(mantissa.re, -shift), ldexp_f64(mantissa.im, -shift)),
             exponent: exponent + f64::from(shift),
+        }
+    }
+}
+
+// The value, unscaled.
+impl From<C64> for ScaledC64 {
+    fn from(mantissa: C64) -> Self {
+        Self {
+            mantissa,
+            exponent: 0.0,
         }
     }
 }
@@ -113,21 +118,14 @@ impl Mul<C64> for ScaledC64 {
     // Scale the factor by its larger component, which then stays in range until the final
     // scaling.
     fn mul(self, rhs: C64) -> Self {
-        self * Self {
-            mantissa: rhs,
-            exponent: 0.0,
-        }
-        .normalized()
+        self * Self::from(rhs).normalized()
     }
 }
 
 // (-z)^p, for |z| > 1, with a separate scale.
 // (1 - (z + 1) is -z to about an ulp of |z|.)
 pub(super) fn neg_z_pow(z: C64, p: f64) -> ScaledC64 {
-    let power = ScaledC64 {
-        mantissa: (-z).powf(p),
-        exponent: 0.0,
-    };
+    let power = ScaledC64::from((-z).powf(p));
     if !z.is_finite() {
         power
     } else if power.mantissa.norm().is_normal() {
@@ -156,10 +154,7 @@ pub(super) fn one_minus_z_pow_sqrt(z: C64, p: f64) -> ScaledC64 {
 pub(super) fn one_minus_z_pow(z: C64, p: f64) -> ScaledC64 {
     // (halving a nonfinite degree never reaches zero)
     if !p.is_finite() {
-        return ScaledC64 {
-            mantissa: C64::NAN,
-            exponent: 0.0,
-        };
+        return C64::NAN.into();
     }
     // Exponentiation by squaring with double-double components and a separate scale.
     let n = p.round();
