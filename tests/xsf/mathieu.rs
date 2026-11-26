@@ -174,6 +174,15 @@ fn test_mathieu_characteristic_index_large_q() {
     ];
     xsref::np_assert_allclose!(actual, expected, rtol = 2e-14);
 
+    // from Sturm counts of the same matrix in Arb
+    let actual = [
+        xsf::mathieu_b(24, -2_473.693_886_324_030_7),
+        xsf::mathieu_a(20, 265_602.325_286_942_8),
+        xsf::mathieu_b(26, 325_836.211_506_961_1),
+    ];
+    let expected = [-567.791_841_538_200_6, -489_155.931_666_501_8, -593_775.810_482_487_8];
+    xsref::np_assert_allclose!(actual, expected, rtol = 2.0 * f64::EPSILON);
+
     // the same characteristic value as in the Fourier coefficients (DLMF 28.4.5)
     let coeffs = xsf::mathieu_even_coef(34, 225.0).unwrap();
     xsref::np_assert_allclose!(

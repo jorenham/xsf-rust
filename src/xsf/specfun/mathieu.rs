@@ -1218,6 +1218,32 @@ pub(crate) fn mtu12(
     Status::Ok
 }
 
+/// The maximum number of secant iterations of `refine`
+const MAX_ITERATIONS: i32 = 100;
+
+/// The maximum number of terms that `extended_depth` adds to the m + 10 of `cvf`. Each costs a
+/// division per `cvf` call, and 2^11 of them cover m <= 44 up to the `cvql` shortcut of `cva2`.
+const MAX_EXTRA_TERMS: i32 = 2048;
+
+/// The depth of `cvf` at which its backward tail from the first j with (2j)^2 >= a + 4|q| has
+/// contracted below the rounding error, if that j exceeds m + 10 and the depth exceeds m + 10 by at
+/// most `MAX_EXTRA_TERMS`
+fn extended_depth(m: i32, q: f64, a: f64) -> Option<i32> {
+    let base = f64::from(m) + 10.0;
+    let r = a + 4.0 * q.abs();
+    if r > 4.0 * base * base {
+        let depth = (r.sqrt() / 2.0).ceil() + f64::EPSILON.log(1.0 / 9.0).ceil();
+        let max_depth =
+            (base + f64::from(MAX_EXTRA_TERMS)).min(f64::from(i32::MAX - MAX_ITERATIONS));
+        (depth <= max_depth).then_some(depth as i32)
+    } else {
+        None
+    }
+}
+
+// Outlining `refine` slows `mathieu_a(2, 1)` by about 10%.
+#[allow(clippy::inline_always)]
+#[inline(always)]
 fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
     // =====================================================
     // Purpose: calculate the accurate characteristic value
@@ -1232,20 +1258,42 @@ fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
 
     const EPS: f64 = 1e-14;
 
+    // Unlike in xsf, continue `cvf` past m + 10 terms that end before (2j)^2 >= a + 4|q|. From
+    // there on, the backward tail for a fixed trial `a` contracts by a factor 9 or more per term,
+    // since the Fourier coefficients (DLMF 28.4.5-28.4.8) decrease by a factor 3 or more.
+    let depth = extended_depth(m, q, a);
     // NOTE: the `int` sums `10 + m` and `mj++` overflow for `m > INT_MAX - 110`, which is UB in C++
     // (wrapping on x86-64)
-    let mut mj = m.wrapping_add(10);
+    let mut mj = depth.unwrap_or(m.wrapping_add(10));
     let mut x0 = a;
     let mut f0 = cvf(kd, m, q, x0, mj);
-    let mut x1 = 1.002 * a;
+    // Unlike in xsf, at the extended depth the second trial value and the final step are relative
+    // to the Fourier matrix scale |a| + 2|q|, since from 1.002 a the secant can stop too early.
+    let scale = a.abs() + 2.0 * q.abs();
+    let mut x1 = if depth.is_some() {
+        a + f64::EPSILON.sqrt() * scale
+    } else {
+        1.002 * a
+    };
     let mut f1 = cvf(kd, m, q, x1, mj);
     // `x` is uninitialized in C++, but always assigned in the loop body before it's returned
     let mut x = 0.0;
-    for _it in 1..=100 {
+    // (|f|, x) with the smallest residual at the extended depth
+    let mut best = (f64::INFINITY, f64::NAN);
+    for _it in 1..=MAX_ITERATIONS {
         mj = mj.wrapping_add(1);
         x = x1 - (x1 - x0) / (1.0 - f0 / f1);
         let f = cvf(kd, m, q, x, mj);
-        if ((1.0 - x1 / x).abs() < EPS) || (f == 0.0) {
+        let converged = if depth.is_some() {
+            // Unlike in xsf, the iterate with the smallest residual wins
+            if f.abs() < best.0 {
+                best = (f.abs(), x);
+            }
+            (x - x1).abs() < EPS * scale
+        } else {
+            (1.0 - x1 / x).abs() < EPS
+        };
+        if converged || (f == 0.0) {
             break;
         }
         x0 = x1;
@@ -1253,5 +1301,29 @@ fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
         x1 = x;
         f1 = f;
     }
-    x
+    if depth.is_some() { best.1 } else { x }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refine_large_q() {
+        // m + 10 terms of `cvf` lead to other characteristic values here; the expected values are
+        // from Sturm counts of the Fourier matrix (DLMF 28.4.5-28.4.8) in Arb
+        let cases = [(2, 1, 4000.0), (4, 2, 8000.0), (1, 6, 18_874.530_216_113_384)];
+        let actual = cases.map(|(kd, m, q)| refine(kd, m, q, cvql(kd, m, q)));
+        let expected = [-7_621.781_172_301_028, -15_464.596_852_062_434, -34_198.439_765_966_476];
+        xsref::np_assert_allclose!(actual, expected, rtol = f64::EPSILON);
+    }
+
+    #[test]
+    fn extended_depth_budget() {
+        let depth = |kd, m, q| extended_depth(m, q, cvql(kd, m, q));
+        assert_eq!(depth(2, 1, 4000.0), Some(63));
+        // more than `MAX_EXTRA_TERMS` extra terms, or none
+        assert_eq!(depth(1, 500_000_000, 6e18), None);
+        assert_eq!(depth(1, 2, 1.0), None);
+    }
 }
