@@ -758,6 +758,46 @@ fn test_hyp2f1_c64_large_near_zero_balance() {
 }
 
 #[test]
+fn test_hyp2f1_c64_large_near_zero_balance_bounds() {
+    // Small a with large b and c, where a continuation from z = 1/2 loses too much.
+    for y in [0.3125, -0.3125] {
+        let actual = xsf::hyp2f1(0.5, 96.25, 35.625, c64(0.925, y));
+        let desired = [1_161.620_547_299_975_7, 1_680.282_191_320_187_6_f64.copysign(y)];
+        np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-12);
+    }
+    // An integer a - b with a tiny a, whose Maclaurin terms at 1/2 decay and then grow
+    let actual =
+        xsf::hyp2f1(1e-20, 150.0, 112.5, c64(1.156_055_063_705_178_3, 0.340_986_535_059_630_6));
+    np_assert_allclose!([actual.re, actual.im], [1.0, 2.447_334_736_479_153_5e-20], rtol = 1e-14);
+    // If finite, then accurate.
+    for (a, b, c, x, y, re, im) in [
+        (1.25, 331.25, 128.125, 1.0625, 0.3125, -7.248_754_802_291_216_5, -184.468_986_796_544_4),
+        (
+            1e-20,
+            700.0,
+            240.125,
+            1.125,
+            0.125,
+            1.887_566_949_173_823_6e116,
+            8.835_528_861_246_3e116,
+        ),
+        (0.5, 0.5, 10_000.5, 1.125, 0.125, 1.000_028_127_109_545_5, 3.125_634_892_208_265e-6),
+        (0.5, 0.5, 1e100, 1.125, 0.125, 1.0, 3.125e-102),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, c64(x, y));
+        if actual.is_finite() {
+            np_assert_allclose!([actual.re, actual.im], [re, im], rtol = 1e-13);
+        }
+    }
+    // A weak imaginary part on both lips of the cut keeps its sign.
+    for y in [0.0_f64, -0.0] {
+        let actual = xsf::hyp2f1(0.5, 0.5, 20.5, c64(1.125, y));
+        np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 1e-11);
+        assert_eq!(actual.im.is_sign_negative(), y.is_sign_negative(), "{actual}");
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_euler_tiny_cut_lips() {
     let a = 32.000_000_000_000_01;
     for (a, b) in [(a, 106.0), (106.0, a)] {
