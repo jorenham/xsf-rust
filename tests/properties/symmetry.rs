@@ -2,8 +2,8 @@
 
 use proptest::prelude::*;
 
-use super::config;
 use super::strategies::{arg, moderate};
+use super::{config, int_distance, is_pole};
 
 /// Within `tol` relative to a finite `expected`, or both the same inf, or both NaN
 fn close(actual: f64, expected: f64, tol: f64) -> bool {
@@ -12,14 +12,9 @@ fn close(actual: f64, expected: f64, tol: f64) -> bool {
         || (expected.is_finite() && (actual - expected).abs() <= tol * expected.abs())
 }
 
-/// A pole of Gamma, e.g. -3 or -0
-fn is_pole(x: f64) -> bool {
-    x <= 0.0 && x.fract() == 0.0
-}
-
 /// A pole of Gamma, or within 1e-12 of a negative one, e.g. -3 + 1e-13
 fn near_pole(x: f64) -> bool {
-    is_pole(x) || (x.round() < 0.0 && (x - x.round()).abs() < 1e-12)
+    is_pole(x) || (x.round() < 0.0 && int_distance(x) < 1e-12)
 }
 
 proptest! {

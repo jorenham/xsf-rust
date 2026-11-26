@@ -7,6 +7,7 @@
 mod macros;
 mod strategies;
 
+mod continuity;
 mod no_panic;
 mod ranges;
 mod symmetry;
@@ -25,4 +26,14 @@ fn config() -> Config {
         max_global_rejects: default.cases,
         ..default
     }
+}
+
+/// A pole of Gamma, e.g. -3 or -0
+fn is_pole(x: f64) -> bool {
+    x <= 0.0 && x.fract() == 0.0
+}
+
+/// The distance to the nearest integer, e.g. 0.25 for 2.75
+fn int_distance(x: f64) -> f64 {
+    (x - x.round()).abs()
 }
