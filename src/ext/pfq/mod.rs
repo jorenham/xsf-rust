@@ -280,8 +280,10 @@ impl SeriesReal for Dd {
 
 /// The smallest `n` with `v + n = 0` for a `v` in `params`, or infinity if there is none
 fn first_zero(params: &[f64]) -> f64 {
-    let zeros = params.iter().filter(|&&v| is_nonpos_int(v));
-    zeros.map(|v| -v).fold(f64::INFINITY, f64::min)
+    params
+        .iter()
+        .filter_map(|&v| is_nonpos_int(v).then_some(-v))
+        .fold(f64::INFINITY, f64::min)
 }
 
 /// The degree of the polynomial if an `a_i` is a non-positive integer, else infinity, or `None`
@@ -300,8 +302,7 @@ fn is_pole(v: &Dd) -> bool {
 fn first_zero_dd(params: &[Dd]) -> f64 {
     params
         .iter()
-        .filter(|x| is_pole(x))
-        .map(|x| -x.hi)
+        .filter_map(|x| is_pole(x).then_some(-x.hi))
         .fold(f64::INFINITY, f64::min)
 }
 
