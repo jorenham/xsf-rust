@@ -1032,13 +1032,173 @@ fn hyp2f1_transform1_near_limit(a: f64, b: f64, c: f64, z: C64, offset: f64, res
     }
 }
 
+// A step is at most this fraction of the distance to the nearest singular point, 0 or 1, for
+// Taylor terms that decay asymptotically as 4^-k.
+const TAYLOR_STEP_RATIO: f64 = 0.25;
+// A step h also has |kappa h| at most this, for the local exponents kappa of the equation, as
+// the Taylor terms of a solution near exp(kappa h) cancel by up to exp(|kappa h| - Re(kappa h)).
+// (measured for large a, b and c near a + b: 4 sums up to 45% more terms, 16 cancels too much)
+const TAYLOR_STEP_PHASE: f64 = 8.0;
+// The Taylor terms of a continuation, as many as of three series: of F and of the two columns
+// of the transfer matrices
+const TAYLOR_MAX_TERMS: u64 = 3 * HYP2F1_MAXITER;
+
+/// F(p + h) and F'(p + h) from F(p) and F'(p), for each solution in `x`, by the Taylor series
+/// at p of the hypergeometric equation (DLMF 15.10.1), and the sums of the absolute values of
+/// the terms of the first, if they converge within `terms`, which it reduces by the number of
+/// terms
+//
+// With e_k = F^(k)(p) h^k / k!, the equation gives p (1 - p) (k + 2) (k + 1) e_(k+2) =
+// (k + a) (k + b) h^2 e_k - ((1 - 2p) k + c - (a + b + 1) p) (k + 1) h e_(k+1).
+fn hyp2f1_taylor_step<const N: usize>(
+    a: f64,
+    b: f64,
+    c: f64,
+    p: C64,
+    h: C64,
+    x: [[C64; 2]; N],
+    terms: &mut u64,
+) -> Option<([[C64; 2]; N], [f64; 2])> {
+    let g = h / (p * (1.0 - p));
+    // c - (a + b + 1) p, without rounding a + b near p = 1
+    let (a_plus_b, low) = two_sum(a, b);
+    let t = (c - a_plus_b - low - 1.0) + (1.0 - p) * (a + b + 1.0);
+    let (u, v, s) = (g * h, g * (1.0 - 2.0 * p), g * t);
+    // For each solution, [e_k, e_(k+1)], the sums of the terms of F and h F', their absolute
+    // values, and whether they have yet to converge
+    let mut solutions = x.map(|[f, fp]| {
+        let (e0, e1) = (f, fp * h);
+        ([e0, e1], [e0 + e1, e1], [e0.l1_norm() + e1.l1_norm(), e1.l1_norm()], true)
+    });
+    let mut k = 0.0;
+    while solutions.iter().any(|solution| solution.3) {
+        let (ab, vs, w) = ((k + a) * (k + b), v * k + s, (k + 2.0) * (k + 1.0));
+        for ([e0, e1], [sum, derivative], [abs_sum, abs_derivative], pending) in
+            solutions.iter_mut().filter(|solution| solution.3)
+        {
+            *terms = terms.checked_sub(1)?;
+            let e2 = (u * *e0 * ab - vs * *e1 * (k + 1.0)) / w;
+            *sum += e2;
+            *derivative += e2 * (k + 2.0);
+            *abs_sum += e2.l1_norm();
+            *abs_derivative += e2.l1_norm() * (k + 2.0);
+            // (also for the derivative, whose terms have an extra factor k + 2)
+            let tail = (k + 2.0) * (e1.l1_norm() + e2.l1_norm());
+            // (stop at a non-finite sum, which no later term repairs)
+            if !(sum.is_finite() && derivative.is_finite()) {
+                return None;
+            }
+            *pending = !(tail <= f64::EPSILON * abs_sum.min(*abs_derivative));
+            (*e0, *e1) = (*e1, e2);
+        }
+        k += 1.0;
+    }
+    let [abs_sum, abs_derivative] = solutions[0].2;
+    let next = solutions.map(|(_, [sum, derivative], _, _)| [sum, derivative / h]);
+    Some((next, [abs_sum, abs_derivative / h.norm()]))
+}
+
+/// F(a, b; c; z) for a, b, c > 0 and |1 - z| <= 1/2 by analytic continuation of the Maclaurin
+/// series at 1/2, along the real axis to 1 - |1 - z| and then along the circle about 1 through
+/// z, if its error estimate is below half its distance from `result`, which is then less accurate.
+/// For Re z > 1, where a small component may stem from the cut, a `result` within sqrt(eps)
+/// relative to it is also kept if the estimate exceeds a component.
+//
+// On that path, 1 is the nearest singular point.
+fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: C64) -> Option<C64> {
+    let w = 1.0 - z;
+    let r = w.norm();
+    let (end, angle) = (1.0 - r, w.im.atan2(w.re));
+    // (and only if the real axis reaches the circle, and the first Maclaurin term keeps a b)
+    if !(a > 0.0 && b > 0.0 && c > 0.0 && r <= 0.5 && end < 1.0 && (a * b).is_normal()) {
+        return None;
+    }
+    let half = c64(0.5, 0.0);
+    // The Maclaurin terms at 1/2 are positive, and grow while (k + a) (k + b) >= 2 (k + 1) (k + c),
+    // so up to the larger root of k^2 + (2 c + 2 - a - b) k + 2 c - a b: sum past it before
+    // stopping at a small term. Each of its n terms errs by about eps times the sum, by
+    // rounding it, the roundings of the recurrence for it, or its part of the omitted tail.
+    let maclaurin = |a: f64, b: f64, c: f64| {
+        let q = 2.0 * c + 2.0 - a - b;
+        let root = ((q * q - 8.0 * c + 4.0 * a * b).sqrt() - q) / 2.0;
+        let head = root.max(0.0) + 2.0;
+        if !(head <= HYP2F1_MAXITER as f64) {
+            return None;
+        }
+        let (mut series_generator, mut n) = (hypergeometric_series_generator(a, b, c, half), 0.0);
+        let mut terms = || {
+            n += 1.0;
+            series_generator()
+        };
+        let head = series_eval_fixed_length(&mut terms, C64::ZERO, head as u64);
+        let sum = tools::series_eval(terms, head, f64::EPSILON, HYP2F1_MAXITER);
+        Some((sum, n * sum.l1_norm()))
+    };
+    // F' = (a b / c) F(a + 1, b + 1; c + 1) (DLMF 15.5.1)
+    let [f, g] = [(a, b, c), (a + 1.0, b + 1.0, c + 1.0)].map(|(a, b, c)| maclaurin(a, b, c));
+    let ((f, f_error), (g, g_error)) = (f?, g?);
+    let ab_c = a * b / c;
+    let x = [f, g * ab_c];
+    if !(x[0].is_finite() && x[1].is_finite()) {
+        return None;
+    }
+    // The local exponents are the roots of p (1 - p) kappa^2 + (c - (a + b + 1) p) kappa = a b.
+    let step = |p: C64, distance: f64| {
+        let (s, t) = ((p * (1.0 - p)).norm(), (c - (a + b + 1.0) * p).norm());
+        let kappa = (t + t.hypot(2.0 * (s * a * b).sqrt())) / (2.0 * s);
+        (TAYLOR_STEP_RATIO * distance).min(TAYLOR_STEP_PHASE / kappa)
+    };
+    // The error of F at z is estimated by the rounding errors of F and F' of the Maclaurin sums
+    // and of each step, times the first row of the product of the transfer matrices of the later
+    // steps, whose columns start from F = 1, F' = 0 and F = 0, F' = 1. The estimate does not count
+    // the roundings of the partial sums, so it may fall short by about 10%, which
+    // the factor 2 in the comparison below absorbs.
+    // (the Maclaurin sums first, before any step)
+    let mut steps = vec![([[C64::ZERO; 2]; 2], [f_error, g_error * ab_c])];
+    let (mut x, mut p, mut turned, mut terms) = (x, half, 0.0, TAYLOR_MAX_TERMS);
+    let columns = [[C64::ONE, C64::ZERO], [C64::ZERO, C64::ONE]];
+    while p != z {
+        let q = if p.re < end {
+            c64((p.re + step(p, 1.0 - p.re)).min(end), 0.0)
+        } else {
+            turned = (turned + step(p, r) / r).min(angle.abs());
+            if turned < angle.abs() {
+                1.0 - r * C64::cis(turned.copysign(angle))
+            } else {
+                z
+            }
+        };
+        // (not if it rounds to no step)
+        if q == p {
+            return None;
+        }
+        let h = q - p;
+        let ([next, t0, t1], abs) =
+            hyp2f1_taylor_step(a, b, c, p, h, [x, columns[0], columns[1]], &mut terms)?;
+        steps.push(([t0, t1], abs));
+        (x, p) = (next, q);
+    }
+    let (mut row, mut error) = ([C64::ONE, C64::ZERO], 0.0);
+    for (transfer, abs) in steps.into_iter().rev() {
+        error += (row[0].l1_norm() * abs[0] + row[1].l1_norm() * abs[1]) * f64::EPSILON;
+        row = transfer.map(|t| row[0] * t[0] + row[1] * t[1]);
+    }
+    let f = x[0];
+    // (a first-order estimate, so only if well below one; NaN `result` is less accurate)
+    let (tolerance, distance) = (f64::EPSILON.sqrt() * f.norm(), (result - f).norm());
+    let accurate = error < tolerance && !(distance <= 2.0 * error);
+    // (keep a close `result` if the estimate does not resolve a component)
+    let unresolved = z.re > 1.0 && error >= f.re.abs().min(f.im.abs()) && distance < tolerance;
+    (accurate && !unresolved).then_some(f)
+}
+
 fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if let Some(value) = hyp2f1_incomplete_beta(a, b, c, z) {
         return value;
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
-    let (mut result, cancellation) = if offset < HYP2F1_EPS {
+    let (mut result, mut cancellation) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
@@ -1060,7 +1220,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let series_generator = hypergeometric_series_generator(a, b, c, z);
         let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
         if maclaurin_cancellation < cancellation {
-            result = maclaurin;
+            (result, cancellation) = (maclaurin, maclaurin_cancellation);
         }
     }
     // Unlike in xsf, check the result against the limit for a nearly integer balance.
@@ -1070,7 +1230,11 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // (not for a balance beyond the term limit, which the limit sums as many terms for)
     let near = offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON;
     if near && balance.abs() <= HYP2F1_MAXITER as f64 {
-        return hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
+        result = hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
+    }
+    // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
+    if cancellation * f64::EPSILON > HYP2F1_EPS {
+        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
     result
 }
@@ -1501,4 +1665,24 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 #[inline]
 pub fn hyp2f1<T: Hyp2F1Arg>(a: f64, b: f64, c: f64, z: T) -> T {
     z.hyp2f1(a, b, c)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hyp2f1_continuation_maclaurin_growth() {
+        // The Maclaurin terms at 1/2 first decay below eps and then grow.
+        let half = c64(0.5, 0.0);
+        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN).unwrap();
+        xsref::np_assert_allclose!(
+            [value.re, value.im],
+            [1.000_007_275_456_677, 0.0],
+            rtol = 1e-14
+        );
+        // Its terms stay below eps, so the sum rounds to 1, which the error estimate covers.
+        let exact = c64(1.000_000_000_000_007_3, 0.0);
+        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact), None);
+    }
 }
