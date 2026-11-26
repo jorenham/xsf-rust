@@ -1086,30 +1086,33 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<Canc
     }
     let w = 1.0 - z;
     let log_power = w.ln() * d;
-    let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
-    let log_ratio = log_ratio - digamma_integral(b, d); // log(A_0 / B_0)
+    // log(A_0 / B_0)
+    let log_ratio =
+        || crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d) - digamma_integral(b, d);
     let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
     hyp2f1_paired((a, b), 0.0, d, w, log_ratio, log_power, prefactor)
 }
 
-/// `prefactor` times the sum of w^k B_k expm1(log_ratio + log(A_k / B_k) - log_power) over k,
-/// with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k), and
-/// its estimated cancellation as in `series_eval_cancellation`, where that is accurate
+/// `prefactor` times the sum of w^k B_k expm1(log_ratio() + log(A_k / B_k) - log_power) over
+/// k, with A_k = (a)_k (b)_k / ((1-d)_k (1+m)_k) and B_k = (a+d)_k (b+d)_k / (k! (1+m+d)_k),
+/// and its estimated cancellation as in `series_eval_cancellation`, where that is accurate
 fn hyp2f1_paired(
     (a, b): (f64, f64),
     m: f64,
     d: f64,
     w: C64,
-    mut log_ratio: f64,
+    log_ratio: impl FnOnce() -> f64,
     log_power: C64,
     prefactor: C64,
 ) -> Option<Cancelled> {
     // The phase of exp(log_power) must not underflow before the prefactor restores its scale,
     // and an over- or underflowed prefactor loses the scale.
     let scaled = prefactor.is_finite() && prefactor.norm() >= f64::MIN_POSITIVE;
-    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE || !scaled || !log_ratio.is_finite() {
+    if w.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE || !scaled {
         return None;
     }
+    // (only then, as its digamma integrals can be slow)
+    let mut log_ratio = Some(log_ratio()).filter(|x| x.is_finite())?;
     let mut upper = C64::ONE; // w^k B_k
     let mut k = 0.0;
     let series = series_eval_settled(|| {
@@ -1358,9 +1361,9 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     result
 }
 
-/// The offset of a - b from an integer below which `hyp2f1_inverse` pairs the two 1/z series, as
-/// they lose more than ten bits to poles that cancel between them (beyond it, the pairing was
-/// measured to be less accurate)
+/// The offset of a - b from an integer below which `hyp2f1_inverse` pairs the two 1/z series,
+/// whose poles cancel between them: an empirical cutoff, beyond which the pairing was measured
+/// to be less accurate
 const TRANSFORM2_POLE_OFFSET: f64 = 1.0 / 1024.0;
 
 /// The 1/z series (DLMF 15.8.2) for a - b near an integer m, uniformly in the offset, and its
@@ -1385,14 +1388,21 @@ fn hyp2f1_transform2_near_integer(a: f64, b: f64, c: f64, z: C64) -> Option<Canc
     }
     let w = 1.0 / z;
     let p = b + m;
-    let log_ratio = digamma_integral(m + 1.0, d) - crate::lgam1p(-d) - digamma_integral(p, d);
-    let log_ratio = log_ratio - digamma_integral(c - a, d);
+    let log_ratio = || {
+        let log_ratio = digamma_integral(m + 1.0, d) - crate::lgam1p(-d);
+        log_ratio - digamma_integral(p, d) - digamma_integral(c - a, d)
+    };
     // Gamma(-m-d) / Gamma(b) = (-1)^m (b)_m / (1+d)_m Gamma(-d) / Gamma(p), a balanced ratio.
     let rising = neg_one_pow(m) * (poch(b, m) / poch(1.0 + d, m));
     let prefactor = (-z).powf(-a) * (rising * -four_gammas(c, -d, p, c - a));
     let log_power = (-z).ln() * -d;
     // (b - c + 1 keeps the exact zero of the second series if c - b is an integer)
     let tail = hyp2f1_paired((p, b - c + 1.0 + m), m, d, w, log_ratio, log_power, prefactor)?;
+    // (from zero like the unpaired series, so that a zero imaginary part is +0)
+    let tail = Cancelled {
+        value: C64::ZERO + tail.value,
+        ..tail
+    };
     if m == 0.0 {
         return Some(tail);
     }
@@ -1408,6 +1418,40 @@ fn hyp2f1_transform2_near_integer(a: f64, b: f64, c: f64, z: C64) -> Option<Canc
         value,
         cancellation: cancellation(abs_sum, value),
     })
+}
+
+/// The sum of the `unpaired` series and its cancellation, which is at least `pole_loss`, or, if
+/// they lose more than HYP2F1_EPS, those of the `paired` sum if it keeps some digits and cancels
+/// less
+fn hyp2f1_transform2_pick(
+    unpaired: impl FnOnce() -> Cancelled,
+    pole_loss: f64,
+    paired: impl FnOnce() -> Option<Cancelled>,
+) -> Cancelled {
+    let unpaired = || {
+        let series = unpaired();
+        Cancelled {
+            cancellation: series.cancellation.max(pole_loss),
+            ..series
+        }
+    };
+    let paired = || paired().filter(|paired| paired.cancellation * f64::EPSILON < 1.0);
+    // (the paired sum first if the unpaired series lose too much to the poles alone)
+    let (unpaired, paired) = if pole_loss * f64::EPSILON > HYP2F1_EPS {
+        match paired() {
+            Some(paired) if paired.cancellation < pole_loss => return paired,
+            paired => (unpaired(), paired),
+        }
+    } else {
+        let unpaired = unpaired();
+        if !unpaired.is_lossy() {
+            return unpaired;
+        }
+        (unpaired, paired())
+    };
+    paired
+        .filter(|paired| paired.cancellation < unpaired.cancellation)
+        .unwrap_or(unpaired)
 }
 
 fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
@@ -1434,26 +1478,26 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         // cancellation estimate, is less accurate.
         return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
-    // Unlike in xsf, pair the two series for a - b near an integer, or else count the loss of
-    // the unpaired terms to poles that cancel within them, near 1 / |a - b| for a near b.
+    // Unlike in xsf, pair the two series for a - b near an integer if that cancels less, counting
+    // the loss of the unpaired terms to poles that cancel within them, near 1 / |a - b| for a
+    // near b.
     let pole_loss = if (a - b).abs() < TRANSFORM2_POLE_OFFSET {
         (a - b).abs().recip()
     } else {
         0.0
     };
-    let unpaired = |series: Cancelled| Cancelled {
-        cancellation: series.cancellation.max(pole_loss),
-        ..series
-    };
-    let mut series = hyp2f1_transform2_near_integer(a, b, c, z).unwrap_or_else(|| {
-        unpaired(series_eval_cancellation(hyp2f1_transform2_generator(a, b, c, z)))
-    });
+    let mut series = hyp2f1_transform2_pick(
+        || series_eval_cancellation(hyp2f1_transform2_generator(a, b, c, z)),
+        pole_loss,
+        || hyp2f1_transform2_near_integer(a, b, c, z),
+    );
     if euler {
         // use the one that cancels less (also paired)
-        let euler_series =
-            hyp2f1_transform2_near_integer(c - a, c - b, c, z).unwrap_or_else(|| {
-                unpaired(series_eval_cancellation(hyp2f1_transform2_euler_generator(a, b, c, z)))
-            });
+        let euler_series = hyp2f1_transform2_pick(
+            || series_eval_cancellation(hyp2f1_transform2_euler_generator(a, b, c, z)),
+            pole_loss,
+            || hyp2f1_transform2_near_integer(c - a, c - b, c, z),
+        );
         if euler_series.cancellation < series.cancellation {
             if let Some(value) = euler_scaled(euler_series.value) {
                 series = Cancelled {

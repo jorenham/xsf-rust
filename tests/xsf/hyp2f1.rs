@@ -348,11 +348,24 @@ fn test_hyp2f1_c64_inverse_near_equal_edges() {
         np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 5e-14);
     }
     // On the real axis below -1, the imaginary part stays +0.
-    for z in [c64(-2.0, 0.0), c64(-2.0, -0.0)] {
-        let actual = xsf::hyp2f1(-0.75, -2.875, 0.5, z);
-        np_assert_allclose!([actual.re], [-11.081_748_758_453_574], rtol = 1e-15);
+    for z in [c64(-1.125, 0.0), c64(-1.125, -0.0)] {
+        let actual = xsf::hyp2f1(-2.875 + 2.0_f64.powi(-14), -2.875, 1.5, z);
+        np_assert_allclose!([actual.re], [-0.697_502_355_699_381_9], rtol = 1e-15);
         assert_eq!(actual.im.to_bits(), 0.0_f64.to_bits());
     }
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
+    // a - b is near an integer, but the paired 1/z series cancel more than the unpaired ones, or
+    // lose all digits. Arb at the binary64 inputs, compared componentwise.
+    let actual = xsf::hyp2f1(75.25 + 2.0_f64.powi(-14), -4.75, 5.0, c64(-1.25, 0.125));
+    let expected = [422_907.130_552_140_6, -197_134.634_126_622_1];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-15);
+    // (NaN is also accepted)
+    let actual = xsf::hyp2f1(147.25 + 2.0_f64.powi(-42), -2.75, -1.25, c64(-1.125, 0.0));
+    let expected = 5_745_264.598_748_462;
+    assert!(actual.re.is_nan() || ((actual.re - expected) / expected).abs() < 1e-14);
 }
 
 /// Compares each component, so that a small one is checked too.

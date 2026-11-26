@@ -14,6 +14,10 @@ fn test_hyp2f1_inverse_near_integer_difference() {
     let actual = eval_gegenbauer(-27.772_528_979_698_194, 53.272_528_979_698_31, c64(-5.0, -3.0));
     let expected = [2.870_025_555_962_445e-47, 5.562_995_179_391_358e-48];
     np_assert_allclose!([actual.re, actual.im], expected, rtol = 3e-14);
+    // Arb, through 2F1(-4.75, 75.25 + 2^-14; 5; -1.25 + 0.125i).
+    let actual = eval_jacobi(4.75, 4.0, 65.5 + 2.0_f64.powi(-14), c64(3.5, -0.25));
+    let expected = [46_378_333.489_432_625, -21_618_873.609_213_23];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-14);
 }
 
 #[test]
