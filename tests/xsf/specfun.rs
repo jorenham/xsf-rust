@@ -1429,8 +1429,8 @@ fn test_hyp1f1_complex_large_a() {
 
 #[test]
 fn test_hyp1f1_complex_huge_a_or_b() {
-    // Arb; #2259, a or b - a (for Re z < 0) of 1e8 to 1e9, which took seconds. Check each
-    // component so the tiny imaginary part is tested.
+    // Arb; #2259, a or b - a (for Re z < 0) of 1e8 to 1e9. Check each component so the tiny
+    // imaginary part is tested.
     for (a, b, z, expected) in [
         (1e8, 1e20, c64(0.0, 1e10), [0.999_950_000_416_165_3, 0.009_999_833_334_161_665]),
         (1e9, 1e20, c64(0.0, 1e10), [0.995_004_165_273_050_8, 0.099_833_416_646_328_98]),

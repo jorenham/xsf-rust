@@ -30,7 +30,7 @@ use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
 const MAX_TERMS: i32 = 100_000;
 
 /// The largest relative error bound of `hyp1f1_series` with which `cchg` skips a forward recurrence
-/// of more than `MAX_TERMS` steps (for large b without cancellation, the bound is about
+/// of at least `MAX_TERMS` steps (for large b and real z > 0, the bound is about
 /// `4 (1 + |a z / b|) eps`)
 const SKIP_RECURRENCE_TOL: f64 = 128.0 * f64::EPSILON;
 
@@ -370,9 +370,8 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
                 .flatten()
                 .filter(|&(_, err)| err.is_finite());
             match series {
-                // Unlike in xsf, skip the recurrence if it takes more steps than the series can
-                // take terms and the series' error bound is tight. The check below replaces the
-                // recurrence if it differs from the series by more than twice that bound.
+                // Unlike in xsf, skip the recurrence if it takes at least as many steps as the
+                // series can take terms and the series' error bound is tight.
                 Some((s, err)) if la > MAX_TERMS && err <= SKIP_RECURRENCE_TOL * s.norm() => {
                     chg = s;
                 },
