@@ -82,7 +82,7 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
         if n == 1 || one_sign(other, c, n, z) || origin.accurate() {
             origin
         } else {
-            pfaff(other, c, n, z, origin)
+            pfaff(two_sum(c, -other), c, n, z, origin)
         }
     };
     // Unlike in xsf, recover a finite linear result when forming its
@@ -220,26 +220,16 @@ fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64, relative: f64) -> Estim
     Estimate { value, error }
 }
 
-// F(-n, b; c; z) = (1 - z)^n F(-n, c - b; c; z / (z - 1)) (DLMF 15.8.1)
+// F(-n, b; c; z) = (1 - z)^n F(-n, c - b; c; z / (z - 1)) (DLMF 15.8.1), where the tuple is c - b
+// rounded and its rounding error
 #[cold]
-fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
+fn pfaff((c_minus_b, rounding): (f64, f64), c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
     let x = z / (z - 1.0);
     if !x.is_finite() {
         return origin;
     }
-    // Rounding c - b changes each term by a relative n |rounding| / min |c - b + j| for
-    // 0 <= j < n to first order, and by at most twice that while it is below one.
-    let (c_minus_b, rounding) = two_sum(c, -b);
     let degree = n as f64;
-    let change = degree * rounding.abs();
-    let distance = (c_minus_b + (-c_minus_b).round().clamp(0.0, degree - 1.0)).abs();
-    let relative = if change == 0.0 {
-        0.0
-    } else if change <= distance {
-        2.0 * change / distance
-    } else {
-        f64::INFINITY
-    };
+    let relative = rounding_change(c_minus_b, rounding, n);
     let sum = estimated_sum(-degree, c_minus_b, c, n, x, relative);
     let power = one_minus_z_pow(z, degree);
     let value = (power * sum.value).to_c64();
@@ -263,6 +253,21 @@ fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
     Estimate {
         value: c64(re, im),
         error: re_error.max(im_error),
+    }
+}
+
+// Rounding p changes each term of F(-n, p; c; z) by a relative n |rounding| / min |p + j| for
+// 0 <= j < n to first order, and by at most twice that while it is below one.
+fn rounding_change(p: f64, rounding: f64, n: u64) -> f64 {
+    let degree = n as f64;
+    let change = degree * rounding.abs();
+    let distance = (p + (-p).round().clamp(0.0, degree - 1.0)).abs();
+    if change == 0.0 {
+        0.0
+    } else if change <= distance {
+        2.0 * change / distance
+    } else {
+        f64::INFINITY
     }
 }
 
