@@ -149,13 +149,13 @@ continuous!(
 );
 // singular at the poles of c, and at z = 1 for c <= a + b; known: polynomials (#2130), Euler
 // polynomials (#2107, #2247), near-integer a - b at |z| >= 1.1 (#2104, #2244, #2245), next to the
-// poles of c (#2246), a or b next to a pole for a near-integer c (#2256), and cancellation for
-// larger parameters (#2196)
+// poles of c (#2246), a or b next to a pole for a near-integer c - a - b (#2256), and
+// cancellation for larger parameters (#2196)
 continuous!(
     hyp2f1_complex(a in small(), b in small(), c in small(), re, im)
         unless is_pole(a) || is_pole(b) || is_pole(c - a) || is_pole(c - b)
             || pole_within(c, 1e-12)
-            || ((pole_within(a, 1e-12) || pole_within(b, 1e-12)) && almost_int(c))
+            || ((pole_within(a, 1e-12) || pole_within(b, 1e-12)) && almost_int(c - a - b))
             || (re == 1.0 && im.abs() < f64::EPSILON.sqrt() && c - a - b <= 0.0)
             || (almost_int(a - b) && re.hypot(im) >= 1.1)
         => xsf::hyp2f1(a, b, c, c64(re, im))
@@ -170,7 +170,7 @@ continuous!(
 );
 // known: NaN for an integer a at a tiny x (#2252)
 continuous!(
-    hypu(a in moderate(), b in moderate(), x) unless a.fract() == 0.0 && 0.0 < x && x < f64::EPSILON
+    hypu(a in moderate(), b in moderate(), x) unless a.fract() == 0.0 && 0.0 < x && x < 1e-100
 );
 
 // known: AMOS is inaccurate for large x, e.g. bessel_j(-7, 2.71e79)
