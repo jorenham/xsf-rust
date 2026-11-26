@@ -220,6 +220,33 @@ fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64, relative: f64) -> Estim
     Estimate { value, error }
 }
 
+/// `F(-n, c - a; c; z)`, given its `estimate` from the rounded `c - a`.
+pub(super) fn complement(a: f64, c: f64, n: u64, z: C64, estimate: Estimate) -> Estimate {
+    // Where c - a rounds by more than the ulp scale of a, the double-double polynomial on the real
+    // axis, or else the Pfaff form, uses the exact c - a instead of the rounded one.
+    let (c_minus_a, rounding) = two_sum(c, -a);
+    if rounding.abs() <= f64::EPSILON * a.abs() || n >= HYP2F1_MAX_FIXED_TERMS {
+        return estimate;
+    }
+    let degree = n as f64;
+    let dd = z
+        .is_real()
+        .then(|| hyp2f1_poly_dd(-degree, Dd::new(c) - a, c, z.re).and_then(dd_candidate))
+        .flatten();
+    if let Some((y, _)) = dd {
+        // (keeping an estimate that agrees within the accepted double-double error)
+        return if (y - estimate.value.re).abs() <= HYP2F1_ETHRESH * y.abs() {
+            estimate
+        } else {
+            Estimate::from(c64(y, 0.0))
+        };
+    }
+    let relative = rounding_change(c_minus_a, rounding, n);
+    let rounded = estimated_sum(-degree, c_minus_a, c, n, z, relative);
+    let error = estimate.error.max(rounded.error);
+    pfaff((a, 0.0), c, n, z, Estimate { error, ..estimate })
+}
+
 // F(-n, b; c; z) = (1 - z)^n F(-n, c - b; c; z / (z - 1)) (DLMF 15.8.1), where the tuple is c - b
 // rounded and its rounding error
 #[cold]
