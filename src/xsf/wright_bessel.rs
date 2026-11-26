@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/wright_bessel.h` (scipy/xsf@c1f8b72).
+//! Translated into pure Rust from `xsf/wright_bessel.h` (scipy/xsf@45447c5).
 //!
 //! Implementation of Wright's generalized Bessel function Phi, see
 //! <https://dlmf.nist.gov/10.46.E1>
@@ -274,6 +274,8 @@ fn wb_asymptotic<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
      * with Z = (a*x)^(1/(1+a)).
      * Call: python _precompute/wright_bessel.py 3
      */
+    const MAX_EXP: f64 = 700.0;
+
     let mut A = [0.0; 15]; // powers of a
     let mut B = [0.0; 17]; // powers of b
     let mut Ap1 = [0.0; 9]; // powers of (1+a)
@@ -755,11 +757,17 @@ fn wb_asymptotic<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         let sign = neg_one_pow(k);
         res += sign * C[k] * Zp;
     }
-    if !LOG_WB {
+    if !LOG_WB && Z.is_infinite() {
+        return f64::INFINITY;
+    }
+    if !LOG_WB && Ap1[1] / a * Z <= MAX_EXP {
         res *= Z.powf(0.5 - b) * (Ap1[1] / a * Z).exp();
     } else {
-        // logarithm of Wright's function
+        // logarithm of Wright's function; above MAX_EXP, pow and exp can over/underflow separately
         res = Z.ln() * (0.5 - b) + Ap1[1] / a * Z + res.ln();
+        if !LOG_WB {
+            res = res.exp();
+        }
     }
     res
 }
