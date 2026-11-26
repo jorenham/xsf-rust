@@ -274,8 +274,22 @@ fn cancellation(abs_sum: f64, sum: C64) -> f64 {
     if ratio.is_nan() { f64::INFINITY } else { ratio }
 }
 
+/// A value and its estimated cancellation sum(|term|) / |sum|
+#[derive(Clone, Copy)]
+struct Cancelled {
+    value: C64,
+    cancellation: f64,
+}
+
+impl Cancelled {
+    /// Whether the cancellation loses more than `HYP2F1_EPS`
+    fn is_lossy(self) -> bool {
+        self.cancellation * f64::EPSILON > HYP2F1_EPS
+    }
+}
+
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
-fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
+fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> Cancelled {
     let mut abs_sum = 0.0;
     let g = || {
         let term = g();
@@ -283,14 +297,20 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
         term
     };
     let result = series_eval(g);
-    (result, cancellation(abs_sum, result))
+    Cancelled {
+        value: result,
+        cancellation: cancellation(abs_sum, result),
+    }
 }
 
 /// `series_eval_cancellation`, and the estimated relative size of the omitted tail, a geometric
 /// series in the ratio of the last two terms (infinite unless that ratio is below one)
 fn series_eval_tail(mut g: impl FnMut() -> C64) -> (C64, f64, f64) {
     let (mut previous, mut last) = (0.0, 0.0);
-    let (sum, cancellation) = series_eval_cancellation(|| {
+    let Cancelled {
+        value: sum,
+        cancellation,
+    } = series_eval_cancellation(|| {
         let term = g();
         (previous, last) = (last, term.norm());
         term
@@ -307,7 +327,7 @@ fn series_eval_tail(mut g: impl FnMut() -> C64) -> (C64, f64, f64) {
 /// `series_eval_cancellation`, but converged only after three successive small terms
 //
 // One term of the limit or paired series can vanish with its logarithmic coefficient.
-fn series_eval_settled(mut g: impl FnMut() -> C64) -> (C64, f64) {
+fn series_eval_settled(mut g: impl FnMut() -> C64) -> Cancelled {
     let (mut sum, mut abs_sum, mut small) = (C64::ZERO, 0.0, 0);
     for _ in 0..HYP2F1_MAXITER {
         let term = g();
@@ -319,10 +339,16 @@ fn series_eval_settled(mut g: impl FnMut() -> C64) -> (C64, f64) {
             0
         };
         if small == 3 {
-            return (sum, cancellation(abs_sum, sum));
+            return Cancelled {
+                value: sum,
+                cancellation: cancellation(abs_sum, sum),
+            };
         }
     }
-    (C64::NAN, f64::INFINITY)
+    Cancelled {
+        value: C64::NAN,
+        cancellation: f64::INFINITY,
+    }
 }
 
 const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
@@ -506,20 +532,25 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let w = z / (2.0 - z);
         let half_a = 0.5 * a;
         let terms = hypergeometric_series_generator(half_a, half_a + 0.5, b + 0.5, w * w);
-        let (sum, cancellation) = series_eval_cancellation(terms);
+        let Cancelled {
+            value: sum,
+            cancellation,
+        } = series_eval_cancellation(terms);
         // Large negative powers after the Euler transform can still cancel.
         if cancellation <= 16.0 {
             return sum;
         }
     }
     // Unlike in xsf, restart with the single-term rule if the paired sum fails.
-    lopez_temme_paired(a, b, c, z, HYP2F1_MAXITER)
-        .map_or_else(|| series_eval(lopez_temme_series_generator(a, b, c, z)), |(sum, _)| sum)
+    lopez_temme_paired(a, b, c, z, HYP2F1_MAXITER).map_or_else(
+        || series_eval(lopez_temme_series_generator(a, b, c, z)),
+        |paired| paired.value,
+    )
 }
 
 /// The Lopez-Temme series and its estimated cancellation, once a tail bound holds for a pair of
 /// terms within `max_terms` terms, or `None` (always unless a, b > 0 and b < c)
-fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64, max_terms: u64) -> Option<(C64, f64)> {
+fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64, max_terms: u64) -> Option<Cancelled> {
     if !(a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite()) {
         return None;
     }
@@ -555,7 +586,10 @@ fn lopez_temme_paired(a: f64, b: f64, c: f64, z: C64, max_terms: u64) -> Option<
         if last < tol {
             let ratio = ratio(n as f64);
             if last * ratio < tol * (1.0 - ratio) {
-                return Some((sum, abs_sum / sum_abs));
+                return Some(Cancelled {
+                    value: sum,
+                    cancellation: abs_sum / sum_abs,
+                });
             }
         }
     }
@@ -580,7 +614,7 @@ fn lopez_temme_form(a: f64, b: f64, c: f64, z: C64) -> (f64, f64, C64, Option<C6
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
 //
 // Unlike in xsf, `settled` or a cancelled gamma ratio sums the series with `series_eval_settled`.
-fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool) -> (C64, f64) {
+fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool) -> Cancelled {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
     let m = (c - a - b).round();
     // gamma(c) / (gamma(a) gamma(b)) for c near a + b + m and m >= 0.
@@ -618,7 +652,10 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
         (c64(prefactor, 0.0), series_generator2)
     };
-    let (series, series_cancellation) = if settled || recovered {
+    let Cancelled {
+        value: series,
+        cancellation: series_cancellation,
+    } = if settled || recovered {
         series_eval_settled(series_generator)
     } else {
         series_eval_cancellation(series_generator)
@@ -630,7 +667,10 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
     if recovered && f64::EPSILON * lost >= f64::EPSILON.cbrt() {
         result = C64::NAN;
     }
-    (result, lost)
+    Cancelled {
+        value: result,
+        cancellation: lost,
+    }
 }
 
 fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C64 {
@@ -963,7 +1003,7 @@ fn digamma_integral(mut x: f64, h: f64) -> f64 {
 // A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
 // B_k = (a+d)_k (b+d)_k / (k! Gamma(1+d+k)), it is -Gamma(c) Gamma(-d) / (Gamma(a) Gamma(b))
 // w^d / B_0 times the sum of B_k w^k expm1(log(A_k / B_k) - d log(w)), w = 1 - z.
-fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
+fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<Cancelled> {
     let d = f64::from(Dd::new(c) - a - b);
     // Only where the unpaired series lose more than HYP2F1_EPS to their cancelling poles.
     let pole_loss = f64::EPSILON / d.abs();
@@ -992,7 +1032,10 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64
     }
     let mut upper = C64::ONE; // B_k w^k / B_0
     let mut k = 0.0;
-    let (series, cancellation) = series_eval_settled(|| {
+    let Cancelled {
+        value: series,
+        cancellation,
+    } = series_eval_settled(|| {
         let term = upper * crate::xsf::cexpm1(log_ratio - log_power);
         let (p, q, n) = (a + k, b + k, k + 1.0);
         let (shifted, nd) = ((p + d) * (q + d), n - d);
@@ -1009,15 +1052,20 @@ fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64
     // more than 1 / |d| loses more than the unpaired series.
     let rotated = (series.re * prefactor.im).abs() + (series.im * prefactor.re).abs();
     let accurate = prefactor.norm() >= f64::MIN_POSITIVE && value.im.abs() >= d.abs() * rotated;
-    (accurate && value.is_finite()).then_some((value, cancellation))
+    (accurate && value.is_finite()).then_some(Cancelled {
+        value,
+        cancellation,
+    })
 }
 
 /// The limit of the 1 - z series for an integer balance, if it is closer than `result`.
 #[cold]
 fn hyp2f1_transform1_near_limit(a: f64, b: f64, c: f64, z: C64, offset: f64, result: C64) -> C64 {
     // At the integer balance, which its gamma ratios assume.
-    let (limit, cancellation) =
-        hyp2f1_transform1_limiting_case(a, b, a + b + (c - a - b).round(), z, true);
+    let Cancelled {
+        value: limit,
+        cancellation,
+    } = hyp2f1_transform1_limiting_case(a, b, a + b + (c - a - b).round(), z, true);
     // A heuristic for the relative derivative of the terms of the limit in the balance, from
     // their logarithm and digammas (DLMF 15.8.10). The sum amplifies it by its cancellation.
     let sensitivity =
@@ -1198,7 +1246,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
-    let (mut result, mut cancellation) = if offset < HYP2F1_EPS {
+    let mut estimate = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
         // terms vanish fast.
@@ -1216,13 +1264,14 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
     // terms are huge, but the first Maclaurin terms decay fast for large c > 0 (DLMF 15.12.2),
     // e.g. for hyp2f1(4.5, 2.5, 57, 0.64+0.65i).
-    if c > 0.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
+    if c > 0.0 && estimate.is_lossy() {
         let series_generator = hypergeometric_series_generator(a, b, c, z);
-        let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
-        if maclaurin_cancellation < cancellation {
-            (result, cancellation) = (maclaurin, maclaurin_cancellation);
+        let maclaurin = series_eval_cancellation(series_generator);
+        if maclaurin.cancellation < estimate.cancellation {
+            estimate = maclaurin;
         }
     }
+    let mut result = estimate.value;
     // Unlike in xsf, check the result against the limit for a nearly integer balance.
     // Rounding in c - a - b moves the poles that cancel between the two 1 - z series by a
     // relative eps / offset, for an error near eps / offset^2, where the limit is off by its
@@ -1233,7 +1282,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         result = hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
     }
     // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
-    if cancellation * f64::EPSILON > HYP2F1_EPS {
+    if estimate.is_lossy() {
         return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
     result
@@ -1264,29 +1313,32 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
-    let (mut result, mut cancellation) = series_eval_cancellation(series_generator);
+    let mut series = series_eval_cancellation(series_generator);
     if euler {
         // use the one that cancels less
         let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
-        let (euler_result, euler_cancellation) = series_eval_cancellation(series_generator);
-        if euler_cancellation < cancellation {
-            if let Some(euler_result) = euler_scaled(euler_result) {
-                (result, cancellation) = (euler_result, euler_cancellation);
+        let euler_series = series_eval_cancellation(series_generator);
+        if euler_series.cancellation < series.cancellation {
+            if let Some(value) = euler_scaled(euler_series.value) {
+                series = Cancelled {
+                    value,
+                    ..euler_series
+                };
             }
         }
     }
     // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, also sum the
     // Lopez-Temme series for Re z < 1 where its tail is bounded.
-    if z.re < 1.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
-        if let Some(value) = hyp2f1_lopez_temme_retry(a, b, c, z, cancellation) {
+    if z.re < 1.0 && series.is_lossy() {
+        if let Some(value) = hyp2f1_lopez_temme_retry(a, b, c, z, series.cancellation) {
             return value;
         }
     }
     // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
-    if cancellation * f64::EPSILON > HYP2F1_EPS {
-        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
+    if series.is_lossy() {
+        return hyp2f1_continuation(a, b, c, z, series.value).unwrap_or(series.value);
     }
-    result
+    series.value
 }
 
 /// F(a, b; c; z) from the Lopez-Temme series, if it cancels less than half as much as the 1/z
@@ -1299,7 +1351,10 @@ fn hyp2f1_lopez_temme_retry(a: f64, b: f64, c: f64, z: C64, cancellation: f64) -
     if !normal(prefactor) || !euler.is_none_or(normal) {
         return None;
     }
-    let (sum, lt_cancellation) = lopez_temme_paired(p, q, c, z, LOPEZ_TEMME_RETRY_MAXITER)?;
+    let Cancelled {
+        value: sum,
+        cancellation: lt_cancellation,
+    } = lopez_temme_paired(p, q, c, z, LOPEZ_TEMME_RETRY_MAXITER)?;
     let result = prefactor * sum;
     let value = euler.map_or(result, |euler| euler * result);
     let roundoff = f64::EPSILON * lt_cancellation;
