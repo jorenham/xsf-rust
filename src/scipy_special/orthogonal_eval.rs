@@ -560,6 +560,24 @@ fn endpoint_growth(n: i32, e: f64) -> f64 {
     max / b.abs()
 }
 
+/// The recurrence of `eval_jacobi_l` in double-double, for real x, `n >= 1` and `alpha != -1`,
+/// rounded to `f64`
+fn eval_jacobi_l_dd(n: i32, alpha: f64, beta: f64, x: f64) -> f64 {
+    let (a1, b) = (DoubleDouble::new(alpha) + 1.0, DoubleDouble::new(beta));
+    let (ab2, xm1) = (a1 + (b + 1.0), DoubleDouble::new(x) - 1.0);
+    let mut d = xm1 * ab2 / (a1 * 2.0);
+    let (mut p, mut binom) = (d + 1.0, a1);
+    for kk in 0..n - 1 {
+        let k = f64::from(kk) + 1.0;
+        let t = ab2 + 2.0 * (k - 1.0);
+        d = (xm1 * (t * (t + 1.0) * (t + 2.0)) * p + d * ((b + k) * (t + 2.0) * (2.0 * k)))
+            / ((a1 + k) * (ab2 + (k - 1.0)) * t * 2.0);
+        p = p + d;
+        binom = binom * (a1 + k) / (k + 1.0);
+    }
+    f64::from(p * binom)
+}
+
 impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
@@ -569,21 +587,32 @@ impl JacobiArg<i32> for f64 {
         // Unlike in xsf, x < 0 is reflected if alpha, beta > -1, unless that is nonfinite
         let p = eval_jacobi_l_reflected(n, alpha, beta, self)
             .unwrap_or_else(|| eval_jacobi_l(n, alpha, beta, self));
-        // Unlike in xsf, for alpha or beta <= -1, use `q` if it is finite and disagrees with `p`,
-        // where `p` is nonfinite or x is on the side of an endpoint whose exponent e < -1 makes
-        // the recurrence cancel the growth of P_k there, binom(k + e, k), beyond the error
-        // threshold of the 2F1.
+        if is_classical(alpha, beta) {
+            return p;
+        }
+        // Unlike in xsf, on the side of an endpoint whose exponent e < -1, the recurrence cancels
+        // the growth of P_k there, binom(k + e, k), beyond the error threshold of the 2F1. Repeat
+        // it in double-double, whose error is then about EPSILON times that of `p`, and use it
+        // while that stays below the threshold. An exact zero of either gives no estimate. For
+        // alpha = -1, `p` is already the 2F1 of P_{n-1}^{(1, beta)}.
         let amplifies =
             |e: f64| e < -1.0 && !(endpoint_growth(n, e) <= HYP2F1_ETHRESH / f64::EPSILON);
         let near = (self < 0.0 && amplifies(beta)) || (self > 0.0 && amplifies(alpha));
-        if is_classical(alpha, beta) || (p.is_finite() && !near) {
-            return p;
+        if p.is_finite() {
+            if !near || alpha == -1.0 {
+                return p;
+            }
+            let p_dd = eval_jacobi_l_dd(n, alpha, beta, self);
+            if (p - p_dd).abs() * f64::EPSILON < HYP2F1_ETHRESH * p.abs().min(p_dd.abs()) {
+                return p_dd;
+            }
         }
-        // For an integer alpha = -l with 1 <= l <= n, the terms below l of DLMF 18.5.7 vanish, so
-        // `q` is binom(n + beta, l) / binom(n, l) ((x - 1) / 2)^l P_m^{(l, beta)} with m = n - l,
-        // as the 2F1 cancels near x = 1. For such a beta, reflect (DLMF Table 18.6.1).
+        // Unlike in xsf, use the 2F1 where those are nonfinite or cancel. For an integer
+        // alpha = -l with 1 <= l <= n, the terms below l of DLMF 18.5.7 vanish, so it is
+        // binom(n + beta, l) / binom(n, l) ((x - 1) / 2)^l P_m^{(l, beta)} with m = n - l. For
+        // such a beta, reflect (DLMF Table 18.6.1).
         let int_in_range = |t: f64| t.fract() == 0.0 && (-f64::from(n)..=-1.0).contains(&t);
-        let q = if int_in_range(alpha) {
+        if int_in_range(alpha) {
             let (l, m) = (-alpha as i32, n + alpha as i32);
             let c: f64 = (m + 1..=n)
                 .map(|k| (f64::from(k) + beta) / f64::from(k))
@@ -593,11 +622,6 @@ impl JacobiArg<i32> for f64 {
             neg_one_pow(n) * (-self).eval_jacobi(n, beta, alpha)
         } else {
             self.eval_jacobi(f64::from(n), alpha, beta)
-        };
-        if q.is_finite() && !((p - q).abs() <= HYP2F1_ETHRESH * q.abs()) {
-            q
-        } else {
-            p
         }
     }
 
