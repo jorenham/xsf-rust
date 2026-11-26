@@ -42,7 +42,7 @@ fn test_riemann_zeta_c64_moderate_imag() {
 #[test]
 fn test_riemann_zeta_c64_large_imag() {
     // Euler-Maclaurin would sum up to |Im z| / 4 terms here, with phase errors up to
-    // eps |Im z| ln(2) 2^-Re z (reference values from Arb)
+    // eps |Im z| ln(n) n^-Re z for the terms n (reference values from Arb)
     for (z, expected) in [
         (c64(0.5, 10_000.0), c64(-0.339_373_802_638_834_43, -0.037_091_505_973_206_03)),
         (c64(0.5, 100_000.0), c64(1.073_032_014_857_753_2, 5.780_848_544_363_504)),

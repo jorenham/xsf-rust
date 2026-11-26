@@ -338,6 +338,12 @@ const RS_TERMS: usize = 10;
 /// as `a^(-Re z - 10) (|C_10(Re z, p)| + |C_10(1 - Re z, p)|)`, stay below eps.
 const RS_MIN_A: f64 = 10.0;
 
+/// Cost of the Riemann-Siegel correction in Dirichlet terms: its `3 RS_TERMS - 2` derivatives of
+/// `F` take `2 RS_F_COEFFS.len()` Horner and differentiation steps each, and a Dirichlet term
+/// (a power, a double-double logarithm and a sine and cosine) costs about 16 of them. The factor
+/// 16 is calibrated by timing.
+const RS_CORRECTION_TERMS: u32 = ((3 * RS_TERMS - 2) * 2 * RS_F_COEFFS.len() / 16) as u32;
+
 /// `sum_k C_k(sigma, p) / a^k` of the Riemann-Siegel formula, with
 /// `C_k(sigma, p) = sum_l d_kl(sigma) F^(3k - 2l)(p) / (pi^(2k - l) (2i)^l)`, given the derivatives
 /// `fp[m] = F^(m)(p)`.
@@ -422,13 +428,14 @@ fn zeta_riemann_siegel(z: C64) -> C64 {
     let n_max = a as u32;
     let p = (1.0 - (a_dd - f64::from(n_max)).mul_pwr2(2.0)).hi;
 
-    // The Dirichlet series needs fewer terms than the two sums below where its tail after m terms,
-    // below m^(1 - sigma) / (sigma - 1), is below eps for some m <= 2 N.
+    // The Dirichlet series is cheaper than the two sums below and the correction where its tail
+    // after m terms, below m^(1 - sigma) / (sigma - 1), is below eps for some m <= N + the cost
+    // of the correction.
     if sigma > 1.0 {
         let m = ((sigma - 1.0) * f64::EPSILON)
             .powf(-1.0 / (sigma - 1.0))
             .ceil();
-        if m <= f64::from(2 * n_max) {
+        if m <= f64::from(n_max + RS_CORRECTION_TERMS) {
             return dirichlet_sums(z, m as u32).0;
         }
     }
@@ -486,8 +493,8 @@ fn zeta_right_halfplane(z: C64) -> C64 {
         }
         // Unlike in xsf, the Riemann-Siegel formula (or a shorter Dirichlet sum) is used up to that
         // limit: Euler-Maclaurin sums up to |Im z| / 4 terms, with phase errors
-        // eps |Im z| ln(n) n^-Re z, which are below eps only for Re z >= log2 |Im z|. Above the
-        // limit, its sum still stops early (Re z >= 2.5).
+        // eps |Im z| ln(n) n^-Re z, which can exceed eps for Re z < log2 |Im z|. Above the limit,
+        // its sum still stops early (Re z >= 2.5).
         let t = z.im.abs();
         if (TAU * RS_MIN_A * RS_MIN_A..=1e9).contains(&t) && z.re < t.log2() {
             return zeta_riemann_siegel(z);
