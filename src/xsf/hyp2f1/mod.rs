@@ -166,6 +166,14 @@ fn pow_ratio(num_gh: f64, den_gh: f64, d: f64, e: f64, big: bool) -> f64 {
     }
 }
 
+/// Whether `four_gammas` tries the direct ratio of gamma functions at these arguments
+fn four_gammas_direct(args: [f64; 4]) -> bool {
+    /* Direct ratio tends to be more accurate for arguments in this range. Range
+     * chosen empirically based on the relevant benchmarks in
+     * scipy/special/_precompute/hyp2f1_data.py */
+    args.iter().all(|x| x.abs() <= 100.0)
+}
+
 fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     // Without loss of generality, ensure |u| >= |v| and |w| >= |x|.
     if v.abs() > u.abs() {
@@ -174,10 +182,7 @@ fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     if x.abs() > w.abs() {
         core::mem::swap(&mut x, &mut w);
     }
-    /* Direct ratio tends to be more accurate for arguments in this range. Range
-     * chosen empirically based on the relevant benchmarks in
-     * scipy/special/_precompute/hyp2f1_data.py */
-    if u.abs() <= 100.0 && v.abs() <= 100.0 && w.abs() <= 100.0 && x.abs() <= 100.0 {
+    if four_gammas_direct([u, v, w, x]) {
         let result = gamma(u) * gamma(v) * (rgamma(w) * rgamma(x));
         if result.is_finite() && result != 0.0 {
             return result;
@@ -864,20 +869,26 @@ fn digamma_integral(mut x: f64, h: f64) -> f64 {
 }
 
 /// The 1 - z series (DLMF 15.8.4) for a balance c - a - b near zero, uniformly in the balance,
-/// and its estimated cancellation as in `series_eval_cancellation`, unless it may be inaccurate
+/// and its estimated cancellation as in `series_eval_cancellation`, where it is safe and more
+/// accurate than the two separate series
 //
-// Unlike in xsf, pair the k-th terms of the two series, whose poles in the balance d cancel:
-// with A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
+// The k-th terms of the two series, whose poles in the balance d cancel, are paired: with
+// A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
 // B_k = (a+d)_k (b+d)_k / (k! Gamma(1+d+k)), it is -Gamma(c) Gamma(-d) / (Gamma(a) Gamma(b))
 // w^d / B_0 times the sum of B_k w^k expm1(log(A_k / B_k) - d log(w)), w = 1 - z.
 fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     let d = f64::from(Dd::new(c) - a - b);
-    // `four_gammas` reflects x < 1/2 with a relative error near eps |x| / dist(x, Z), worth it
-    // only where both the unpaired series, which lose eps / |d| to their cancelling poles, and
-    // the limit for an integer balance, which is off by about |d|, lose more.
+    // Only where the unpaired series lose more than HYP2F1_EPS to their cancelling poles.
+    if f64::EPSILON / d.abs() <= HYP2F1_EPS {
+        return None;
+    }
+    // Beyond its direct ratio, `four_gammas` reflects x < 1/2 with a relative error near
+    // eps |x| / dist(x, Z), worth it only where both the unpaired series, which lose eps / |d|
+    // to their cancelling poles, and the limit for an integer balance, which is off by about
+    // |d|, lose more.
     let tolerance = d.abs().max(f64::EPSILON / d.abs());
     let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (tolerance * x).abs();
-    if [a, b, c].into_iter().any(reflected) {
+    if !four_gammas_direct([c, -d, a, b]) && [a, b, c].into_iter().any(reflected) {
         return None;
     }
     let w = 1.0 - z;
@@ -938,12 +949,6 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     let balance = c - a - b;
     let offset = (balance - balance.round()).abs();
-    // Unlike in xsf, pair the two 1 - z series for a balance near zero.
-    let mut paired = if offset >= HYP2F1_EPS && balance.round() == 0.0 {
-        hyp2f1_transform1_near_balance(a, b, c, z)
-    } else {
-        None
-    };
     let (mut result, cancellation) = if offset < HYP2F1_EPS {
         // Removable singularity when c - a - b is an integer. Need to use limiting formula.
         // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
@@ -954,7 +959,9 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
         hyp2f1_transform1_limiting_case(a, b, c, z, false)
     } else {
-        paired.unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
+        // Unlike in xsf, pair the two series for a balance near zero.
+        hyp2f1_transform1_near_balance(a, b, c, z)
+            .unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
     };
     // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
     // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
@@ -965,17 +972,15 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
         if maclaurin_cancellation < cancellation {
             result = maclaurin;
-            paired = None;
         }
     }
     // Unlike in xsf, check the result against the limit for a nearly integer balance.
     // Rounding in c - a - b moves the poles that cancel between the two 1 - z series by a
     // relative eps / offset, for an error near eps / offset^2, where the limit is off by its
     // sensitivity to the balance: the two meet at an offset near cbrt(eps).
-    // (not for a balance beyond the term limit, which the limit sums as many terms for, nor
-    // for a kept paired series, which has no such error)
+    // (not for a balance beyond the term limit, which the limit sums as many terms for)
     let near = offset >= HYP2F1_EPS && offset.powi(3) < f64::EPSILON;
-    if near && paired.is_none() && balance.abs() <= HYP2F1_MAXITER as f64 {
+    if near && balance.abs() <= HYP2F1_MAXITER as f64 {
         return hyp2f1_transform1_near_limit(a, b, c, z, offset, result);
     }
     result

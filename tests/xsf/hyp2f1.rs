@@ -518,7 +518,8 @@ fn test_hyp2f1_c64_rounded_integer_balance() {
 
 #[test]
 fn test_hyp2f1_c64_near_zero_balance() {
-    // Balances from 1e-15 to 1e-3, where the two 1 - z series cancel.
+    // Balances from 1e-15 to 1e-3, where the two 1 - z series cancel, also near negative
+    // integers a and b.
     for (a, b, c, x, y, re, im) in [
         (
             35.906_427_470_934_794,
@@ -574,6 +575,24 @@ fn test_hyp2f1_c64_near_zero_balance() {
             205_297.257_891_800_95,
             160_165.783_237_828_03,
         ),
+        (
+            -31.999_999_978_277_355,
+            -30.264_032_172_974_95,
+            -62.264_032_151_236_54,
+            0.952_624_109_802_563,
+            0.127_226_516_469_02,
+            -5.802_408_139_152_598_5e-12,
+            2.360_913_625_077_687_5e-12,
+        ),
+        (
+            -32.999_999_998_376_8,
+            -25.836_224_093_355_025,
+            -58.836_224_091_731_815,
+            1.042_184_402_821_436_2,
+            0.293_670_970_687_779_53,
+            -5.307_870_591_538_909e-10,
+            1.983_824_573_521_540_5e-9,
+        ),
     ] {
         for (a, b) in [(a, b), (b, a)] {
             for sign in [-1.0, 1.0] {
@@ -589,17 +608,18 @@ fn test_hyp2f1_c64_near_zero_balance_edges() {
     // A vanishing term at a balance of 1/8.
     let actual = xsf::hyp2f1(4.375, 4.375, 8.875, c64(0.904_973_484_375_869_2, 0.0));
     np_assert_allclose!([actual.re], [43.253_829_995_862_97], rtol = 1e-13);
-    // A large negative a returns.
-    let _ = xsf::hyp2f1(-1_125_899_906_842_623.5, 1_125_899_906_842_624.5, 1.25, c64(0.95, 0.0));
+    // No hang: a far below the term limit returns, but as NaN (a known limitation).
+    let actual = xsf::hyp2f1(-16_777_216.5, 16_777_217.5, 1.0 + 2_f64.powi(-26), c64(0.95, 0.0));
+    assert!(actual.is_nan());
     // An overflowing gamma ratio, at a balance of 2^-43.
     let actual = xsf::hyp2f1(500.0, 500.0, 1000_f64.next_up(), c64(1.0, 1e-8));
     let desired = [3.272_480_137_841_555e302, 1.049_871_344_510_691_8e302];
     np_assert_allclose!([actual.re, actual.im], desired, rtol = 3e-12);
-    // Near a negative integer a, at a balance of 1/4.
+    // Near a negative integer a, beyond the direct gamma ratio, at a balance of 1/8.
     let actual =
-        xsf::hyp2f1(-100.999_999_999_999_99, -0.5, -101.249_999_999_999_99, c64(1.0, 1e-6));
-    np_assert_allclose!([actual.re], [0.073_418_179_070_418_16], rtol = 1e-13);
-    np_assert_allclose!([actual.im], [-4.943_490_717_715_763_5e-6], rtol = 1e-10);
+        xsf::hyp2f1(-100.999_999_999_999_99, -0.5, -101.374_999_999_999_99, c64(1.0, 1e-6));
+    np_assert_allclose!([actual.re], [0.080_922_750_731_539_07], rtol = 1e-13);
+    np_assert_allclose!([actual.im], [-4.670_398_751_111_399e-6], rtol = 1e-10);
     // A subnormal imaginary part of z.
     let actual = xsf::hyp2f1(20.0, 20.0, 40.000_000_000_000_01, c64(0.999, 1e-313));
     np_assert_allclose!([actual.re], [855_282_174_438.874_3], rtol = 1e-13);
@@ -607,20 +627,19 @@ fn test_hyp2f1_c64_near_zero_balance_edges() {
     // Near a negative integer a, beyond the direct gamma ratio, at a balance of 1e-14.
     let actual = xsf::hyp2f1(-98.999_999_99, -1.5, -100.499_999_989_999_99, c64(0.95, 0.0));
     np_assert_allclose!([actual.re], [0.016_051_788_054_881_427], rtol = 1e-14);
-    // A tiny imaginary part of w^d, which the rotation of the paired sum cancels.
-    let actual = xsf::hyp2f1(1.5, 2.5, 4.25, c64(1.0, 1e-100));
-    let desired = [20.321_224_998_531_57, 1.319_165_494_106_355_1e-24];
+    // A small imaginary part, which the rotation of the paired sum cancels.
+    let actual = xsf::hyp2f1(1.5, 2.5, 4.125, c64(1.0, 1e-100));
+    let desired = [40.577_947_190_182_54, 3.211_635_692_333_511_7e-12];
     np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-14);
-    // An underflowing gamma ratio, not a zero.
+    // An underflowing gamma ratio of -5.1e-257 - 7.2e-257i returns NaN (a known limitation).
     let actual = xsf::hyp2f1(-600.25, -600.25, -1_200.499_999, c64(0.95, 0.001));
-    let desired = c64(-5.119_392_097_911_411e-257, -7.174_923_808_775_034e-257);
-    assert!(actual.is_nan() || ((actual - desired) / desired).norm() < 1e-13);
+    assert!(actual.is_nan());
     // The Maclaurin series replaces the paired sum, at a balance of 2^-49.
     let actual = xsf::hyp2f1(6.0, 6.0, 12_f64.next_up(), c64(0.95, 0.0));
     np_assert_allclose!([actual.re], [459.334_127_269_937_5], rtol = 3e-14);
-    // A log ratio of NaN, at a balance of 1/4.
-    let actual = xsf::hyp2f1(-0.125, 1.5, 1.625, c64(0.99, 0.001));
-    let desired = [0.648_655_097_173_738_4, -0.004_408_469_835_410_515];
+    // A log ratio of NaN, at a balance of 1/8.
+    let actual = xsf::hyp2f1(-0.0625, 1.5, 1.5625, c64(0.99, 0.001));
+    let desired = [0.778_651_057_800_017_5, -0.003_664_795_346_346_866_8];
     np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-14);
 }
 
