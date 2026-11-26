@@ -1388,6 +1388,7 @@ fn digamma_integral(mut x: f64, h: f64) -> (f64, f64) {
     let step = 0.5 * (3.0_f64 / 5.0).sqrt() * h;
     let quadrature =
         h / 18.0 * (5.0 * (digamma(mid - step) + digamma(mid + step)) + 8.0 * digamma(mid));
+    // Unlike in xsf, also return a bound of the absolute error.
     let error = f64::EPSILON * (error + quadrature.abs() + h.abs());
     (integral + quadrature, error)
 }
@@ -1496,6 +1497,7 @@ fn hyp2f1_paired(
     (accurate && value.is_finite()).then(|| {
         // (with the rounding of the sum, and its geometric tail in the last ratio)
         let abs_sum = series.cancellation * series.value.norm();
+        // Unlike in xsf, also return a bound of the absolute error of the sum.
         let error = f64::EPSILON * abs_sum + error + geometric_tail(last, ratio);
         (Cancelled { value, ..series }, prefactor.norm() * error)
     })
