@@ -701,8 +701,8 @@ fn test_hyp2f1_c64_near_zero_balance_edges() {
 
 #[test]
 fn test_hyp2f1_c64_large_near_zero_balance() {
-    // Large a and b at a distance from 1, where the 1 - z and Maclaurin series cancel: an exact
-    // balance and a balance of -5e-8.
+    // Large a and b at a distance from 1, where the 1 - z and Maclaurin series cancel, at an
+    // exact balance
     for (a, b, c, x, y, re, im) in [
         (
             39.358_066_203_017_785,
@@ -742,6 +742,20 @@ fn test_hyp2f1_c64_large_near_zero_balance() {
         let desired = [1_161.620_547_299_975_7, 1_680.282_191_320_187_6_f64.copysign(y)];
         np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-12);
     }
+    // An integer balance close to 1, where the Maclaurin sums at 1/2 lose about 40 eps
+    let (a, c) = (123.415_688_700_992_7, 245.832_377_401_985_4);
+    let actual = xsf::hyp2f1(a, a, c, c64(0.997_013_321_126_109_9, 0.000_193_262_214_104_612));
+    let desired = [7.879_161_399_246_598e69, 3.898_993_388_042_795e69];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 1e-13);
+    // A continuation near 1 that does not beat the limit for a nearly integer balance
+    let actual = xsf::hyp2f1(
+        62.377_025_825_687_795,
+        13.886_599_054_008_652,
+        47.263_624_879_696_45,
+        c64(0.901_941_236_573_627_1, 0.278_212_790_916_568_1),
+    );
+    let desired = [4_795_717_777.401_794, -4_480_686_255.456_943_5];
+    np_assert_allclose!([actual.re, actual.im], desired, rtol = 5e-14);
 }
 
 #[test]
