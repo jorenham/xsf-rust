@@ -1199,8 +1199,7 @@ fn test_hyp2f1_c64_large_near_zero_balance_inverse() {
     // A weak imaginary part on both lips of the cut, and just off it, keeps its sign.
     for y in [0.0_f64, -0.0, 1e-100, -1e-100] {
         let actual = xsf::hyp2f1(0.5, 0.5, 20.5, c64(1.125, y));
-        // (the limit of the 1/z series, which loses about 1e-11)
-        np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 2e-11);
+        np_assert_allclose!([actual.re], [1.014_626_580_089_177_6], rtol = 1e-11);
         assert_eq!(actual.im.is_sign_negative(), y.is_sign_negative(), "{actual}");
     }
 }

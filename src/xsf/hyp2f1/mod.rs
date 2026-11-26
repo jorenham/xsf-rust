@@ -1456,12 +1456,21 @@ fn hyp2f1_taylor_step<const N: usize>(
 
 /// F(a, b; c; z) for a, b, c > 0 and |1 - z| <= 1/2 by analytic continuation of the Maclaurin
 /// series at 1/2, along the real axis to 1 - |1 - z| and then along the circle about 1 through
-/// z, if its error estimate is below half its distance from `result`, which is then less accurate.
+/// z, if its error estimate is below half its distance from `result`, which is then less accurate,
+/// or below `result_error`, the estimated absolute error of `result` (or 0).
 /// For Re z > 1, where a small component may stem from the cut, a `result` within sqrt(eps)
-/// relative to it is also kept if the estimate exceeds a component.
+/// relative to it is also kept if the estimate exceeds a component, or only that component if
+/// `result_error` is larger.
 //
 // On that path, 1 is the nearest singular point.
-fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: C64) -> Option<C64> {
+fn hyp2f1_continuation(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: C64,
+    result: C64,
+    result_error: f64,
+) -> Option<C64> {
     let w = 1.0 - z;
     let r = w.norm();
     let (end, angle) = (1.0 - r, w.im.atan2(w.re));
@@ -1542,10 +1551,21 @@ fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: C64) -> Option<C6
     let f = x[0];
     // (a first-order estimate, so only if well below one; NaN `result` is less accurate)
     let (tolerance, distance) = (f64::EPSILON.sqrt() * f.norm(), (result - f).norm());
-    let accurate = error < tolerance && !(distance <= 2.0 * error);
+    let less_accurate = result_error > error;
+    let accurate = error < tolerance && (less_accurate || !(distance <= 2.0 * error));
     // (keep a close `result` if the estimate does not resolve a component)
     let unresolved = z.re > 1.0 && error >= f.re.abs().min(f.im.abs()) && distance < tolerance;
-    (accurate && !unresolved).then_some(f)
+    if !(accurate && unresolved) {
+        return accurate.then_some(f);
+    }
+    // (only that smaller component if `result` is less accurate)
+    less_accurate.then(|| {
+        if f.re.abs() < f.im.abs() {
+            c64(result.re, f.im)
+        } else {
+            c64(f.re, result.im)
+        }
+    })
 }
 
 fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
@@ -1591,7 +1611,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
     if estimate.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
+        return hyp2f1_continuation(a, b, c, z, result, 0.0).unwrap_or(result);
     }
     result
 }
@@ -1752,7 +1772,8 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         };
         // Unlike in xsf, continue the Maclaurin series analytically if the limit is less
         // accurate.
-        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
+        let error = f64::EPSILON * best.cancellation * result.norm();
+        return hyp2f1_continuation(a, b, c, z, result, error).unwrap_or(result);
     }
     // Unlike in xsf, pair the two series for a - b near an integer if that clearly cancels less,
     // counting for a near b both parts of each unpaired term, whose poles cancel within it.
@@ -1785,7 +1806,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
     if series.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, series.value).unwrap_or(series.value);
+        return hyp2f1_continuation(a, b, c, z, series.value, 0.0).unwrap_or(series.value);
     }
     series.value
 }
@@ -2216,7 +2237,7 @@ mod tests {
     fn test_hyp2f1_continuation_maclaurin_growth() {
         // The Maclaurin terms at 1/2 first decay below eps and then grow.
         let half = c64(0.5, 0.0);
-        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN).unwrap();
+        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN, 0.0).unwrap();
         xsref::np_assert_allclose!(
             [value.re, value.im],
             [1.000_007_275_456_677, 0.0],
@@ -2224,6 +2245,6 @@ mod tests {
         );
         // Its terms stay below eps, so the sum rounds to 1, which the error estimate covers.
         let exact = c64(1.000_000_000_000_007_3, 0.0);
-        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact), None);
+        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact, 0.0), None);
     }
 }
