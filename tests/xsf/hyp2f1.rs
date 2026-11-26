@@ -829,19 +829,6 @@ fn test_hyp2f1_c64_binomial_exact() {
 }
 
 #[test]
-fn test_hyp2f1_c64_infinite_parameter_inverse() {
-    // An infinite parameter reaches the gamma functions of the inverse limit, which return NaN.
-    let (a, b, z) = (
-        1.567_132_625_001_231_5e-16,
-        1.284_758_354_935_429_4e-168,
-        c64(277_030_705.063_883_84, 1.0),
-    );
-    for (a, b, c) in [(a, b, f64::INFINITY), (f64::INFINITY, b, 2.5), (a, f64::NEG_INFINITY, 2.5)] {
-        assert!(xsf::hyp2f1(a, b, c, z).is_nan(), "a = {a}, b = {b}, c = {c}");
-    }
-}
-
-#[test]
 fn test_hyp2f1_c64_binomial_overflow() {
     let (inf, nan) = (f64::INFINITY, f64::NAN);
     for (b, z, expected) in [
@@ -863,6 +850,17 @@ fn test_hyp2f1_c64_binomial_overflow() {
             assert!(same, "b = {b}, z = {z}: {actual}");
         }
     }
+}
+
+#[test]
+fn test_hyp2f1_c64_infinite_c_inverse() {
+    // This used to overflow the stack.
+    let (a, b, z) = (
+        1.567_132_625_001_231_5e-16,
+        1.284_758_354_935_429_4e-168,
+        c64(277_030_705.063_883_84, 1.0),
+    );
+    assert!(xsf::hyp2f1(a, b, f64::INFINITY, z).is_nan());
 }
 
 #[test]

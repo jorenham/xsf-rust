@@ -677,8 +677,8 @@ const DD_ROUNDING: f64 = 4.0 * MACHEP * MACHEP;
 /// `g < 1/2`, and `f'' < 1/g + 1/g^2` if `g > 0`.
 pub(crate) fn ln_gamma(g: impl Into<Dd>) -> Option<(Dd, f64, f64)> {
     let g = g.into();
-    // (the reflection would recurse forever on NaN)
-    if !g.hi.is_finite() {
+    // (a non-finite `g` would recurse forever in the reflection)
+    if !g.hi.is_finite() || !g.lo.is_finite() {
         return None;
     }
     if g.hi >= 13.0 {
@@ -1411,6 +1411,26 @@ mod tests {
         assert_eq!(ln_gamma_at(1.0, -1e-17), Some((39.143_946_580_898_78, 1.0)));
         assert_eq!(ln_gamma_at(2.0, 1e-17), Some((38.450_799_400_338_83, 1.0)));
         assert_eq!(ln_gamma_at(1.0, 0.0), None);
+    }
+
+    #[test]
+    fn test_ln_gamma_non_finite() {
+        for g in [
+            Dd {
+                hi: 1.0,
+                lo: f64::NAN,
+            },
+            Dd {
+                hi: 1.0,
+                lo: f64::INFINITY,
+            },
+            Dd {
+                hi: f64::NAN,
+                lo: 0.0,
+            },
+        ] {
+            assert!(ln_gamma(g).is_none(), "{g:?}");
+        }
     }
 
     #[test]
