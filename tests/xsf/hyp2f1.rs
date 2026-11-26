@@ -482,6 +482,182 @@ fn test_hyp2f1_c64_inverse_near_equal_edges() {
 }
 
 #[test]
+fn test_hyp2f1_c64_inverse_integer_large_a() {
+    // a - b is an integer and Gamma(a) overflows (gh-2244); in the last two, (1 - z)^(c - a - b)
+    // underflows. Arb at the binary64 inputs, compared componentwise.
+    for (a, b, c, z, expected) in [
+        (
+            180.0,
+            100.0,
+            125.5,
+            c64(-2.0, 0.5),
+            c64(3.020_509_328_819_671_4e-66, 1.708_047_496_988_71e-65),
+        ),
+        (
+            187.0,
+            105.0,
+            125.5,
+            c64(-2.0, 0.5),
+            c64(-2.482_296_999_002_554_6e-71, 2.983_532_921_504_48e-72),
+        ),
+        (
+            187.0,
+            90.0,
+            125.5,
+            c64(-2.0, 0.5),
+            c64(7.206_274_521_205_293e-60, -6.691_889_189_747_599e-60),
+        ),
+        (
+            197.46,
+            -0.539_999_999_999_992,
+            24.096,
+            c64(4.319_960_734_025_822, 9.391_402_568_842_924),
+            c64(5.236_383_181_499_285, -9.689_051_624_988_759),
+        ),
+        (
+            187.0,
+            105.0,
+            124.999_999_661_270_98,
+            c64(-22.0, 0.999_999_999_767_169_4),
+            c64(1.338_564_001_322_857_7e-176, -2.992_835_631_306_290_3e-174),
+        ),
+        (
+            231.0,
+            80.0,
+            6.5,
+            c64(-14.817_493_273_898_183, 23.847_506_713_102_423),
+            c64(5.414_467_502_777_059e-190, 4.912_107_071_492_364e-190),
+        ),
+        (
+            218.0,
+            144.0,
+            51.5,
+            c64(-21.0, 18.0),
+            c64(-5.704_597_589_396_346e-307, -2.390_606_909_611_691_7e-307),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-14);
+    }
+    // A subnormal result (Arb).
+    let actual = xsf::hyp2f1(125.0, 125.0, 150.5, c64(-550.0, 2.0));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [2.265_408_42e-315, 1.079_529_834e-315],
+        rtol = 1e-8
+    );
+    // The 1/z series lose all digits of 7.4e-281, and return NaN (a known limitation).
+    let z = c64(-5.116_255_236_708_257, 1.081_168_310_773_071_4);
+    assert!(xsf::hyp2f1(269.209, 269.209, 102.193, z).is_nan());
+    // (-z)^(-b) overflows (Arb).
+    let z = c64(-53.532_855_637_485_9, -13.238_624_013_961_552);
+    let actual = xsf::hyp2f1(-111.6, -182.6, 25.5, z);
+    let expected = [-1.605_566_467_870_386_9e236, -2.280_336_531_279_955_7e236];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 2e-14);
+    // Both 1/z forms lose all digits of -1.4e-238 to cancellation, and return NaN.
+    assert!(xsf::hyp2f1(316.5, 235.5, 449.5, c64(-15.0, 4.0)).is_nan());
+    // The finite part underflows alone, and the results are subnormal.
+    for (a, b, c, z, expected) in [
+        (
+            169.0,
+            156.0,
+            21.39,
+            c64(-64.094_980_736_878_5, 14.159_687_357_613_613),
+            // (Arb, rounded to subnormals)
+            [4.15e-322, -8.4e-323],
+        ),
+        (
+            174.262,
+            234.262,
+            -27.66,
+            c64(-27.318_795_276_621_16, -46.785_907_089_397_25),
+            // (Arb)
+            [7.728_839_684e-314, -5.336_630_119e-314],
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-5);
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_integer_euler_fallback() {
+    // The 1/z limit is not usable, but the Euler form, which does not reduce a and b, is.
+    let (a, b, c) = (11.911_949_601_445_617, 10.911_949_601_445_617, 41.775_963_390_755_535);
+    let actual = xsf::hyp2f1(a, b, c, c64(2.216_671_797_966_365, 0.113_686_126_346_338_54));
+    // (Arb)
+    let expected = [-5_576.909_964_282_516, 1_424.503_175_073_857_4];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 2e-10);
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_integer_near_pole_finite() {
+    // a - b is an integer and c - a is near, but not at, an integer.
+    let z = c64(-1.023_981_775_301_804_3, -1.260_979_692_347_46);
+    let actual =
+        xsf::hyp2f1(182.117_051_931_292_1, 5.117_051_931_292_097, 186.117_051_956_216_07, z);
+    // (Arb)
+    let expected = [-0.011_965_009_978_679_648, -0.003_908_985_103_382_528];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_integer_near_pole() {
+    // a - b is an integer and c - a is near, but not at, one; the 1/z limit then returns NaN or
+    // the Arb value.
+    for (a, b, c, z, expected) in [
+        (
+            213.248_643_689_586_17,
+            50.248_643_689_586_16,
+            222.248_643_689_351_44,
+            c64(-1.014_210_024_115_557_6, 1.417_701_621_453_768_5),
+            [3.580_075_139_787_867e-20, -8.579_730_464_408_666e-20],
+        ),
+        (
+            210.058_542_894_719_72,
+            55.058_542_894_719_71,
+            214.058_542_854_443_97,
+            c64(1.059_923_483_788_382_9, -1.086_705_256_220_733_8),
+            [0.025_883_630_091_518_207, -0.007_377_722_523_533_524],
+        ),
+        (
+            110.448_769_834_638,
+            28.448_769_834_637_993,
+            121.448_770_434_331,
+            c64(-1.802_743_511_750_525, -1.473_247_426_501_849_4),
+            [3.541_814_800_979_363e-14, -3.033_825_256_149_333e-14],
+        ),
+        // c - a is near an integer n <= -(a - b), so c - b is near a nonpositive integer
+        (
+            178.449_300_109_515_06,
+            176.449_300_109_515_06,
+            175.449_300_192_224_1,
+            c64(-1.123_462_620_781_516_8, 0.824_429_874_795_003_3),
+            [-5.978_774_002_353_658e-65, -3.244_285_227_156_398e-65],
+        ),
+        (
+            247.103_984_255_248_35,
+            246.103_984_255_248_35,
+            246.103_984_381_637_62,
+            c64(-2.658_437_583_695_264_3, -1.004_342_886_331_419_2),
+            [-7.883_928_684_646_676e-144, 1.866_159_358_170_052_6e-144],
+        ),
+        (
+            201.725_688_186_419_2,
+            199.725_688_186_419_2,
+            197.725_599_341_734_78,
+            c64(-1.386_221_925_675_614_8, -0.425_968_582_551_380_37),
+            [-5.292_733_815_719_545e-80, 4.313_592_264_275_858_7e-79],
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        if !actual.is_nan() {
+            np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-12);
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
     // a - b is near an integer, but the paired 1/z series cancel more than the unpaired ones.
     // Arb at the binary64 inputs, compared componentwise.

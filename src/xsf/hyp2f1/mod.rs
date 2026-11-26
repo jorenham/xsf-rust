@@ -48,7 +48,7 @@ mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI, TAU};
 
-use crate::ext::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
+use crate::ext::{HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
@@ -58,6 +58,8 @@ use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, r
 use crate::xsf::complex::cpow_integral;
 use crate::xsf::tools::{self, series_eval_fixed_length};
 use crate::{cospi, digamma, sinpi};
+
+use power::{ScaledC64, ldexp_sat};
 
 const HYP2F1_EPS: f64 = 1e-15;
 /* The original implementation in SciPy from Zhang and Jin used 1500 for the
@@ -170,11 +172,11 @@ fn pow_ratio(num_gh: f64, den_gh: f64, d: f64, e: f64, big: bool) -> f64 {
 }
 
 /// Whether `four_gammas` tries the direct ratio of gamma functions at these arguments
-fn in_direct_gamma_range(args: [f64; 4]) -> bool {
+fn in_direct_gamma_range(args: impl IntoIterator<Item = f64>) -> bool {
     /* Direct ratio tends to be more accurate for arguments in this range. Range
      * chosen empirically based on the relevant benchmarks in
      * scipy/special/_precompute/hyp2f1_data.py */
-    args.iter().all(|x| x.abs() <= 100.0)
+    args.into_iter().all(|x| x.abs() <= 100.0)
 }
 
 fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
@@ -392,7 +394,7 @@ impl Cancelled {
     }
 }
 
-/// The largest estimated relative error of a usable Lopez-Temme sum
+/// The largest estimated relative error of a usable sum
 const USABLE_ERROR: f64 = 0.125;
 
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
@@ -543,6 +545,7 @@ fn hyp2f1_transform2_limit_series_generator(
     b: f64,
     c: f64,
     m: f64,
+    factor: f64,
     z: C64,
 ) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m. (Can swap a and b to
@@ -552,7 +555,8 @@ fn hyp2f1_transform2_limit_series_generator(
     let mut d3 = digamma(a);
     let mut d4 = digamma(c - a);
     let log_neg_z = (-z).ln();
-    let mut factor = c64(poch(b, m) * poch(1.0 - c + b, m) * rgamma(m + 1.0), 0.0);
+    // Unlike in xsf, start from the caller's factor, which includes the gammas of the prefactor.
+    let mut factor = c64(factor, 0.0);
     let mut k: u64 = 0;
     move || {
         let term = (d1 + d2 - d3 - d4 + log_neg_z) * factor;
@@ -560,9 +564,19 @@ fn hyp2f1_transform2_limit_series_generator(
         // Use digamma(x + 1) = digamma(x) + 1/x
         d1 += 1.0 / (1.0 + k_); // d1 = digamma(1 + k)
         d2 += 1.0 / (1.0 + m + k_); // d2 = digamma(1 + m + k)
-        d3 += 1.0 / (a + k_); // d3 = digamma(a + k)
-        d4 -= 1.0 / (c - a - k_ - 1.0); // d4 = digamma(c - a - k)
-        let f = (b + m + k_) * (1.0 - c + b + m + k_) / ((k + 1) as f64 * (m + k_ + 1.0));
+        let ak = a + k_;
+        // Unlike in xsf, restart d3 = digamma(a + k) when a + k is within 1/2 of its pole at 0, as
+        // the recurrence keeps the rounding error of 1/(a + k) in every later term.
+        d3 = if (-0.5..0.5).contains(&ak) {
+            digamma(ak + 1.0)
+        } else {
+            d3 + 1.0 / ak
+        };
+        let s = c - a - k_ - 1.0;
+        d4 -= 1.0 / s; // d4 = digamma(c - a - k)
+        // Unlike in xsf, take 1 - c + b + m as 1 - c + a, so that the zero of the factor cancels
+        // the pole of d4 exactly.
+        let f = -(b + m + k_) * s / ((k + 1) as f64 * (m + k_ + 1.0));
         factor *= f / z;
         k += 1;
         term
@@ -575,6 +589,7 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     c: f64,
     m: f64,
     n: f64,
+    scaled_factor: ScaledC64,
     z: C64,
 ) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m, and c - a approaches
@@ -584,7 +599,9 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     let mut d3 = digamma(a);
     let mut d4 = digamma(n);
     let log_neg_z = (-z).ln();
-    let mut factor = c64(poch(b, m) * poch(1.0 - c + b, m) * rgamma(m + 1.0), 0.0);
+    // Unlike in xsf, start from the caller's factor, which includes the gammas of the prefactor,
+    // relative to its scale.
+    let mut factor = scaled_factor.mantissa;
     let mut k: u64 = 0;
     move || {
         let k_ = k as f64;
@@ -632,9 +649,12 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
              * (-1)**(a - b + k) * gamma(c - b) * (-1)**(k + a - c + 1)(k + a - c)!
              * = (-1)**(c - b - 1)*Gamma(k + a - c + 1)
              */
+            // Unlike in xsf, times the gammas of the prefactor, relative to the scale.
+            let gammas = gamma_ratio([c.into()], [a.into(), (c - b).into()]);
             let f = (-1.0_f64).powf(m + n)
                 * crate::binom(c - 1.0, b - 1.0)
-                * poch(c - a + 1.0, m - 1.0);
+                * poch(c - a + 1.0, m - 1.0)
+                * ldexp_sat(gammas.mantissa.re, gammas.exponent - scaled_factor.exponent);
             // Unlike in xsf, use an integer power for the rounded index to retain small phases.
             factor = if n != c - a {
                 (1.0 / z).powi(k as i32) * f
@@ -659,7 +679,8 @@ fn hyp2f1_transform2_limit_finite_part_generator(
     /* Initial finite sum in limit as a - b approaches a non-negative integer m. The limiting series
      * for the 1 - z transform also has an initial finite sum, but it is a standard hypergeometric
      * series. */
-    let mut term = c64(gamma(m) * rgamma(c - b), 0.0);
+    // Unlike in xsf, start from 1, as the caller includes Gamma(m) / Gamma(c - b).
+    let mut term = C64::ONE;
     let mut k: u64 = 0;
     move || {
         let output = term;
@@ -889,26 +910,108 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64, settled: bool
     }
 }
 
-fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C64 {
+/// The product of the gamma functions at `num` divided by that at `den`, or 0 at a pole
+fn gamma_ratio<const N: usize, const M: usize>(num: [Dd; N], den: [Dd; M]) -> ScaledC64 {
+    // (directly where that tends to be more accurate, as in `four_gammas`)
+    let (num_f64, den_f64) = (num.map(f64::from), den.map(f64::from));
+    if in_direct_gamma_range(num_f64.into_iter().chain(den_f64)) {
+        let direct = num_f64.map(gamma).iter().product::<f64>()
+            * den_f64.map(rgamma).iter().product::<f64>();
+        if direct.is_normal() {
+            return ScaledC64::from(c64(direct, 0.0)).normalized();
+        }
+    }
+    mul_gamma_ratio(num, den, || Scaled::new(1.0, 0, 0.0)).map_or(ScaledC64::from(C64::ZERO), |y| {
+        let Scaled { m, e, .. } = fold_exp(y);
+        ScaledC64 {
+            mantissa: c64(m, 0.0),
+            exponent: e.into(),
+        }
+    })
+}
+
+/// The generator, adding the norm of its k-th term (from 1) times k to `abs_sum`
+fn weighted<'s>(mut g: impl FnMut() -> C64 + 's, abs_sum: &'s mut f64) -> impl FnMut() -> C64 + 's {
+    let mut k = 0.0;
+    move || {
+        let term = g();
+        k += 1.0;
+        *abs_sum += k * term.norm();
+        term
+    }
+}
+
+/// The result, and its estimated cancellation as in `series_eval_cancellation`
+fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> (ScaledC64, f64) {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
+    // Unlike in xsf, take each ratio of gammas, including those of the first term of the series,
+    // as one, as its factors can overflow or underflow alone. The second uses
+    // (1 - x)_m / Gamma(x) = (-1)^m / Gamma(x - m) for x = c - b, so it is 0 at a pole of
+    // Gamma(x - m), not 0 times infinity.
+    //
+    // (x is c - b rounded as in xsf, which in the Euler transform is exactly the original a.)
+    let (a_dd, b_dd, c_dd, cb) = (Dd::new(a), Dd::new(b), Dd::new(c), Dd::new(c - b));
     let series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
-    let mut result = (-z).powf(-b) * (gamma(c) * rgamma(a));
-    result *= series_eval_finite(series_generator1, m as u64);
-    let prefactor = (-z).powf(-a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
+    // Unlike in xsf, also return the estimated cancellation, with the norm of the k-th term of
+    // each sum weighted by k, as each step of its recurrence rounds.
+    let (mut finite_abs, mut series_abs) = (0.0, 0.0);
+    // Unlike in xsf, keep a separate scale for each power and ratio, and for each part, as they
+    // can underflow or overflow alone.
+    let finite_factor = power::neg_z_pow(z, -b) * gamma_ratio([c_dd, m.into()], [a_dd, cb]);
+    let finite_sum = series_eval_finite(weighted(series_generator1, &mut finite_abs), m as u64);
+    let finite = finite_factor.mantissa * finite_sum;
     let n = c - a;
     let n_int = n.round();
-    if (n - n_int).abs() < HYP2F1_EPS {
+    let near_int = (n - n_int).abs() < HYP2F1_EPS;
+    // Unlike in xsf, take x - m as c - a for c - a below 1/2 and not near an integer, so that a
+    // zero of 1 / Gamma(c - a) cancels the pole of digamma(c - a) exactly.
+    let x_m = if near_int || n_int > 0.0 {
+        cb - m
+    } else {
+        Dd::new(n)
+    };
+    let mut factor = gamma_ratio([c_dd, b_dd + m], [a_dd, b_dd, x_m, (m + 1.0).into()]);
+    factor.mantissa *= neg_one_pow(m);
+    let series = if near_int {
         // Unlike in xsf, pass an integer at the positive-parameter coefficient switch.
         let n = if n_int > 0.0 && b > 0.0 { n_int } else { n };
-        let series_generator2 =
-            hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
-        result += prefactor * series_eval(series_generator2);
-        return result;
-    }
-    let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
-    result += prefactor * series_eval(series_generator2);
-    result
+        let g = hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, factor, z);
+        series_eval(weighted(g, &mut series_abs))
+    } else {
+        let g = hyp2f1_transform2_limit_series_generator(a, b, c, m, factor.mantissa.re, z);
+        series_eval(weighted(g, &mut series_abs))
+    };
+    let prefactor = power::neg_z_pow(z, -a);
+    sum_scaled_parts([
+        (finite, finite_factor.mantissa.norm() * finite_abs, finite_factor.exponent),
+        (
+            prefactor.mantissa * series,
+            prefactor.mantissa.norm() * series_abs,
+            prefactor.exponent + factor.exponent,
+        ),
+    ])
+}
+
+/// The sum of the (value, sum of absolute terms, exponent) parts at the largest exponent of a
+/// nonzero part, and its estimated cancellation as in `series_eval_cancellation`
+fn sum_scaled_parts(parts: [(C64, f64, f64); 2]) -> (ScaledC64, f64) {
+    let exponent = parts
+        .iter()
+        .filter_map(|&(part, _, exponent)| (part != C64::ZERO).then_some(exponent))
+        .reduce(f64::max)
+        .unwrap_or(0.0);
+    let [(first, first_abs), (second, second_abs)] =
+        parts.map(|(part, part_abs, part_exponent)| {
+            let shift = part_exponent - exponent;
+            let part = ScaledC64 {
+                mantissa: part,
+                exponent: shift,
+            };
+            (part.to_c64(), ldexp_sat(part_abs, shift))
+        });
+    let mantissa = first + second;
+    (ScaledC64 { mantissa, exponent }, cancellation(first_abs + second_abs, mantissa))
 }
 
 #[cold]
@@ -1371,12 +1474,23 @@ fn hyp2f1_taylor_step<const N: usize>(
 
 /// F(a, b; c; z) for a, b, c > 0 and |1 - z| <= 1/2 by analytic continuation of the Maclaurin
 /// series at 1/2, along the real axis to 1 - |1 - z| and then along the circle about 1 through
-/// z, if its error estimate is below half its distance from `result`, which is then less accurate.
+/// z, if its error estimate is below half its distance from `result`, which is then less accurate,
+/// or below the estimated error of `result`.
 /// For Re z > 1, where a small component may stem from the cut, a `result` within sqrt(eps)
-/// relative to it is also kept if the estimate exceeds a component.
+/// relative to it is also kept if the estimate exceeds a component, or only that component if
+/// the error of `result` is larger.
 //
 // On that path, 1 is the nearest singular point.
-fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: C64) -> Option<C64> {
+fn hyp2f1_continuation(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: C64,
+    Estimate {
+        value: result,
+        error: result_error,
+    }: Estimate,
+) -> Option<C64> {
     let w = 1.0 - z;
     let r = w.norm();
     let (end, angle) = (1.0 - r, w.im.atan2(w.re));
@@ -1457,10 +1571,24 @@ fn hyp2f1_continuation(a: f64, b: f64, c: f64, z: C64, result: C64) -> Option<C6
     let f = x[0];
     // (a first-order estimate, so only if well below one; NaN `result` is less accurate)
     let (tolerance, distance) = (f64::EPSILON.sqrt() * f.norm(), (result - f).norm());
-    let accurate = error < tolerance && !(distance <= 2.0 * error);
+    let less_accurate = result_error > error;
+    let accurate = error < tolerance && (less_accurate || !(distance <= 2.0 * error));
+    if !accurate {
+        return None;
+    }
     // (keep a close `result` if the estimate does not resolve a component)
     let unresolved = z.re > 1.0 && error >= f.re.abs().min(f.im.abs()) && distance < tolerance;
-    (accurate && !unresolved).then_some(f)
+    if !unresolved {
+        return Some(f);
+    }
+    // (only that smaller component if `result` is less accurate)
+    less_accurate.then(|| {
+        if f.re.abs() < f.im.abs() {
+            c64(result.re, f.im)
+        } else {
+            c64(f.re, result.im)
+        }
+    })
 }
 
 fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
@@ -1506,7 +1634,7 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if both still cancel.
     if estimate.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
+        return hyp2f1_continuation(a, b, c, z, result.into()).unwrap_or(result);
     }
     result
 }
@@ -1615,29 +1743,82 @@ fn hyp2f1_transform2_pick(
         })
 }
 
+/// `hyp2f1_transform2_limiting_case` of the Euler transform (DLMF 15.8.1), times its power.
+/// None unless c - a and c - b are exact and both the result before the power and the product
+/// are nonzero and finite
+fn hyp2f1_inverse_euler_limit(a: f64, b: f64, c: f64, m: f64, z: C64) -> Option<Cancelled> {
+    // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
+    let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
+    if c - (c - a) != a || c - (c - b) != b || b_near_int {
+        return None;
+    }
+    let (result, lost) = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
+    // Unlike in xsf, multiply by the power with a separate scale, as it can underflow or
+    // overflow alone. (The result before it must be in range, as elsewhere the Euler form
+    // tends to be less accurate.) Its degree is rounded, so correct it to first order.
+    let degree = Dd::new(c) - a - b;
+    let rounding = 1.0 + degree.lo * (1.0 - z).ln();
+    let value = (power::one_minus_z_pow(z, degree.hi) * result * rounding).to_c64();
+    let in_range = |x: C64| x.norm().is_finite() && x != C64::ZERO;
+    let cancelled = Cancelled {
+        value,
+        cancellation: lost,
+    };
+    (in_range(result.to_c64()) && in_range(value)).then_some(cancelled)
+}
+
+/// `hyp2f1_inverse` for a - b near an integer, from the limit of the 1/z transform, also on the
+/// Euler transform if `euler`
+fn hyp2f1_inverse_limit(a: f64, b: f64, c: f64, z: C64, euler: bool) -> C64 {
+    let (a, b) = if b > a { (b, a) } else { (a, b) };
+    let m = (a - b).round();
+    let euler_limit = if euler {
+        hyp2f1_inverse_euler_limit(a, b, c, m, z)
+    } else {
+        None
+    };
+    // Unlike in xsf, if the Euler result is not used or loses more than HYP2F1_EPS to
+    // cancellation, use the one that cancels less, or NaN if that overflows or is not usable
+    // (unless it is zero, as if it underflows).
+    let best = euler_limit.filter(|l| !l.is_lossy()).unwrap_or_else(|| {
+        let (result, lost) = hyp2f1_transform2_limiting_case(a, b, c, m, z);
+        let limit = Cancelled {
+            value: result.to_c64(),
+            cancellation: lost,
+        };
+        euler_limit
+            .filter(|l| l.cancellation < lost)
+            .unwrap_or(limit)
+    });
+    let usable = best.value == C64::ZERO || best.is_usable();
+    let result = if best.value.norm().is_finite() && usable {
+        best.value
+    } else {
+        C64::NAN
+    };
+    // Unlike in xsf, continue the Maclaurin series analytically if the limit is less accurate.
+    let estimate = Estimate {
+        value: result,
+        error: f64::EPSILON * best.cancellation * result.norm(),
+    };
+    hyp2f1_continuation(a, b, c, z, estimate).unwrap_or_else(|| {
+        // Unlike in xsf, if that fails for a NaN limit, use the Euler form even if it does not
+        // reduce a and b, if usable.
+        if euler || !result.is_nan() {
+            return result;
+        }
+        hyp2f1_inverse_euler_limit(a, b, c, m, z)
+            .filter(|l| l.is_usable())
+            .map_or(result, |l| l.value)
+    })
+}
+
 fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
     // reduces a and b, as for |z| < 0.9.
     let euler = c - a < a && c - b < b;
-    // times (1 - z)^(c - a - b), if both are normal
-    let euler_scaled = move |result: C64| {
-        let prefactor = (1.0 - z).powf(c - a - b);
-        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
-    };
     if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
-        let (a, b) = if b > a { (b, a) } else { (a, b) };
-        let m = (a - b).round();
-        // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
-        let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
-        let euler_limit = if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
-            euler_scaled(hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z))
-        } else {
-            None
-        };
-        let result = euler_limit.unwrap_or_else(|| hyp2f1_transform2_limiting_case(a, b, c, m, z));
-        // Unlike in xsf, continue the Maclaurin series analytically if the limit, which has no
-        // cancellation estimate, is less accurate.
-        return hyp2f1_continuation(a, b, c, z, result).unwrap_or(result);
+        return hyp2f1_inverse_limit(a, b, c, z, euler);
     }
     // Unlike in xsf, pair the two series for a - b near an integer if that clearly cancels less,
     // counting for a near b both parts of each unpaired term, whose poles cancel within it.
@@ -1653,9 +1834,11 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             || hyp2f1_transform2_near_integer((c - a, a), (c - b, b), Dd::new(b) - a, c, z),
         );
         if euler_series.cancellation < series.cancellation {
-            if let Some(value) = euler_scaled(euler_series.value) {
+            // (times (1 - z)^(c - a - b), if both are normal)
+            let prefactor = (1.0 - z).powf(c - a - b);
+            if prefactor.norm().is_normal() && euler_series.value.norm().is_normal() {
                 series = Cancelled {
-                    value,
+                    value: prefactor * euler_series.value,
                     ..euler_series
                 };
             }
@@ -1670,7 +1853,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
     if series.is_lossy() {
-        return hyp2f1_continuation(a, b, c, z, series.value).unwrap_or(series.value);
+        return hyp2f1_continuation(a, b, c, z, series.value.into()).unwrap_or(series.value);
     }
     series.value
 }
@@ -2101,7 +2284,7 @@ mod tests {
     fn test_hyp2f1_continuation_maclaurin_growth() {
         // The Maclaurin terms at 1/2 first decay below eps and then grow.
         let half = c64(0.5, 0.0);
-        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN).unwrap();
+        let value = hyp2f1_continuation(1e-20, 700.0, 240.125, half, C64::NAN.into()).unwrap();
         xsref::np_assert_allclose!(
             [value.re, value.im],
             [1.000_007_275_456_677, 0.0],
@@ -2109,6 +2292,6 @@ mod tests {
         );
         // Its terms stay below eps, so the sum rounds to 1, which the error estimate covers.
         let exact = c64(1.000_000_000_000_007_3, 0.0);
-        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact), None);
+        assert_eq!(hyp2f1_continuation(1e-29, 700.0, 240.125, half, exact.into()), None);
     }
 }
