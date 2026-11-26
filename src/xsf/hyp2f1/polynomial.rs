@@ -195,11 +195,12 @@ fn accurate(value: C64, error: f64) -> bool {
 #[cold]
 fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let (origin, error) = estimated_sum(a, b, c, n, z);
-    if (c <= 0.0 || ((c + n as f64) * n as f64).is_finite()) && accurate(origin, error) {
+    let degree = n as f64;
+    if (c <= 0.0 || ((c + degree) * degree).is_finite()) && accurate(origin, error) {
         return origin;
     }
 
-    let other = if a == -(n as f64) { b } else { a };
+    let other = if a == -degree { b } else { a };
     let estimate = centered(n, other, c, z);
     let centered = estimate.value;
     if !centered.is_finite() {
