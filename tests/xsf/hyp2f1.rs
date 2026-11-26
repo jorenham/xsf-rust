@@ -2887,3 +2887,36 @@ fn test_hyp2f1_c64_negative_lower_parameter_componentwise() {
         atol = 0.0
     );
 }
+
+#[test]
+fn test_hyp2f1_c64_negative_lower_parameter_slow_tail() {
+    // Arb at the exact binary64 inputs, componentwise. The 1 - z series of the connection
+    // converges slowly.
+    let (a, b, c) = (73.680_102_833_806_94, 117.940_314_118_962_05, -40.141_963_360_724_26);
+    let (x, y) = (0.008_982_543_883_583_44, 0.006_264_459_310_953_478);
+    let (re, im) = (0.048_352_207_278_304_735, 0.142_312_799_167_885_72);
+    for (a, b, c, z, expected, rtol) in [
+        (
+            73.741_988_378_154_32,
+            77.312_817_555_681_2,
+            -27.195_599_170_424_025,
+            c64(0.010_675_248_312_002_528, 0.0),
+            c64(0.160_856_938_961_155_2, 0.0),
+            [1e-14, 0.0],
+        ),
+        (
+            158.287_121_924_868_96,
+            144.693_188_697_127_54,
+            -39.322_275_314_486_54,
+            c64(0.004_380_685_242_286_605, 0.0),
+            c64(0.087_574_706_153_352_65, 0.0),
+            [5e-14, 0.0],
+        ),
+        (a, b, c, c64(x, -y), c64(re, im), [2e-13, 1e-14]),
+        (a, b, c, c64(x, y), c64(re, -im), [2e-13, 1e-14]),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        np_assert_allclose!([actual.re], [expected.re], rtol = rtol[0], atol = 0.0);
+        np_assert_allclose!([actual.im], [expected.im], rtol = rtol[1], atol = 0.0);
+    }
+}

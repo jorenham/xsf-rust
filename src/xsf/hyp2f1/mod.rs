@@ -286,6 +286,24 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
     (result, cancellation(abs_sum, result))
 }
 
+/// `series_eval_cancellation`, and the estimated relative size of the omitted tail, a geometric
+/// series in the ratio of the last two terms (infinite unless that ratio is below one)
+fn series_eval_tail(mut g: impl FnMut() -> C64) -> (C64, f64, f64) {
+    let (mut previous, mut last) = (0.0, 0.0);
+    let (sum, cancellation) = series_eval_cancellation(|| {
+        let term = g();
+        (previous, last) = (last, term.norm());
+        term
+    });
+    let ratio = last / previous;
+    let tail = if ratio < 1.0 {
+        last * ratio / (1.0 - ratio)
+    } else {
+        f64::INFINITY
+    };
+    (sum, cancellation, tail / sum.norm())
+}
+
 /// `series_eval_cancellation`, but converged only after three successive small terms
 //
 // One term of the limit or paired series can vanish with its logarithmic coefficient.
@@ -817,10 +835,10 @@ fn certified_c_down(a: f64, b: f64, c: f64, z: C64, current: C64) -> Option<C64>
 fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     let w = 1.0 - z;
     // For |1 - z| > 1, this is NaN unless the terms first decrease below the tolerance.
-    let (w3, w3_cancellation) =
-        series_eval_cancellation(hypergeometric_series_generator(a, b, a + b + 1.0 - c, w));
-    let (f2, f2_cancellation) =
-        series_eval_cancellation(hypergeometric_series_generator(1.0 - a, 1.0 - b, 2.0 - c, z));
+    let (w3, w3_cancellation, w3_tail) =
+        series_eval_tail(hypergeometric_series_generator(a, b, a + b + 1.0 - c, w));
+    let (f2, f2_cancellation, f2_tail) =
+        series_eval_tail(hypergeometric_series_generator(1.0 - a, 1.0 - b, 2.0 - c, z));
     // The gamma ratios can over- or underflow where the terms do not, so keep their logs.
     let one_c = -Dd::new(c) + 1.0;
     let (a1, b1) = (one_c + a, one_c + b);
@@ -839,10 +857,10 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     };
     let (ln_z, ln_w) = ((1.0 - c) * z.ln(), (c - a - b) * w.ln());
     let t2 = (ln_z + ln_w + ln_g2).exp() * sin.signum() * f2;
-    // (with the tolerance of each series for its tail, and the rounding of the exponent of t2)
+    // (with the tail of each series, and the rounding of the exponent of t2)
     let exponent_cancellation = ln_z.norm() + ln_w.norm() + ln_g2.abs();
-    let t1_error = f64::EPSILON * w3_cancellation + HYP2F1_EPS + g1.err;
-    let t2_error = f64::EPSILON * (f2_cancellation + exponent_cancellation) + HYP2F1_EPS + g2.err;
+    let t1_error = f64::EPSILON * w3_cancellation + w3_tail + g1.err;
+    let t2_error = f64::EPSILON * (f2_cancellation + exponent_cancellation) + f2_tail + g2.err;
     Some((t1 + t2, t1.norm() * t1_error + t2.norm() * t2_error))
 }
 
