@@ -286,7 +286,15 @@ impl Cancelled {
     fn is_lossy(self) -> bool {
         self.cancellation * f64::EPSILON > HYP2F1_EPS
     }
+
+    /// Whether the estimated relative roundoff is at most `USABLE_ERROR`
+    fn is_usable(self) -> bool {
+        self.cancellation * f64::EPSILON <= USABLE_ERROR
+    }
 }
+
+/// The largest estimated relative error of a usable Lopez-Temme sum
+const USABLE_ERROR: f64 = 0.125;
 
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
 fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> Cancelled {
@@ -358,12 +366,13 @@ fn series_eval_settled(mut g: impl FnMut() -> C64) -> Cancelled {
 // and the last pair plus its geometric tail is small.
 fn series_eval_lopez_temme(mut g: impl FnMut() -> C64, c: f64, retry: Option<f64>) -> Cancelled {
     let (mut sum, mut abs_sum) = (C64::ZERO, 0.0);
-    let mut last = [0.0; 4]; // The last four term magnitudes, oldest first.
+    // The previous term magnitude, and the magnitudes of the pairs of terms ending 2 and 1 before
+    let (mut previous, mut older_pair, mut last_pair) = (0.0, 0.0, 0.0);
     for n in 0..HYP2F1_MAXITER {
         let term = g();
         sum += term;
-        last = [last[1], last[2], last[3], term.norm()];
-        abs_sum += last[3];
+        let magnitude = term.norm();
+        abs_sum += magnitude;
         if retry.is_some_and(|limit| !(abs_sum < limit)) {
             break;
         }
@@ -375,10 +384,10 @@ fn series_eval_lopez_temme(mut g: impl FnMut() -> C64, c: f64, retry: Option<f64
         };
         let tol = sum.norm() * HYP2F1_EPS * nearest.min(1.0);
         // Skip pairs with the first term, since the terms after it can be tiny and still grow.
-        let (pair, previous) = (last[2] + last[3], last[0] + last[1]);
+        let pair = previous + magnitude;
         let settled = match retry {
-            None => last[2] < tol && last[3] < tol,
-            Some(_) => n > 3 && 0.0 < pair && pair < tol * (1.0 - pair / previous),
+            None => previous < tol && magnitude < tol,
+            Some(_) => n > 3 && 0.0 < pair && pair < tol * (1.0 - pair / older_pair),
         };
         if settled {
             return Cancelled {
@@ -386,6 +395,7 @@ fn series_eval_lopez_temme(mut g: impl FnMut() -> C64, c: f64, retry: Option<f64
                 cancellation: cancellation(abs_sum, sum),
             };
         }
+        (previous, older_pair, last_pair) = (magnitude, last_pair, pair);
     }
     Cancelled {
         value: C64::NAN,
@@ -590,6 +600,48 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64, retry: Option<f64>) -> Can
         .unwrap_or_else(|| {
             series_eval_lopez_temme(lopez_temme_series_generator(a, b, c, z), c, retry)
         })
+}
+
+/// `prefactor` times the Lopez-Temme series of `p, q, c, z`, re-summed more accurately when the
+/// sum `series` loses precision, or NaN
+//
+// Unlike in xsf, if the series loses more than HYP2F1_EPS to cancellation, also sum it with the
+// upper parameters swapped, and prefer that if it cancels 4 times less. Take the preferred finite
+// order with a small estimated error, smaller if swapped since that can replace a NaN, or a swapped
+// sum that checks xsf's, or else NaN.
+fn lopez_temme_reordered(p: f64, q: f64, c: f64, z: C64, prefactor: C64, series: Cancelled) -> C64 {
+    // A usable sum estimates the swapped one, so stop that at twice the term magnitudes it can
+    // have if preferred.
+    let limit = if series.is_usable() {
+        0.5 * series.cancellation * series.value.norm() * (1.0 - z * 0.5).norm().powf(q - p)
+    } else {
+        f64::INFINITY
+    };
+    let swapped_series = lopez_temme_series(q, p, c, z, Some(limit));
+    let swapped = (1.0 - z * 0.5).powf(-q) * swapped_series.value; // Lopez-Temme prefactor.
+    let swapped_error = swapped_series.cancellation * f64::EPSILON;
+    let primary =
+        Some(prefactor * series.value).filter(|value| series.is_usable() && value.is_finite());
+    let certified = Some(swapped)
+        .filter(|value| swapped_error <= crate::ext::HYP2F1_RECUR_TOL && value.is_finite());
+    // xsf's sum, if the usable swapped one confirms it within its estimated error, or else the
+    // swapped one, if within USABLE_ERROR of xsf's. Both are finite if the distance is that small.
+    let checked = || {
+        let xsf = prefactor * series_eval(lopez_temme_series_generator(p, q, c, z));
+        let distance = (xsf - swapped).norm() / swapped.norm();
+        let confirmed = if distance <= swapped_error {
+            xsf
+        } else {
+            swapped
+        };
+        (swapped_series.is_usable() && distance <= USABLE_ERROR).then_some(confirmed)
+    };
+    let preferred = if 4.0 * swapped_series.cancellation < series.cancellation {
+        certified.or_else(checked).or(primary)
+    } else {
+        primary.or(certified).or_else(checked)
+    };
+    preferred.unwrap_or(C64::NAN)
 }
 
 /// The Lopez-Temme series and its estimated cancellation, once a tail bound holds for a pair of
@@ -1645,42 +1697,11 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if (0.9..1.1).contains(&z_abs) && (1.0 - z).norm() >= 0.9 && z.re >= 0.0 {
         let (p, q, prefactor, euler) = lopez_temme_form(a, b, c, z);
         let series = lopez_temme_series(p, q, c, z, None);
-        let mut result = prefactor * series.value;
-        if series.is_lossy() {
-            // Unlike in xsf, if the series loses more than HYP2F1_EPS to cancellation, also sum
-            // it with the upper parameters swapped, and prefer that if it cancels 4 times less.
-            // Take the preferred finite order with a small estimated error, smaller if swapped
-            // since that can replace a NaN, or a swapped sum that checks xsf's, or else NaN.
-            let usable = |cancellation: f64| cancellation * f64::EPSILON <= 0.125;
-            // A usable sum estimates the swapped one, so stop that at twice the term magnitudes
-            // it can have if preferred.
-            let limit = if usable(series.cancellation) {
-                0.5 * series.cancellation * series.value.norm() * (1.0 - z * 0.5).norm().powf(q - p)
-            } else {
-                f64::INFINITY
-            };
-            let swapped_series = lopez_temme_series(q, p, c, z, Some(limit));
-            let swapped = (1.0 - z * 0.5).powf(-q) * swapped_series.value; // Lopez-Temme prefactor.
-            let finite = |value: C64, usable: bool| (usable && value.is_finite()).then_some(value);
-            let primary = || finite(result, usable(series.cancellation));
-            let swapped_error = swapped_series.cancellation * f64::EPSILON;
-            let certified = || finite(swapped, swapped_error <= crate::ext::HYP2F1_RECUR_TOL);
-            // xsf's sum, if the usable swapped one confirms it within its estimated error, or
-            // else the swapped one, if within 1/8 of xsf's.
-            let checked = || {
-                let xsf = prefactor * series_eval(lopez_temme_series_generator(p, q, c, z));
-                let distance = (xsf - swapped).norm() / swapped.norm();
-                let usable = usable(swapped_series.cancellation);
-                finite(xsf, usable && distance <= swapped_error)
-                    .or_else(|| finite(swapped, usable && distance <= 0.125))
-            };
-            let preferred = if 4.0 * swapped_series.cancellation < series.cancellation {
-                certified().or_else(checked).or_else(primary)
-            } else {
-                primary().or_else(certified).or_else(checked)
-            };
-            result = preferred.unwrap_or(C64::NAN);
-        }
+        let result = if series.is_lossy() {
+            lopez_temme_reordered(p, q, c, z, prefactor, series)
+        } else {
+            prefactor * series.value
+        };
         return euler.map_or(result, |euler| euler * result);
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
