@@ -48,7 +48,7 @@ mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI, TAU};
 
-use crate::ext::{Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
+use crate::ext::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
@@ -224,11 +224,12 @@ fn hypergeometric_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut
 // Unlike in xsf, a small term only ends the sum if the later ones can add up to the tolerance,
 // e.g. after a tiny first term from a tiny `a`. They are then summed as a series of their own, as
 // they can be far below the sum, and kept only if their estimated error (each of the n terms errs
-// by about n eps) implies an accurate result that is closer than without them.
+// by about n eps) implies an accurate result, and their sum exceeds that error plus the rounding
+// of the earlier terms, so that the result is closer than without them.
 fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let mut series_generator = hypergeometric_series_generator(a, b, c, z);
     let (mut n, mut last) = (0.0, C64::ZERO);
-    let head = series_eval(|| {
+    let (head, head_cancellation) = series_eval_cancellation(|| {
         (n, last) = (n + 1.0, series_generator());
         last
     });
@@ -241,7 +242,8 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let peak = (last.norm().ln() + growth).exp();
     // As a heuristic, the later terms have the magnitudes of the real ones at |z|, which grow up to
     // the largest one, at m, and then fall like a Gaussian, from the slope of the logarithm of the
-    // term ratio there, but no faster than a geometric series in the limit |z| of that ratio.
+    // term ratio there, but no faster than a geometric series in the limit |z| of that ratio (also
+    // if the slope is negative, as `max` drops the NaN).
     let m = max_term_index(a, b, c, x);
     let slope = 1.0 / (c + m) + 1.0 / (m + 1.0) - 1.0 / (a + m) - 1.0 / (b + m);
     let width = (TAU / slope).sqrt().max(1.0 / (1.0 - x));
@@ -263,7 +265,7 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
         head
     };
     // Give up if the sum would take too long, or be below the rounding of the terms.
-    if !(length <= HYP2F1_MAXITER as f64 && peak.is_finite() && mass * f64::EPSILON <= sum) {
+    if !(length <= HYP2F1_MAXITER as f64 && mass * f64::EPSILON <= sum) {
         return fallback;
     }
     let n_head = n as u64;
@@ -278,7 +280,9 @@ fn hypergeometric_series(a: f64, b: f64, c: f64, z: C64, rounding: f64) -> C64 {
     let mut head_terms = hypergeometric_series_generator(a, b, c, z);
     let value = head_terms() + series_eval_fixed_length(head_terms, tail, n_head - 1);
     let error = (n * f64::EPSILON + rounding) * cancellation * tail.norm();
-    if error <= (crate::ext::HYP2F1_RECUR_TOL * value.norm()).min(tail.norm()) {
+    // The first term 1 is exact.
+    let head_rounding = f64::EPSILON * (head_cancellation * head.norm() - 1.0);
+    if error <= HYP2F1_RECUR_TOL * value.norm() && error + head_rounding <= tail.norm() {
         value
     } else {
         head
@@ -1447,16 +1451,16 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
                 }
                 return value;
             }
-            // Unlike in xsf, the later terms are sensitive to the rounding of `c - a` or `c - b`
-            // near a nonpositive integer, as they are proportional to its distance to it.
-            let rounding = |p: f64| {
+            // Unlike in xsf, account for the rounding of `c - a` or `c - b` near a nonpositive
+            // integer, as the later terms are proportional to their distance to it.
+            let relative_rounding = |p: f64| {
                 if p.round() > 0.0 {
                     0.0
                 } else {
                     f64::EPSILON * p.abs() / (p - p.round()).abs()
                 }
             };
-            let rounding = rounding(c - a).max(rounding(c - b));
+            let rounding = relative_rounding(c - a).max(relative_rounding(c - b));
             return prefactor * hypergeometric_series(c - a, c - b, c, z, rounding);
         }
         return hypergeometric_series(a, b, c, z, 0.0);
