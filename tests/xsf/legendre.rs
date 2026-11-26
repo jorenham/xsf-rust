@@ -631,6 +631,15 @@ fn test_assoc_legendre_q_all_extreme_degree_one_order_one() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_extreme_cancelled_leading_part() {
+    // Arb: +3.5037962714943802e-4090, which underflows to +0. Here the real part of `z^-28`
+    // cancels beyond double-double precision.
+    let z = c64(4.271_237_208_723_019e144, 7.257_123_905_997_274e143);
+    let (q, _) = xsf::assoc_legendre_q_all(27, 1, z);
+    assert_eq!(q[27][1].re.to_bits(), 0);
+}
+
+#[test]
 fn test_assoc_legendre_q_all_extreme_complex_orders() {
     // Arb, with `Q_n^m(z) = sqrt(z^2 - 1)^m d^m Q_n(z) / dz^m`
     let (q, _) = xsf::assoc_legendre_q_all(1, 74, c64(0.0, 1e155));

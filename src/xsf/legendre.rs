@@ -1187,8 +1187,8 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
     let step = cmul(conj, conj);
     // For the larger and smaller magnitudes `a` and `b` of the parts of `z`, the parts of
     // `conj(z)^3` and `conj(z)^4` that can vanish are `(a^2 - 3b^2)` times that of the larger one,
-    // and `(a^2 - 2ab - b^2) (a^2 + 2ab - b^2)`. Factored, they round only in their last sums,
-    // because `a - b` and `a - 2b` are exact there (Sterbenz).
+    // and `(a^2 - 2ab - b^2) (a^2 + 2ab - b^2)`. Factored, the cancelling
+    // differences `a - b` and `a - 2b` are exact (Sterbenz).
     let major = usize::from(z.im.abs() > z.re.abs());
     let (a, b) = (real(z.re.abs().max(z.im.abs())), real(z.re.abs().min(z.im.abs())));
     let (a_b, a_2b, b2) = (add(a, neg(b)), add(a, neg(twice(b))), mul(b, b));
@@ -1221,6 +1221,7 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
         .collect();
 
     let order_sign = -z.re.signum();
+    let off_axes = z.re != 0.0 && z.im != 0.0 && z.re.abs() != z.im.abs();
     // A normalized part `m 2^e` is normal for `e >= MIN_EXP`, and otherwise rounds in units of the
     // least subnormal.
     let scaled = |(m, e): Part| {
@@ -1240,7 +1241,15 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
             let k = norm((DoubleDouble::new(k) / (4.0 * next + 2.0), 0));
             // The parts of `c (w_0 z^-(n+1+i) + w_1 z^-(n+3+i))`
             let series = |i: usize, w: [Part; 2]| {
-                [0, 1].map(|r| scaled(mul(c, add(mul(w[0], u[i][r]), mul(w[1], u[i + 2][r])))))
+                [0, 1].map(|r| {
+                    let lead = mul(w[0], u[i][r]);
+                    // Off the axes and diagonals, a vanished leading part is a rounded
+                    // cancellation. Its true sign is unknown, and it dominates the next term.
+                    if off_axes && lead.0.hi == 0.0 {
+                        return 0.0;
+                    }
+                    scaled(mul(c, add(lead, mul(w[1], u[i + 2][r]))))
+                })
             };
             let [vr, vi] = series(0, [real(1.0), k]);
             // d/dz z^-p = -p z^-(p+1)
