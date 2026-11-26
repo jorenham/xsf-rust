@@ -243,8 +243,8 @@ fn chu_vandermonde(n: u32, b: f64, c: f64) -> (f64, f64) {
 
 property!(
     within,
-    hyp2f1_chu_vandermonde(n in 0..=MAX_N, b in eighths(-256..=-1), c in eighths(1..=256))
-        // known: wrong at one outside b < 0 < c (#2198, fixed by #2214)
+    hyp2f1_chu_vandermonde(n in 0..=MAX_N, b in eighths(-256..=256), c in eighths(-256..=256))
+        if !(is_pole(c) && -c < f64::from(n)) // a pole of (c)_n
         => (xsf::hyp2f1(-f64::from(n), b, c, 1.0), chu_vandermonde(n, b, c))
 );
 
