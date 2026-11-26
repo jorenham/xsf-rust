@@ -24,10 +24,16 @@ fn almost_int(x: f64) -> bool {
     int_distance(x) <= f64::EPSILON.sqrt()
 }
 
-/// Within `tol` of a pole of Gamma, e.g. -3 + 1e-13 or -1e-15 for `tol = 1e-12`
-fn pole_within(x: f64, tol: f64) -> bool {
-    x.round() <= 0.0 && int_distance(x) <= tol
+/// The distance to the nearest pole of Gamma, e.g. 1e-13 for -3 + 1e-13, or 0.75 for 0.75
+fn pole_distance(x: f64) -> f64 {
+    (x - x.round().min(0.0)).abs()
 }
+
+/// The largest `pole_distance` of the inputs next to a pole, e.g. -3 + 1e-13 or -1e-15
+const NEAR_POLE: f64 = 1e-12;
+
+/// `f` at `x - h`, `x` and `x + h`
+type Bracket = [Complex64; 3];
 
 /// `f(x)` with `x[i]` moved by `-h`, `0` and `h`, for `h = 2^-k |x[i]|`, but at most half the
 /// distance to the nearest integer if `x[i]` is not one, or `None` if these inputs are not finite
@@ -40,7 +46,7 @@ fn bracket<const N: usize, T: Into<Complex64>>(
     i: usize,
     k: u32,
     f: impl Fn([f64; N]) -> T,
-) -> Option<[Complex64; 3]> {
+) -> Option<Bracket> {
     let offset = int_distance(x[i]);
     let h = x[i].abs() * (-f64::from(k)).exp2();
     let h = if offset > 0.0 { h.min(offset / 2.0) } else { h };
@@ -61,33 +67,29 @@ fn neighbours<const N: usize, T: Into<Complex64>>(
     i: usize,
     k: u32,
     f: impl Fn([f64; N]) -> T + Copy,
-) -> [Option<[Complex64; 3]>; 2] {
+) -> [Option<Bracket>; 2] {
     [k, k + CONFIRM_K].map(|k| bracket(x, i, k, f))
 }
 
-/// The larger neighbour
-fn scale([lo, _, hi]: [Complex64; 3]) -> f64 {
-    lo.norm().max(hi.norm())
-}
-
 /// The middle value is not within a quarter of the digits of both neighbours, while these are
-/// normal and agree to half the digits, relative to `scale`.
+/// normal and agree to half the digits, relative to the larger neighbour in `wide`.
 ///
 /// A smooth function lies between its neighbours, and steep ones, poles, and zeros make the
 /// neighbours disagree.
-fn jumps([lo, mid, hi]: [Complex64; 3], scale: f64) -> bool {
+fn jumps([lo, mid, hi]: Bracket, [wide_lo, _, wide_hi]: Bracket) -> bool {
+    let scale = wide_lo.norm().max(wide_hi.norm());
     let normal = |w: Complex64| (f64::MIN_POSITIVE..f64::INFINITY).contains(&w.norm());
     let agree = f64::EPSILON.sqrt();
     let close = (mid - lo).norm().max((mid - hi).norm()) <= agree.sqrt() * scale;
     normal(lo) && normal(hi) && (hi - lo).norm() <= agree * scale && !close
 }
 
-/// No jump at both steps of `neighbours`, relative to the `scale` of the first, so that a smooth
-/// zero, where the middle value approaches its neighbours with the step, is not one. A NaN or
-/// infinite middle value is a jump.
-fn continuous([wide, narrow]: [Option<[Complex64; 3]>; 2]) -> Result<(), TestCaseError> {
+/// No jump at both steps of `neighbours`, relative to the first, so that a smooth zero, where the
+/// middle value approaches its neighbours with the step, is not one. A NaN or infinite middle
+/// value is a jump.
+fn continuous([wide, narrow]: [Option<Bracket>; 2]) -> Result<(), TestCaseError> {
     match (wide, narrow) {
-        (Some(w @ [lo, mid, hi]), Some(n)) if jumps(w, scale(w)) && jumps(n, scale(w)) => {
+        (Some(w @ [lo, mid, hi]), Some(n)) if jumps(w, w) && jumps(n, w) => {
             Err(TestCaseError::fail(format!("{lo:e}, {mid:e}, {hi:e}")))
         },
         _ => Ok(()),
@@ -117,8 +119,8 @@ macro_rules! continuous {
 }
 
 /// A jump at the first step of `neighbours` that the second does not confirm
-fn assert_unconfirmed(brackets: [Option<[Complex64; 3]>; 2]) {
-    assert!(brackets[0].is_some_and(|w| jumps(w, scale(w))));
+fn assert_unconfirmed(brackets: [Option<Bracket>; 2]) {
+    assert!(brackets[0].is_some_and(|w| jumps(w, w)));
     continuous(brackets).unwrap();
 }
 
@@ -142,7 +144,7 @@ fn hyp2f1_double_zero() {
 // (#2243), a tiny a or b at x << 0 (#2253), and c = a or b at x < -1 (#2254)
 continuous!(
     hyp2f1(a in moderate(), b in moderate(), c in moderate(), x)
-        unless pole_within(c, 1e-12)
+        unless pole_distance(c) <= NEAR_POLE
             || (x == 1.0 && (c - a - b <= 0.0 || is_pole(a) || is_pole(b)))
             || (a.abs().min(b.abs()) < f64::EPSILON && x < -1.0)
             || ((a == c || b == c) && x < -1.0)
@@ -154,8 +156,8 @@ continuous!(
 continuous!(
     hyp2f1_complex(a in small(), b in small(), c in small(), re, im)
         unless is_pole(a) || is_pole(b) || is_pole(c - a) || is_pole(c - b)
-            || pole_within(c, 1e-12)
-            || ((pole_within(a, 1e-12) || pole_within(b, 1e-12)) && almost_int(c - a - b))
+            || pole_distance(c) <= NEAR_POLE
+            || (pole_distance(a).min(pole_distance(b)) <= NEAR_POLE && almost_int(c - a - b))
             || (re == 1.0 && im.abs() < f64::EPSILON.sqrt() && c - a - b <= 0.0)
             || (almost_int(a - b) && re.hypot(im) >= 1.1)
         => xsf::hyp2f1(a, b, c, c64(re, im))
@@ -165,7 +167,7 @@ continuous!(
 continuous!(
     hyp1f1(a in moderate(), b in moderate(), x)
         unless is_pole(b)
-            || (pole_within(b, f64::EPSILON.sqrt()) && x < -1e4)
+            || (pole_distance(b) <= f64::EPSILON.sqrt() && x < -1e4)
             || (is_pole(a) && x.exp() == 0.0)
 );
 // known: NaN for an integer a at a tiny x (#2252)
