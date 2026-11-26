@@ -166,6 +166,14 @@ fn pow_ratio(num_gh: f64, den_gh: f64, d: f64, e: f64, big: bool) -> f64 {
     }
 }
 
+/// Whether `four_gammas` tries the direct ratio of gamma functions at these arguments
+fn in_direct_gamma_range(args: [f64; 4]) -> bool {
+    /* Direct ratio tends to be more accurate for arguments in this range. Range
+     * chosen empirically based on the relevant benchmarks in
+     * scipy/special/_precompute/hyp2f1_data.py */
+    args.iter().all(|x| x.abs() <= 100.0)
+}
+
 fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     // Without loss of generality, ensure |u| >= |v| and |w| >= |x|.
     if v.abs() > u.abs() {
@@ -174,10 +182,7 @@ fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     if x.abs() > w.abs() {
         core::mem::swap(&mut x, &mut w);
     }
-    /* Direct ratio tends to be more accurate for arguments in this range. Range
-     * chosen empirically based on the relevant benchmarks in
-     * scipy/special/_precompute/hyp2f1_data.py */
-    if u.abs() <= 100.0 && v.abs() <= 100.0 && w.abs() <= 100.0 && x.abs() <= 100.0 {
+    if in_direct_gamma_range([u, v, w, x]) {
         let result = gamma(u) * gamma(v) * (rgamma(w) * rgamma(x));
         if result.is_finite() && result != 0.0 {
             return result;
@@ -280,7 +285,7 @@ fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
 
 /// `series_eval_cancellation`, but converged only after three successive small terms
 //
-// One term of the limit series can vanish with its logarithmic coefficient.
+// One term of the limit or paired series can vanish with its logarithmic coefficient.
 fn series_eval_settled(mut g: impl FnMut() -> C64) -> (C64, f64) {
     let (mut sum, mut abs_sum, mut small) = (C64::ZERO, 0.0, 0);
     for _ in 0..HYP2F1_MAXITER {
@@ -820,13 +825,8 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
     let z = if tiny_phase { c64(z.re, 0.0) } else { z };
     let w = 1.0 - z;
     let log_power = w.ln() * d;
-    // log(d B(d,a)) = log1p(d/a) + log Gamma(1+d) - integral of psi from 1+a to
-    // 1+a+d. Three-point Gauss quadrature errs by at most zeta(7) d^7 / 2800.
-    let mid = c + 0.5 * d;
-    let step = 0.5 * (3.0_f64 / 5.0).sqrt() * d;
-    let integral =
-        d / 18.0 * (5.0 * (digamma(mid - step) + digamma(mid + step)) + 8.0 * digamma(mid));
-    let log_beta = (d / shape).ln_1p() + crate::lgam1p(d) - integral;
+    // log(d B(d,a)) = log Gamma(1+d) - integral of psi from a to a+d.
+    let log_beta = crate::lgam1p(d) - digamma_integral(shape, d);
     let constant = log_beta.exp_m1() - crate::xsf::cexpm1(log_power);
 
     // Factor the first nonconstant term out of F(1-a,d;1+d;w) - 1. The normalized
@@ -847,6 +847,82 @@ fn hyp2f1_incomplete_beta(a: f64, b: f64, c: f64, z: C64) -> Option<C64> {
         return Some(c64(value.re, y * derivative));
     }
     Some(value)
+}
+
+/// `ln Gamma(x + h) - ln Gamma(x)`, the integral of digamma from `x` to `x + h`, or NaN if
+/// `x < -HYP2F1_MAXITER`
+//
+// Gamma(x + 1) = x Gamma(x) (DLMF 5.5.1) moves x to at least max(1, 128 |h|), where
+// three-point Gauss quadrature errs by less than 4.2e-4 (h/x)^6 |h| < 1e-16 |h|.
+fn digamma_integral(mut x: f64, h: f64) -> f64 {
+    if x < -(HYP2F1_MAXITER as f64) {
+        return f64::NAN;
+    }
+    let mut integral = 0.0;
+    while x < (128.0 * h.abs()).max(1.0) {
+        integral -= (h / x).ln_1p();
+        x += 1.0;
+    }
+    let mid = x + 0.5 * h;
+    let step = 0.5 * (3.0_f64 / 5.0).sqrt() * h;
+    integral + h / 18.0 * (5.0 * (digamma(mid - step) + digamma(mid + step)) + 8.0 * digamma(mid))
+}
+
+/// The 1 - z series (DLMF 15.8.4) for a balance c - a - b near zero, uniformly in the balance,
+/// and its estimated cancellation as in `series_eval_cancellation`, where it is safe and more
+/// accurate than the two separate series
+//
+// The k-th terms of the two series, whose poles in the balance d cancel, are paired: with
+// A_k = Gamma(a+k) Gamma(b+k) / (Gamma(a+d) Gamma(b+d) k! Gamma(1-d+k)) and
+// B_k = (a+d)_k (b+d)_k / (k! Gamma(1+d+k)), it is -Gamma(c) Gamma(-d) / (Gamma(a) Gamma(b))
+// w^d / B_0 times the sum of B_k w^k expm1(log(A_k / B_k) - d log(w)), w = 1 - z.
+fn hyp2f1_transform1_near_balance(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
+    let d = f64::from(Dd::new(c) - a - b);
+    // Only where the unpaired series lose more than HYP2F1_EPS to their cancelling poles.
+    let pole_loss = f64::EPSILON / d.abs();
+    if pole_loss <= HYP2F1_EPS {
+        return None;
+    }
+    // Beyond its direct ratio, `four_gammas` reflects x < 1/2 with a relative error near
+    // eps |x| / dist(x, Z), worth it only where both the unpaired series, which lose eps / |d|
+    // to their cancelling poles, and the limit for an integer balance, which is off by about
+    // |d|, lose more.
+    let tolerance = d.abs().max(pole_loss);
+    let reflected = |x: f64| x < 0.5 && (x - x.round()).abs() <= (tolerance * x).abs();
+    if !in_direct_gamma_range([c, -d, a, b]) && [a, b, c].into_iter().any(reflected) {
+        return None;
+    }
+    let w = 1.0 - z;
+    let log_power = w.ln() * d;
+    // The phase of w^d must not underflow before the prefactor restores its scale.
+    if z.im != 0.0 && log_power.im.abs() < f64::MIN_POSITIVE {
+        return None;
+    }
+    let log_ratio = crate::lgam1p(d) - crate::lgam1p(-d) - digamma_integral(a, d);
+    let mut log_ratio = log_ratio - digamma_integral(b, d); // log(A_k / B_k)
+    if !log_ratio.is_finite() {
+        return None;
+    }
+    let mut upper = C64::ONE; // B_k w^k / B_0
+    let mut k = 0.0;
+    let (series, cancellation) = series_eval_settled(|| {
+        let term = upper * crate::xsf::cexpm1(log_ratio - log_power);
+        let (p, q, n) = (a + k, b + k, k + 1.0);
+        let (shifted, nd) = ((p + d) * (q + d), n - d);
+        // A_k+1 / B_k+1 = (A_k / B_k) (1 + d step)
+        let step = (2.0 * p * q - (p + q + d) * nd) / (nd * shifted);
+        log_ratio += (d * step).ln_1p();
+        upper *= w * (shifted / (n * (n + d)));
+        k = n;
+        term
+    });
+    let prefactor = log_power.exp() * -four_gammas(c, -d, a, b);
+    let value = series * prefactor;
+    // An underflowed prefactor loses the scale, and a product whose imaginary part cancels by
+    // more than 1 / |d| loses more than the unpaired series.
+    let rotated = (series.re * prefactor.im).abs() + (series.im * prefactor.re).abs();
+    let accurate = prefactor.norm() >= f64::MIN_POSITIVE && value.im.abs() >= d.abs() * rotated;
+    (accurate && value.is_finite()).then_some((value, cancellation))
 }
 
 /// The limit of the 1 - z series for an integer balance, if it is closer than `result`.
@@ -885,7 +961,9 @@ fn hyp2f1_near_one(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
         hyp2f1_transform1_limiting_case(a, b, c, z, false)
     } else {
-        series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z))
+        // Unlike in xsf, pair the two series for a balance near zero.
+        hyp2f1_transform1_near_balance(a, b, c, z)
+            .unwrap_or_else(|| series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z)))
     };
     // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
     // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
