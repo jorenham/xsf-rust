@@ -356,7 +356,7 @@ fn series_eval_settled(mut g: impl FnMut() -> C64) -> Cancelled {
 // nearest denominator ahead, since the terms of one parity can be small and a small denominator can
 // grow them again. A retry can replace a NaN, so it waits until all denominators ahead are positive
 // and the last pair plus its geometric tail is small.
-fn series_eval_lopez_temme(mut g: impl FnMut() -> C64, c: f64, retry: Option<f64>) -> (C64, f64) {
+fn series_eval_lopez_temme(mut g: impl FnMut() -> C64, c: f64, retry: Option<f64>) -> Cancelled {
     let (mut sum, mut abs_sum) = (C64::ZERO, 0.0);
     let mut last = [0.0; 4]; // The last four term magnitudes, oldest first.
     for n in 0..HYP2F1_MAXITER {
@@ -381,10 +381,16 @@ fn series_eval_lopez_temme(mut g: impl FnMut() -> C64, c: f64, retry: Option<f64
             Some(_) => n > 3 && 0.0 < pair && pair < tol * (1.0 - pair / previous),
         };
         if settled {
-            return (sum, cancellation(abs_sum, sum));
+            return Cancelled {
+                value: sum,
+                cancellation: cancellation(abs_sum, sum),
+            };
         }
     }
-    (C64::NAN, f64::INFINITY)
+    Cancelled {
+        value: C64::NAN,
+        cancellation: f64::INFINITY,
+    }
 }
 
 const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
@@ -564,7 +570,7 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() 
 /// The series, and its estimated cancellation as in `series_eval_cancellation`
 ///
 /// Unless summed in pairs, a `retry` gives the term magnitudes that make it NaN.
-fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64, retry: Option<f64>) -> (C64, f64) {
+fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64, retry: Option<f64>) -> Cancelled {
     // Unlike in xsf, sum the even series (DLMF 15.8.13) when c = 2b. The odd
     // terms vanish, so the single-term rule would stop at the first one.
     let even = (c.is_finite() && c == 2.0 * b).then(|| {
@@ -575,12 +581,11 @@ fn lopez_temme_series(a: f64, b: f64, c: f64, z: C64, retry: Option<f64>) -> (C6
     });
     // Large negative powers after the Euler transform can still cancel, so
     // prefer the paired sum for a symmetric positive beta weight.
-    if let Some(even) = even.filter(|&(_, cancellation)| cancellation <= 16.0) {
+    if let Some(even) = even.filter(|even| even.cancellation <= 16.0) {
         return even;
     }
     // Unlike in xsf, keep the even sum if the paired sum fails, or else restart term by term.
     lopez_temme_paired(a, b, c, z, HYP2F1_MAXITER)
-        .map(|paired| (paired.value, paired.cancellation))
         .or(even)
         .unwrap_or_else(|| {
             series_eval_lopez_temme(lopez_temme_series_generator(a, b, c, z), c, retry)
@@ -1639,9 +1644,9 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
      * -------------------------------------------------------------------------*/
     if (0.9..1.1).contains(&z_abs) && (1.0 - z).norm() >= 0.9 && z.re >= 0.0 {
         let (p, q, prefactor, euler) = lopez_temme_form(a, b, c, z);
-        let (sum, cancellation) = lopez_temme_series(p, q, c, z, None);
-        let mut result = prefactor * sum;
-        if cancellation * f64::EPSILON > HYP2F1_EPS {
+        let series = lopez_temme_series(p, q, c, z, None);
+        let mut result = prefactor * series.value;
+        if series.is_lossy() {
             // Unlike in xsf, if the series loses more than HYP2F1_EPS to cancellation, also sum
             // it with the upper parameters swapped, and prefer that if it cancels 4 times less.
             // Take the preferred finite order with a small estimated error, smaller if swapped
@@ -1649,27 +1654,27 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let usable = |cancellation: f64| cancellation * f64::EPSILON <= 0.125;
             // A usable sum estimates the swapped one, so stop that at twice the term magnitudes
             // it can have if preferred.
-            let limit = if usable(cancellation) {
-                0.5 * cancellation * sum.norm() * (1.0 - z * 0.5).norm().powf(q - p)
+            let limit = if usable(series.cancellation) {
+                0.5 * series.cancellation * series.value.norm() * (1.0 - z * 0.5).norm().powf(q - p)
             } else {
                 f64::INFINITY
             };
-            let (swapped, swapped_cancellation) = lopez_temme_series(q, p, c, z, Some(limit));
-            let swapped = (1.0 - z * 0.5).powf(-q) * swapped; // Lopez-Temme prefactor.
+            let swapped_series = lopez_temme_series(q, p, c, z, Some(limit));
+            let swapped = (1.0 - z * 0.5).powf(-q) * swapped_series.value; // Lopez-Temme prefactor.
             let finite = |value: C64, usable: bool| (usable && value.is_finite()).then_some(value);
-            let primary = || finite(result, usable(cancellation));
-            let swapped_error = swapped_cancellation * f64::EPSILON;
+            let primary = || finite(result, usable(series.cancellation));
+            let swapped_error = swapped_series.cancellation * f64::EPSILON;
             let certified = || finite(swapped, swapped_error <= crate::ext::HYP2F1_RECUR_TOL);
             // xsf's sum, if the usable swapped one confirms it within its estimated error, or
             // else the swapped one, if within 1/8 of xsf's.
             let checked = || {
                 let xsf = prefactor * series_eval(lopez_temme_series_generator(p, q, c, z));
                 let distance = (xsf - swapped).norm() / swapped.norm();
-                let usable = usable(swapped_cancellation);
+                let usable = usable(swapped_series.cancellation);
                 finite(xsf, usable && distance <= swapped_error)
                     .or_else(|| finite(swapped, usable && distance <= 0.125))
             };
-            let preferred = if 4.0 * swapped_cancellation < cancellation {
+            let preferred = if 4.0 * swapped_series.cancellation < series.cancellation {
                 certified().or_else(checked).or_else(primary)
             } else {
                 primary().or_else(certified).or_else(checked)
