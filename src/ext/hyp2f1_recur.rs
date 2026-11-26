@@ -1415,21 +1415,8 @@ mod tests {
 
     #[test]
     fn test_ln_gamma_non_finite() {
-        for g in [
-            Dd {
-                hi: 1.0,
-                lo: f64::NAN,
-            },
-            Dd {
-                hi: 1.0,
-                lo: f64::INFINITY,
-            },
-            Dd {
-                hi: f64::NAN,
-                lo: 0.0,
-            },
-        ] {
-            assert!(ln_gamma(g).is_none(), "{g:?}");
+        for (hi, lo) in [(1.0, f64::NAN), (1.0, f64::INFINITY), (f64::NAN, 0.0)] {
+            assert!(ln_gamma(Dd { hi, lo }).is_none(), "{hi:e} + {lo:e}");
         }
     }
 
