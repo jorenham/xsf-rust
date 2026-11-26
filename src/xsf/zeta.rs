@@ -355,39 +355,36 @@ const RS_CORRECTION_TERMS: u32 =
 /// `C_k(sigma, p) = sum_l d_kl(sigma) F^(3k - 2l)(p) / (pi^(2k - l) (2i)^l)`, given the derivatives
 /// `fp[m] = F^(m)(p)`.
 fn rs_correction(sigma: f64, a: f64, fp: &[C64; 3 * RS_TERMS - 2]) -> C64 {
-    // d_kl(sigma) by the recurrence of mpmath's `Rzeta_simul`, with d_kl = 0 unless 0 <= l <= 3k/2
-    let mut d = [[0.0; 3 * RS_TERMS / 2 + 1]; RS_TERMS];
-    d[0][0] = 1.0;
+    // Row k of d_kl(sigma) by the recurrence of mpmath's `Rzeta_simul`, with d_kl at d[l + 2] so
+    // that d_k,-2 = d_k,-1 = 0
+    let mut d = [0.0; 3 * RS_TERMS / 2 + 3];
+    d[2] = 1.0;
+    let mut sum = fp[0];
+    let mut scale = 1.0;
     for k in 1..RS_TERMS {
-        let prev = d[k - 1];
-        let prev_at = |j: Option<usize>| j.map_or(0.0, |j| prev[j]);
+        let prev = d;
+        // 1 / (a^k pi^(2k - l) (2i)^l) = (pi^2 a)^-k (-i pi / 2)^l
+        scale /= PI * PI * a;
+        let mut g = C64::from(scale);
         for l in 0..=3 * k / 2 {
-            let m = (3 * k - 2 * l) as f64;
-            d[k][l] = if 2 * l == 3 * k {
+            let m = 3 * k - 2 * l;
+            d[l + 2] = if m == 0 {
                 -(0..l)
                     .map(|r| {
                         let j = l - r;
-                        neg_if_odd(j, d[k][r])
+                        neg_if_odd(j, d[r + 2])
                             * ((j + 1)..=2 * j).map(|i| i as f64).product::<f64>()
                     })
                     .sum::<f64>()
             } else {
-                -(m + 1.0) * prev_at(l.checked_sub(2))
-                    + prev[l] / (4.0 * m)
-                    + (1.0 - 2.0 * sigma) / (2.0 * m) * prev_at(l.checked_sub(1))
+                let m = m as f64;
+                -(m + 1.0) * prev[l]
+                    + prev[l + 2] / (4.0 * m)
+                    + (1.0 - 2.0 * sigma) / (2.0 * m) * prev[l + 1]
             };
-        }
-    }
-    // 1 / (a^k pi^(2k - l) (2i)^l) = (pi^2 a)^-k (-i pi / 2)^l
-    let mut sum = C64::ZERO;
-    let mut scale = 1.0;
-    for (k, row) in d.iter().enumerate() {
-        let mut g = C64::from(scale);
-        for (l, &dkl) in row.iter().enumerate().take(3 * k / 2 + 1) {
-            sum += dkl * g * fp[3 * k - 2 * l];
+            sum += d[l + 2] * g * fp[3 * k - 2 * l];
             g *= c64(0.0, -FRAC_PI_2);
         }
-        scale /= PI * PI * a;
     }
     sum
 }
