@@ -1483,18 +1483,17 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             }
         }
         // hypok:
-        let (y, err, err_full) = hyt2f1(a, b, c, x);
-
-        // Unlike in xsf, retry a non-finite polynomial in scaled double-double (in the outermost
-        // call, as above): the power series stops at its first infinite term, whose sign can
-        // differ from that of the sum, and the recurrence in `a` can add infinities of both signs
-        // (NaN)
-        if outer && inexact.is_none() && !y.is_finite() && (neg_int_a || neg_int_b) {
+        // Unlike in xsf, a polynomial in scaled double-double (in the outermost call, as above):
+        // the power series stops at its first infinite term, whose sign can differ from that of
+        // the sum, and its terms can cancel, while the recurrence in `a` can add infinities of
+        // both signs (NaN), or amplify the rounding of its starting values, even for a tiny x
+        if outer && inexact.is_none() && (neg_int_a || neg_int_b) {
             let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
             if let Some((y, _)) = poly.filter(accurate) {
                 return y;
             }
         }
+        let (y, err, err_full) = hyt2f1(a, b, c, x);
 
         // Unlike in xsf, the result of `hyp2f1_recur` instead if its error bound is below the
         // estimate of `y`, or shows `y` to be less accurate.

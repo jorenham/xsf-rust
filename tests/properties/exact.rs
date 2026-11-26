@@ -172,24 +172,9 @@ fn within<T: Into<Complex64>>(
     Ok(())
 }
 
-/// `(n, c, x)` for the real `hyp2f1(-n, b, c, x)`, but not where it is known to be inaccurate:
-/// `2 < n < 10` with `|c| + 1 < n` (#2261)
-fn real_hyp2f1_args() -> impl Strategy<Value = (u32, f64, f64)> {
-    (0..=MAX_N).prop_flat_map(|n| {
-        let min_c = if 2 < n && n < 10 {
-            8 * (n.cast_signed() - 1)
-        } else {
-            0
-        };
-        let c = (any::<bool>(), eighths(min_c..=256)).prop_map(|(neg, c)| if neg { -c } else { c });
-        (Just(n), c, moderate())
-    })
-}
-
 property!(
     within,
-    hyp2f1_terminating(ncx in real_hyp2f1_args(), b in param()) => {
-        let (n, c, x) = ncx;
+    hyp2f1_terminating(n in 0..=MAX_N, b in param(), c in param(), x in moderate()) => {
         let a = -f64::from(n);
         // known: n >= 10 with b < 0 and x > 1, where x is negated (#2258), and (1 - x)^n for a
         // negative non-integer b = c, n >= 9 and x < -1 (#2262)

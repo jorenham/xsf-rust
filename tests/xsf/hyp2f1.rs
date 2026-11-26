@@ -3362,6 +3362,31 @@ fn test_hyp2f1_f64_polynomial_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_polynomial_cancellation() {
+    // unlike in xsf: polynomials whose recurrence in a or power series loses digits, also for a
+    // tiny x; xsf has relative errors of 2e-15 to 8e-10, and 8e6 for the last (references: Arb)
+    let actual = [
+        xsf::hyp2f1(-9.0, 2.875, -4.5, 1.110_223_024_625_156_5e-16),
+        xsf::hyp2f1(-9.0, 2.875, -4.5, -0.1),
+        xsf::hyp2f1(-3.0, 8.75, -0.5, 8.037_062_314_695_019e-16),
+        xsf::hyp2f1(-9.0, 7.625, 0.125, 1e-4),
+        xsf::hyp2f1(-9.0, 7.25, 6.25, 0.967_752_084_398_092_9),
+        xsf::hyp2f1(-7.0, -6.285_307_557_516_495, -8.25, 0.669_881_340_187_126_6),
+        xsf::hyp2f1(-35.0, -34.375, -40.75, 1.010_183_901_888_319_4),
+    ];
+    let desired = [
+        1.000_000_000_000_000_6,
+        0.412_513_971_131_882_4,
+        1.000_000_000_000_042_2,
+        0.945_268_182_157_308_7,
+        -1.592_105_510_684_856_5e-12,
+        0.003_026_232_355_947_998_8,
+        2.007_357_123_532_648_7e-15,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+}
+
+#[test]
 fn test_hyp2f1_f64_degree_1() {
     // unlike in xsf: `1 - a x / c` also for b = -1, where xsf gives NaN (references: exact)
     let actual = [
