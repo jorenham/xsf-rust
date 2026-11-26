@@ -151,6 +151,128 @@ fn test_hyp2f1_c64_lopez_temme_small_odd_terms() {
 }
 
 #[test]
+fn test_hyp2f1_c64_lopez_temme_parameter_order() {
+    // Arb at the exact binary64 inputs, also at conj(z).
+    for (a, b, c, z, expected) in [
+        (
+            9.854,
+            -14.732,
+            14.16,
+            c64(0.638, -0.8683),
+            c64(-0.001_838_354_430_051_382_3, 0.014_966_128_267_305_905),
+        ),
+        (
+            8.849,
+            -14.946,
+            -1.694,
+            c64(0.5993, -0.8826),
+            c64(527_042_171.148_339_2, -558_878_784.684_578_3),
+        ),
+        // The odd terms vanish in one order, where c = 2 (c - a), or are small one ulp away.
+        (
+            -7.75,
+            4.25,
+            -15.5,
+            c64(0.341_379_310_344_827_7, -0.948_275_862_068_965_5),
+            c64(-1.050_983_485_011_692_1, -1.114_552_232_548_607_5),
+        ),
+        (
+            -7.749_999_999_999_999,
+            4.25,
+            -15.5,
+            c64(0.341_379_310_344_827_7, -0.948_275_862_068_965_5),
+            c64(-1.050_983_485_011_692, -1.114_552_232_548_608),
+        ),
+        (
+            -7.750_000_000_000_001,
+            4.25,
+            -15.5,
+            c64(0.341_379_310_344_827_7, -0.948_275_862_068_965_5),
+            c64(-1.050_983_485_011_692_6, -1.114_552_232_548_607_2),
+        ),
+        // c = 2b, with a term ratio dividing by c/2 + 7/2 = 2^-51 after a small term.
+        (
+            -3.999_999_999_999_999_6,
+            -3.499_999_999_999_999_6,
+            -6.999_999_999_999_999,
+            c64(0.5, 0.866_025_403_784_438_6),
+            c64(-0.378_896_182_077_845_76, -0.656_267_438_152_697_5),
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            for actual in [xsf::hyp2f1(a, b, c, z), xsf::hyp2f1(b, a, c, z)] {
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 1e-13
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_lopez_temme_dip() {
+    // Arb at the exact binary64 inputs, also at conj(z).
+    for (a, b, c, z, expected) in [
+        // The terms dip, and grow again past c + n = -1/4.
+        (
+            0.5,
+            -95.125,
+            -105.25,
+            c64(0.375, 0.906_25),
+            c64(0.879_448_710_243_232_6, 0.420_597_622_480_321),
+        ),
+        // c + n stays negative within the term limit.
+        (
+            0.5,
+            -3000.5,
+            -3000.25,
+            c64(0.0, 0.9375),
+            c64(0.794_258_086_626_283_2, 0.314_106_447_021_066),
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 1e-13);
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_lopez_temme_growing_terms() {
+    // The terms overflow, and those with the upper parameters swapped start tiny but grow.
+    let actual = xsf::hyp2f1(-2250.5, 1e-25, 50.25, c64(0.0, 1.0));
+    // Arb at the exact binary64 inputs, or NaN.
+    if !actual.is_nan() {
+        let expected = c64(6.450_899_072_505_266_4e215, -1.134_025_706_455_491_9e215);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_lopez_temme_near_c() {
+    // Arb at the exact binary64 inputs, also at conj(z).
+    // With c near b, the terms grow far past the sum and almost cancel again.
+    let z = c64(0.5625, -0.8125);
+    for (c, expected) in [
+        (-56.874_999, c64(-0.039_422_469_447_030_41, 0.885_589_629_206_983_8)),
+        (-56.874_999_9, c64(-0.039_422_448_799_181_074, 0.885_589_619_897_664_7)),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            for actual in [xsf::hyp2f1(-1.5, -56.875, c, z), xsf::hyp2f1(-56.875, -1.5, c, z)] {
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 1e-10,
+                    atol = 1e-10
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_lopez_temme_paired_sum_fallback() {
     let b = f64::from_bits(5e11_f64.to_bits() - 1);
     let actual = xsf::hyp2f1(1000.0, b, 1e12, c64(0.5, 0.866_025_403_784_438_6));
