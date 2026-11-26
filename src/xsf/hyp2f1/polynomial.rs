@@ -18,29 +18,26 @@ fn dd_candidate(y: Scaled) -> Option<(f64, Option<[f64; 2]>)> {
 
 pub(super) struct Estimate {
     pub(super) value: C64,
-    // Absolute evaluation roundoff, before accounting for the final rounding to f64.
-    abs_roundoff: f64,
+    // Estimated absolute error, before accounting for the final rounding to f64.
+    error: f64,
 }
 
 // A value whose only error is its final rounding to f64
 impl From<C64> for Estimate {
     fn from(value: C64) -> Self {
-        Self {
-            value,
-            abs_roundoff: 0.0,
-        }
+        Self { value, error: 0.0 }
     }
 }
 
 impl Estimate {
     // Whether the estimate is finite with an estimated error below its magnitude.
     pub(super) fn resolved(&self) -> bool {
-        self.value.is_finite() && self.abs_roundoff < self.value.linf_norm()
+        self.value.is_finite() && self.error < self.value.linf_norm()
     }
 
     // Whether the estimate leaves at least half the significand.
     fn accurate(&self) -> bool {
-        self.value.is_finite() && self.abs_roundoff <= pow2(-26) * self.value.linf_norm()
+        self.value.is_finite() && self.error <= pow2(-26) * self.value.linf_norm()
     }
 }
 
@@ -110,11 +107,7 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
         if n == 1 || one_sign(other, c, n, z) || origin.accurate() {
             origin
         } else {
-            let (value, abs_roundoff) = pfaff(other, c, n, z, origin.value, origin.abs_roundoff);
-            Estimate {
-                value,
-                abs_roundoff,
-            }
+            pfaff(other, c, n, z, origin)
         }
     };
     // Unlike in xsf, recover a finite linear result when forming its
@@ -216,7 +209,7 @@ fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<Estimate> {
     });
     (lower == upper && lower.is_finite()).then_some(Estimate {
         value: c64(lower, 0.0),
-        abs_roundoff: lower * relative,
+        error: lower * relative,
     })
 }
 
@@ -249,18 +242,15 @@ fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64, relative: f64) -> Estim
     } else {
         f64::INFINITY
     };
-    Estimate {
-        value,
-        abs_roundoff: error,
-    }
+    Estimate { value, error }
 }
 
 // F(-n, b; c; z) = (1 - z)^n F(-n, c - b; c; z / (z - 1)) (DLMF 15.8.1)
 #[cold]
-fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: C64, error: f64) -> (C64, f64) {
+fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
     let x = z / (z - 1.0);
     if !x.is_finite() {
-        return (origin, error);
+        return origin;
     }
     // Rounding c - b changes each term by a relative n |rounding| / min |c - b + j| for
     // 0 <= j < n to first order, and by at most twice that while it is below one.
@@ -275,31 +265,31 @@ fn pfaff(b: f64, c: f64, n: u64, z: C64, origin: C64, error: f64) -> (C64, f64) 
     } else {
         f64::INFINITY
     };
-    let Estimate {
-        value: sum,
-        abs_roundoff: sum_error,
-    } = estimated_sum(-degree, c_minus_b, c, n, x, relative);
+    let sum = estimated_sum(-degree, c_minus_b, c, n, x, relative);
     let power = one_minus_z_pow(z, degree);
-    let value = (power * sum).to_c64();
+    let value = (power * sum.value).to_c64();
     // The power and the product each round a component by at most eps |power| |sum|, and the
     // final scaling by less than the spacing of the subnormals.
-    let product_error = 2.0 * f64::EPSILON * sum.norm();
+    let product_error = 2.0 * f64::EPSILON * sum.value.norm();
     let pfaff_error =
-        ldexp_sat(power.mantissa.norm() * (sum_error + product_error), power.exponent)
+        ldexp_sat(power.mantissa.norm() * (sum.error + product_error), power.exponent)
             + f64::from_bits(1);
     // Take each finite component that the Pfaff estimate resolves, and that differs from a
     // less certain origin one by more than its error.
     let select = |new: f64, old: f64| {
-        let differs = pfaff_error < error && (new - old).abs() > pfaff_error;
+        let differs = pfaff_error < origin.error && (new - old).abs() > pfaff_error;
         if new.is_finite() && pfaff_error < new.abs() && (differs || !old.is_finite()) {
             (new, pfaff_error)
         } else {
-            (old, error)
+            (old, origin.error)
         }
     };
-    let (re, re_error) = select(value.re, origin.re);
-    let (im, im_error) = select(value.im, origin.im);
-    (c64(re, im), re_error.max(im_error))
+    let (re, re_error) = select(value.re, origin.value.re);
+    let (im, im_error) = select(value.im, origin.value.im);
+    Estimate {
+        value: c64(re, im),
+        error: re_error.max(im_error),
+    }
 }
 
 /// Compare the origin and centered sums by their estimated absolute rounding errors.
@@ -321,11 +311,11 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
     let magnitude = centered.re.abs().max(centered.im.abs());
     // Replace a nonfinite origin result only when the centered estimate resolves a component.
     let limit = if origin.value.is_finite() {
-        origin.abs_roundoff
+        origin.error
     } else {
         magnitude
     };
-    if estimate.abs_roundoff + f64::EPSILON * magnitude < limit {
+    if estimate.error + f64::EPSILON * magnitude < limit {
         centered
     } else {
         origin.value
@@ -346,13 +336,13 @@ fn select_positive_beta(origin: C64, centered: &Estimate, n: u64, z: C64) -> C64
     // |Im(F)| <= n |Im(z)| on the closed disk |1-z| <= 1.
     let imag_uncertainty = if z.re >= z.im.abs() && 2.0 - z.re >= z.im.abs() {
         centered
-            .abs_roundoff
+            .error
             .min(centered.value.im.abs() + (2.0 * n as f64) * z.im.abs())
     } else {
-        centered.abs_roundoff
+        centered.error
     };
     c64(
-        select(origin.re, centered.value.re, centered.abs_roundoff),
+        select(origin.re, centered.value.re, centered.error),
         if z.is_real() {
             0.0
         } else {
@@ -479,6 +469,6 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
     let rounding = ldexp_f64(mass * leading.hi * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
     Estimate {
         value: c64(round(re, scale), imag),
-        abs_roundoff: rounding,
+        error: rounding,
     }
 }
