@@ -1742,8 +1742,10 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             let (result, lost) = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
             // Unlike in xsf, multiply by the power with a separate scale, as it can underflow or
             // overflow alone. (The result before it must be in range, as elsewhere the Euler form
-            // tends to be less accurate.)
-            let value = (power::one_minus_z_pow(z, c - a - b) * result).to_c64();
+            // tends to be less accurate.) Its degree is rounded, so correct it to first order.
+            let degree = Dd::new(c) - a - b;
+            let rounding = 1.0 + degree.lo * (1.0 - z).ln();
+            let value = (power::one_minus_z_pow(z, degree.hi) * result * rounding).to_c64();
             let in_range = |x: C64| x.norm().is_finite() && x != C64::ZERO;
             if in_range(result.to_c64()) && in_range(value) {
                 best = Cancelled {
