@@ -306,10 +306,11 @@ fn test_hyp2f1_c64_inverse_near_equal() {
         for (a, b) in [(a, b), (b, a)] {
             for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
                 let actual = xsf::hyp2f1(a, b, c, z);
+                // (2e-14, as the real part of the fifth is 1/14 of the norm)
                 np_assert_allclose!(
                     [actual.re, actual.im],
                     [expected.re, expected.im],
-                    rtol = 1e-14
+                    rtol = 2e-14
                 );
             }
         }
@@ -345,6 +346,7 @@ fn test_hyp2f1_c64_inverse_near_equal_edges() {
         ),
     ] {
         let actual = xsf::hyp2f1(a, b, c, z);
+        // (the second and third lose about 3e-14 in one component to cancellation)
         np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 5e-14);
     }
     // On the real axis below -1, the imaginary part stays +0.
@@ -366,6 +368,67 @@ fn test_hyp2f1_c64_inverse_near_integer_cancelling() {
     let actual = xsf::hyp2f1(147.25 + 2.0_f64.powi(-42), -2.75, -1.25, c64(-1.125, 0.0));
     let expected = 5_745_264.598_748_462;
     assert!(actual.re.is_nan() || ((actual.re - expected) / expected).abs() < 1e-14);
+}
+
+#[test]
+fn test_hyp2f1_c64_inverse_near_integer_unpaired() {
+    // a - b is near an integer, but pairing the 1/z series gains little, or loses a tiny a or b.
+    // Arb at the binary64 inputs, relative to the norm.
+    for (a, b, c, z, expected, rtol) in [
+        (
+            5.024_997_972_554_356e-7,
+            -1.361_721_274_401_763_5e-6,
+            -30.717_500_717_391_21,
+            c64(-1.201_105_588_470_700_7, -0.669_078_036_954_691_5),
+            c64(0.999_999_999_999_972_9, -1.555_693_488_344_063e-14),
+            1e-14,
+        ),
+        (
+            2.889_925_064_146_597e-10,
+            5.492_583_293_852_574e-13,
+            -108.719_964_352_302_91,
+            c64(-0.193_675_008_963_609_06, -3.649_948_169_840_155_5),
+            c64(1.0, 5.377_948_821_171_109_6e-24),
+            1e-13,
+        ),
+        (
+            1.333_146_694_014_018_5e-10,
+            1.376_623_639_782_201_2e-10,
+            -225.100_664_606_829_72,
+            c64(-0.930_006_774_382_229_3, -3.541_234_746_238_994_4),
+            c64(1.0, 2.898_743_782_923_748e-22),
+            2e-11,
+        ),
+        (
+            9.294_168_821_359_962,
+            4.294_168_821_359_3,
+            11.1875,
+            c64(0.667_471_980_816_785, 1.352_831_044_772_488),
+            c64(0.082_811_595_041_503_58, -0.395_157_581_779_192_1),
+            1e-13,
+        ),
+        (
+            9.193_099_974_568_938,
+            37.193_099_985_524_036,
+            44.8125,
+            c64(-2.848_635_621_977_817_5, 1.422_743_258_795_358_8),
+            c64(-9.501_738_164_549_64e-6, 7.011_859_829_330_347e-7),
+            1e-13,
+        ),
+        (
+            -5.999_999_999_999_815,
+            -5.999_999_998_420_666,
+            0.163_827_140_645_315_34,
+            c64(-4.219_983_348_289_068, 0.0),
+            c64(-2_937.138_296_482_582, 0.0),
+            1e-13,
+        ),
+    ] {
+        for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            assert!((actual - expected).norm() <= rtol * expected.norm(), "{z}: {actual}");
+        }
+    }
 }
 
 /// Compares each component, so that a small one is checked too.

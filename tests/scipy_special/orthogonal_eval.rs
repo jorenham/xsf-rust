@@ -18,6 +18,15 @@ fn test_hyp2f1_inverse_near_integer_difference() {
     let actual = eval_jacobi(4.75, 4.0, 65.5 + 2.0_f64.powi(-14), c64(3.5, -0.25));
     let expected = [46_378_333.489_432_625, -21_618_873.609_213_23];
     np_assert_allclose!([actual.re, actual.im], expected, rtol = 1e-14);
+    // Arb, through 2F1(9.193..., 37.193...; 44.8125; -2.85 + 1.42i), relative to the norm.
+    let actual = eval_jacobi(
+        -9.193_099_974_568_938,
+        43.8125,
+        1.573_699_960_092_971_5,
+        c64(6.697_271_243_955_635, -2.845_486_517_590_717_6),
+    );
+    let expected = c64(2.147_802_865_792_594_8e-16, -1.584_982_913_143_189e-17);
+    assert!((actual - expected).norm() <= 1e-13 * expected.norm());
 }
 
 #[test]
