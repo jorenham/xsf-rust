@@ -1148,31 +1148,34 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
     type Part = (DoubleDouble, i64);
     let norm = |(m, e): Part| {
         if m.hi == 0.0 {
-            return (m, e);
+            (m, e)
+        } else {
+            let (m, k) = m.frexp();
+            (m, e + i64::from(k))
         }
-        let (m, k) = m.frexp();
-        (m, e + i64::from(k))
     };
     let real = |v: f64| norm((DoubleDouble::new(v), 0));
     // Exact zero parts, as on the axes, stay +0.
     let mul = |a: Part, b: Part| {
         if a.0.hi == 0.0 || b.0.hi == 0.0 {
-            return real(0.0);
+            real(0.0)
+        } else {
+            norm((a.0 * b.0, a.1 + b.1))
         }
-        norm((a.0 * b.0, a.1 + b.1))
     };
     let div = |a: Part, b: Part| norm((a.0 / b.0, a.1 - b.1));
     let add = |a: Part, b: Part| {
         if b.0.hi == 0.0 {
-            return a;
+            a
+        } else if a.0.hi == 0.0 {
+            b
+        } else {
+            let e = a.1.max(b.1);
+            // A negligible part stays as a sticky least subnormal, below the precision of the
+            // other.
+            let align = |(m, k): Part| m.ldexp((k - e).max(i64::from(MIN_SUB_EXP + 1)) as i32);
+            norm((align(a) + align(b), e))
         }
-        if a.0.hi == 0.0 {
-            return b;
-        }
-        let e = a.1.max(b.1);
-        // A negligible part stays as a sticky least subnormal, below the precision of the other.
-        let align = |(m, k): Part| m.ldexp((k - e).max(i64::from(MIN_SUB_EXP + 1)) as i32);
-        norm((align(a) + align(b), e))
     };
     let neg = |(m, e): Part| (-m, e);
     let twice = |(m, e): Part| (m, e + 1);
@@ -1226,10 +1229,11 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
     // least subnormal.
     let scaled = |(m, e): Part| {
         if e >= i64::from(f64::MIN_EXP) {
-            return ldexp_f64(m.hi, e.min(i64::from(i32::MAX)) as i32);
+            ldexp_f64(m.hi, e.min(i64::from(i32::MAX)) as i32)
+        } else {
+            m.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32)
+                .round_subnormal_units()
         }
-        let units = m.ldexp((e - i64::from(MIN_SUB_EXP)).max(i64::from(i32::MIN)) as i32);
-        units.round_subnormal_units()
     };
     // `c_{n,0}`
     let mut c0 = real(1.0);
@@ -1246,9 +1250,10 @@ fn lqmn_extreme(z: C64, mut qm: Mdspan<'_, C64, 2>, mut qd: Mdspan<'_, C64, 2>) 
                     // Off the axes and diagonals, a vanished leading part is a rounded
                     // cancellation. Its true sign is unknown, and it dominates the next term.
                     if off_axes && lead.0.hi == 0.0 {
-                        return 0.0;
+                        0.0
+                    } else {
+                        scaled(mul(c, add(lead, mul(w[1], u[i + 2][r]))))
                     }
-                    scaled(mul(c, add(lead, mul(w[1], u[i + 2][r]))))
                 })
             };
             let [vr, vi] = series(0, [real(1.0), k]);
@@ -1327,28 +1332,28 @@ fn lqmn_extreme_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64
         // In the leading term, Q'' has the same sign as Q.
         let lateral = |value, slope| c64(value, z.im * 1.0_f64.copysign(slope));
         lqmn_extreme_real(z.re, cqm, cqd, |q, d| (lateral(q, d), lateral(d, q)));
-        return;
-    }
-    lqmn_extreme(
-        z,
-        Mdspan::new(&mut *cqm.data, cqm.extents),
-        Mdspan::new(&mut *cqd.data, cqd.extents),
-    );
-    // On the imaginary axis, the series gives exact zero parts as +0. These keep the signs of their
-    // limits from the side of `Re z`, as in `Q_0^2(z) = 2z / (z^2 - 1)`, and `Re Q_0` that of
-    // `atanh(1 / z)`.
-    if z.re == 0.0 {
-        let (m, n) = (cqm.extent(0), cqm.extent(1));
-        let side = 0.0_f64.copysign(z.re.signum() * z.im.signum());
-        (cqm[(0, 0)].re, cqd[(0, 0)].im) = (0.0_f64.copysign(z.im), side);
-        if n > 1 {
-            cqm[(0, 1)].im = -side;
-        }
-        if m > 1 && n > 1 {
-            cqm[(1, 1)].im = 0.0_f64.copysign(z.im);
-        }
-        if m > 2 {
-            cqm[(2, 0)].re = z.re;
+    } else {
+        lqmn_extreme(
+            z,
+            Mdspan::new(&mut *cqm.data, cqm.extents),
+            Mdspan::new(&mut *cqd.data, cqd.extents),
+        );
+        // On the imaginary axis, the series gives exact zero parts as +0. These keep the signs of
+        // their limits from the side of `Re z`, as in `Q_0^2(z) = 2z / (z^2 - 1)`, and `Re Q_0`
+        // that of `atanh(1 / z)`.
+        if z.re == 0.0 {
+            let (m, n) = (cqm.extent(0), cqm.extent(1));
+            let side = 0.0_f64.copysign(z.re.signum() * z.im.signum());
+            (cqm[(0, 0)].re, cqd[(0, 0)].im) = (0.0_f64.copysign(z.im), side);
+            if n > 1 {
+                cqm[(0, 1)].im = -side;
+            }
+            if m > 1 && n > 1 {
+                cqm[(1, 1)].im = 0.0_f64.copysign(z.im);
+            }
+            if m > 2 {
+                cqm[(2, 0)].re = z.re;
+            }
         }
     }
 }
