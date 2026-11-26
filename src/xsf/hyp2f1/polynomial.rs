@@ -21,6 +21,14 @@ struct Estimate {
     abs_roundoff: f64,
 }
 
+impl Estimate {
+    // Whether the estimate leaves at least half the significand.
+    fn accurate(&self) -> bool {
+        self.value.is_finite()
+            && self.abs_roundoff <= pow2(-26) * self.value.re.abs().max(self.value.im.abs())
+    }
+}
+
 pub(super) fn evaluate(a: f64, b: f64, c: f64, z: C64, n: u64) -> C64 {
     let other = if a == -(n as f64) { b } else { a };
     // Unlike in xsf, evaluate the uniform beta-binomial polynomial as a geometric sum.
@@ -170,12 +178,11 @@ fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<Estimate> {
     })
 }
 
-/// Compare the origin and centered sums by their estimated absolute rounding errors.
-#[cold]
-fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
+// The sum of the terms up to z^n, and its estimated absolute error.
+fn estimated_sum(a: f64, b: f64, c: f64, n: u64, z: C64) -> Estimate {
     let mut terms = hypergeometric_series_generator(a, b, c, z);
     let mut mass = 0.0;
-    let origin = series_eval_fixed_length(
+    let value = series_eval_fixed_length(
         || {
             let term = terms();
             mass += term.l1_norm();
@@ -184,40 +191,45 @@ fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
         C64::ZERO,
         n + 1,
     );
-    let error = (6.0 * n as f64 + 8.0) * f64::EPSILON * mass;
-    let origin_finite = origin.is_finite();
-    // Keep the origin sum when the estimate leaves at least half the significand.
-    if (c <= 0.0 || ((c + n as f64) * n as f64).is_finite())
-        && origin_finite
-        && error <= pow2(-26) * origin.re.abs().max(origin.im.abs())
-    {
-        return origin;
-    }
-
-    let other = if a == -(n as f64) { b } else { a };
-    let estimate = centered(n, other, c, z);
-    let centered = estimate.value;
-    if !centered.is_finite() {
-        return origin;
-    }
-    if c > 0.0 {
-        return select_positive_beta(origin, &estimate, n, z);
-    }
-    let magnitude = centered.re.abs().max(centered.im.abs());
-    // Replace a nonfinite origin result only when the centered estimate resolves a component.
-    let limit = if origin_finite { error } else { magnitude };
-    if estimate.abs_roundoff + f64::EPSILON * magnitude < limit {
-        centered
-    } else {
-        origin
+    Estimate {
+        value,
+        abs_roundoff: (6.0 * n as f64 + 8.0) * f64::EPSILON * mass,
     }
 }
 
-fn select_positive_beta(origin: C64, estimate: &Estimate, n: u64, z: C64) -> C64 {
-    let &Estimate {
-        value: centered,
-        abs_roundoff,
-    } = estimate;
+/// Compare the origin and centered sums by their estimated absolute rounding errors.
+#[cold]
+fn population(a: f64, b: f64, c: f64, n: u64, z: C64) -> C64 {
+    let origin = estimated_sum(a, b, c, n, z);
+    let degree = n as f64;
+    if (c <= 0.0 || ((c + degree) * degree).is_finite()) && origin.accurate() {
+        return origin.value;
+    }
+
+    let other = if a == -degree { b } else { a };
+    let estimate = centered(n, other, c, z);
+    let centered = estimate.value;
+    if !centered.is_finite() {
+        return origin.value;
+    }
+    if c > 0.0 {
+        return select_positive_beta(origin.value, &estimate, n, z);
+    }
+    let magnitude = centered.re.abs().max(centered.im.abs());
+    // Replace a nonfinite origin result only when the centered estimate resolves a component.
+    let limit = if origin.value.is_finite() {
+        origin.abs_roundoff
+    } else {
+        magnitude
+    };
+    if estimate.abs_roundoff + f64::EPSILON * magnitude < limit {
+        centered
+    } else {
+        origin.value
+    }
+}
+
+fn select_positive_beta(origin: C64, centered: &Estimate, n: u64, z: C64) -> C64 {
     let select = |old: f64, new: f64, uncertainty: f64| {
         let limit = uncertainty + f64::EPSILON * new.abs() + f64::from_bits(1);
         if (old.is_finite() && (old - new).abs() > 4.0 * limit)
@@ -230,16 +242,18 @@ fn select_positive_beta(origin: C64, estimate: &Estimate, n: u64, z: C64) -> C64
     };
     // |Im(F)| <= n |Im(z)| on the closed disk |1-z| <= 1.
     let imag_uncertainty = if z.re >= z.im.abs() && 2.0 - z.re >= z.im.abs() {
-        abs_roundoff.min(centered.im.abs() + (2.0 * n as f64) * z.im.abs())
+        centered
+            .abs_roundoff
+            .min(centered.value.im.abs() + (2.0 * n as f64) * z.im.abs())
     } else {
-        abs_roundoff
+        centered.abs_roundoff
     };
     c64(
-        select(origin.re, centered.re, abs_roundoff),
+        select(origin.re, centered.value.re, centered.abs_roundoff),
         if z.is_real() {
             0.0
         } else {
-            select(origin.im, centered.im, imag_uncertainty)
+            select(origin.im, centered.value.im, imag_uncertainty)
         },
     )
 }
