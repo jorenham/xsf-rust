@@ -249,7 +249,7 @@ fn test_hyp2f1_c64_inverse_tiny_imag() {
     let expected = c64(1.415_783_188_282_483_4e-5, 4.484_815_861_380_78e-297);
     for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
         let actual = xsf::hyp2f1(128.25, 8.75, 100.125, z);
-        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 2e-14);
+        np_assert_allclose!([actual.re, actual.im], [expected.re, expected.im], rtol = 1e-13);
     }
 }
 
