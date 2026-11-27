@@ -17,7 +17,9 @@ reports with file and line:
 - a removed test (`#[test]` fn or `xsref::tests!` entry), unless a changed file gains a test of that
   name (a move), or a new test replaces it in the same file (a rename)
 - removed rows of a test table, whose inputs no added row has
-- a removed xsref table, or a removed row or a larger tolerance or scale of one
+- a removed xsref table, or a removed row of one, or in a row a larger tolerance or scale, a
+  computed output that becomes a convention or a gap, or a gap with another rule value than before
+  (a convention that becomes a gap with its value is not loosened)
   (`tests/data/xsref`)
 
 Test code is everything in `tests/` and `testing/`, and the `#[cfg(test)]` part of `src/`. The exit
@@ -25,6 +27,7 @@ status is 1 if there are findings. On GitHub Actions, they are also printed as a
 `found=true|false` is written to `GITHUB_OUTPUT` (exit status 0).
 """
 
+import math
 import os
 import re
 import struct
@@ -35,6 +38,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
+from typing import NamedTuple
 
 EPSILON = 2.0**-52
 # numbers below this are tolerances
@@ -273,8 +277,23 @@ def check_code(diff: str, base: str, head: str) -> list[Finding]:
     return out
 
 
-def parse_table(data: bytes) -> dict[bytes, tuple[float, ...]]:
-    """The tolerances and scales of each row of an xsref table, by the bytes of its inputs
+LEGACY, COMPUTED, CONVENTION, GAP = range(4)
+
+
+class Output(NamedTuple):
+    """A logical output of a row of an xsref table"""
+
+    status: int  # LEGACY, COMPUTED, CONVENTION, or GAP
+    tol: float
+    scale: float
+    # the f64s of the reference
+    ref: bytes
+    # the f64s of the rule value of a gap (None without one: any wrong output)
+    rule: bytes | None
+
+
+def parse_table(data: bytes) -> dict[bytes, list[Output]]:
+    """The outputs of each row of an xsref table, by the bytes of its inputs
 
     The format is described in `tests/data/xsref/README.md`.
     """
@@ -282,16 +301,82 @@ def parse_table(data: bytes) -> dict[bytes, tuple[float, ...]]:
         msg = "not an xsref table"
         raise ValueError(msg)
     n_rows, n_in, n_out, n_tol, flags = struct.unpack_from("<IHHHH", data, 8)
-    width = n_in + n_out + n_tol * (1 + bool(flags & 2))
+    has_status, scaled, ruled = (bool(flags & bit) for bit in (1, 2, 4))
+    width = n_in + n_out + n_tol * (1 + scaled) + n_out * ruled
+    # like the reader of the tables, which rejects other lengths and rules without statuses
+    if (ruled and not has_status) or len(data) != 20 + n_rows * (
+        8 * width + 1 + n_tol * has_status
+    ):
+        msg = "invalid xsref table"
+        raise ValueError(msg)
     values = struct.unpack_from(f"<{n_rows * width}d", data, 20)
-    rows: dict[bytes, tuple[float, ...]] = {}
+    # without statuses, the outputs are legacy ones
+    statuses = data[20 + 8 * n_rows * width + n_rows :] or bytes(n_rows * n_tol)
+    size = n_out // n_tol
+
+    def pack(x: tuple[float, ...], i: int) -> bytes:
+        return struct.pack(f"<{size}d", *x[i * size : (i + 1) * size])
+
+    rows: dict[bytes, list[Output]] = {}
     for r in range(n_rows):
         row = values[r * width : (r + 1) * width]
+        refs = row[n_in : n_in + n_out]
         tols = row[n_in + n_out : n_in + n_out + n_tol]
-        # like the reader of the tables, without scales there are none (0)
-        scales = row[n_in + n_out + n_tol :] or (0.0,) * n_tol
-        rows[struct.pack(f"<{n_in}d", *row[:n_in])] = tols + scales
+        rest = row[n_in + n_out + n_tol :]
+        # without scales there are none (0)
+        scales = rest[: n_tol * scaled] or (0.0,) * n_tol
+        rules = rest[n_tol * scaled :]
+        status = statuses[r * n_tol : (r + 1) * n_tol]
+        rows[struct.pack(f"<{n_in}d", *row[:n_in])] = [
+            Output(
+                status[i],
+                tols[i],
+                scales[i],
+                pack(refs, i),
+                pack(rules, i) if status[i] == GAP and rules else None,
+            )
+            for i in range(n_tol)
+        ]
     return rows
+
+
+def same(a: bytes | None, b: bytes | None) -> bool:
+    """Whether values are equal, per f64 with NaNs equal and zero signs kept"""
+    if a is None or b is None or len(a) != len(b):
+        return False
+    xs, ys = (struct.unpack(f"<{len(v) // 8}d", v) for v in (a, b))
+    return all(
+        x.hex() == y.hex() or (math.isnan(x) and math.isnan(y))
+        for x, y in zip(xs, ys, strict=True)
+    )
+
+
+def output_loosened(old: Output, new: Output) -> bool:
+    """Whether `new` accepts more than `old`, where a gap accepts its rule value (what a
+    convention accepts at a tolerance of 4 `EPSILON`) and not what passes its reference"""
+    same_ref = same(new.ref, old.ref)
+    not_larger = new.tol <= old.tol and new.scale <= old.scale
+    if new.status == GAP:
+        if old.status != GAP:
+            return not same(new.rule, old.ref)
+        # a smaller tolerance or scale makes the exclusion of the reference smaller
+        return not (
+            same_ref
+            and new.tol >= old.tol
+            and new.scale >= old.scale
+            and (old.rule is None or same(new.rule, old.rule))
+        )
+    if old.status == GAP:
+        if new.status == CONVENTION:
+            # a gap without a stored rule (older tables) gives nothing to compare
+            return old.rule is not None and not (
+                same(new.ref, old.rule) and new.tol <= EPSILON and new.scale == 0
+            )
+        # a gap that closes
+        return not (new.status == COMPUTED and same_ref and not_larger)
+    if new.status == CONVENTION and old.status in (LEGACY, COMPUTED):
+        return not (same_ref and not_larger)
+    return not not_larger
 
 
 def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[Finding]:
@@ -316,16 +401,17 @@ def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[F
             out.append(
                 Finding(name, 1, f"removed {plural(missing, 'row')} of an xsref table")
             )
-        # a larger tolerance or scale
+        # a larger tolerance or scale, or a weaker status
         if looser := sum(
-            k in new and any(n > o for n, o in zip(new[k], v, strict=True))
+            k in new
+            and any(output_loosened(o, n) for o, n in zip(v, new[k], strict=True))
             for k, v in old.items()
         ):
             out.append(
                 Finding(
                     name,
                     1,
-                    f"larger tolerance or scale in {plural(looser, 'xsref row')}",
+                    f"larger tolerance or scale, or weaker status in {plural(looser, 'xsref row')}",
                 )
             )
     return out

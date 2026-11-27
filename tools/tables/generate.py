@@ -11,7 +11,8 @@ For each entry of `mapping.ENTRIES`, every logical output of every row gets a st
   pass xsref's test (so xsref may differ where its tolerance allows it).
 - gap (3): the inputs match a `mapping.Rule` with `gap`, which xsf-rust must follow. The
   reference is computed as for computed (1), but xsf-rust and xsf need not be near it. The
-  tolerance is `XSF_WRONG` (or the floor, if larger), and the test must fail.
+  tolerance is `XSF_WRONG` (or the floor, if larger). The table also keeps the rule's value,
+  and the test must return that (as for a convention), and fail on the reference.
 - computed (1): the mpmath reference at both `DPS`, which must agree to `AGREE`, round to the
   same f64 (or f32, for an f32 output), and be confirmed by Arb where its Arb version applies
   (or by an identity, without one). xsf-rust must be NaN or an infinity exactly where the
@@ -60,6 +61,7 @@ VERSION: Final = 1
 HEADER: Final = struct.Struct("<4sIIHHHH")
 STATUS: Final = 1  # header flag: a status byte per logical output
 SCALES: Final = 2  # header flag: an error scale per logical output
+RULES: Final = 4  # header flag: the rule value of each output f64 (needs STATUS)
 LEGACY, COMPUTED, CONVENTION, GAP = range(4)
 
 DPS: Final = (50, 100)  # the digits of the two evaluations of a reference
@@ -125,7 +127,7 @@ def table_error(y: complex, f: complex, scale: float = 0.0) -> float:
     e = d / math.hypot(*m)
     if math.isinf(math.hypot(*m)):  # the modulus of a complex reference overflows
         e = d / 2 / math.hypot(*(x / 2 for x in m))
-    if any(map(math.isinf, f_parts)):
+    if not all(map(math.isfinite, f_parts)):
         for ref, error, mag in zip(f_parts, errors, m, strict=True):
             if math.isfinite(ref):
                 e = max(e, error / abs(mag))
@@ -201,12 +203,19 @@ def computed_inputs(
     magic, version, n_rows, n_in, n_out, n_tol, flags = HEADER.unpack_from(data)
     require(
         (magic, version) == (MAGIC, VERSION)
-        and flags & ~(STATUS | SCALES) == 0
+        and flags & ~(STATUS | SCALES | RULES) == 0
+        and (not flags & RULES or flags & STATUS)
         and n_rows > 0
         and (n_in, n_out, n_tol) == (baseline.n_in, baseline.n_out, baseline.n_tol),
         invalid,
     )
-    width = 8 * (n_in + n_out + n_tol + (n_tol if flags & SCALES else 0))
+    width = 8 * (
+        n_in
+        + n_out
+        + n_tol
+        + (n_tol if flags & SCALES else 0)
+        + (n_out if flags & RULES else 0)
+    )
     statuses = data[HEADER.size + n_rows * (width + 1) :]
     require(
         len(data)
@@ -228,6 +237,14 @@ def computed_inputs(
 
 def f64s(data: bytes) -> tuple[float, ...]:
     return struct.unpack(f"<{len(data) // 8}d", data)
+
+
+def to_f32(x: float) -> float:
+    """`x` rounded to an f32 (ties to even, infinite past the f32 range), as an f64."""
+    try:
+        return struct.unpack("<f", struct.pack("<f", x))[0]
+    except OverflowError:
+        return math.copysign(math.inf, x)
 
 
 def value(x: tuple[float, ...]) -> complex:
@@ -420,6 +437,7 @@ class Cell(NamedTuple):
     ref: bytes  # its f64s
     tol: bytes
     scale: float = 0.0
+    rule: bytes = b""  # the f64s of a gap's rule value
 
 
 class Result(NamedTuple):
@@ -603,9 +621,16 @@ def generate(
                 ]
                 f = value(tuple(f for f, _, _ in checked))
                 if rule:
-                    # xsf-rust must still follow the rule, or else the gap is closed
+                    # xsf-rust must still follow the rule, like the reader's check of a gap,
+                    # which reads the rule of an f32 output as an f32
+                    want = (
+                        value(tuple(map(to_f32, parts(rule.value))))
+                        if f32[i]
+                        else rule.value
+                    )
                     require(
-                        same_class(rust[r, i], rule.value),
+                        same_class(rust[r, i], want)
+                        and table_error(rust[r, i], want) <= 4 * EPS,
                         f"xsf-rust has {rust[r, i]}, the gap rule {rule.value} "
                         f"({rule.why}): replace the rule by a computed reference",
                     )
@@ -666,7 +691,8 @@ def generate(
                     f"with the xsf-rust output {out_rust}: the gap is closed"
                 )
                 continue
-            new[r, i] = Cell(GAP, ref, struct.pack("<d", tol), c.scale)
+            rule = struct.pack(f"<{widths[i]}d", *parts(rules[r, i].value))
+            new[r, i] = Cell(GAP, ref, struct.pack("<d", tol), c.scale, rule)
             continue
         try:
             tol = tolerance(c, override, budgets[i, override], low, f32[i])
@@ -714,7 +740,8 @@ def generate(
     data = b""
     if not problems:
         scaled = any(cell.scale for cell in new.values())
-        flags = STATUS | (SCALES if scaled else 0)
+        ruled = any(cell.rule for cell in new.values())
+        flags = STATUS | (SCALES if scaled else 0) | (RULES if ruled else 0)
         chunks = [HEADER.pack(MAGIC, VERSION, len(rows), old.n_in, old.n_out, n, flags)]
         for r, row in enumerate(old.rows):
             outs = [new[r, i] for i in range(n)]
@@ -722,6 +749,9 @@ def generate(
             chunks += [c.ref for c in outs] + [c.tol for c in outs]
             if scaled:
                 chunks.append(struct.pack(f"<{n}d", *(c.scale for c in outs)))
+            if ruled:
+                # elsewhere than on a gap, the rule value is the reference
+                chunks += [c.rule or c.ref for c in outs]
         data = b"".join([*chunks, old.flags, bytes(new[c].status for c in cells)])
     return Result(table, sig, data, report, problems)
 
