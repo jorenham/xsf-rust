@@ -164,18 +164,21 @@ class Synthetic(unittest.TestCase):
         # a reordering of attributes and doc comments
         doc = "#[test]\n#[should_panic]\nfn t() {}\n"
         self.one(doc, "#[should_panic]\n/// doc\n#[test]\nfn t() {}\n", [])
-        # an added test does not replace a removed one
-        masked = "#[test]\nfn a() {}\n\n#[test]\nfn b() {}\n"
-        renamed = masked.replace("fn b", "fn c")
-        self.one(masked, renamed, [f"{F}: removed test `b`"])
-        # a rename is a removal, but a move to another file is not
-        self.one(
-            BEFORE, BEFORE.replace("test_g", "test_h"), [f"{F}: removed test `test_g`"]
-        )
+        # a new test in the same file excuses a removed one (a rename), also an unrelated one
+        two = "#[test]\nfn a() {}\n\n#[test]\nfn b() {}\n"
+        self.one(two, two.replace("fn b", "fn c"), [])
+        self.one(BEFORE, BEFORE.replace("test_g", "test_h"), [])
+        # but not a test that only lost its attribute, even with a new test
+        orphan = two.replace("#[test]\nfn b() {}", "fn b() {}\n\n#[test]\nfn c() {}")
+        self.one(two, orphan, [f"{F}: removed test `b`"])
+        # one new test excuses one removed test
+        self.one(two, "#[test]\nfn c() {}\n", [f"{F}: removed test `b`"])
+        # a move to another file
         moved: Files = {F: no_g, "tests/y.rs": "#[test]\nfn test_g() {}\n"}
         self.assertEqual(self.check({F: BEFORE}, moved), [])
-        # an entry of `xsref::tests!`
-        self.one('a: "x",\nb: "y",\n', 'a: "x",\n', [f'{F}: removed test `b: "y",`'])
+        # an entry of `xsref::tests!`, keyed by its name: a changed body is no removal
+        self.one('a: "x",\nb: "y",\n', 'a: "x",\n', [f"{F}: removed test `b`"])
+        self.one('a: "x", f(1)\n', 'a: "x", f(2)\n', [])
 
     def test_ignored(self) -> None:
         self.one(

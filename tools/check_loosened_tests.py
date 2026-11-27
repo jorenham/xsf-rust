@@ -15,7 +15,7 @@ reports with file and line:
   property, `// known:` comment) in `tests/properties`
 - a new `#[ignore]`
 - a removed test (a `#[test]` function or an entry of `xsref::tests!`) that is a test in no changed
-  file anymore, by name
+  file anymore, by name, unless the file has a new test (a rename) and the function remains no more
 - removed rows of a test table, whose inputs no added row has
 - a removed xsref table, or a removed row or a larger tolerance or scale of one
   (`tests/data/xsref`)
@@ -150,8 +150,8 @@ def test_names(rev: str, path: str) -> dict[str, int]:
                     break
                 if not after.strip().startswith(("#[", "//")):
                     break
-        elif TEST_ENTRY.match(text):
-            names.setdefault(text.strip(), i)
+        elif m := TEST_ENTRY.match(text):
+            names.setdefault(m[1], i)
     return names
 
 
@@ -230,14 +230,19 @@ def check_code(diff: str, base: str, head: str) -> list[Finding]:
         gone_rows += [(h.path, ln) for ln in removed if is_row(ln.text)]
         added_rows |= {inputs(ln.text) for ln in added if is_row(ln.text)}
 
-    # a test that is moved to another file is not removed; one that is renamed is
+    # a test that is moved to another file is not removed
     kept = {name for path in paths for name in test_names(head, path)}
     for path in paths:
-        out.extend(
-            Finding(path, line, f"removed test `{name}`")
-            for name, line in test_names(base, path).items()
-            if name not in kept
-        )
+        old, new = test_names(base, path), test_names(head, path)
+        text = blob(head, path)
+        gone = [(n, ln) for n, ln in old.items() if n not in kept]
+        # a removed test is renamed if the file has a new test, unless its function remains
+        renames = sum(n not in old for n in new)
+        for name, line in gone:
+            if re.search(rf"\bfn\s+{name}\b", text) or renames <= 0:
+                out.append(Finding(path, line, f"removed test `{name}`"))
+            else:
+                renames -= 1
     if missing := [(p, ln) for p, ln in gone_rows if inputs(ln.text) not in added_rows]:
         path, ln = missing[0]
         out.append(
