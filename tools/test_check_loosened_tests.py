@@ -301,10 +301,10 @@ class Synthetic(unittest.TestCase):
             ),
             [found],
         )
-        # a computed output that becomes a convention
+        # a computed output that becomes a convention for another reference
         self.assertEqual(
             self.check(
-                {BIN: computed}, {BIN: statuses([(1.0, 2.0, 0.0, 0.0)], 2, ruled=False)}
+                {BIN: computed}, {BIN: statuses([(1.0, 3.0, 0.0, 0.0)], 2, ruled=False)}
             ),
             [found],
         )
@@ -321,6 +321,76 @@ class Synthetic(unittest.TestCase):
             ),
             [],
         )
+
+    def test_xsref_gap_subsets(self) -> None:
+        nan, zero = math.nan, 0.0
+        found = f"{BIN}: larger tolerance or scale, or weaker status in 1 xsref row"
+        convention, computed, legacy = 2, 1, 0
+
+        def one(row: tuple[float, ...], status: int, *, ruled: bool = False) -> bytes:
+            return statuses([row], status, ruled=ruled)
+
+        def gap(
+            ref: float, rule: float, tol: float = 1e-8, scale: float = 0.0
+        ) -> bytes:
+            return one((1.0, ref, tol, scale, rule), 3, ruled=True)
+
+        cases: list[tuple[bytes, bytes, list[str]]] = [
+            # a gap that loses its assertion, or closes at another reference
+            (gap(2.0, nan), one((1.0, 2.0, 1e-8, 0.0), legacy), [found]),
+            (gap(3.0, nan), one((1.0, 42.0, 1e-8, 0.0), computed), [found]),
+            (gap(3.0, nan), one((1.0, 3.0, 1e-8, 0.0), computed), []),
+            # a smaller tolerance shrinks what the gap excludes
+            (gap(2.0, 1.0, 0.125), gap(2.0, 1.0, 0.0625), [found]),
+            (gap(2.0, 1.0, 0.0625), gap(2.0, 1.0, 0.125), []),
+            (gap(2.0, 1.0, scale=1.0), gap(2.0, 1.0, scale=0.5), [found]),
+            (
+                gap(1.0, 1 + 2.0**-24 + 2.0**-52, 2.0**-26),
+                gap(1.0, 1 + 2.0**-24 + 2.0**-52, 2.0**-27),
+                [found],
+            ),
+            # a rule-less gap has no rule to lose, but its reference must stay
+            (one((1.0, 2.0, 0.125, 0.0), 3), gap(2.0, 1.0, 0.0625), [found]),
+            (one((1.0, 2.0, 0.125, 0.0), 3), gap(3.0, 1.0, 0.125), [found]),
+            # a wider convention than the rule check of a gap
+            (gap(3.0, 2.0), one((1.0, 2.0, 0.01, 0.0), convention), [found]),
+            (gap(3.0, 2.0), one((1.0, 2.0, 0.0, 1.0), convention), [found]),
+            (gap(3.0, 2.0), one((1.0, 2.0, 0.0, 0.0), convention), []),
+            # an output that is checked for more, on the same reference
+            (
+                one((1.0, zero, 1e-15, 0.0), computed),
+                one((1.0, zero, 0.0, 0.0), convention),
+                [],
+            ),
+            (
+                one((1.0, nan, 0.0, 0.0), convention),
+                gap(1.0, -nan),
+                [],
+            ),
+            (one((1.0, zero, 0.0, 0.0), legacy), gap(1.0, zero), []),
+            (one((1.0, zero, 0.0, 0.0), legacy), gap(1.0, -zero), [found]),
+        ]
+        for old, new, expected in cases:
+            with self.subTest(old=old[20:], new=new[20:]):
+                self.assertEqual(self.check({BIN: old}, {BIN: new}), expected)
+
+    def test_parse_table(self) -> None:
+        row = struct.pack("<5d", 1.0, 2.0, 1e-8, 0.0, math.nan)
+        gap = statuses([(1.0, 2.0, 1e-8, 0.0, math.nan)], 3, ruled=True)
+        self.assertEqual(c.parse_table(gap)[struct.pack("<d", 1.0)][0].status, 3)
+        # rule values without statuses
+        header = b"XSFT" + struct.pack("<IIHHHH", 1, 1, 1, 1, 1, 2 | 4)
+        invalid = [
+            header + row + bytes(1),
+            # statuses that are missing, or one byte too many
+            gap[:-1],
+            gap + bytes(1),
+            table(ROWS)[:-1],
+            table(ROWS) + bytes(1),
+        ]
+        for data in invalid:
+            with self.subTest(data=data[8:]), self.assertRaises(ValueError):
+                c.parse_table(data)
 
     def test_xsref_removed(self) -> None:
         removed = [f"{BIN}: removed xsref table"]

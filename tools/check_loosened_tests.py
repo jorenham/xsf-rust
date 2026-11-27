@@ -27,6 +27,7 @@ status is 1 if there are findings. On GitHub Actions, they are also printed as a
 `found=true|false` is written to `GITHUB_OUTPUT` (exit status 0).
 """
 
+import math
 import os
 import re
 import struct
@@ -285,8 +286,10 @@ class Output(NamedTuple):
     status: int  # LEGACY, COMPUTED, CONVENTION, or GAP
     tol: float
     scale: float
-    # the f64s of the reference, or the rule value of a gap (empty without one: any wrong output)
-    value: bytes
+    # the f64s of the reference
+    ref: bytes
+    # the f64s of the rule value of a gap (None without one: any wrong output)
+    rule: bytes | None
 
 
 def parse_table(data: bytes) -> dict[bytes, list[Output]]:
@@ -298,11 +301,16 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
         msg = "not an xsref table"
         raise ValueError(msg)
     n_rows, n_in, n_out, n_tol, flags = struct.unpack_from("<IHHHH", data, 8)
-    scaled = bool(flags & 2)
-    n_rules = n_out if flags & 4 else 0
-    width = n_in + n_out + n_tol * (1 + scaled) + n_rules
+    has_status, scaled, ruled = (bool(flags & bit) for bit in (1, 2, 4))
+    width = n_in + n_out + n_tol * (1 + scaled) + n_out * ruled
+    # like the reader of the tables, which rejects other lengths and rules without statuses
+    if (ruled and not has_status) or len(data) != 20 + n_rows * (
+        8 * width + 1 + n_tol * has_status
+    ):
+        msg = "invalid xsref table"
+        raise ValueError(msg)
     values = struct.unpack_from(f"<{n_rows * width}d", data, 20)
-    # without statuses, the outputs are legacy ones, like in the reader of the tables
+    # without statuses, the outputs are legacy ones
     statuses = data[20 + 8 * n_rows * width + n_rows :] or bytes(n_rows * n_tol)
     size = n_out // n_tol
     rows: dict[bytes, list[Output]] = {}
@@ -314,28 +322,60 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
         # without scales there are none (0)
         scales = rest[: n_tol * scaled] or (0.0,) * n_tol
         rules = rest[n_tol * scaled :]
-        outs = []
-        for i in range(n_tol):
-            status = statuses[r * n_tol + i]
-            # a gap has the rule value (none without one), any other output the reference
-            src = (rules if status == GAP else refs)[i * size : (i + 1) * size]
-            outs.append(
-                Output(status, tols[i], scales[i], struct.pack(f"<{len(src)}d", *src))
+
+        def pack(x: tuple[float, ...], i: int) -> bytes:
+            return struct.pack(f"<{size}d", *x[i * size : (i + 1) * size])
+
+        rows[struct.pack(f"<{n_in}d", *row[:n_in])] = [
+            Output(
+                status,
+                tols[i],
+                scales[i],
+                pack(refs, i),
+                pack(rules, i) if status == GAP and rules else None,
             )
-        rows[struct.pack(f"<{n_in}d", *row[:n_in])] = outs
+            for i in range(n_tol)
+            for status in [statuses[r * n_tol + i]]
+        ]
     return rows
 
 
+def same(a: bytes | None, b: bytes | None) -> bool:
+    """Whether values are equal, per f64 with NaNs equal and zero signs kept"""
+    if a is None or b is None or len(a) != len(b):
+        return False
+    xs, ys = (struct.unpack(f"<{len(v) // 8}d", v) for v in (a, b))
+    return all(
+        x.hex() == y.hex() or (math.isnan(x) and math.isnan(y))
+        for x, y in zip(xs, ys, strict=True)
+    )
+
+
 def output_loosened(old: Output, new: Output) -> bool:
-    """Whether `new` accepts more than `old`: a gap accepts its rule value, like a convention"""
-    if new.status == GAP or (old.status, new.status) == (GAP, CONVENTION):
-        # a gap without a rule value accepted any wrong output
-        if old.status == GAP and not old.value:
-            return False
-        return old.status not in (CONVENTION, GAP) or new.value != old.value
-    if (old.status, new.status) == (COMPUTED, CONVENTION):
-        return True
-    return new.tol > old.tol or new.scale > old.scale
+    """Whether `new` accepts more than `old`, where a gap accepts its rule value (what a
+    convention accepts at a tolerance of 4 `EPSILON`) and not what passes its reference"""
+    same_ref = same(new.ref, old.ref)
+    not_larger = new.tol <= old.tol and new.scale <= old.scale
+    if new.status == GAP:
+        if old.status != GAP:
+            return not same(new.rule, old.ref)
+        # a smaller tolerance or scale makes the exclusion of the reference smaller
+        return not (
+            same_ref
+            and new.tol >= old.tol
+            and new.scale >= old.scale
+            and (old.rule is None or same(new.rule, old.rule))
+        )
+    if old.status == GAP:
+        if new.status == CONVENTION:
+            return old.rule is not None and not (
+                same(new.ref, old.rule) and new.tol <= EPSILON and new.scale == 0
+            )
+        # a gap that closes
+        return not (new.status == COMPUTED and same_ref and not_larger)
+    if new.status == CONVENTION and old.status in (LEGACY, COMPUTED):
+        return not (same_ref and not_larger)
+    return not not_larger
 
 
 def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[Finding]:

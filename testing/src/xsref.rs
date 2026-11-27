@@ -227,15 +227,16 @@ impl Check {
     }
 }
 
-/// The table metric also checks the relative error of a finite component next to an infinity.
+/// The table metric also checks the relative error of a finite component next to a NaN or an
+/// infinity.
 /// Use the extended absolute error over a nonzero `scale` where that is smaller.
 fn table_error<T: TestOutputValue>(actual: T, expected: T, scale: f64) -> f64 {
     let [re, im] = expected.parts();
     let [a_re, a_im] = actual.parts();
     let error = extended_relative_error(actual, expected);
-    let error = if re.is_infinite() && im.is_finite() {
+    let error = if !re.is_finite() && im.is_finite() {
         error.max(extended_relative_error(a_im, im))
-    } else if im.is_infinite() && re.is_finite() {
+    } else if !im.is_finite() && re.is_finite() {
         error.max(extended_relative_error(a_re, re))
     } else {
         error
@@ -524,19 +525,20 @@ where
                 }
                 let wrong = RULE.failure(actual, rule, 0.0);
                 known_gaps += usize::from(wrong.is_none());
-                return wrong;
+                return wrong.map(|error| (error, true));
             }
-            failure
+            failure.map(|error| (error, false))
         })
-        .reduce(f64::max);
+        // the largest error, and whether it is that of a rule
+        .reduce(|a, b| if b.0 > a.0 || a.0.is_nan() { b } else { a });
 
-        if let Some(error) = error {
+        if let Some((error, by_rule)) = error {
             failed += 1;
             if error > worst_err {
                 worst_err = error;
                 worst_in = case.r#in.clone();
                 worst_actual = actual.format();
-                worst_expect = case.out.format();
+                worst_expect = if by_rule { &case.rule } else { &case.out }.format();
             }
         }
     }
@@ -810,6 +812,17 @@ mod tests {
         }
         assert!(run(2.0, 0.0, 0.0, -0.0).is_err());
         assert!(run(2.0, 0.0, 0.0, 1e-300).is_err());
+        // a finite rule value is checked even where its partner is NaN, and is the desired one
+        let run2 = |actual: (f64, f64)| {
+            let row = [1.0, 2.0, 3.0, tol, 0.0, nan, 1e-300];
+            let table = file([1, 2, 1], flags, &[(&row, 0, &[status])]);
+            check("f", &Table::parse(&table).unwrap().test_cases::<Complex<f64>>(), |_| {
+                c64(actual.0, actual.1)
+            })
+        };
+        assert_eq!(run2((nan, 1e-300)), Ok(1));
+        assert!(run2((nan, 1e-16)).is_err());
+        assert!(run(2.0, 1.0, 0.0, 3.0).unwrap_err().contains("desired=1"));
     }
 
     #[test]

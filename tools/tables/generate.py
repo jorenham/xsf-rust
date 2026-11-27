@@ -127,7 +127,7 @@ def table_error(y: complex, f: complex, scale: float = 0.0) -> float:
     e = d / math.hypot(*m)
     if math.isinf(math.hypot(*m)):  # the modulus of a complex reference overflows
         e = d / 2 / math.hypot(*(x / 2 for x in m))
-    if any(map(math.isinf, f_parts)):
+    if not all(map(math.isfinite, f_parts)):
         for ref, error, mag in zip(f_parts, errors, m, strict=True):
             if math.isfinite(ref):
                 e = max(e, error / abs(mag))
@@ -204,6 +204,7 @@ def computed_inputs(
     require(
         (magic, version) == (MAGIC, VERSION)
         and flags & ~(STATUS | SCALES | RULES) == 0
+        and (not flags & RULES or flags & STATUS)
         and n_rows > 0
         and (n_in, n_out, n_tol) == (baseline.n_in, baseline.n_out, baseline.n_tol),
         invalid,
@@ -612,9 +613,10 @@ def generate(
                 ]
                 f = value(tuple(f for f, _, _ in checked))
                 if rule:
-                    # xsf-rust must still follow the rule, or else the gap is closed
+                    # xsf-rust must still follow the rule, like the reader's check of a gap
                     require(
-                        same_class(rust[r, i], rule.value),
+                        same_class(rust[r, i], rule.value)
+                        and table_error(rust[r, i], rule.value) <= 4 * EPS,
                         f"xsf-rust has {rust[r, i]}, the gap rule {rule.value} "
                         f"({rule.why}): replace the rule by a computed reference",
                     )
