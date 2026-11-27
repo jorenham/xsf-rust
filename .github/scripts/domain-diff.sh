@@ -11,35 +11,36 @@
 # Needs PR (the number of the PR) and GH_TOKEN and GH_REPO for `gh`.
 set -euo pipefail
 
+table=$RUNNER_TEMP/table.md
 code=0
 uv run --project tools tools/accuracy/domain_diff.py \
-  --base HEAD^1 --affected --max-inputs 2097152 > "$RUNNER_TEMP/table.md" || code=$?
-cat "$RUNNER_TEMP/table.md"
+  --base HEAD^1 --affected --max-inputs 2097152 > "$table" || code=$?
+cat "$table"
 {
   echo "## Accuracy over whole domains"
-  cat "$RUNNER_TEMP/table.md"
+  cat "$table"
 } >> "$GITHUB_STEP_SUMMARY"
-case "$code:$(tail -n 1 "$RUNNER_TEMP/table.md")" in
+case "$code:$(tail -n 1 "$table")" in
   0:*) ;;
   1:*FAIL)
     echo "::error::A function got less accurate over a domain (see the job summary and the artifact domain-diff)"
+    exit 1
     ;;
   2:*INCONCLUSIVE) echo "::warning::The comparison is incomplete (see the job summary)" ;;
   3:*SLOW)
-    # not from the event, whose labels are those from when the run started
-    if ! labels=$(gh pr view "$PR" --json labels --jq '.labels[].name'); then
+    # read live: the labels of the event are those from when the run started
+    query='any(.labels[]; .name == "allow-slowdown")'
+    if ! allowed=$(gh pr view "$PR" --json labels --jq "$query"); then
       echo "::error::The labels of the PR could not be read"
-      code=1
-    elif grep -qx allow-slowdown <<< "$labels"; then
-      echo "::warning::A function got slower (see the job summary); allowed by the label allow-slowdown"
-    else
+      exit 1
+    elif [ "$allowed" != true ]; then
       echo "::error::A function got slower (see the job summary); add the label allow-slowdown and re-run the job if that is intended"
-      code=1
+      exit 1
     fi
+    echo "::warning::A function got slower (see the job summary); allowed by the label allow-slowdown"
     ;;
   *)
     echo "::error::domain_diff.py failed with exit code $code"
-    code=1
+    exit 1
     ;;
 esac
-[ "$code" = 0 ] || [ "$code" = 2 ] || [ "$code" = 3 ]
