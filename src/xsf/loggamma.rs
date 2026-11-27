@@ -215,6 +215,24 @@ fn cloggamma_public(z: C64) -> C64 {
     w
 }
 
+/// `exp(w)` for `w = +-loggamma(z)`, with only the magnitude where `Im(w)` loses the phase
+pub(crate) fn exp_loggamma(w: C64) -> C64 {
+    // From here on, adjacent f64 values of Im(w) are more than pi apart.
+    const PHASE_LOST: f64 = TAU / f64::EPSILON;
+    if w.im.abs() < PHASE_LOST {
+        return w.exp();
+    }
+    // Like C's cexp(-inf + i NaN) and cexp(inf + i NaN).
+    let r = w.re.exp();
+    if r == 0.0 {
+        C64::ZERO
+    } else if r == f64::INFINITY {
+        c64(r, f64::NAN)
+    } else {
+        C64::NAN
+    }
+}
+
 /// `xsf::rgamma` for complex `z`
 fn crgamma(z: C64) -> C64 {
     // Compute 1/Gamma(z) using loggamma.
@@ -234,9 +252,9 @@ fn crgamma(z: C64) -> C64 {
     }
     // Unlike in xsf, recover the signs from the reflected phase (DLMF 5.5.3).
     // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
-    // For z = -N + iy, the conservative bound |y| <= 10 keeps the error from
-    // replacing Im(log Gamma(N + 1 - iy)) with -y*ln(N) below 2*|y|/N.
-    if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= 10.0 {
+    // For z = -N + iy with |y| <= sqrt(eps)*N, replacing Im(log Gamma(N + 1 - iy)) with
+    // -y*ln(N) errs by about |y|/(2N) + |y|^3/(6N^2) (DLMF 5.11.1), at most eps*|y|.
+    if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= -z.re * f64::EPSILON.sqrt() {
         let phase = -z.im * (-z.re).ln();
         let sign = z.im.signum();
         // The reflected magnitude forces overflow in both components, even for subnormal y.
@@ -265,7 +283,8 @@ fn crgamma(z: C64) -> C64 {
             return c64(re, im);
         }
     }
-    (-cloggamma(z)).exp()
+    // Unlike in xsf, keep only the magnitude where the phase is lost.
+    exp_loggamma(-cloggamma(z))
 }
 
 pub trait LogGammaArg: crate::sealed::Sealed {

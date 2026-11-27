@@ -147,10 +147,27 @@ fn test_rgamma_c64_overflow_at_large_even_real_part() {
         (-2.998_076_996_061_15e154, 1.268_434_288_203_711_7e-10, c64(inf, inf)),
         (-2.998_076_996_061_15e154, 8.333_333_333_333_334, c64(-inf, inf)),
         (-8.988_465_674_311_05e307, 10.0, c64(-inf, -inf)),
+        (-9_007_199_254_740_992.0, 100.0, c64(-inf, -inf)),
+        (-2.998_076_996_061_15e154, 1e3, c64(-inf, inf)),
+        (-8.988_465_674_311_05e307, 1e6, c64(inf, -inf)),
     ] {
         assert_eq!(xsf::rgamma(c64(x, y)), expected);
         assert_eq!(xsf::rgamma(c64(x, -y)), expected.conj());
         assert_eq!(xsf::rgamma(c64(x, 0.0)), c64(0.0, 0.0));
+    }
+}
+
+#[test]
+fn test_rgamma_c64_phase_lost() {
+    // 1/Gamma overflows with a phase that f64 cannot resolve.
+    for (x, y) in [
+        (10.0, 2.998_076_996_061_15e154),
+        (10.0, 8.988_465_674_311_05e307),
+        (-2.998_076_996_061_15e154, 1e140),
+    ] {
+        for w in [xsf::rgamma(c64(x, y)), xsf::rgamma(c64(x, -y))] {
+            assert!(w.re == f64::INFINITY && w.im.is_nan());
+        }
     }
 }
 
