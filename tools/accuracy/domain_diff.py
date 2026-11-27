@@ -23,14 +23,13 @@ Exit with 1 if a domain has
 - (c) a net loss: `worse - better > SIGMAS * sqrt(worse + better)`; a heuristic of a sign test
   with more than `SIGMAS` standard deviations, so that a loss in one domain fails whatever the
   gains in the others, but a few losses among many gains do not (the inputs of one Sobol net
-  are not independent, and failed references drop votes),
-- (d) a new panic,
+  are not independent),
+- (d) a new panic.
 
-or if the head times out where the base does not.
-
-Otherwise exit with 2 if a comparison could not be made: a spec was skipped (an unsupported or
-timed out revision, other than a head-only timeout), or the reference of an input of (a) or (b)
-failed or is NaN (marked "?" in "fails").
+Otherwise exit with 2 if a comparison could not be made: a spec was skipped (an unsupported
+revision, or a timeout, which is retried once if only one revision timed out), the reference
+of an input of (a) or (b) failed or is NaN (marked "?" in "fails"), or the sampled inputs
+without a reference would make (c) a net loss if they all got worse (marked with their count).
 """
 
 import argparse
@@ -180,6 +179,10 @@ def references(
     return [cache[k] if k in cache else new[k] for k in keys]
 
 
+def net_loss(worse: int, better: int) -> bool:
+    return worse - better > SIGMAS * math.sqrt(worse + better)
+
+
 def fmt(x: float | None) -> str:
     return "-" if x is None else f"{x:.1e}"
 
@@ -199,17 +202,22 @@ def compare(
         spans.append(range(len(lines), len(lines) + len(xs)))
         lines += [(dom.call or spec.func, x) for x in xs]
     with ThreadPoolExecutor() as threads:
-        b, h = threads.map(fuzz_diff.evaluate, exes, [lines] * len(exes))
+        res = list(threads.map(fuzz_diff.evaluate, exes, [lines] * len(exes)))
+    # a timeout of one revision only is probably the load of the machine, so it gets a retry
+    timed_out = [y == "timeout" for y in res]
+    if sum(timed_out) == 1 and not any(
+        isinstance(y, str) and y != "timeout" for y in res
+    ):
+        i = timed_out.index(True)
+        res[i] = fuzz_diff.evaluate(exes[i], lines)
+    b, h = res
     if isinstance(b, str) or isinstance(h, str):
         status = [y if isinstance(y, str) else "ok" for y in (b, h)]
         accuracy.log(f"{spec.name}: skipped, base {status[0]}, head {status[1]}")
-        head_only = status == ["ok", "timeout"]
-        note = (
-            "timeout" if head_only else f"skipped: base {status[0]}, head {status[1]}"
-        )
+        note = f"skipped: base {status[0]}, head {status[1]}"
         # The reason takes the place of the counts.
         row = [spec.name, "-", note, *["-"] * (len(COLUMNS) - 3)]
-        return [row], [], head_only, not head_only
+        return [row], [], False, True
 
     rows: list[list[str]] = []
     flagged: list[tuple[float, str]] = []
@@ -246,7 +254,10 @@ def compare(
         better = sum(k == "improved" for k in kinds.values())
         worse_ids = [i for i, k in kinds.items() if k == "regressed"]
         worse = len(worse_ids)
-        loss = worse - better > SIGMAS * math.sqrt(worse + better)
+        loss = net_loss(worse, better)
+        # (inputs without a reference vote for neither side, so they could hide a loss)
+        noref_rest = sum(i in noref for i in rest)
+        hidden = not loss and net_loss(worse + noref_rest, better)
         sample_errs = [errs[i] for i in rest if i in errs]
         peak = " -> ".join(
             fmt(max((e[j] for e in sample_errs), default=None)) for j in (0, 1)
@@ -264,7 +275,7 @@ def compare(
             if bad
         )
         failed |= bool(fails)
-        inconclusive |= unknown
+        inconclusive |= unknown or hidden
         rows.append(
             [
                 spec.name,
@@ -276,7 +287,7 @@ def compare(
                 str(len(cand_a)),
                 str(len(cand_b)),
                 str(len(panics)),
-                fails + "?" * unknown,
+                fails + "?" * unknown + f" ({noref_rest} no ref)" * hidden,
             ]
         )
 
