@@ -617,6 +617,7 @@ fn digits_left(id: f64, p: f64, q: f64) -> f64 {
 ///
 /// # See also
 /// - [`assoc_legendre_p_all`](crate::assoc_legendre_p_all)
+#[doc(alias = "lpmv")]
 #[must_use]
 #[inline]
 pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
