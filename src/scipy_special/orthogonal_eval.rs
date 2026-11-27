@@ -286,10 +286,11 @@ const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
 ///   `c, lam + 1 - c > -4 EPSILON`, which keeps the digits of a small `beta + 1` and admits the
 ///   rounding of `c` and `lam`, and `alpha, beta` a few ulps below -1 (the recurrence is
 ///   continuous in `alpha` and `beta`).
-/// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
-///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values, or
-///   off `-1 < x < 1`, if that threshold, lowered as below, is at most `HYP2F1_ETHRESH |G_n|` or
-///   below `series_error()`. Off `-1 < x < 1`, where `series` can overflow, it must also be finite.
+/// - The recurrence replaces `series` if that isn't finite, or if they differ by more than
+///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
+///   Off `-1 < x < 1`, it also does if that threshold, lowered as below, is at most
+///   `HYP2F1_ETHRESH |G_n|` or below `series_error()`. There, where `series` can overflow, the
+///   recurrence must also be finite.
 /// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the relative residual of the starting
 ///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
 ///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the

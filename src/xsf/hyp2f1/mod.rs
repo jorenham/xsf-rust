@@ -1655,9 +1655,9 @@ fn hyp2f1_taylor_step<const N: usize>(
 }
 
 /// F(a, b; c; z) for c > 0, a or b > 0 and |1 - z| < 1 by analytic continuation of the Maclaurin
-/// series at x0 = min(1/2, 1 - |1 - z|), and for a b < 0 at most c / (4 |a b|), along the real
-/// axis to 1 - |1 - z| and then along the circle about 1 through z, with its estimated error. For
-/// |1 - z| > 1 and Re z < 1, the same for its Pfaff transform.
+/// series at x0 = min(1/2, 1 - |1 - z|) along the real axis to 1 - |1 - z| and then along the
+/// circle about 1 through z, with its estimated error. If a b < 0, x0 is also at most
+/// c / (4 |a b|). For |1 - z| > 1 and Re z < 1, the same for its Pfaff transform.
 //
 // On that path, the nearest singular point is 1, or 0 near x0 if x0 < 1/2.
 fn hyp2f1_continued(a: f64, b: f64, c: f64, z: C64) -> Option<Estimate> {
