@@ -43,7 +43,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Final
+from typing import Final, TypeGuard
 
 import flint
 import mpmath as mp
@@ -60,24 +60,24 @@ FLOOR: Final = 2.0**-51
 ARB_PRECS: Final = (128, 512, 2048)
 # the relative accuracy of an Arb reference
 BITS: Final = 64
-# the exponents of 2 of the numbers that round to a nonzero finite f64, or to 0 from a midpoint
+# the exponents of 2 of the numbers that round to a nonzero finite f64 (or to 0, from a midpoint)
 F64_EXPS: Final = range(
     sys.float_info.min_exp - sys.float_info.mant_dig, sys.float_info.max_exp + 1
 )
-# replaces a signed zero argument, for the side of a branch cut, or the sign of a zero result
+# replaces a zero argument, for the side of a branch cut or the sign of a zero result
 TINY: Final = math.ulp(0.0)
-# the offsets of a signed zero imaginary argument, for the side of a branch cut: each the square
-# of the last, so that one is also small next to a tiny real argument
+# the offsets of a zero imaginary argument: each the square of the last, so that one is also
+# small next to a tiny real argument
 SIDES: Final = tuple(mp.mpf(TINY) ** 2**k for k in range(3))
 # the reference where the function rejects the input (and is NaN)
 REJECTED: Final = "rejected"
-# the prefix of a reference that fails with an exception of `fuzz_diff.py` itself
-FAILED: Final = "failed: "
-# the exit code of a panic
-PANIC: Final = 101
 # the smallest part of a complex mpmath reference (relative to its absolute value) that is
 # accurate, as for a real reference in `accuracy.ref_task`
 MP_TOL: Final = mp.mpf(10) ** -40
+# the prefix of a reference that fails with an exception
+FAILED: Final = "failed: "
+# the exit code of a panic
+PANIC: Final = 101
 # seconds per run of a dump program, and per line in it
 RUN_TIMEOUT: Final = 10
 LINE_TIMEOUT: Final = 0.02
@@ -86,7 +86,7 @@ NEAR_ROUNDS: Final = 3
 CACHE: Final = accuracy.CACHE / "fuzz-diff"
 IMAG: Final = {"im", "xi", "yi", "zi", "pi"}
 # (of a random sign)
-SPECIAL: Final = (0.0, math.ulp(0), DBL_MIN, DBL_MAX, math.inf, math.nan)
+SPECIAL: Final = (0.0, TINY, DBL_MIN, DBL_MAX, math.inf, math.nan)
 KINDS: Final = (
     "regressed",
     "improved",
@@ -120,20 +120,20 @@ def _elliprj(
     return flint.acb.elliptic_rj(x, y, z, p).real if min(x, y, z) >= 0 else None
 
 
-def _lambertw_c(re: flint.arb, im: flint.arb) -> flint.acb:
-    return flint.acb(re, im).lambertw()
-
-
 def _hypu(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb | None:
     u = x.hypgeom_u(a, b)
     return u if x >= 0 or u.is_finite() else None
 
 
+def _lambertw_c(re: flint.arb, im: flint.arb) -> flint.acb:
+    return flint.acb(re, im).lambertw()
+
+
 # with the complex functions that `specs.ARB` lacks, since their specs use mpmath (whose
 # `lambertw` ignores an imaginary part of e.g. 2^-1100, and so the side of its cut), and the
 # real functions outside the domains of their specs: None where they reject the input (and are
-# NaN, e.g. U where it is not real), and the Cauchy principal value (the mean of both sides of
-# the cut, i.e. the real part) for Carlson's integrals with a negative last argument
+# NaN, e.g. U where it is not real), and the Cauchy principal value (the real part, the mean of
+# both sides of the cut) for Carlson's integrals with a negative last argument
 ARB: Final[dict[str, Callable[..., flint.arb | flint.acb | None]]] = {
     **specs.ARB,
     "hyp1f1#c": _hyp1f1_c,
@@ -190,11 +190,11 @@ def run(exe: Path, lines: list[Line]) -> list[Value]:
     deadline = time.monotonic() + RUN_TIMEOUT + LINE_TIMEOUT * len(lines)
     inp = [accuracy.dump_line(*line) for line in lines]
     out: list[Value] = []
-    # the lines of the next run: the rest, or only the next after the program dies without
-    # unwinding
-    n = len(lines)
+    # after the program dies without unwinding, the next run is of one line, to find that line
+    one = False
     while len(out) < len(lines):
-        todo = inp[len(out) : len(out) + n]
+        todo = inp[len(out) : len(out) + (1 if one else len(lines))]
+        one = False
         try:
             res = subprocess.run(
                 [str(exe), "xsf"],
@@ -207,23 +207,18 @@ def run(exe: Path, lines: list[Line]) -> list[Value]:
             done = accuracy.parse(res.stdout)
             assert len(done) == len(todo), (exe, len(done), len(todo))
             out += done
-            n = len(lines)
         except subprocess.CalledProcessError as e:
             if "unknown function" in e.stderr:
                 raise
-            # drop a partial last line
+            # (drops a partial last line)
             done = accuracy.parse(e.stdout[: e.stdout.rfind("\n") + 1])
-            if len(todo) == 1:
+            # a panic writes the results before it as it unwinds; else (e.g. an abort or a
+            # signal) the unwritten results are lost
+            panic = len(todo) == 1 or (e.returncode == PANIC and len(done) < len(todo))
+            out += done[: len(todo) - 1]
+            if panic:
                 out.append(None)
-                n = len(lines)
-            elif e.returncode == PANIC and len(done) < len(todo):
-                # the results before the line that panics, which the program writes as it
-                # unwinds
-                out += [*done, None]
-            else:
-                # (e.g. an abort or a signal, which loses the unwritten results)
-                out += done[: len(todo) - 1]
-                n = 1
+            one = not panic
     return out
 
 
@@ -352,7 +347,7 @@ def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
         if v is None:
             return REJECTED
     r = accuracy.ref_task((name, args))
-    if isinstance(r, list) and any(mp.isnan(mp.mpf(p)) for p in _values(r)):
+    if isinstance(r, list) and any(mp.isnan(p) for p in _mpfs(r)):
         return "NaN reference"
     if spec.complex and isinstance(r, list) and isinstance(r[0], list):
         tol = abs(mp.mpc(*r[0])) * MP_TOL
@@ -374,23 +369,22 @@ def _values(r: accuracy.Ref) -> list[str]:
     return [v] if isinstance(v, str) else v or []
 
 
-def _mpc(r: accuracy.Ref) -> mp.mpc:
-    return mp.mpc(*map(mp.mpf, _values(r)))
+def _mpfs(r: accuracy.Ref) -> list[mp.mpf]:
+    return [mp.mpf(p) for p in _values(r)]
 
 
 def ref(line: Line) -> accuracy.Ref | str:
-    """The reference (see `_value`), or an error string. For a signed zero imaginary argument,
-    that on its side of a branch cut (see `_side`); and a part that is 0 gets a sign where that
-    of the function changes with those of the real zero arguments, that of the limit from their
-    side, as `TINY`."""
+    """The reference (see `_value`) or an error string; with a signed zero imaginary argument,
+    that on its side of a branch cut (see `_side`); and a part that is 0 has the sign of the
+    limit from the side of the real zero arguments, as `TINY`, where that changes with them."""
     try:
         return _ref(line)
     except Exception as e:  # noqa: BLE001
         return f"{FAILED}{type(e).__name__}: {e}"
 
 
-def _finite(r: accuracy.Ref | str) -> bool:
-    return isinstance(r, list) and all(mp.isfinite(mp.mpf(p)) for p in _values(r))
+def _finite(r: accuracy.Ref | str) -> TypeGuard[accuracy.Ref]:
+    return isinstance(r, list) and all(map(mp.isfinite, _mpfs(r)))
 
 
 def _side(
@@ -399,17 +393,16 @@ def _side(
     """The limit from the side of the signed zeros at `imag`: the value at the first offset of
     `SIDES` that agrees with that at the previous one (to `BITS` bits of the larger of its
     absolute value and `DBL_MIN`), else `r`, that at the point (as near a branch point of a
-    small power, e.g. (1 - z)^0.01). Where the reference fails, or cannot tell the sides apart
-    (with the same non-real value on both, which f(conj(z)) = conj(f(z)) rules out for most
-    functions), that at the previous offset (or `r`)."""
+    small power, e.g. (1 - z)^0.01). If the reference fails, or is the same non-real value on
+    both sides (which f(conj(z)) = conj(f(z)) rules out for most functions), that at the
+    previous offset (or `r`)."""
     last = r
     for i, d in enumerate(SIDES):
         s = _value(name, _sided(args, imag, d))
         if not _finite(s):
             return last
-        assert isinstance(s, list)
         if i:
-            u, v = _mpc(last), _mpc(s)
+            u, v = (mp.mpc(*_mpfs(x)) for x in (last, s))
             if abs(u - v) <= mp.ldexp(max(abs(u), DBL_MIN), -BITS):
                 return s
             if v.imag and s == _value(name, _sided(args, imag, -d)):
@@ -426,9 +419,8 @@ def _ref(line: Line) -> accuracy.Ref | str:
     real = zeros - imag
     r = _value(name, args)
     if imag and _finite(r):
-        assert isinstance(r, list)
         r = _side(name, args, imag, r)
-    if not real or not isinstance(r, list) or all(mp.mpf(p) for p in _values(r)):
+    if not real or not isinstance(r, list) or all(_mpfs(r)):
         return r
     near = _sided(args, imag, TINY)
     s, t = (_value(name, _sided(near, real, d)) for d in (TINY, -TINY))
@@ -436,9 +428,9 @@ def _ref(line: Line) -> accuracy.Ref | str:
         return r
     parts = [
         repr(math.copysign(TINY, sign))
-        if mp.mpf(p) == 0 and (sign := mp.sign(mp.mpf(q))) == -mp.sign(mp.mpf(u)) != 0
+        if x == 0 and (sign := mp.sign(q)) == -mp.sign(u) != 0
         else p
-        for p, q, u in zip(_values(r), _values(s), _values(t), strict=True)
+        for p, x, q, u in zip(_values(r), _mpfs(r), _mpfs(s), _mpfs(t), strict=True)
     ]
     return [parts if spec.complex else parts[0], r[1]]
 
@@ -455,7 +447,7 @@ def _zeros(z: complex, r: accuracy.Ref) -> bool:
     """Whether the parts of `z` are 0 (below `DBL_MIN`, as in an underflow) where those of a
     finite reference are, and then of the same sign; a reference part that is exactly 0 has an
     unknown sign."""
-    ps = [mp.mpf(p) for p in _values(r)]
+    ps = _mpfs(r)
     return any(abs(p) > DBL_MAX for p in ps) or all(
         p == 0
         or (abs(u) >= DBL_MIN and abs(p) >= DBL_MIN)
