@@ -211,6 +211,16 @@ def _binom_arb(n: flint.arb, k: flint.arb) -> flint.arb:
     return (k + 1).rgamma() * _gamma_ratio(n + 1 - k, k)
 
 
+def _binom_finite(a: tuple[float, ...]) -> bool:
+    """Whether binom(n, k) of a negative integer n and an integer k >= 0, the polynomial
+    n (n - 1) ... (n - k + 1) / k!, is certainly a finite f64."""
+    n, k = a
+    if not (n < 0 and n.is_integer() and k >= 0 and k.is_integer()):
+        return False
+    with flint.ctx.workprec(ARB_BITS):
+        return abs(_binom_arb(flint.arb(n), flint.arb(k))) < F64_INF_TIE
+
+
 BETA_POLES: Final = (
     Rule(
         lambda a: all(map(_nonpos_int, a)) and a[1] % 2 == 0,
@@ -4844,6 +4854,13 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (_binom_arb,),
                 (
                     NAN,
+                    Rule(
+                        _binom_finite,
+                        math.nan,
+                        "binom(n, k) is finite for a negative integer n and an integer"
+                        " k >= 0, but NaN like in xsf",
+                        gap=True,
+                    ),
                     Rule(
                         lambda a: a[0] < 0 and a[0].is_integer(),
                         math.nan,
