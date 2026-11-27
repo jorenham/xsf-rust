@@ -614,12 +614,12 @@ fn digits_left(id: f64, p: f64, q: f64) -> f64 {
 /// Corresponds to [`scipy.special.lpmv`][scipy] in SciPy.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html
-///
-/// # See also
-/// - [`assoc_legendre_p_all`](crate::assoc_legendre_p_all)
+#[deprecated(
+    since = "0.7.0",
+    note = "use `assoc_legendre_p(v, m, x)` with an `f64` degree `v`"
+)]
 #[must_use]
 #[inline]
 pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
-    // Unlike in xsf, the scaled integer-degree path can return a finite 1e300.
-    lpmv(x, m, v)
+    crate::assoc_legendre_p(v, m, x)
 }

@@ -1807,19 +1807,44 @@ pub fn sph_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<
     z.sph_legendre_p_all(n, m)
 }
 
-/// Associated Legendre polynomial of the 1st kind
+/// Degree of [`assoc_legendre_p`]: an `i32` for real or complex `z`, or an `f64` for real `z`
+pub trait AssocLegendrePDegree<T>: crate::sealed::Sealed {
+    fn assoc_legendre_p(self, m: i32, z: T) -> T;
+}
+
+impl<T: LegendrePArg> AssocLegendrePDegree<T> for i32 {
+    #[inline]
+    fn assoc_legendre_p(self, m: i32, z: T) -> T {
+        z.assoc_legendre_p(self as c_int, m as c_int, 2, false)
+    }
+}
+
+impl AssocLegendrePDegree<f64> for f64 {
+    #[inline]
+    fn assoc_legendre_p(self, m: i32, x: f64) -> f64 {
+        // Unlike in xsf, the scaled integer-degree path can return a finite 1e300.
+        crate::xsf::specfun::lpmv(x, m, self)
+    }
+}
+
+/// Associated Legendre function of the 1st kind, $P_n^m(z)$
 ///
-/// Corresponds to [`scipy.special.assoc_legendre_p`][scipy].
+/// The degree `n` is an `i32`, or an `f64` for real `z`. For an `f64` degree, the result is NaN
+/// if $\abs z > 1$.
+///
+/// With an `i32` degree, this corresponds to [`scipy.special.assoc_legendre_p`][scipy], and with
+/// an `f64` degree, to [`scipy.special.lpmv`][lpmv].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.assoc_legendre_p.html
+/// [lpmv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html
 ///
 /// # See also
 /// - [`assoc_legendre_p_norm`]
 /// - [`assoc_legendre_p_all`]
-#[doc(alias = "lpmv")]
+#[doc(alias = "lpmv", alias = "pmv")]
 #[inline]
-pub fn assoc_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
-    z.assoc_legendre_p(n as c_int, m as c_int, 2, false)
+pub fn assoc_legendre_p<N: AssocLegendrePDegree<T>, T>(n: N, m: i32, z: T) -> T {
+    n.assoc_legendre_p(m, z)
 }
 
 /// All associated Legendre polynomials of the 1st kind

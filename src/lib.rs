@@ -411,20 +411,20 @@
 //!
 //! # Legendre functions
 //!
-//! | Function                      | Description                                                  |
-//! | ----------------------------- | ------------------------------------------------------------ |
-//! | [`legendre_p`]                | Legendre polynomial of the first kind, $P_n(z)$              |
-//! | [`legendre_p_all`]            | All Legendre polynomials of the first kind                   |
-//! | [`assoc_legendre_p`]          | Associated Legendre polynomial of the 1st kind, $P_n^m(z)$   |
-//! | [`assoc_legendre_p_all`]      | All associated Legendre polynomials of the 1st kind          |
-//! | [`assoc_legendre_p_norm`]     | Normalized associated Legendre polynomial                    |
-//! | [`assoc_legendre_p_norm_all`] | All normalized associated Legendre polynomials               |
-//! | [`sph_legendre_p`]            | Spherical Legendre polynomial of the first kind              |
-//! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind         |
-//! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                    |
-//! | [`sph_harm_y_all`]            | All spherical harmonics                                      |
-//! | [`legendre_q_all`]       | All Legendre functions of the 2nd kind and derivatives            |
-//! | [`assoc_legendre_q_all`] | All associated Legendre functions of the 2nd kind and derivatives |
+//! | Function                      | Description                                                       |
+//! | ----------------------------- | ----------------------------------------------------------------- |
+//! | [`legendre_p`]                | Legendre polynomial of the first kind, $P_n(z)$                   |
+//! | [`legendre_p_all`]            | All Legendre polynomials of the first kind                        |
+//! | [`assoc_legendre_p`]          | Associated Legendre function of the 1st kind, $P_n^m(z)$          |
+//! | [`assoc_legendre_p_all`]      | All associated Legendre polynomials of the 1st kind               |
+//! | [`assoc_legendre_p_norm`]     | Normalized associated Legendre polynomial                         |
+//! | [`assoc_legendre_p_norm_all`] | All normalized associated Legendre polynomials                    |
+//! | [`sph_legendre_p`]            | Spherical Legendre polynomial of the first kind                   |
+//! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind              |
+//! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                         |
+//! | [`sph_harm_y_all`]            | All spherical harmonics                                           |
+//! | [`legendre_q_all`]            | All Legendre functions of the 2nd kind and derivatives            |
+//! | [`assoc_legendre_q_all`]      | All associated Legendre functions of the 2nd kind and derivatives |
 //!
 //! # Orthogonal polynomials
 //!
@@ -692,6 +692,7 @@ pub(crate) mod sealed {
     pub trait Sealed {}
     impl Sealed for f32 {}
     impl Sealed for f64 {}
+    impl Sealed for i32 {}
     impl Sealed for u8 {}
     impl Sealed for u16 {}
     impl Sealed for u32 {}
