@@ -13,6 +13,7 @@ use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2, frexp_f64, ldexp_f64, two_prod, two_sum};
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
+use crate::xsf::hyp2f1_continued_c64;
 
 /// The degrees `n` with an exact `n - 1`
 const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON;
@@ -242,8 +243,16 @@ fn hyp2f1_sh_series<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64, b: f64, c: f64
     // Unlike in xsf, try the recurrence in the degree where the hypergeometric series cancels
     // catastrophically for large non-integer degrees.
     let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
-    let y = crate::hyp2f1(-n, b, c, x * -0.5 + 0.5);
-    jacobi_hyp2f1_recurrence(x, nu, lam, c, y).unwrap_or(y)
+    let w = x * -0.5 + 0.5;
+    let y = crate::hyp2f1(-n, b, c, w);
+    // the estimated error of `y` if it is the analytic continuation of the complex `hyp2f1`
+    let y_error = || match x.as_f64() {
+        Some(_) => f64::NAN,
+        None => hyp2f1_continued_c64(-n, b, c, w.into())
+            .filter(|&(value, _)| value == y.into())
+            .map_or(f64::NAN, |(_, error)| error),
+    };
+    jacobi_hyp2f1_recurrence(x, nu, lam, c, y, y_error).unwrap_or(y)
 }
 
 /// A large-degree estimate of the cancellation `ln(sum |terms| / |G_n|)` in the series of
@@ -264,7 +273,8 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
 
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
-/// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
+/// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself), whose
+/// estimated error is `series_error()` if known (else NaN).
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
@@ -276,9 +286,11 @@ const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
 ///   `c, lam + 1 - c > -4 EPSILON`, which keeps the digits of a small `beta + 1` and admits the
 ///   rounding of `c` and `lam`, and `alpha, beta` a few ulps below -1 (the recurrence is
 ///   continuous in `alpha` and `beta`).
-/// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
-///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
-///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
+/// - The recurrence replaces `series` if that isn't finite, or if they differ by more than
+///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
+///   Off `-1 < x < 1`, it also does if that threshold, lowered as below, is at most
+///   `HYP2F1_ETHRESH |G_n|` or below `series_error()`. There, where `series` can overflow, the
+///   recurrence must also be finite.
 /// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the relative residual of the starting
 ///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
 ///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the
@@ -299,6 +311,7 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     lam: f64,
     c: f64,
     series: Z,
+    series_error: impl FnOnce() -> f64,
 ) -> Option<Z> {
     let (alpha, beta, ab) = (c - 1.0, lam - c, lam - 1.0);
     let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
@@ -373,7 +386,12 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     } else {
         f64::INFINITY
     };
-    let better = !series.is_finite() || (rec - series).norm() > estimate.min(tol * growth);
+    // Unlike in xsf, also keep the recurrence where it agrees with `series`, if it is estimated to
+    // be accurate to `HYP2F1_ETHRESH`, or more accurate than `series`.
+    let better = !series.is_finite()
+        || (rec - series).norm() > estimate.min(tol * growth)
+        || estimate <= HYP2F1_ETHRESH * rec.norm()
+        || (estimate.is_finite() && estimate < series_error());
     (better && (segment || rec.is_finite())).then_some(rec)
 }
 
