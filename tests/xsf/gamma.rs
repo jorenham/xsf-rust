@@ -46,7 +46,8 @@ fn test_gamma_c64_log_overflow() {
     let w = xsf::gamma(c64(y, y));
     assert!(w.re == f64::INFINITY && w.im.is_nan());
     // The sign of the real part of the logarithm is lost to cancellation.
-    assert!(xsf::gamma(c64(2.229_373_124_571_598e303, 1e306)).is_nan());
+    let w = xsf::gamma(c64(2.229_373_124_571_598e303, 1e306));
+    assert!(w.re.is_nan() && w.im.is_nan());
 }
 
 xsref::tests! {

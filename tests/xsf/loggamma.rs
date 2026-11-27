@@ -151,8 +151,8 @@ fn test_rgamma_c64_overflow_at_large_even_real_part() {
         (-2.998_076_996_061_15e154, 1e3, c64(-inf, inf)),
         (-8.988_465_674_311_05e307, 1e6, c64(inf, -inf)),
         // just beyond and just within the distance to an axis where the phase decides the signs
-        (-1.609_053_085_636_804e92, 0.051_789_337_995_700_54, c64(-inf, inf)),
-        (-2.501_845_749_898_767e67, 4.281_499_204_408_34, c64(-inf, -inf)),
+        (-8.348_929_753_524_114e37, 17.755_558_405_385_173, c64(-inf, inf)),
+        (-2.504_746_375_531_188_6e30, 0.044_882_626_305_321_416, c64(inf, -inf)),
     ] {
         assert_eq!(xsf::rgamma(c64(x, y)), expected);
         assert_eq!(xsf::rgamma(c64(x, -y)), expected.conj());
@@ -172,7 +172,8 @@ fn test_rgamma_c64_log_overflow() {
     let w = xsf::rgamma(c64(1e308, 1e307));
     assert_eq!((w.re.to_bits(), w.im.to_bits()), (0.0_f64.to_bits(), (-0.0_f64).to_bits()));
     // The sign of the real part of the logarithm is lost to cancellation.
-    assert!(xsf::rgamma(c64(2.229_373_124_571_598e303, 1e306)).is_nan());
+    let w = xsf::rgamma(c64(2.229_373_124_571_598e303, 1e306));
+    assert!(w.re.is_nan() && w.im.is_nan());
 }
 
 #[test]

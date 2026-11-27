@@ -224,7 +224,8 @@ pub(crate) fn exp_loggamma(w: C64, z: C64) -> C64 {
     // Rounding in (z - 1/2)*ln(z) - z (DLMF 5.11.1) moves Re(w) by less than
     // 4*eps*(|x|*(ln|z| + 1) + |y|*|arg z|). Im(w) overflows only for |z| > 1e305, where this
     // bound is far beyond the range of exp, so a larger |Re(w)| means 0, or inf + NaN i like
-    // C's cexp(inf + i inf).
+    // C's cexp(inf + i inf). This assumes round-to-nearest and errors of about one ulp in
+    // hypot, ln and atan2, which leave an error below 3.5*eps times the same scale.
     let ln_z = z.ln();
     let scaled = 4.0 * f64::EPSILON * z;
     let tol = scaled.re.abs() * (ln_z.re + 1.0) + scaled.im.abs() * ln_z.im.abs();
