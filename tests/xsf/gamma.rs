@@ -36,8 +36,8 @@ fn test_gamma_c64_real_axis() {
 }
 
 #[test]
-fn test_gamma_c64_phase_lost() {
-    // Gamma underflows, or overflows with a phase that f64 cannot resolve.
+fn test_gamma_c64_log_overflow() {
+    // Gamma underflows or overflows, and the imaginary part of its logarithm overflows.
     let y = 8.988_465_674_311_05e307;
     for x in [10.0, 1e-30, -6.666_666_666_666_667] {
         assert_eq!(xsf::gamma(c64(x, y)), c64(0.0, 0.0));

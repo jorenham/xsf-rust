@@ -215,14 +215,12 @@ fn cloggamma_public(z: C64) -> C64 {
     w
 }
 
-/// `exp(w)` for `w = +-loggamma(z)`, with only the magnitude where `Im(w)` loses the phase
+/// `exp(w)` for `w = +-loggamma(z)`, with only the magnitude where `Im(w)` overflows
 pub(crate) fn exp_loggamma(w: C64) -> C64 {
-    // From here on, adjacent f64 values of Im(w) are more than pi apart.
-    const PHASE_LOST: f64 = TAU / f64::EPSILON;
-    if w.im.abs() < PHASE_LOST {
+    if w.im.is_finite() {
         return w.exp();
     }
-    // Like C's cexp(-inf + i NaN) and cexp(inf + i NaN).
+    // Like C's cexp(-inf + i inf) and cexp(inf + i inf), also for a finite Re(w).
     let r = w.re.exp();
     if r == 0.0 {
         C64::ZERO
@@ -263,8 +261,9 @@ fn crgamma(z: C64) -> C64 {
             return c64(f64::INFINITY, f64::INFINITY.copysign(sign));
         }
         let (sin, cos) = phase.sin_cos();
-        // Leave room for the O(Im(z)/Re(z)) phase correction and rounding.
-        if sin.abs().min(cos.abs()) > 16.0 * f64::EPSILON * phase.abs() {
+        // The rounding of ln(N) and of the product, and the omitted terms above, shift the
+        // phase by less than 2*eps*|phase|, so the signs hold beyond that.
+        if sin.abs().min(cos.abs()) > 2.0 * f64::EPSILON * phase.abs() {
             return c64(f64::INFINITY.copysign(-sign * sin), f64::INFINITY.copysign(sign * cos));
         }
     }
@@ -283,7 +282,7 @@ fn crgamma(z: C64) -> C64 {
             return c64(re, im);
         }
     }
-    // Unlike in xsf, keep only the magnitude where the phase is lost.
+    // Unlike in xsf, keep only the magnitude where Im(log Gamma) overflows.
     exp_loggamma(-cloggamma(z))
 }
 

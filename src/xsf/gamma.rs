@@ -42,7 +42,7 @@ pub(crate) fn cgamma(z: C64) -> C64 {
             return c64(re, if derivative_negative { -z.im } else { z.im });
         }
     }
-    // Unlike in xsf, keep only the magnitude where the phase is lost.
+    // Unlike in xsf, keep only the magnitude where Im(log Gamma) overflows.
     exp_loggamma(cloggamma(z))
 }
 

@@ -158,13 +158,10 @@ fn test_rgamma_c64_overflow_at_large_even_real_part() {
 }
 
 #[test]
-fn test_rgamma_c64_phase_lost() {
-    // 1/Gamma overflows with a phase that f64 cannot resolve.
-    for (x, y) in [
-        (10.0, 2.998_076_996_061_15e154),
-        (10.0, 8.988_465_674_311_05e307),
-        (-2.998_076_996_061_15e154, 1e140),
-    ] {
+fn test_rgamma_c64_log_overflow() {
+    // 1/Gamma overflows, and so does the imaginary part of its logarithm.
+    let y = 8.988_465_674_311_05e307;
+    for x in [10.0, -y] {
         for w in [xsf::rgamma(c64(x, y)), xsf::rgamma(c64(x, -y))] {
             assert!(w.re == f64::INFINITY && w.im.is_nan());
         }
