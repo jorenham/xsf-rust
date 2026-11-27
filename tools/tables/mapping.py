@@ -1994,7 +1994,7 @@ def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
             return False
         with flint.ctx.workprec(ARB_BITS):
             y = arb(*map(flint.arb, a))
-        return y is not None and abs(y) < F64_INF_TIE
+        return y is not None and F64_ZERO_TIE < abs(y) < F64_INF_TIE
 
     return Rule(when, rule.value, f"{rule.why}, {why}", gap=True)
 
@@ -2284,7 +2284,8 @@ def _j_ball(a: tuple[float, ...]) -> flint.acb:
 
 def _j_log(a: tuple[float, ...]) -> float:
     """log |J_v(z)| (-inf for 0)."""
-    return float(abs(_j_ball(a)).log().mid())
+    with flint.ctx.workprec(128):
+        return float(abs(_j_ball(a)).log().mid())
 
 
 def _j_underflows(a: tuple[float, ...]) -> bool:
@@ -4264,8 +4265,8 @@ def _pmv(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> mp.mpf:
     and x < 0 with P_n^m(-x) = (-1)^(n + m) P_n^m(x) for its degree n (DLMF 14.9.10), unless
     n + m < 0, where the Q_n^m(x) of that formula has a pole."""
     with specs.wdps(specs.xd(v) + 20):
-        n = _pmv_degree(float(v))
-        if x < 0 and n.is_integer() and n + m >= 0:
+        n = _pmv_degree(v)
+        if x < 0 and n is not None and n + m >= 0:
             return (-1) ** int(n + m) * _pmv(m, v, -x)
         z = (1 - x) / 2
         if m >= 0:
@@ -4285,8 +4286,8 @@ def _pmv_scaled(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> Value:
     within that of theta = pi / 2. P_theta = -sin(theta) P' with DLMF 14.10.4."""
     with specs.wdps(specs.xd(v) + 20):
         p = _pmv(m, v, x)
-        n = _pmv_degree(float(v))
-        zero = n.is_integer() and n + m > 0 and (n + m) % 2 == 1
+        n = _pmv_degree(v)
+        zero = n is not None and n + m > 0 and (n + m) % 2 == 1
         if not zero or abs(x) >= 1 or abs(mp.asin(x)) >= mp.pi / (n + mp.mpf(1) / 2):
             return p
         dp = -((m - v - 1) * _pmv(m, v + 1, x) + (v + 1) * x * p) / mp.sqrt(1 - x * x)
@@ -4302,17 +4303,16 @@ def _pmv_arb(m: flint.arb, v: flint.arb, x: flint.arb) -> flint.arb | None:
     return ((1 + x) / (1 - x)) ** (m / 2) * f
 
 
-def _pmv_degree(v: float) -> float:
-    """The degree n of P_v = P_(-v-1) (DLMF 14.9.5) that xsf uses, v for v >= 0."""
-    return -v - 1 if v < 0 else v
+def _pmv_degree(v: float | mp.mpf) -> int | None:
+    """The integer degree n of P_v = P_(-v-1) (DLMF 14.9.5) that xsf uses, v for v >= 0, or
+    None for a non-integer v (checked and negated exactly)."""
+    if not math.isfinite(v) or v != int(v):
+        return None
+    return -int(v) - 1 if v < 0 else int(v)
 
 
 PMV_NEGATIVE_ORDER: Final = Rule(
-    lambda a: (
-        a[0] < 0
-        and _pmv_degree(a[1]).is_integer()
-        and _pmv_degree(a[1]) + a[0] + 1 <= 0
-    ),
+    lambda a: a[0] < 0 and (n := _pmv_degree(a[1])) is not None and n + a[0] + 1 <= 0,
     math.nan,
     "xsf has no formula for a negative order -k and an integer degree n < k, where "
     "DLMF 14.9.3 does not help",
