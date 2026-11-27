@@ -68,6 +68,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("elliprj", (1.0, 2.0, 3.0, -1.0)), -0.09324045243867635, NAN, "regressed"),
     # the real U rejects x < 0, also where it is a polynomial (and a panic is a NaN)
     (("hypu", (-1.0, 1.0, -2.0)), NAN, None, "both right"),
+    (("hypu", (-1.0, 1.0, -2.0)), -3.0, NAN, "improved"),
     # and any NaN argument
     (("elliprj", (1.0, NAN, 2.0, 3.0)), NAN, 1.0, "regressed"),
     # 0 log 0 = 0, where mpmath is NaN
@@ -81,6 +82,12 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # over- and underflow as for the reference rounded to f64
     (("hyp0f0#c", (709.9, PI / 4)), EXP, c(INF, INF), "regressed"),
     (("hypu", (-1.0, -(2.0**969), DBL_MAX)), DBL_MAX, INF, "regressed"),
+    (
+        ("hyp1f1#c", (1.0, 1.0, 710.0, 1e-300)),
+        c(INF, 223399476.6161711),
+        c(INF, 0.0),
+        "regressed",
+    ),
     (("xlogy", (3.2101030212800104e-308, 2.0)), DBL_MIN, SUB, "regressed"),
     (("xlogy", (3.2101030212800104e-308, 2.0)), 2 * DBL_MIN, 0.0, "both wrong"),
     (("erfcinv", (0.0,)), INF, -INF, "regressed"),
@@ -96,6 +103,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # no side of the pole at z = 1
     (("hyp2f1#c", (1.0, 1.0, 1.0, 1.0, 0.0)), c(INF, 0), c(0, INF), "no ref"),
     (("sinpi", (-0.0,)), -0.0, 0.0, "regressed"),
+    (("sinpi", (0.0,)), -0.0, 0.0, "improved"),
     # even in x, so of an unknown sign
     (("cosm1", (0.0,)), -0.0, 0.0, "both right"),
     (("hyp1f1#c", (1.0, 1.0, 0.0, 1e-100)), c(1, 1e-100), c(1, 0), "regressed"),
