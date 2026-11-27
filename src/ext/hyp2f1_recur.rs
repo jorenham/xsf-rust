@@ -1381,10 +1381,16 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
 /// `F(a, b; c; x)` for real `x < 1` with `x != 0`, or any finite `x` for a non-positive integer
 /// `c` (see the module docs). Its error bound (that of `Scaled::to_f64`) is too large if it
 /// exceeds `HYP2F1_RECUR_TOL`.
-pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
+pub(crate) fn hyp2f1_recur(
+    a: impl Into<Dd>,
+    b: impl Into<Dd>,
+    c: impl Into<Dd>,
+    x: f64,
+) -> Option<Scaled> {
+    let (a, b, c) = (a.into(), b.into(), c.into());
     // (beyond 1e15, the coefficients of the recurrence can overflow)
     let in_range =
-        x != 0.0 && x.is_finite() && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v));
+        x != 0.0 && x.is_finite() && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(&v.hi));
     if !in_range {
         return None;
     }
@@ -1392,7 +1398,6 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // first, which was more often accurate in our tests, e.g. for
     // `F(-104 - 9e-7, 36; 0.0074; 0.66)`, whose form `(c - a, c - b)` then has `n = 105`, not 1.
     let (a, b) = if b > a { (b, a) } else { (a, b) };
-    let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     if c.hi <= 0.0 && c.is_integer() {
         return hyp2f1_poly_dd(a, b, c, x);
     }
