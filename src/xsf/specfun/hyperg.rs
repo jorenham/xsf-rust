@@ -27,8 +27,8 @@ use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
 
-/// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
-/// overflowing sum in `chgul`
+/// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, of an
+/// overflowing sum in `chgul`, and of `hypu_neg_x`
 const MAX_TERMS: i32 = 100_000;
 
 /// The largest relative error bound of `hyp1f1_series` with which `cchg` skips a forward recurrence
@@ -1614,7 +1614,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 pub(super) const ID_MIN: i32 = 12;
 
 /// The digits below which `chgu` flags its result (NaN in `hypu`)
-pub(super) const ID_ACCEPT: i32 = 6;
+const ID_ACCEPT: i32 = 6;
 
 /// Tricomi's function `U(a, b, x)`.
 ///
@@ -2338,20 +2338,67 @@ pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
     (rounded, d)
 }
 
-/// `-(a + k - 1) (a - b + k)`: over `k x`, the ratio of the terms `k` and `k - 1` of the sum of
-/// `chgul`
-fn chgul_numerator(a: f64, b: f64, k: f64) -> f64 {
-    -(a + (k - 1.0)) * ((a + k) - b)
-}
-
-/// The polynomial `U(a, b, x)` for an integer `a <= 0` (DLMF 13.2.7) by Horner's method
-pub(super) fn chgul_horner(x: f64, a: f64, b: f64) -> f64 {
-    let (_, value) = (1..=-a as i32).fold((1.0, 1.0_f64), |(coef, value), k| {
-        let k = f64::from(k);
-        let coef = coef * (chgul_numerator(a, b, k) / k);
-        (coef, value.mul_add(x, coef))
-    });
-    value
+/// The polynomial `U(a, b, x)` for an integer `a = -m <= 0` and `x < 0` (DLMF 13.2.7), or NaN if
+/// its error bound exceeds `10^-ID_ACCEPT`
+///
+/// As in `chgul`, `U = x^m (t_0 + ... + t_m)` with `t_0 = 1` and
+/// `t_j = t_(j-1) (a + j - 1) (a + j - b) / (j |x|)`, which are 0 from `j = b + m` on for an
+/// integer `b` in `[1 - m, 0]`. The terms are kept as `t 2^e` with `t` in `[1/2, 1)`, and the sums
+/// relative to `2^e` of the largest term so far, so that nothing over- or underflows before `x^m`.
+pub(super) fn hypu_neg_x(x: f64, a: f64, b: f64) -> f64 {
+    let m = -a;
+    let sign = (-1.0_f64).powf(m);
+    // the leading term
+    if x == f64::NEG_INFINITY && b.is_finite() {
+        return x.powf(m);
+    }
+    // (below 1/MACHEP = 2^53, a + j is exact)
+    let n = if b.fract() == 0.0 && m < 1.0 / MACHEP && (1.0 - m..=0.0).contains(&b) {
+        m + b - 1.0
+    } else {
+        m
+    };
+    if n > f64::from(MAX_TERMS) {
+        // For b > 0, the terms are positive and |U| >= |t_m x^m| = (b)_m >= b (m - 1)!, which
+        // overflows.
+        return if b > 0.0 {
+            sign * f64::INFINITY
+        } else {
+            f64::NAN
+        };
+    }
+    let (y_m, y_e) = frexp_f64(-x);
+    // the term `t 2^e`, and the sum and the sum of |terms|, over `2^e_sum`
+    let (mut t, mut e) = (0.5, 1);
+    let (mut sum, mut abs_sum, mut e_sum) = (t, t, e);
+    for j in 1..=n as i32 {
+        let j = f64::from(j);
+        let (q_m, q_e) = frexp_f64((a + j) - b);
+        let (t_m, t_e) = frexp_f64(t * ((a + (j - 1.0)) / j) * (q_m / y_m));
+        (t, e) = (t_m, e + t_e + q_e - y_e);
+        if e > e_sum {
+            (sum, abs_sum) = (ldexp_f64(sum, e_sum - e), ldexp_f64(abs_sum, e_sum - e));
+            e_sum = e;
+        }
+        let term = ldexp_f64(t, e - e_sum);
+        sum += term;
+        abs_sum += term.abs();
+    }
+    // t_j has at most 5 j roundings (3 in its factors, 2 in the products), and the sum n more. The
+    // 2 extra cover the underflows (at most 2^-1074 each, while abs_sum >= 1/2) and ln |x|^m.
+    let err = (6.0 * n + 2.0) * MACHEP * abs_sum / sum.abs();
+    let Some(u) = Scaled::new(sign * sum, e_sum, err) else {
+        return f64::NAN;
+    };
+    let u = u.with_l(ln_dd(-x) * m);
+    let (value, err) = u.to_f64();
+    // an infinity only if the lower bound of |U| overflows too (by 2 err, as it is rounded)
+    let lower = u.mul_exp(DoubleDouble::new(-2.0 * err)).to_f64().0;
+    if err <= 10_f64.powi(-ID_ACCEPT) && value.is_infinite() == lower.is_infinite() {
+        value
+    } else {
+        f64::NAN
+    }
 }
 
 fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option<f64> {
@@ -2369,12 +2416,18 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option
         .then_some(value)
     };
     let degree = -a as i32;
+    let numerator = |k: f64| -(a + (k - 1.0)) * ((a + k) - b);
     // Unlike in xsf, evaluate the polynomial by Horner's method for small x.
     // At x = 1/64, the inverse-power terms are bounded by (128n)^n.
     // Below it, for 16 <= -round(b) < n, the absolute nonconstant
     // terms sum to less than 1/5 of the constant term.
     if x < 1.0 / 64.0 && degree <= 75 && (a + 1.0..=-16.0).contains(&b.round()) {
-        return certify(chgul_horner(x, a, b), 1.5);
+        let (_, value) = (1..=degree).fold((1.0, 1.0_f64), |(coef, value), k| {
+            let k = f64::from(k);
+            let coef = coef * (numerator(k) / k);
+            (coef, value.mul_add(x, coef))
+        });
+        return certify(value, 1.5);
     }
     if !old_is_normal {
         return None;
@@ -2384,7 +2437,7 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option
     let (_, sum, absolute_sum) =
         (1..=degree).try_fold((1.0, 1.0, 1.0), |(term, sum, absolute_sum), k| {
             let k = f64::from(k);
-            let numerator = chgul_numerator(a, b, k);
+            let numerator = numerator(k);
             let denominator = k * x;
             let ratio = numerator / denominator;
             let term = term * ratio;
@@ -2397,7 +2450,7 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option
     certify(sum * scale, absolute_sum / sum.abs())
 }
 
-pub(super) fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
+fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
     //          U(a,b,x) for large argument x
@@ -2517,14 +2570,13 @@ pub(super) fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
             }
         }
         // m 2^e x^p, for finite m and x in log space if x^p, or its product with m, over- or
-        // underflows (for x < 0, from `hypu`, p is an integer)
+        // underflows
         let pow_scaled = |m: f64, e: i32, p: f64| {
             let xp = x.powf(p);
             if xp.is_normal() && (m * xp).is_normal() || !(m.is_finite() && x.is_finite()) {
                 ldexp_f64(m * xp, e)
             } else {
-                let l = ln_dd(x.abs()) * p;
-                let m = m * x.signum().powf(p);
+                let l = ln_dd(x) * p;
                 Scaled::new(m, e, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0)
             }
         };

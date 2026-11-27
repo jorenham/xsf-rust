@@ -451,6 +451,12 @@ fn test_hypu_poly_neg_x() {
         (-6.0, -12.0, -30.0),
         (-12.0, 1.5, -1e-200),
         (-3.0, -1.0, -1e-100),
+        (-1.0, -1e-17, -1e-20),
+        (-1.0, 2_f64.powi(-54), -1e-30),
+        (-168.0, -0.25, -1e-200),
+        (-1.0, -2.0, -1e-309),
+        (-1.0, -2.0, -1e-310),
+        (-2_147_483_648.0, -2_147_483_647.0, -1.0),
     ];
     let expected = [
         -3.0,
@@ -462,6 +468,12 @@ fn test_hypu_poly_neg_x() {
         175_366_080.0,
         1_930_140_034.332_275_4,
         -3e-200,
+        9.99e-18,
+        -5.551_115_123_125_883e-17,
+        -8.528_457_732_357_997e298,
+        2.0,
+        2.0,
+        1.0,
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
@@ -469,6 +481,17 @@ fn test_hypu_poly_neg_x() {
     // Arb: 2.22e450 and -7.30e452
     assert_eq!(xsf::hypu(-200.0, 1.0, -50.0), f64::INFINITY);
     assert_eq!(xsf::hypu(-201.0, 1.0, -50.0), f64::NEG_INFINITY);
+    // Arb: 4.00e614, and the leading term
+    assert_eq!(xsf::hypu(-2.0, -8e307, -1e308), f64::INFINITY);
+    assert_eq!(xsf::hypu(-2.0, -1e308, f64::NEG_INFINITY), f64::INFINITY);
+    // (b)_m = m! overflows
+    assert_eq!(xsf::hypu(-2_147_483_647.0, 1.0, -0.5), f64::NEG_INFINITY);
+
+    // Arb: 3.12e122 and 1.92e14 (the terms cancel), and 1.04e456588 (too many terms)
+    assert!(xsf::hypu(-100.0, -0.999_999_999_999_999_1, -4.235_917_535_723_103_5e-10).is_nan());
+    assert!(xsf::hypu(-40.0, -40.0 * 2_f64.powi(-58), -2_f64.powi(-58)).is_nan());
+    assert!(xsf::hypu(-100_002.0, -100_003.0, -1.0).is_nan());
+    assert!(xsf::hypu(-2_147_483_647.0, -1.0, -4.0).is_nan());
 
     // not real
     assert!(xsf::hypu(0.5, 1.0, -2.0).is_nan());

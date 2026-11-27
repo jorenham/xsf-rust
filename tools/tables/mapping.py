@@ -3978,14 +3978,9 @@ def _hypu_poly_neg_x(a: tuple[float, ...]) -> bool:
 
 
 def _hypu_real_neg_x(a: tuple[float, ...]) -> bool:
-    """Whether x < 0 and U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) is real otherwise, for an
-    integer b and a-b+1 = 0, -1, ... (DLMF 13.2.40)."""
-    return (
-        a[2] < 0
-        and not _nonpos_int(a[0])
-        and a[1].is_integer()
-        and _nonpos_int(a[0] - a[1] + 1)
-    )
+    """Whether x < 0 and U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) is real otherwise, for integers
+    0 < a < b, where a-b+1 = 0, -1, ... (DLMF 13.2.40)."""
+    return a[2] < 0 and a[0].is_integer() and a[1].is_integer() and 0 < a[0] < a[1]
 
 
 HYPU_RULES: Final = (
@@ -3996,7 +3991,7 @@ HYPU_RULES: Final = (
             and _hypu_poly(-int(a[0]), Fraction(a[1]), Fraction(a[2])) == 0
         ),
         math.nan,
-        "U(-m, b, x) = 0 here, but NaN, as the sum of chgul cancels",
+        "U(-m, b, x) = 0 here, but NaN, as its sum cancels",
         gap=True,
     ),
     Rule(
