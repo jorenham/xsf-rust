@@ -608,21 +608,3 @@ fn digits_left(id: f64, p: f64, q: f64) -> f64 {
     // the ratio is at least 1, but 0 or NaN (inf / inf) if the sum overflows
     id - ((p.abs() + q.abs()) / (p + q).abs()).log10().max(0.0)
 }
-
-/// Associated Legendre function for $|x| \leq 1$
-///
-/// Corresponds to [`scipy.special.lpmv`][scipy] in SciPy.
-///
-/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html
-///
-/// # See also
-/// - [`assoc_legendre_p`](crate::assoc_legendre_p), which this forwards to
-#[deprecated(
-    since = "0.7.0",
-    note = "use `assoc_legendre_p(v, m, x)` with an `f64` degree `v`"
-)]
-#[must_use]
-#[inline]
-pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
-    crate::assoc_legendre_p(v, m, x)
-}

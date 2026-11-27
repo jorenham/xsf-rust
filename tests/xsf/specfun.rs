@@ -1059,14 +1059,6 @@ xsref::tests! {
 }
 
 #[test]
-#[allow(deprecated)]
-fn test_pmv_is_assoc_legendre_p() {
-    for (m, v, x) in [(0, 0.5, 0.3), (2, 3.0, -0.7), (-3, 7.25, 0.99), (1, 2.0, 1.5)] {
-        assert_eq!(xsf::pmv(m, v, x).to_bits(), xsf::assoc_legendre_p(v, m, x).to_bits());
-    }
-}
-
-#[test]
 fn test_pmv_integer_degree_near_parity_zero() {
     // Arb at the exact binary64 arguments.
     for (m, v, x, expected) in [
