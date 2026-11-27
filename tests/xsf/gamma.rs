@@ -40,8 +40,10 @@ fn test_gamma_c64_log_overflow() {
     // Gamma underflows or overflows, and the imaginary part of its logarithm overflows.
     let y = 8.988_465_674_311_05e307;
     for x in [10.0, 1e-30, -6.666_666_666_666_667] {
-        assert_eq!(xsf::gamma(c64(x, y)), c64(0.0, 0.0));
-        assert_eq!(xsf::gamma(c64(x, -y)), c64(0.0, 0.0));
+        for (y, zero) in [(y, 0.0_f64), (-y, -0.0)] {
+            let w = xsf::gamma(c64(x, y));
+            assert_eq!((w.re.to_bits(), w.im.to_bits()), (0, zero.to_bits()));
+        }
     }
     let w = xsf::gamma(c64(y, y));
     assert!(w.re == f64::INFINITY && w.im.is_nan());

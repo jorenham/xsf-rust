@@ -230,7 +230,8 @@ pub(crate) fn exp_loggamma(w: C64, z: C64) -> C64 {
     let scaled = 4.0 * f64::EPSILON * z;
     let tol = scaled.re.abs() * (ln_z.re + 1.0) + scaled.im.abs() * ln_z.im.abs();
     if w.re < -tol {
-        C64::ZERO
+        // (with the sign of conj(Gamma(z)) = Gamma(conj(z)))
+        c64(0.0, 0.0f64.copysign(z.im))
     } else if w.re > tol {
         c64(f64::INFINITY, f64::NAN)
     } else {
