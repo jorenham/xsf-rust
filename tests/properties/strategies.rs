@@ -19,7 +19,7 @@ fn offset() -> impl Strategy<Value = f64> {
     log_uniform(-f64::from(f64::MANTISSA_DIGITS)..-8.0)
 }
 
-/// `-n` plus an `offset()` for `n` in `poles`, e.g. -3 + 1e-9, or a tiny 2^-52 for `n = 0`
+/// `-n` plus an `offset()` for `n` in `poles`, e.g. -3 + 1e-9, or a tiny 2^-53 for `n = 0`
 fn near_pole(poles: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
     (poles, offset()).prop_map(|(n, d)| -f64::from(n) + d)
 }

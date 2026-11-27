@@ -115,7 +115,7 @@ proptest! {
     fn hyp2f1_balanced(
         [a, b, c] in balanced(), x in arg(), i in any::<Index>(), k in MIN_K..=MAX_K - CONFIRM_K
     ) {
-        if known_hyp2f1(a, b, c, x) {
+        if known_hyp2f1_balanced_x(a, b, c, x) {
             return Ok(());
         }
         let p = [a, b, c, x];
@@ -167,24 +167,30 @@ fn hyp2f1_double_zero() {
 
 /// The known failures of `hyp2f1` for real arguments
 fn known_hyp2f1(a: f64, b: f64, c: f64, x: f64) -> bool {
+    pole_distance(c) <= NEAR_POLE
+        || (x == 1.0 && (c - a - b <= 0.0 || is_pole(a) || is_pole(b)))
+        || (a.abs().min(b.abs()) < f64::EPSILON && x < -1.0)
+        || ((a == c || b == c) && x < -1.0)
+}
+
+/// The known failures of `hyp2f1` for real arguments and a nearly integer `c - a - b`
+fn known_hyp2f1_balanced_x(a: f64, b: f64, c: f64, x: f64) -> bool {
     // a terminating `p` with `c - q` next to an integer in `(p, 0]` near x = 1 (#2330)
     let terminating = |p: f64, q: f64| {
         is_pole(p) && int_distance(c - q) <= NEAR_POLE && (p + 1.0..=0.0).contains(&(c - q).round())
     };
-    pole_distance(c) <= NEAR_POLE
-        || (x == 1.0 && (c - a - b <= f64::EPSILON.sqrt() || is_pole(a) || is_pole(b)))
-        || (a.abs().min(b.abs()) < f64::EPSILON && x < -1.0)
+    known_hyp2f1(a, b, c, x)
+        // for 0 < c - a - b <= sqrt(eps), (1 - x)^(c - a - b) is 0 at x = 1 but about 1 at its
+        // neighbours
+        || (x == 1.0 && c - a - b <= f64::EPSILON.sqrt())
         || (x > 0.9 && (terminating(a, b) || terminating(b, a)))
-        || ((a == c || b == c) && x < -1.0)
+        // c < 0 at a subnormal x (#2255, #2332)
         || (x.is_subnormal() && c < 0.0)
 }
 
-// singular at the poles of c, and at x = 1 for c <= a + b; for 0 < c - a - b <= sqrt(eps),
-// (1 - x)^(c - a - b) is 0 at x = 1 but about 1 at its neighbours; known: polynomials at x = 1
-// (#2198, fixed by #2214), next to the poles of c (#2241), a tiny c near x = 1 (#2242) and at
-// x << 0 (#2243), a tiny a or b at x << 0 (#2253), c = a or b at x < -1 (#2254), c < 0 at a
-// subnormal x (#2255, #2332), and a terminating a or b with c next to the other plus an integer
-// (#2330)
+// singular at the poles of c, and at x = 1 for c <= a + b; known: polynomials at x = 1 (#2198,
+// fixed by #2214), next to the poles of c (#2241), a tiny c near x = 1 (#2242) and at x << 0
+// (#2243), a tiny a or b at x << 0 (#2253), and c = a or b at x < -1 (#2254)
 continuous!(
     hyp2f1(a in moderate(), b in moderate(), c in moderate(), x) unless known_hyp2f1(a, b, c, x)
 );
@@ -214,9 +220,9 @@ fn known_hyp2f1_complex_balanced(a: f64, b: f64, c: f64, re: f64, im: f64) -> bo
         // wrong or NaN for a or b next to a pole at 0.9 <= |z| <= 1.1 (#2334)
         || ((near_pole(a) || near_pole(b)) && almost_int(gap) && (0.9..=1.1).contains(&r))
         // wrong for negative a and b with c = a + b (#2335)
-        || (gap == 0.0 && a.max(b) < 0.0)
-        // wrong in the 1 - z transformation for a or b above 64 (seen from 87) and c - a - b
-        // within rounding of a negative integer (#2339)
+        || (gap == 0.0 && a.max(b) < 0.0 && c < -32.0)
+        // wrong for a or b above 64 and c - a - b next to a negative integer, near |z| = 1 and
+        // |1 - z| < 0.9 (#2339)
         || (a.min(b) > 0.0
             && a.max(b) > 64.0
             && int_distance(gap) <= NEAR_POLE
