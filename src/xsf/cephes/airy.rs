@@ -25,7 +25,9 @@ const AI_TAYLOR_MIN: f64 = 0.75;
 /// `Ai(AIRY_ASYMP_MIN)` and `Ai'(AIRY_ASYMP_MIN)`
 const AI_ASYMP_MIN: (f64, f64) = (0.03042031836319838, -0.04708838543657824);
 /// Below this, the phase error of `sin_cos_theta`, ~ `theta` 2^-106, is ~ sqrt(eps)
-pub(in crate::xsf) const MINAIRY: f64 = -1e16;
+const MINAIRY: f64 = -1e16;
+/// Below this, where the phase error of `sin_cos_theta` reaches eps, the phase is reduced exactly
+pub(in crate::xsf) const AIRY_WIDE_NEGATIVE: f64 = -pow2(36);
 /// 2/3 in double-double, as 2/3 - fl(2/3) = 2^-53 / 3
 pub(crate) const TWO_THIRDS: DoubleDouble = DoubleDouble {
     hi: 2.0 / 3.0,

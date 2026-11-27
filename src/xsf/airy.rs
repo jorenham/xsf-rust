@@ -53,11 +53,10 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         let [ai, aip, bi, bip] = airy_f64(z.re);
         return [c64(ai, 0.0), c64(-aip.abs(), -0.0), c64(bi, 0.0), c64(bip, 0.0)];
     }
-    // Unlike in xsf, share the wide phase reduction on the negative real axis.
-    if kode == 1 && z.re < cephes::MINAIRY && z.im == 0.0 {
-        if let Some(value) = cephes::airy_wide_negative(-z.re) {
-            return value.map(|w| c64(w, 0.0));
-        }
+    // Unlike in xsf, use the real Airy functions on the negative real axis beyond the power
+    // series of AMOS (|z| > 1), as their phase is more accurate.
+    if kode == 1 && z.im == 0.0 && (f64::MIN..-1.0).contains(&z.re) {
+        return airy_f64(z.re).map(|w| c64(w, 0.0));
     }
     let zeta = zeta_err(z);
     // whether Ai decays: AMOS evaluates it as sqrt(z) K(zta) for |ph z| <= pi/3, and continues K
@@ -269,6 +268,12 @@ fn airye_f64(z: f64) -> [f64; 4] {
     if z >= 0.0 {
         return cephes::airye(z);
     }
+    // Unlike in xsf, Bi and Bi' are those of `airy` beyond the power series of AMOS (z < -1), as
+    // their scaling e^-|Re zeta| is 1 for z < 0.
+    if z < -1.0 {
+        let [_, _, bi, bip] = airy_f64(z);
+        return [f64::NAN, f64::NAN, bi, bip];
+    }
     // exponentially scaled
     let bi = |id| amos_airy_or_biry(true, c64(z, 0.0), id, 2).re;
     [f64::NAN, f64::NAN, bi(0), bi(1)]
@@ -292,12 +297,16 @@ fn airy_f64(x: f64) -> [f64; 4] {
             mul_exp(bi, zeta.hi),
             mul_exp(bip, zeta.hi),
         ]
-    } else if x < cephes::MINAIRY {
-        // Unlike in xsf, reduce the extreme negative phase before evaluating the unscaled tail.
-        cephes::airy_wide_negative(-x).unwrap_or([f64::NAN; 4])
     } else {
-        let (_, ai, aip, bi, bip) = cephes::airy(x);
-        [ai, aip, bi, bip]
+        // Unlike in xsf, reduce the phase exactly for a large negative x, with Cephes where that
+        // declines.
+        (x < cephes::AIRY_WIDE_NEGATIVE)
+            .then(|| cephes::airy_wide_negative(-x))
+            .flatten()
+            .unwrap_or_else(|| {
+                let (_, ai, aip, bi, bip) = cephes::airy(x);
+                [ai, aip, bi, bip]
+            })
     }
 }
 
