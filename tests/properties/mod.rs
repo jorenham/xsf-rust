@@ -34,6 +34,11 @@ fn is_pole(x: f64) -> bool {
     x <= 0.0 && x.fract() == 0.0
 }
 
+/// A polynomial parameter of degree 0 or 1, i.e. 0 or -1
+fn is_linear(x: f64) -> bool {
+    (-1.0..=0.0).contains(&x) && x.fract() == 0.0
+}
+
 /// The distance to the nearest integer, e.g. 0.25 for 2.75
 fn int_distance(x: f64) -> f64 {
     (x - x.round()).abs()

@@ -126,6 +126,10 @@ pub(super) fn balanced() -> impl Strategy<Value = [f64; 3]> {
         // at least an ulp of `c`, so that it differs from `a + b + n`
         let c = a + b + f64::from(n);
         [a, b, c + d.signum() * d.abs().max(f64::EPSILON * c.abs())]
+    })
+    // the rounding of `c - a - b` can still give `n` in both orders
+    .prop_filter("an integer c - a - b in both orders", |&[a, b, c]| {
+        (c - a - b).fract() != 0.0 || (c - b - a).fract() != 0.0
     });
     prop_oneof![exact, inexact]
 }
