@@ -26,10 +26,11 @@ Exit with 1 if a domain has
   are not independent),
 - (d) a new panic.
 
-Otherwise exit with 2 if a comparison could not be made: a spec was skipped (an unsupported
-revision, or a timeout, which is retried once if only one revision timed out), the reference
-of an input of (a) or (b) failed or is NaN (marked "?" in "fails"), or the sampled inputs
-without a reference would make (c) a net loss if they all got worse (marked with their count).
+Otherwise exit with 2 if a comparison could not be made: a spec was skipped (a revision that
+failed, e.g. unsupported or timed out; a timeout is retried once if the other revision
+succeeded), the reference of an input of (a) or (b) failed or is NaN (marked "?" in "fails"),
+or the sampled inputs without a reference would make (c) a net loss if they all got worse
+(marked with their count). (c) fails only if it holds when they all got better.
 """
 
 import argparse
@@ -123,6 +124,11 @@ def sample(
 
 def nan(y: Value) -> bool:
     return y is not None and cmath.isnan(y)
+
+
+def bad(y: Value) -> bool:
+    """NaN or a panic"""
+    return y is None or cmath.isnan(y)
 
 
 def error(y: Value, r: accuracy.Ref) -> float:
@@ -225,12 +231,8 @@ def compare(
     for desc, span, seed in zip(descs, spans, seeds, strict=True):
         # the differing inputs, the candidates of (a) and (b), and a sample of the others
         diff = [i for i in span if fuzz_diff.differ(b[i], h[i], 0.0)]
-        cand_a = [
-            i
-            for i in diff
-            if b[i] is not None and not nan(b[i]) and (h[i] is None or nan(h[i]))
-        ]
-        cand_b = [i for i in diff if nan(b[i]) and h[i] is not None and not nan(h[i])]
+        cand_a = [i for i in diff if not bad(b[i]) and bad(h[i])]
+        cand_b = [i for i in diff if nan(b[i]) and not bad(h[i])]
         rest = [i for i in diff if i not in {*cand_a, *cand_b}]
         rest = random.Random(seed).sample(rest, min(opts.max_refs, len(rest)))
         ids = [*cand_a, *cand_b, *rest]
@@ -254,10 +256,13 @@ def compare(
         better = sum(k == "improved" for k in kinds.values())
         worse_ids = [i for i, k in kinds.items() if k == "regressed"]
         worse = len(worse_ids)
-        loss = net_loss(worse, better)
-        # (inputs without a reference vote for neither side, so they could hide a loss)
-        noref_rest = sum(i in noref for i in rest)
-        hidden = not loss and net_loss(worse + noref_rest, better)
+        # inputs without a reference could vote for either side, except a side that is NaN or a
+        # panic, whose error is infinite: a loss must hold if they all got better, and the domain
+        # is inconclusive if they could still make one
+        maybe_worse = sum(i in noref and not bad(b[i]) for i in rest)
+        maybe_better = sum(i in noref and not bad(h[i]) for i in rest)
+        loss = net_loss(worse, better + maybe_better)
+        hidden = not loss and net_loss(worse + maybe_worse, better)
         sample_errs = [errs[i] for i in rest if i in errs]
         peak = " -> ".join(
             fmt(max((e[j] for e in sample_errs), default=None)) for j in (0, 1)
@@ -287,7 +292,7 @@ def compare(
                 str(len(cand_a)),
                 str(len(cand_b)),
                 str(len(panics)),
-                fails + "?" * unknown + f" ({noref_rest} no ref)" * hidden,
+                fails + "?" * unknown + f" ({maybe_worse} no ref)" * hidden,
             ]
         )
 
