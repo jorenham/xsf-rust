@@ -2547,7 +2547,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     lambda a: _j_underflows(a) and _nonzero(_j_ball(a)),
                     complex(0, 0),
                     "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
-                    " J_v(z) is a nonzero f64 (#TBD)",
+                    " J_v(z) is a nonzero f64 (#2365)",
                     gap=True,
                 ),
                 Rule(
@@ -4329,7 +4329,7 @@ PMV_RULES: Final = (
         math.nan,
         "xsf has NaN for |x| > 1 and m != 0, where the Ferrers function has its sqrt(1 - x^2)",
     ),
-    _finite_gap(PMV_NEGATIVE_ORDER, _pmv_arb, "but P_n^-k(x) is finite (#TBD)"),
+    _finite_gap(PMV_NEGATIVE_ORDER, _pmv_arb, "but P_n^-k(x) is finite (#2363)"),
     PMV_NEGATIVE_ORDER,
 )
 
@@ -5816,7 +5816,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (
                     NAN,
                     _finite_gap(
-                        PBWA_NAN, _pbwa_arb(i), "where the value is finite (#TBD)"
+                        PBWA_NAN, _pbwa_arb(i), "where the value is finite (#2364)"
                     ),
                     PBWA_NAN,
                 ),
