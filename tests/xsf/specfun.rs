@@ -439,6 +439,74 @@ fn test_hypu_poly_overflow() {
 }
 
 #[test]
+fn test_hypu_poly_neg_x() {
+    // Arb; NaN in xsf
+    let abx = [
+        (-1.0, 1.0, -2.0),
+        (-2.0, 0.5, -2.0),
+        (-5.0, -2.5, -0.75),
+        (-10.0, 3.0, -12.5),
+        (-20.0, -7.0, -4.0),
+        (-20.0, 15.25, -40.0),
+        (-6.0, -12.0, -30.0),
+        (-12.0, 1.5, -1e-200),
+        (-3.0, -1.0, -1e-100),
+        (-1.0, -1e-17, -1e-20),
+        (-1.0, 2_f64.powi(-54), -1e-30),
+        (-168.0, -0.25, -1e-200),
+        (-1.0, -2.0, -1e-309),
+        (-1.0, -2.0, -1e-310),
+        (-2_147_483_648.0, -2_147_483_647.0, -1.0),
+    ];
+    let expected = [
+        -3.0,
+        10.75,
+        -4.368_164_062_5,
+        33_403_670_103_769.36,
+        1.994_095_811_191_436_7e20,
+        8.460_350_778_395_577e36,
+        175_366_080.0,
+        1_930_140_034.332_275_4,
+        -3e-200,
+        9.99e-18,
+        -5.551_115_123_125_883e-17,
+        -8.528_457_732_357_997e298,
+        2.0,
+        2.0,
+        1.0,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+
+    // Arb: 2.22e450 and -7.30e452
+    assert_eq!(xsf::hypu(-200.0, 1.0, -50.0), f64::INFINITY);
+    assert_eq!(xsf::hypu(-201.0, 1.0, -50.0), f64::NEG_INFINITY);
+    // Arb: 4.00e614, and the leading term
+    assert_eq!(xsf::hypu(-2.0, -8e307, -1e308), f64::INFINITY);
+    assert_eq!(xsf::hypu(-2.0, -1e308, f64::NEG_INFINITY), f64::INFINITY);
+    // (b)_m = m! overflows
+    assert_eq!(xsf::hypu(-2_147_483_647.0, 1.0, -0.5), f64::NEG_INFINITY);
+
+    // Arb: 3.12e122 and 1.92e14 (the terms cancel), and 1.04e456588 (too many terms)
+    assert!(xsf::hypu(-100.0, -0.999_999_999_999_999_1, -4.235_917_535_723_103_5e-10).is_nan());
+    assert!(xsf::hypu(-40.0, -40.0 * 2_f64.powi(-58), -2_f64.powi(-58)).is_nan());
+    assert!(xsf::hypu(-100_002.0, -100_003.0, -1.0).is_nan());
+    assert!(xsf::hypu(-2_147_483_647.0, -1.0, -4.0).is_nan());
+    // Arb: -inf and 5e-324 after rounding, which the error bound can't decide
+    assert!(xsf::hypu(-1.0, 9.979_201_547_673_601e291, -f64::MAX).is_nan());
+    assert!(xsf::hypu(-12.0, -11.0, -1.078_275_047_102_112_5e-27).is_nan());
+
+    // the polynomials of degree 0, also for an infinite `b`, and with the terms `j >= 1` zero
+    assert_eq!(xsf::hypu(0.0, f64::INFINITY, f64::NEG_INFINITY), 1.0);
+    assert_eq!(xsf::hypu(-9_007_199_254_740_992.0, -9_007_199_254_740_991.0, -1.0), 1.0);
+    // infinite `b` otherwise
+    assert!(xsf::hypu(-100_001.0, f64::INFINITY, -1.0).is_nan());
+
+    // not real
+    assert!(xsf::hypu(0.5, 1.0, -2.0).is_nan());
+}
+
+#[test]
 fn test_hypu_small_a() {
     // mpmath; 0.045763206, 0.067619064, and 7.5410439102e-4 in xsf
     let abx = [

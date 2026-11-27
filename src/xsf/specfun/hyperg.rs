@@ -27,8 +27,8 @@ use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
 
-/// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
-/// overflowing sum in `chgul`
+/// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, of an
+/// overflowing sum in `chgul`, and of `hypu_neg_x`
 const MAX_TERMS: i32 = 100_000;
 
 /// The largest relative error bound of `hyp1f1_series` with which `cchg` skips a forward recurrence
@@ -1613,6 +1613,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// once (step 1); chgubi needs as many to be kept as is (step 2).
 pub(super) const ID_MIN: i32 = 12;
 
+/// The digits below which `chgu` flags its result (NaN in `hypu`)
+const ID_ACCEPT: i32 = 6;
+
 /// Tricomi's function `U(a, b, x)`.
 ///
 /// Unlike in xsf (scipy/xsf#380), which returns the first of `chgus` and `chgul` with 9 digits,
@@ -1670,9 +1673,6 @@ pub(crate) fn chgu(
     //      (3) CHGUBI for integer b ( MD=3 )
     //      (4) CHGUIT for numerical integration ( MD=4 )
     // =======================================================
-
-    // results with fewer digits are flagged (and NaN in `hypu`)
-    const ID_ACCEPT: i32 = 6;
 
     let mut id1: i32 = 0;
     let mut hu = 0.0;
@@ -2336,6 +2336,79 @@ pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
     // (the rounding is exact if d is an integer: 0 below 2^53, where s + 1 is exact too)
     let rounded = b < 1.0 && !is_nonpos_int(a) && is_nonpos_int(s + 1.0) && d.fract() != 0.0;
     (rounded, d)
+}
+
+/// The polynomial `U(a, b, x)` for an integer `a = -m <= 0` and `x < 0` (DLMF 13.2.7), or NaN if
+/// its error bound exceeds `10^-ID_ACCEPT`
+///
+/// As in `chgul`, `U = x^m (t_0 + ... + t_m)` with `t_0 = 1` and
+/// `t_j = t_(j-1) (a + j - 1) (a + j - b) / (j |x|)`, which are 0 from `j = b + m` on for an
+/// integer `b` in `[1 - m, 0]`. The terms are kept as `t 2^e` with `t` in `[1/2, 1)`, and the sums
+/// relative to `2^e` of the largest term so far, so that nothing over- or underflows before `x^m`.
+pub(super) fn hypu_neg_x(x: f64, a: f64, b: f64) -> f64 {
+    let m = -a;
+    if m == 0.0 {
+        return 1.0;
+    }
+    if !b.is_finite() {
+        return f64::NAN;
+    }
+    let sign = (-1.0_f64).powf(m);
+    // |x|^m dominates
+    if x == f64::NEG_INFINITY {
+        return x.powf(m);
+    }
+    // the terms after t_0 (a + j is exact up to m = 1/MACHEP = 2^53)
+    let n = if b.fract() == 0.0 && m <= 1.0 / MACHEP && (1.0 - m..=0.0).contains(&b) {
+        m + b - 1.0
+    } else {
+        m
+    };
+    if n > f64::from(MAX_TERMS) {
+        // For b > 0, the terms are positive and |U| >= |t_m x^m| = (b)_m >= b (m - 1)!, which
+        // overflows.
+        return if b > 0.0 {
+            sign * f64::INFINITY
+        } else {
+            f64::NAN
+        };
+    }
+    let (y_m, y_e) = frexp_f64(-x);
+    // the term `t 2^e`, and the sum and the sum of |terms|, over `2^e_sum`
+    let (mut t, mut e) = (0.5, 1);
+    let (mut sum, mut abs_sum, mut e_sum) = (t, t, e);
+    for j in 1..=n as i32 {
+        let j = f64::from(j);
+        let (q_m, q_e) = frexp_f64((a + j) - b);
+        let (t_m, t_e) = frexp_f64(t * ((a + (j - 1.0)) / j) * (q_m / y_m));
+        (t, e) = (t_m, e + t_e + q_e - y_e);
+        if e > e_sum {
+            (sum, abs_sum) = (ldexp_f64(sum, e_sum - e), ldexp_f64(abs_sum, e_sum - e));
+            e_sum = e;
+        }
+        let term = ldexp_f64(t, e - e_sum);
+        sum += term;
+        abs_sum += term.abs();
+    }
+    // t_j has at most 5 j roundings (3 in its factors, 2 in the products), and the sum n more. The
+    // 2 extra cover the underflows (at most 2^-1074 each, while abs_sum >= 1/2) and ln |x|^m.
+    let err = (6.0 * n + 2.0) * MACHEP * abs_sum / sum.abs();
+    let Some(u) = Scaled::new(sign * sum, e_sum, err) else {
+        return f64::NAN;
+    };
+    let u = u.with_l(ln_dd(-x) * m);
+    let (value, err) = u.to_f64();
+    // an infinity or zero only if both bounds of |U| (by 2 err, as it is rounded) are one too
+    let class = |v: f64| (v.is_infinite(), v == 0.0);
+    let bound = |k: f64| u.mul_exp(DoubleDouble::new(k * err)).to_f64().0;
+    if err <= 10_f64.powi(-ID_ACCEPT)
+        && class(bound(-2.0)) == class(value)
+        && class(bound(2.0)) == class(value)
+    {
+        value
+    } else {
+        f64::NAN
+    }
 }
 
 fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option<f64> {
