@@ -843,14 +843,16 @@ fn main() {
     let time = argv.next().as_deref() == Some("time");
     let mut out = BufWriter::new(io::stdout().lock());
     let mut calls = Vec::new();
+    let mut args = Vec::new();
     for line in io::stdin().lock().lines() {
         let line = line.unwrap();
         let mut it = line.split_whitespace();
-        let f = it.next().unwrap().to_owned();
-        let args: Vec<f64> = it.map(|s| s.parse().unwrap()).collect();
+        let f = it.next().unwrap();
+        args.clear();
+        args.extend(it.map(|s| s.parse::<f64>().unwrap()));
         if time {
-            calls.push((f, args));
-        } else if let Some((re, im)) = call(evals, &f, &args) {
+            calls.push((f.to_owned(), std::mem::take(&mut args)));
+        } else if let Some((re, im)) = call(evals, f, &args) {
             match im {
                 Some(im) => writeln!(out, "{re:?} {im:?}").unwrap(),
                 None => writeln!(out, "{re:?}").unwrap(),

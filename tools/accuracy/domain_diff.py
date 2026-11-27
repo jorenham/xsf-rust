@@ -34,16 +34,20 @@ or the sampled inputs without a reference would make (c) a net loss if they all 
 counts only the inputs that can vote that way.
 
 The "time" column is the head/base ratio of the time of the calls (not of the startup or the
-parsing), as the dump programs measure with the option `time`: the least of at least `REPEATS`
-interleaved runs per revision, and of up to `ROUNDS` while the ratio exceeds `SLOWDOWN`, but of
-no more once the runs took `BUDGET` seconds. It is "-" if the base time is below `MIN_SECONDS`,
-or the base lacks the option. Exit with 3 if there is no failure, but a ratio above `SLOWDOWN`
-(marked "SLOW"), even if a comparison is inconclusive.
+parsing), as the dump programs measure with the option `time`: the least of interleaved runs per
+revision, of at least `REPEATS` pairs, and of up to `ROUNDS` while the ratio exceeds `SLOWDOWN`,
+within `BUDGET` seconds of wall-clock. It is "-" if the base time is below `MIN_SECONDS`, a run
+panics, fewer than `REPEATS` pairs fit in the budget, or a revision lacks the option.
+
+Exit with 3 if there is no failure, but a ratio above `SLOWDOWN` (marked "SLOW"), even if a
+comparison is inconclusive. The precedence is FAIL (1) over SLOW (3) over INCONCLUSIVE (2). CI
+fails on SLOW unless the PR has the label `allow-slowdown` (add it, then re-run the job).
 """
 
 import argparse
 import cmath
 import fcntl
+import functools
 import hashlib
 import inspect
 import json
@@ -53,12 +57,13 @@ import os
 import random
 import subprocess
 import sys
+import time
 import zlib
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Final, override
+from typing import Final, NamedTuple, override
 
 import affected
 import flint
@@ -81,7 +86,7 @@ MIN_POINTS: Final = 2**10
 # 1.6. A function made twice as slow shows as 2.1 to 2.3 (hyp2f2), and #1812 and #1813 together
 # as 1.10 to 1.27 over the domains of hyp2f2, hyp3f2 and hyppfq.
 REPEATS: Final = 3
-BUDGET: Final = 10
+BUDGET: Final = 10  # seconds of wall-clock per domain; REPEATS pairs of runs of 1 s fit
 ROUNDS: Final = 8
 MIN_SECONDS: Final = 0.03
 SLOWDOWN: Final = 1.25
@@ -212,29 +217,71 @@ def fmt(x: float | None) -> str:
     return "-" if x is None else f"{x:.1e}"
 
 
+def parse_seconds(out: str) -> float | None:
+    """The duration printed by a dump program in the mode `time`, if it is one."""
+    try:
+        t = float(out)
+    except ValueError:
+        return None
+    return t if math.isfinite(t) and t >= 0 else None
+
+
+@functools.cache
+def has_time(exe: Path) -> bool:
+    """Whether `exe` has the mode `time`: with no input, it prints a duration, while a program
+    without it prints nothing (and with input, would print a result that parses as a duration)."""
+    try:
+        out = accuracy.dump([str(exe), "xsf", "time"], [], fuzz_diff.RUN_TIMEOUT)
+    except subprocess.SubprocessError:
+        return False
+    return parse_seconds(out) is not None
+
+
 def seconds(exes: list[Path], lines: list[fuzz_diff.Line]) -> list[float] | None:
     """The least time of the calls of `lines` of each program over interleaved runs (see the
-    module docstring), or None if one cannot tell (e.g. a base without the option `time`)."""
-    best = [math.inf] * len(exes)
-    spent = 0.0
-    limit = fuzz_diff.RUN_TIMEOUT + fuzz_diff.LINE_TIMEOUT * len(lines)
-    try:
-        for i in range(ROUNDS):
-            # (alternating the order, as the first of two runs may be slower)
-            for j in ((0, 1), (1, 0))[i % 2]:
-                t = float(accuracy.dump([str(exes[j]), "xsf", "time"], lines, limit))
-                best[j] = min(best[j], t)
-                spent += t
-            if spent >= BUDGET or (i + 1 >= REPEATS and best[1] <= SLOWDOWN * best[0]):
-                break
-    except ValueError, subprocess.SubprocessError:
+    module docstring), or None if one cannot tell: a program without the mode `time`, a run
+    that panics, or fewer than `REPEATS` pairs of runs within `BUDGET`. If the base is below
+    `MIN_SECONDS`, it returns at once, as its least time can only fall."""
+    if not all(has_time(exe) for exe in exes):
         return None
+    best = [math.inf] * len(exes)
+    done: list[float] | None = None  # the least times once `REPEATS` pairs are complete
+    deadline = time.monotonic() + BUDGET
+    for i in range(ROUNDS):
+        # (alternating the order, as the first of two runs may be slower)
+        for j in ((0, 1), (1, 0))[i % 2]:
+            cmd = [str(exes[j]), "xsf", "time"]
+            try:
+                out = accuracy.dump(cmd, lines, max(deadline - time.monotonic(), 0))
+            except subprocess.TimeoutExpired:
+                return done
+            except subprocess.SubprocessError:
+                return None
+            if (t := parse_seconds(out)) is None:
+                return None
+            best[j] = min(best[j], t)
+            if j == 0 and best[0] < MIN_SECONDS:
+                return best
+        if i + 1 >= REPEATS:
+            done = best.copy()
+            if best[1] <= SLOWDOWN * best[0]:
+                break
+        if time.monotonic() >= deadline:
+            return done
     return best
+
+
+class Comparison(NamedTuple):
+    rows: list[list[str]]
+    flagged: list[tuple[float, str]]
+    failed: bool
+    inconclusive: bool
+    slow: bool
 
 
 def compare(
     spec: specs.Spec, exes: list[Path], pool: Pool, opts: argparse.Namespace
-) -> tuple[list[list[str]], list[tuple[float, str]], bool, bool, bool]:
+) -> Comparison:
     """The rows of the domains of `spec`, its flagged inputs (as TSV lines, with their head
     errors), whether it fails, whether it is inconclusive, and whether it got slower."""
     lines: list[fuzz_diff.Line] = []
@@ -262,7 +309,7 @@ def compare(
         note = f"skipped: base {status[0]}, head {status[1]}"
         # The reason takes the place of the counts.
         row = [spec.name, "-", note, *["-"] * (len(COLUMNS) - 3)]
-        return [row], [], False, True, False
+        return Comparison([row], [], False, True, False)
 
     rows: list[list[str]] = []
     flagged: list[tuple[float, str]] = []
@@ -366,7 +413,7 @@ def compare(
                 note,
             ]
             flagged.append((eh, "\t".join(cols)))
-    return rows, flagged, failed, inconclusive, slow
+    return Comparison(rows, flagged, failed, inconclusive, slow)
 
 
 def positive(s: str) -> int:
@@ -445,13 +492,13 @@ def main() -> None:
     failed = inconclusive = slow = False
     with multiprocessing.Pool(opts.jobs, maxtasksperchild=500) as pool:
         for spec in chosen:
-            rows, f, bad, unsure, slower = compare(spec, exes, pool, opts)
-            for row in rows:
+            res = compare(spec, exes, pool, opts)
+            for row in res.rows:
                 print("|", " | ".join(row), "|", flush=True)
-            flagged += f
-            failed |= bad
-            inconclusive |= unsure
-            slow |= slower
+            flagged += res.flagged
+            failed |= res.failed
+            inconclusive |= res.inconclusive
+            slow |= res.slow
 
     head = (
         "function\tdomain\tinput\tbase\thead\treference\tbase error\thead error\tnote"

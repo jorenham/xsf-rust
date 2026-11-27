@@ -2,17 +2,11 @@ name: domain-diff
 permissions: {}
 
 # (no path filter: GitHub filters the files of the PR, not those of the merge commit)
-# labeled and unlabeled: re-checks the label `allow-slowdown` (only that label, see the job)
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
 
-# (a label event that skips the job gets its own group, so that it cannot cancel a run)
 concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.event.pull_request.number }}${{
-    contains(fromJSON('["labeled","unlabeled"]'), github.event.action)
-    && github.event.label.name != 'allow-slowdown' && format('-{0}', github.run_id) || '' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
@@ -23,9 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     name: Accuracy over whole domains
     timeout-minutes: 45
-    if: >-
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action)
-      || github.event.label.name == 'allow-slowdown'
     permissions:
       contents: read
       pull-requests: read # the labels of the PR
@@ -70,7 +61,7 @@ jobs:
       # files of src/. Exit code 1 is a regression. Exit code 2 is a comparison that could not be
       # made (e.g. a new function, which the base lacks, or a missing reference), which only warns.
       # Exit code 3 is a function that got slower, which fails unless the PR has the label
-      # `allow-slowdown`.
+      # `allow-slowdown`; after adding it, re-run the job (a label event starts no run).
       # Its last line tells these from a failure of the script itself (e.g. a build error).
       - if: steps.src.outputs.changed
         name: domain-diff
@@ -95,10 +86,13 @@ jobs:
             2:*INCONCLUSIVE) echo "::warning::The comparison is incomplete (see the job summary)" ;;
             3:*SLOW)
               # not from the event, whose labels are those from when the run started
-              if gh pr view "$PR" --json labels --jq '.labels[].name' | grep -qx allow-slowdown; then
+              if ! labels=$(gh pr view "$PR" --json labels --jq '.labels[].name'); then
+                echo "::error::The labels of the PR could not be read"
+                code=1
+              elif grep -qx allow-slowdown <<< "$labels"; then
                 echo "::warning::A function got slower (see the job summary); allowed by the label allow-slowdown"
               else
-                echo "::error::A function got slower (see the job summary); add the label allow-slowdown if that is intended"
+                echo "::error::A function got slower (see the job summary); add the label allow-slowdown and re-run the job if that is intended"
                 code=1
               fi
               ;;
