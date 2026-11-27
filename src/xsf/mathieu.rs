@@ -9,7 +9,7 @@
 //! `mathieu_ce` and `mathieu_se` are `mathieu_cem` and `mathieu_sem` of an angle in radians, unlike
 //! in SciPy, which computes them with the newer `xsf/mathieu.h` (that needs an eigensolver).
 
-use core::f64::consts::FRAC_PI_2;
+use core::f64::consts::{FRAC_PI_2, PI};
 
 use num_traits::ToPrimitive;
 
@@ -153,11 +153,48 @@ fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     let int_m = m as i32;
+    // Unlike in xsf, reflect the second kind at `x < -1` where possible, as the series in
+    // `Y_n(sqrt(q) exp(x))` loses accuracy fast as `x` decreases.
+    if kc == 2 && x < -1.0 {
+        if let Some(pair) = mathieu_mod2_reflected(kf, int_m, q, -x) {
+            return pair;
+        }
+    }
     let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
     if status != Status::Ok {
         return (f64::NAN, f64::NAN);
     }
     if kc == 1 { (f1r, d1r) } else { (f2r, d2r) }
+}
+
+/// The second kind `Y2` (`kf` as in `mathieu_mod`) and its derivative at `-x`, for `x > 1`.
+///
+/// The first kind `Y1` is even (`kf = 1`) or odd (`kf = 2`) (DLMF 28.22.1-2), so
+/// `Y2(-x) = alpha Y1(x) - s Y2(x)`, with `s = 1` or `-1` from the Wronskian
+/// `W{Y1, Y2} = 2/pi` (DLMF 28.20.21), which at `x = 0` also gives `alpha = pi Y2(0) Y2'(0)`.
+/// `None` where this is inaccurate: before the turning point `2 q cosh(2x) = a` (as `Y1` is there)
+/// and where the Bessel functions of `u = sqrt(q) e^x` keep less than half their digits (their
+/// phase has an error of about `u EPSILON`). Also `None` where the result is not finite.
+fn mathieu_mod2_reflected(kf: i32, m: i32, q: f64, x: f64) -> Option<(f64, f64)> {
+    let u = q.sqrt() * x.exp();
+    let uu = u * u;
+    let cva = if kf == 1 { cem_cva } else { sem_cva };
+    // `2 q cosh(2x) = u^2 + (q / u)^2`, which does not overflow for such `u`
+    if !(uu + (q / u).powi(2) > cva(f64::from(m), q) && uu * f64::EPSILON < 1.0) {
+        return None;
+    }
+    // `mtu12` sets all outputs to NaN on failure
+    let at = |kc, x| {
+        let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
+        mtu12(kf, kc, m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
+        (f1r, d1r, f2r, d2r)
+    };
+    let (_, _, f2r, d2r) = at(2, 0.0);
+    let alpha = PI * f2r * d2r;
+    let s = if kf == 1 { 1.0 } else { -1.0 };
+    let (f1r, d1r, f2r, d2r) = at(3, x);
+    let (y, dy) = (alpha * f1r - s * f2r, s * d2r - alpha * d1r);
+    (y.is_finite() && dy.is_finite()).then_some((y, dy))
 }
 
 /// Characteristic value of even Mathieu functions

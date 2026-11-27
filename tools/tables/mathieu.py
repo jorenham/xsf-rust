@@ -76,18 +76,53 @@ def km(a: tuple[float, ...]) -> float:
     return qm + 0.5 * a[0]
 
 
-def radial1(
-    odd: int, derivative: bool
+def _value(v: mp.mpf | tuple[mp.mpf, mp.mpf]) -> mp.mpf:
+    return v[0] if isinstance(v, tuple) else v
+
+
+def radial(
+    odd: int, kind: int, derivative: bool
 ) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf | tuple[mp.mpf, mp.mpf]]:
-    """The first-kind modified Mathieu function or its derivative."""
+    """The modified Mathieu function of the given kind or its derivative."""
+
+    def at(k: int, d: bool, m: mp.mpf, q: mp.mpf, x: mp.mpf):
+        res = specs._mathieu_radial(odd, k, m, q, x, d)
+        if k == 1 or not isinstance(res, tuple) or res[0] == 0:
+            return res
+        # The series is accurate relative to the scale. Where the value is much smaller (as
+        # for large q at x = 0), more digits make it accurate relative to itself.
+        extra = max(int(mp.log10(res[1] / abs(res[0]))), 0)
+        if extra:
+            with specs.wdps(extra + 5):
+                res = specs._mathieu_radial(odd, k, m, q, x, d)
+        return res
 
     def reference(m: mp.mpf, q: mp.mpf, x: mp.mpf) -> mp.mpf | tuple[mp.mpf, mp.mpf]:
-        # The first kind has definite parity. Evaluate at positive x so the
-        # second-kind envelope is evaluated on its convergent side as well.
-        res = specs._mathieu_radial(odd, 1, m, q, abs(x), derivative)
-        if x < 0 and derivative != bool(odd):
+        if x >= 0:
+            return at(kind, derivative, m, q, x)
+        # The first kind has definite parity: even for Mc, odd for Ms.
+        flip = derivative != bool(odd)
+        if kind == 1:
+            res = at(1, derivative, m, q, -x)
+            if not flip:
+                return res
             return (-res[0], res[1]) if isinstance(res, tuple) else -res
-        return res
+        # Mc2(-z) is a combination of the solutions Mc1(z) and Mc2(z) of the same equation,
+        # with the coefficient of Mc2 from the Wronskian (DLMF 28.20.22), and that of Mc1 from
+        # z = 0. The series of Mc2 does not converge for large negative x, where Y_n(u) has a
+        # tiny u.
+        sign = 1 - 2 * odd
+        c0 = _value(at(2, bool(odd), m, q, mp.mpf(0)))
+        s0 = _value(at(1, bool(odd), m, q, mp.mpf(0)))
+        a = (2 - 4 * odd) * c0 / s0
+        y1 = _value(at(1, derivative, m, q, -x))
+        y2 = at(2, derivative, m, q, -x)
+        y = a * y1 - sign * _value(y2)
+        y = -y if derivative else y
+        if isinstance(y2, tuple):
+            # the modulus of the first and second kind, where they oscillate
+            return y, mp.hypot(-y1 if flip else y1, y)
+        return y
 
     return reference
 
@@ -127,9 +162,37 @@ def radial1_residual(odd: int) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf]:
             if x == 0 and j != odd:
                 errors.append(abs(actual))
                 continue
-            v = radial1(odd, bool(j))(m, q, x)
+            v = radial(odd, 1, bool(j))(m, q, x)
             expected, scale = v if isinstance(v, tuple) else (v, abs(v))
             errors.append(abs(actual - expected) / scale)
+        return max(errors)
+
+    return residual
+
+
+def radial2_residual(odd: int) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf]:
+    """The difference of the Wronskian of the first and second kind and its value 2 / pi
+    (DLMF 28.20.22), relative to it. At x < 0, also that of the reference and the series of
+    `specs._mathieu_radial`, relative to the reference or its scale."""
+
+    def residual(m: mp.mpf, q: mp.mpf, x: mp.mpf) -> mp.mpf:
+        y1, y2 = (
+            [
+                # the first kind has definite parity, so its value or derivative is 0 at x = 0
+                mp.mpf(0)
+                if x == 0 and kind == 1 and d == (not odd)
+                else _value(radial(odd, kind, d)(m, q, x))
+                for d in (False, True)
+            ]
+            for kind in (1, 2)
+        )
+        errors = [abs((y1[0] * y2[1] - y1[1] * y2[0]) * mp.pi / 2 - 1)]
+        if x < 0:
+            for d in (False, True):
+                ref = radial(odd, 2, d)(m, q, x)
+                y, scale = ref if isinstance(ref, tuple) else (ref, abs(ref))
+                direct = specs._mathieu_radial(odd, 2, m, q, x, d)
+                errors.append(abs(_value(direct) - y) / scale)
         return max(errors)
 
     return residual

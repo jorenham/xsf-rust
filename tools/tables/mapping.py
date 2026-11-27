@@ -4546,15 +4546,34 @@ def _mathieu_floor(tol: float, why: str) -> Floor:
     )
 
 
-def _mathieu_long_cvf(odd: int, derivative: bool) -> Pred:
-    """The inputs where `refine` (src/xsf/specfun/mathieu.rs) continues the continued fraction of
-    `cvf` past m + 10 terms, unlike xsf, and where the errors of xsf's less accurate
+def _mathieu_long_cvf(odd: int, kind: int, derivative: bool) -> Floor:
+    """A floor at the inputs where `refine` (src/xsf/specfun/mathieu.rs) continues the continued
+    fraction of `cvf` past m + 10 terms, unlike xsf, and where the errors of xsf's less accurate
     characteristic value happen to cancel others."""
     inputs = {
-        (0, False): {(2.0, 1000.9, 0.0), (7.0, 1000.9, 1.0)},
-        (1, True): {(8.0, 1000.9, 0.0)},
-    }.get((odd, derivative), set())
-    return lambda a: a in inputs
+        (0, 1, False): {(2.0, 1000.9, 0.0), (7.0, 1000.9, 1.0)},
+        (1, 1, True): {(8.0, 1000.9, 0.0)},
+        (0, 2, True): {
+            (5.0, 1000.9, 1e-05),
+            (5.0, 1000.9, 0.00100000000001),
+            (6.0, 1000.9, 1.0),
+            (7.0, 1000.9, 1.0),
+        },
+        (1, 2, False): {
+            (3.0, 1000.9, 5e-08),
+            (3.0, 1000.9, 1e-05),
+            (7.0, 1000.9, 0.0),
+            (7.0, 1000.9, 0.00100000000001),
+            (8.0, 1000.9, 1e-09),
+        },
+        (1, 2, True): {(8.0, 1000.9, 1.0)},
+    }.get((odd, kind, derivative), set())
+    return Floor(
+        lambda a: a in inputs,
+        2e-15,
+        "unlike xsf, `refine` continues `cvf` further, so the characteristic value rounds "
+        "differently",
+    )
 
 
 def _mathieu_radial1(odd: int) -> Entry:
@@ -4563,7 +4582,7 @@ def _mathieu_radial1(odd: int) -> Entry:
         tuple(
             Out(
                 f"mathieu_mod{family}em1.{int(derivative)}",
-                (mathieu.radial1(odd, derivative),),
+                (mathieu.radial(odd, 1, derivative),),
                 rules=(
                     _mathieu_m(odd, f"M{family}1"),
                     Rule(lambda a: a[1] < 0, math.nan, "q must be nonnegative"),
@@ -4596,20 +4615,46 @@ def _mathieu_radial1(odd: int) -> Entry:
                         else ()
                     ),
                 ),
-                floors=(
-                    Floor(
-                        _mathieu_long_cvf(odd, derivative),
-                        2e-15,
-                        "unlike xsf, `refine` continues `cvf` further, so the characteristic "
-                        "value rounds differently",
-                    ),
-                ),
+                floors=(_mathieu_long_cvf(odd, 1, derivative),),
             )
             for derivative in (False, True)
         ),
         Identity(
             lambda a: odd <= a[0] <= 12 and 0 < a[1] <= 10 and abs(a[2]) <= 1,
             mathieu.radial1_residual(odd),
+        ),
+    )
+
+
+def _mathieu_radial2(odd: int) -> Entry:
+    family = "s" if odd else "c"
+    return Entry(
+        tuple(
+            Out(
+                f"mathieu_mod{family}em2.{int(derivative)}",
+                (mathieu.radial(odd, 2, derivative),),
+                rules=(
+                    _mathieu_m(odd, f"M{family}2"),
+                    Rule(lambda a: a[1] < 0, math.nan, "q must be nonnegative"),
+                    Rule(
+                        lambda a: mathieu.km(a) >= 251,
+                        math.nan,
+                        "mtu12 cannot safely index 251 Fourier coefficients",
+                    ),
+                ),
+                overrides=(
+                    Override(
+                        lambda a: a[2] < -1,
+                        "the xsf series in Y_n(sqrt(q) exp(x)) cancels catastrophically (#1742)",
+                    ),
+                ),
+                floors=(_mathieu_long_cvf(odd, 2, derivative),),
+            )
+            for derivative in (False, True)
+        ),
+        Identity(
+            lambda a: odd <= a[0] <= 12 and 0 < a[1] <= 10 and abs(a[2]) <= 1,
+            mathieu.radial2_residual(odd),
         ),
     )
 
@@ -5727,6 +5772,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     **_spheroidal("oblate_radial2", (), (False,)),
     ("mcm1", "d_d_d-d_d"): _mathieu_radial1(0),
     ("msm1", "d_d_d-d_d"): _mathieu_radial1(1),
+    ("mcm2", "d_d_d-d_d"): _mathieu_radial2(0),
+    ("msm2", "d_d_d-d_d"): _mathieu_radial2(1),
     ("cem_cva", "d_d-d"): Entry(
         (Out("mathieu_a", (specs.r_mathieu_a,), rules=(_mathieu_m(0, "a_m"),)),),
         Identity(
