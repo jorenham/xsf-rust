@@ -284,8 +284,9 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 ///   starting values, plus that of a rounding error in each step
 ///   `G_k = (p G_{k-1} - q G_{k-2}) / r` of `EPSILON` times `(|p G_{k-1}| + |q G_{k-2}|) / |r|` (by
 ///   the derivatives of `G_n` in the intermediate values, which can exceed those in the starting
-///   values), plus, outside the factor 2, `HYP2F1_ETHRESH |G_n|`, that of a relative error of
-///   `HYP2F1_ETHRESH` shared by the starting values, which the residual doesn't show.
+///   values). Within `HYP2F1_EPS` of an integer degree, it adds `HYP2F1_ETHRESH |G_n|`, as the
+///   starting values, with `a` near a nonpositive integer, can share a relative error of up to
+///   about `HYP2F1_ETHRESH` that the residual doesn't show.
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -359,8 +360,10 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
             step_error += d1.norm() * ((p * w[1]).norm() + (w[0] * q).norm()) / r.abs();
             (d0, d1) = (d1 * (-q / r), d0 + d1 * (p / r));
         }
-        let estimate = 2.0 * (2.0 * residual * growth + f64::EPSILON * step_error)
-            + HYP2F1_ETHRESH * rec.norm();
+        let near_int = (n - n.round()).abs() < HYP2F1_EPS;
+        let shared = if near_int { HYP2F1_ETHRESH } else { 0.0 };
+        let estimate =
+            2.0 * (2.0 * residual * growth + f64::EPSILON * step_error) + shared * rec.norm();
         estimate.min(tol * growth)
     } else {
         tol * growth
