@@ -258,9 +258,9 @@ fn series_loss<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64) -> f64 {
 /// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
 const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 
-/// A relative error of the starting values of `jacobi_hyp2f1_recurrence` that solves the
-/// recurrence, so that their residual can't show it (the least power of two times `EPSILON` that
-/// keeps `hyp2f1` where the recurrence amplifies it by 2e4 to 2e6)
+/// A relative error of the starting values of `jacobi_hyp2f1_recurrence` that nearly solves the
+/// recurrence, so that their residual can't show it. Fitted, not derived: the least power of two
+/// times `EPSILON` that keeps `hyp2f1` at three inputs the recurrence amplifies by 2e4 to 2e6.
 const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
 
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
