@@ -53,9 +53,9 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         let [ai, aip, bi, bip] = airy_f64(z.re);
         return [c64(ai, 0.0), c64(-aip.abs(), -0.0), c64(bi, 0.0), c64(bip, 0.0)];
     }
-    // Unlike in xsf, use the real Airy functions on the negative real axis where AMOS reports a
-    // loss of accuracy (ierr = 3 for |z|^3 > 0.5 / eps), as their phase is more accurate.
-    if kode == 1 && z.im == 0.0 && z.re.is_finite() && z.re.powi(3) < -0.5 / f64::EPSILON {
+    // Unlike in xsf, use the real Airy functions on the negative real axis beyond the power
+    // series of AMOS (|z| > 1), as their phase is more accurate.
+    if kode == 1 && z.im == 0.0 && (f64::MIN..-1.0).contains(&z.re) {
         return airy_f64(z.re).map(|w| c64(w, 0.0));
     }
     let zeta = zeta_err(z);
