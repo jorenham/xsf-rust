@@ -14,14 +14,14 @@ reports with file and line:
 - a new property-test exclusion (`prop_assume!`, `prop_filter`, `if` or `unless` clause of a
   property, `// known:` comment) in `tests/properties`
 - a new `#[ignore]`
-- a removed test, which no added test of its file replaces
+- fewer tests (`#[test]` or an entry of `xsref::tests!`) than before
 - removed rows of a test table, whose inputs no added row has
 - a removed xsref table, or a removed row or a larger tolerance or scale of one
   (`tests/data/xsref`)
 
 Test code is everything in `tests/` and `testing/`, and the `#[cfg(test)]` part of `src/`. The exit
-status is 1 if there are findings. On GitHub Actions, they are also printed as annotations and
-appended to the job summary, and `found=true|false` is written to `GITHUB_OUTPUT` (exit status 0).
+status is 1 if there are findings. On GitHub Actions, they are also printed as annotations, and
+`found=true|false` is written to `GITHUB_OUTPUT` (exit status 0).
 """
 
 import os
@@ -29,9 +29,8 @@ import re
 import struct
 import subprocess
 import sys
-from collections import Counter
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
@@ -55,8 +54,6 @@ PROPERTY_GUARD = r"^\s*(?:property!\([\w:]+,\s*)?[a-z_]\w*\(.*\)\s+if\b"
 EXCLUSION = re.compile(
     rf"prop_assume!|prop_filter|\bunless\b|{PROPERTY_GUARD}|//\s*known:"
 )
-ATTRIBUTE = re.compile(r"\s*(?:#\[|//)")
-TEST_FN = re.compile(r"^\s*(?:pub\s+)?fn\s+(\w+)")
 # an entry of `xsref::tests!`
 TEST_ENTRY = re.compile(r"^\s*(\w+):\s*\"")
 # the words of a table row that are numbers
@@ -74,84 +71,48 @@ class Finding:
 
 @dataclass(frozen=True)
 class Line:
-    """A line of a hunk: `kind` is `-` or `+` (context lines are dropped), `no` is in the old or new file"""
-
-    kind: str
-    no: int
+    no: int  # in the old file for a removed line, else in the new file
     text: str
-    tested: bool  # `#[test]` is among the attributes right above it
-    block: int  # the run of changed lines that it is part of
 
 
-# unquoted paths
-GIT = ["git", "-c", "core.quotePath=false"]
+@dataclass
+class Hunk:
+    """A run of changed lines"""
+
+    path: str
+    is_new: bool
+    removed: list[Line] = field(default_factory=list)
+    added: list[Line] = field(default_factory=list)
 
 
-def git(*args: str) -> bytes | None:
-    """The output of a git command, or `None` if it fails"""
-    out = subprocess.run(GIT + list(args), check=False, capture_output=True)
-    return out.stdout if out.returncode == 0 else None
+def git(*args: str) -> bytes:
+    # unquoted paths
+    cmd = ["git", "-c", "core.quotePath=false", *args]
+    return subprocess.run(cmd, check=True, capture_output=True).stdout
 
 
-def git_text(*args: str) -> str:
-    out = subprocess.run(GIT + list(args), check=True, capture_output=True)
-    return out.stdout.decode(errors="replace")
-
-
-def after_test(tested: bool, text: str) -> bool:
-    """Whether `#[test]` is among the attributes right above the line after `text`"""
-    if text.strip() == "#[test]":
-        return True
-    return tested and ATTRIBUTE.match(text) is not None
-
-
-def hunks(diff: str) -> Iterator[tuple[str, bool, list[Line]]]:
-    """The `(path, whether it is new, changed lines)` of each hunk of a unified diff"""
-    path = ""
-    is_new = False
-    lines: list[Line] = []
+def hunks(diff: str) -> list[Hunk]:
+    """The hunks of a `git diff -U0`"""
+    out: list[Hunk] = []
+    path, is_new, hunk = "", False, None
     old = new = 0
-    tested_old = tested_new = False
-    header = True
-    block = 0
     # not `splitlines`, which also splits at U+2028 and others
     for text in diff.split("\n"):
         if text.startswith("diff --git "):
-            header = True
-            if lines:
-                yield path, is_new, lines
-            lines = []
-            is_new = False
-            path = text.rsplit(" b/", 1)[1]
+            path, is_new, hunk = text.rsplit(" b/", 1)[-1], False, None
         elif text.startswith("new file mode"):
             is_new = True
-        elif text.startswith("@@"):
-            header = False
-            if lines:
-                yield path, is_new, lines
-            lines = []
-            m = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)", text)
-            assert m
+        elif m := re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)", text):
             old, new = int(m[1]), int(m[2])
-            tested_old = tested_new = False
-            block = 0
-        elif header:
-            continue
-        elif text.startswith("-"):
-            lines.append(Line("-", old, text[1:], tested_old, block))
-            tested_old = after_test(tested_old, text[1:])
+            hunk = Hunk(path, is_new)
+            out.append(hunk)
+        elif hunk and text.startswith("-"):
+            hunk.removed.append(Line(old, text[1:]))
             old += 1
-        elif text.startswith("+"):
-            lines.append(Line("+", new, text[1:], tested_new, block))
-            tested_new = after_test(tested_new, text[1:])
+        elif hunk and text.startswith("+"):
+            hunk.added.append(Line(new, text[1:]))
             new += 1
-        elif text.startswith(" "):
-            block += 1
-            tested_old = tested_new = after_test(tested_old, text[1:])
-            old += 1
-            new += 1
-    if lines:
-        yield path, is_new, lines
+    return out
 
 
 @cache
@@ -159,16 +120,24 @@ def test_start(rev: str, path: str) -> int:
     """The first line of the test code of a file, which is the whole file in a test directory"""
     if path.startswith(("tests/", "testing/")):
         return 0
-    text = (git("show", f"{rev}:{path}") or b"").decode(errors="replace")
-    # like the lines of a hunk, not `splitlines`
+    text = git("show", f"{rev}:{path}").decode(errors="replace")
     for i, line in enumerate(text.split("\n"), 1):
         if line.strip() == "#[cfg(test)]":
             return i
     return sys.maxsize
 
 
+def test_lines(rev: str, path: str, lines: list[Line]) -> list[Line]:
+    """The lines that are test code"""
+    return [ln for ln in lines if ln.no >= test_start(rev, path)] if lines else []
+
+
 def is_row(text: str) -> bool:
     return ROW.fullmatch(ROW_WORD.sub("", text.split("//")[0])) is not None
+
+
+def is_test(text: str) -> bool:
+    return text.strip() == "#[test]" or TEST_ENTRY.match(text) is not None
 
 
 def numbers(text: str) -> tuple[float, ...]:
@@ -181,13 +150,6 @@ def numbers(text: str) -> tuple[float, ...]:
     return tuple(float(t.replace("_", "")) for t in TOKEN.findall(text))
 
 
-def test_name(text: str, tested: bool) -> re.Match[str] | None:
-    """The name of a test: a `#[test] fn`, or an entry of `xsref::tests!`"""
-    if m := TEST_ENTRY.match(text):
-        return m
-    return TEST_FN.match(text) if tested else None
-
-
 def shape(text: str) -> str:
     """A line without its numbers, to find the line that replaces it"""
     return re.sub(NUM, "#", "".join(text.split()))
@@ -195,118 +157,74 @@ def shape(text: str) -> str:
 
 def loosened(path: str, removed: list[Line], added: list[Line]) -> Iterator[Finding]:
     """The larger small numbers (tolerances) of the lines that replace a line of the same shape"""
-    old = [(shape(ln.text), numbers(ln.text), ln) for ln in removed]
+    old = list(removed)
     for ln in added:
-        for i, (old_shape, old_nums, old_ln) in enumerate(old):
-            if old_ln.block == ln.block and old_shape == shape(ln.text):
-                del old[i]
-                if is_row(ln.text):
-                    break
-                new_nums = numbers(ln.text)
-                for x, y in zip(old_nums, new_nums, strict=False):
+        match = next((o for o in old if shape(o.text) == shape(ln.text)), None)
+        if match:
+            old.remove(match)
+            if not is_row(ln.text):
+                for x, y in zip(numbers(match.text), numbers(ln.text), strict=False):
                     if 0 < x < SMALL and y > x * (1 + 1e-9):
                         yield Finding(path, ln.no, f"tolerance {y:.3g} > {x:.3g}")
-                break
-        else:
+        elif TOLERANCE_VARIABLE.search(ln.text) and any(
+            TOLERANCE_LITERAL.search(o.text) for o in old
+        ):
             # a tolerance that became a variable, whose value is unknown
-            if TOLERANCE_VARIABLE.search(ln.text) and any(
-                old_ln.block == ln.block and TOLERANCE_LITERAL.search(old_ln.text)
-                for _, _, old_ln in old
-            ):
-                yield Finding(path, ln.no, "tolerance is not a literal anymore")
+            yield Finding(path, ln.no, "tolerance is not a literal anymore")
 
 
-def orphans(removed: list[Line]) -> Iterator[Line]:
-    """The removed `#[test]` attributes whose function is not removed"""
-    by_no = {ln.no: ln for ln in removed}
-    for ln in removed:
-        if ln.text.strip() != "#[test]":
-            continue
-        no = ln.no + 1
-        while (nxt := by_no.get(no)) and ATTRIBUTE.match(nxt.text):
-            no += 1
-        if not nxt or not TEST_FN.match(nxt.text):
-            yield ln
-
-
-def check_hunks(diff: str, base: str, head: str) -> list[Finding]:
-    all_hunks = list(hunks(diff))
-    added_tests: Counter[str] = Counter()  # by file
-    added_names: set[str] = set()
+def check_code(diff: str, base: str, head: str) -> list[Finding]:
+    out: list[Finding] = []
+    gone_tests: list[tuple[str, Line]] = []
+    n_added_tests = 0
+    gone_rows: list[tuple[str, Line]] = []
     # a row with the same inputs as a removed one only gets other outputs
     added_rows: set[tuple[float, ...]] = set()
-    for path, _, ls in all_hunks:
-        for ln in ls:
-            if ln.kind == "+":
-                added_rows.add(numbers(ln.text)[:-1])
-                if m := test_name(ln.text, ln.tested):
-                    added_tests[path] += 1
-                    added_names.add(m[1])
-
-    gone_tests: dict[str, list[Finding]] = {}
-    out: list[Finding] = []
-    for path, is_new, ls in all_hunks:
-        removed = [
-            ln for ln in ls if ln.kind == "-" and ln.no >= test_start(base, path)
-        ]
-        added = [ln for ln in ls if ln.kind == "+" and ln.no >= test_start(head, path)]
-
-        out.extend(loosened(path, removed, added))
-
+    for h in hunks(diff):
+        removed = test_lines(base, h.path, h.removed)
+        added = test_lines(head, h.path, h.added)
+        out.extend(loosened(h.path, removed, added))
         for ln in added:
             if "#[ignore" in ln.text:
-                out.append(Finding(path, ln.no, "ignored test"))
-            if not is_new and path.startswith(PROPERTIES) and EXCLUSION.search(ln.text):
-                out.append(Finding(path, ln.no, "property-test exclusion"))
+                out.append(Finding(h.path, ln.no, "ignored test"))
+            # a new file is a new test, which is not weakened
+            if (
+                not h.is_new
+                and h.path.startswith(PROPERTIES)
+                and EXCLUSION.search(ln.text)
+            ):
+                out.append(Finding(h.path, ln.no, "property-test exclusion"))
+        gone_tests += [(h.path, ln) for ln in removed if is_test(ln.text)]
+        n_added_tests += sum(is_test(ln.text) for ln in added)
+        gone_rows += [(h.path, ln) for ln in removed if is_row(ln.text)]
+        added_rows |= {numbers(ln.text)[:-1] for ln in added if is_row(ln.text)}
 
-        gone_tests.setdefault(path, []).extend(
-            Finding(path, ln.no, f"removed test `{m[1]}`")
-            for ln in removed
-            if (m := test_name(ln.text, ln.tested)) and m[1] not in added_names
+    # a renamed or moved test is not removed
+    if (n := len(gone_tests) - n_added_tests) > 0:
+        path, ln = gone_tests[0]
+        out.append(Finding(path, ln.no, f"removed {plural(n, 'test')}"))
+    if gone := [r for r in gone_rows if numbers(r[1].text)[:-1] not in added_rows]:
+        path, ln = gone[0]
+        out.append(
+            Finding(path, ln.no, f"removed {plural(len(gone), 'row')} of a test table")
         )
-
-        out.extend(
-            Finding(path, ln.no, "removed `#[test]` of a function")
-            for ln in orphans(removed)
-        )
-
-        gone = [
-            ln
-            for ln in removed
-            if is_row(ln.text) and numbers(ln.text)[:-1] not in added_rows
-        ]
-        n_rows = sum(1 for ln in added if is_row(ln.text))
-        n_removed = sum(1 for ln in removed if is_row(ln.text))
-        if gone and n_removed > n_rows:
-            out.append(
-                Finding(
-                    path,
-                    gone[0].no,
-                    f"removed {plural(len(gone), 'row')} of a test table",
-                )
-            )
-    # a test that is renamed in its file is not removed
-    for path, found in gone_tests.items():
-        out.extend(found[added_tests[path] :])
     return out
 
 
-def parse_table(data: bytes) -> dict[bytes, tuple[float, ...]] | None:
+def parse_table(data: bytes) -> dict[bytes, tuple[float, ...]]:
     """The tolerances and scales of each row of an xsref table, by the bytes of its inputs
 
     The format is described in `tests/data/xsref/README.md`.
     """
-    if data[:4] != b"XSFT" or len(data) < 20:
-        return None
+    if data[:4] != b"XSFT":
+        msg = "not an xsref table"
+        raise ValueError(msg)
     n_rows, n_in, n_out, n_tol, flags = struct.unpack_from("<IHHHH", data, 8)
     width = n_in + n_out + n_tol * (1 + bool(flags & 2))
-    if len(data) < 20 + n_rows * width * 8:
-        return None
     values = struct.unpack_from(f"<{n_rows * width}d", data, 20)
     rows: dict[bytes, tuple[float, ...]] = {}
     for r in range(n_rows):
         row = values[r * width : (r + 1) * width]
-        # the tolerances, then the scales (if any)
         tols = row[n_in + n_out : n_in + n_out + n_tol]
         # like the reader of the tables, without scales there are none (0)
         scales = row[n_in + n_out + n_tol :] or (0.0,) * n_tol
@@ -314,46 +232,33 @@ def parse_table(data: bytes) -> dict[bytes, tuple[float, ...]] | None:
     return rows
 
 
-def blob(rev: str, name: str) -> bytes:
-    """The content of a file that exists in `rev`"""
-    data = git("show", f"{rev}:{name}")
-    if data is None:
-        msg = f"{name} is not in {rev}"
-        raise RuntimeError(msg)
-    return data
-
-
 def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[Finding]:
     """The findings of the changed xsref tables, as `(git status, path)`"""
     out: list[Finding] = []
     # a table whose bytes reappear in an added `.bin` was moved, not removed
     added = {
-        blob(head, name)
+        git("show", f"{head}:{name}")
         for status, name in changed
         if status == "A" and name.endswith(".bin")
     }
     for status, name in changed:
         if status == "A" or not name.endswith(".bin"):
             continue
-        old_data = blob(base, name)
-        old = parse_table(old_data)
-        if old is None:
-            continue
+        old_data = git("show", f"{base}:{name}")
         if status == "D":
             if old_data not in added:
                 out.append(Finding(name, 1, "removed xsref table"))
             continue
-        new = parse_table(blob(head, name))
-        if new is None:
-            out.append(Finding(name, 1, "removed xsref table"))
-            continue
-        missing = sum(k not in new for k in old)
-        looser = sum(k in new and larger(new[k], tol) for k, tol in old.items())
-        if missing:
+        old, new = parse_table(old_data), parse_table(git("show", f"{head}:{name}"))
+        if missing := sum(k not in new for k in old):
             out.append(
                 Finding(name, 1, f"removed {plural(missing, 'row')} of an xsref table")
             )
-        if looser:
+        # a larger tolerance or scale
+        if looser := sum(
+            k in new and any(n > o for n, o in zip(new[k], v, strict=True))
+            for k, v in old.items()
+        ):
             out.append(
                 Finding(
                     name,
@@ -368,32 +273,21 @@ def plural(n: int, noun: str) -> str:
     return f"{n} {noun}" + "s" * (n != 1)
 
 
-def larger(new: tuple[float, ...], old: tuple[float, ...]) -> bool:
-    """Whether a tolerance or scale grew"""
-    return any(n > o for n, o in zip(new, old, strict=False))
-
-
 def find(base: str, head: str) -> list[Finding]:
-    rng = f"{base}...{head}"
-    merge_base = git_text("merge-base", base, head).strip()
-    head = git_text("rev-parse", head).strip()
-    diff = git_text(
-        "diff", "--no-color", "--no-renames", "-U3", rng, "--", ":(top)*.rs"
-    )
+    merge_base = git("merge-base", base, head).decode().strip()
+    diff = git("diff", "--text", "--no-renames", "-U0", merge_base, head, "--", "*.rs")
     changed = [
         (status, path)
-        for line in git_text(
-            "diff", "--name-status", "--no-renames", rng, "--", f":(top){XSREF}"
-        ).split("\n")
-        if line
+        for line in git(
+            "diff", "--name-status", "--no-renames", merge_base, head, "--", XSREF
+        )
+        .decode()
+        .splitlines()
         for status, path in [line.split("\t")]
     ]
-    findings = check_hunks(diff, merge_base, head)
-    return findings + check_tables(merge_base, head, changed)
-
-
-def escape(text: str) -> str:
-    return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    return check_code(diff.decode(errors="replace"), merge_base, head) + check_tables(
+        merge_base, head, changed
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -403,17 +297,7 @@ def main(argv: list[str]) -> int:
     for f in findings:
         print(f"{f.path}:{f.line}: {f.message}")
         if os.environ.get("GITHUB_ACTIONS"):
-            print(f"::warning file={f.path},line={f.line}::{escape(f.message)}")
-    if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
-        with Path(summary).open("a", encoding="utf-8") as fh:
-            fh.write("### Loosened tests\n\n")
-            if findings:
-                fh.write("| Location | Change |\n| --- | --- |\n")
-                fh.writelines(
-                    f"| `{f.path}:{f.line}` | {f.message} |\n" for f in findings
-                )
-            else:
-                fh.write("None.\n")
+            print(f"::warning file={f.path},line={f.line}::{f.message}")
     # in CI, the findings are an output (so that only they, not a crash, can be allowed)
     if output := os.environ.get("GITHUB_OUTPUT"):
         with Path(output).open("a", encoding="utf-8") as fh:

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import check_loosened_tests as c
 
-# the PR that loosened tests of `hyppfq` for `2F0`, and test-only or ordinary PRs that did not
+# the PR that loosened tests of `hyppfq` for `2F0`, and PRs that did not
 PR_1817 = "ae623e7e2"
 ORDINARY = ["5850f5158", "e5b1564bc", "ffc0c30b9", "60641a787", "93eb196b7"]
 
@@ -32,7 +32,10 @@ fn test_f() {{
 #[test]
 fn test_g() {{}}
 """
-
+F = "tests/x.rs"
+BEFORE = TEST.format(rtol="1e-14", tol="1e-13")
+BIN = "tests/data/xsref/f/d-d.bin"
+ROWS: list[tuple[float, ...]] = [(1.0, 2.0, 1e-15, 0.0), (2.0, 3.0, 1e-15, 0.0)]
 
 # file contents by path, where `None` deletes the file
 type Files = dict[str, str | bytes | None]
@@ -50,11 +53,12 @@ def table(rows: Sequence[tuple[float, ...]], *, scaled: bool = True) -> bytes:
 
 
 class Repo:
-    """A temporary git repository with a base commit `base` and a changed one"""
+    """A temporary git repository with a base commit and a changed one"""
 
     def __init__(self, files: Files) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name)
+        tmp = tempfile.TemporaryDirectory()
+        self.root = Path(tmp.name)
+        self.cleanup = tmp.cleanup
         self.git("init", "-q")
         self.commit(files)
 
@@ -78,229 +82,174 @@ class Repo:
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "c")
 
-    def findings(self) -> list[str]:
+
+class Synthetic(unittest.TestCase):
+    def check(self, before: Files, after: Files) -> list[str]:
+        repo = Repo(before)
+        self.addCleanup(repo.cleanup)
+        repo.commit(after)
         cwd = Path.cwd()
-        os.chdir(self.root)
+        os.chdir(repo.root)
         try:
             return [f"{f.path}: {f.message}" for f in c.find("HEAD~", "HEAD")]
         finally:
             os.chdir(cwd)
 
-
-class Synthetic(unittest.TestCase):
-    def check(self, before: Files, after: Files) -> list[str]:
-        repo = Repo(before)
-        self.addCleanup(repo.tmp.cleanup)
-        repo.commit(after)
-        return repo.findings()
+    def one(self, before: str, after: str, expected: list[str], path: str = F) -> None:
+        self.assertEqual(self.check({path: before}, {path: after}), expected)
 
     def test_numbers(self) -> None:
-        self.assertEqual(c.numbers("rtol = 1e-14);"), (1e-14,))
         self.assertEqual(
             c.numbers("let tol = 4.0 * f64::EPSILON; // 1e-3"), (4.0 * c.EPSILON,)
         )
         self.assertEqual(c.numbers("f(1_000.5, 2e-3)"), (1000.5, 2e-3))
 
-    def test_unchanged(self) -> None:
-        f = "tests/x.rs"
-        same = TEST.format(rtol="1e-14", tol="1e-13")
-        self.assertEqual(self.check({f: same}, {f: same + "\n// c\n"}), [])
-        self.assertEqual(
-            self.check({f: same}, {f: TEST.format(rtol="1e-15", tol="1e-14")}), []
-        )
-
     def test_loosened(self) -> None:
-        f = "tests/x.rs"
-        found = self.check(
-            {f: TEST.format(rtol="1e-14", tol="1e-13")},
-            {f: TEST.format(rtol="1e-13", tol="1e-12")},
-        )
-        self.assertEqual(len(found), 2, found)
-        self.assertTrue(all("tolerance" in x for x in found), found)
-
-    def test_other_tolerance_forms(self) -> None:
-        f = "tests/x.rs"
         for old, new in [
+            ("rtol = 1e-14);", "rtol = 1e-13);"),
             ("const RTOL: f64 = 1e-5;", "const RTOL: f64 = 1e-4;"),
             ("close(ab, ba, 1e-10);", "close(ab, ba, 1e-2);"),
-            (
-                "assert!(e <= 2.0 * f64::EPSILON * y);",
-                "assert!(e <= 4.0 * f64::EPSILON * y);",
-            ),
+            ("e <= 2.0 * f64::EPSILON * y", "e <= 4.0 * f64::EPSILON * y"),
         ]:
             with self.subTest(old):
-                self.assertEqual(len(self.check({f: old + "\n"}, {f: new + "\n"})), 1)
-                self.assertEqual(self.check({f: new + "\n"}, {f: old + "\n"}), [])
+                self.assertEqual(len(self.check({F: old + "\n"}, {F: new + "\n"})), 1)
+                self.one(new + "\n", old + "\n", [])
 
-    def test_rows_are_not_tolerances(self) -> None:
-        f = "tests/x.rs"
-        self.assertEqual(self.check({f: "(1e-5, 2.0),\n"}, {f: "(1e-3, 2.0),\n"}), [])
+    def test_not_loosened(self) -> None:
+        self.one(BEFORE, BEFORE + "\n// c\n", [])
+        self.one(BEFORE, TEST.format(rtol="1e-15", tol="1e-14"), [])
+        # the output of a row is not a tolerance
+        self.one("(1.0, 1e-5),\n", "(1.0, 1e-3),\n", [])
 
     def test_tolerance_variable(self) -> None:
-        f = "tests/x.rs"
-        found = self.check(
-            {f: "const RTOL: f64 = 1e-12;\n"}, {f: "const RTOL: f64 = DEFAULT_RTOL;\n"}
+        self.one(
+            "const RTOL: f64 = 1e-12;\n",
+            "const RTOL: f64 = DEFAULT_RTOL;\n",
+            [f"{F}: tolerance is not a literal anymore"],
         )
-        self.assertEqual(found, [f"{f}: tolerance is not a literal anymore"])
 
     def test_src_tests_only(self) -> None:
-        code = "fn f() {{ let rtol = {}; }}\n\n#[cfg(test)]\nmod tests {{\n    fn t() {{ let rtol = {}; }}\n}}\n"
-        found = self.check(
-            {"src/a.rs": code.format("1e-14", "1e-14")},
-            {"src/a.rs": code.format("1e-3", "1e-13")},
-        )
-        self.assertEqual(found, ["src/a.rs: tolerance 1e-13 > 1e-14"])
-
-    def test_ignored_and_removed(self) -> None:
-        f = "tests/x.rs"
-        before = TEST.format(rtol="1e-14", tol="1e-13")
-        after = before.replace(
-            "#[test]\nfn test_g() {}", "#[test]\n#[ignore]\nfn test_g() {}"
-        )
-        self.assertEqual(self.check({f: before}, {f: after}), [f"{f}: ignored test"])
-        after = before.replace("\n#[test]\nfn test_g() {}\n", "")
-        self.assertEqual(
-            self.check({f: before}, {f: after}), [f"{f}: removed test `test_g`"]
-        )
-        # a rename and a move to another file
-        after = before.replace("test_g", "test_h")
-        self.assertEqual(self.check({f: before}, {f: after}), [])
-        gone = before.replace("\n#[test]\nfn test_g() {}\n", "")
-        moved: Files = {
-            f: gone,
-            "tests/y.rs": "#[test]\nfn test_g() {}\n",
-        }
-        self.assertEqual(self.check({f: before}, moved), [])
-
-    def test_rows(self) -> None:
-        f = "tests/x.rs"
-        before = TEST.format(rtol="1e-14", tol="1e-13")
-        self.assertEqual(
-            self.check({f: before}, {f: before.replace("        (3.0, 4.0),\n", "")}),
-            [f"{f}: removed 1 row of a test table"],
-        )
-        # a new output for the same input
-        self.assertEqual(
-            self.check({f: before}, {f: before.replace("(3.0, 4.0)", "(3.0, 5.0)")}), []
+        # also with U+2028 above `#[cfg(test)]`, which is not a line break
+        code = 'const S: &str = "  ";\nfn f() {{ let rtol = {}; }}\n#[cfg(test)]\nmod t {{ fn t() {{ let rtol = {}; }} }}\n'
+        self.one(
+            code.format("1e-14", "1e-14"),
+            code.format("1e-3", "1e-13"),
+            ["src/a.rs: tolerance 1e-13 > 1e-14"],
+            "src/a.rs",
         )
 
-    def test_exclusions(self) -> None:
-        f = "tests/properties/ranges.rs"
-        before = "property!(no_panic, f(a in positive()));\n"
-        after = "property!(no_panic, f(a in positive()) if a < 1e300);\n"
-        self.assertEqual(
-            self.check({f: before}, {f: after}), [f"{f}: property-test exclusion"]
+    def test_unicode_path(self) -> None:
+        path = "tests/é.rs"
+        self.one(
+            "let rtol = 1e-14;\n",
+            "let rtol = 1e-13;\n",
+            [f"{path}: tolerance 1e-13 > 1e-14"],
+            path,
         )
-        # a guard of a property with default strategies
-        guard = "property!(no_panic, f(x) if x > 0.0);\n"
-        self.assertEqual(
-            self.check({f: before}, {f: before + guard}),
-            [f"{f}: property-test exclusion"],
+
+    def test_tests(self) -> None:
+        no_g = BEFORE.replace("\n#[test]\nfn test_g() {}\n", "")
+        self.one(BEFORE, no_g, [f"{F}: removed 1 test"])
+        # only the attribute
+        self.one(
+            BEFORE,
+            BEFORE.replace("#[test]\nfn test_g", "fn test_g"),
+            [f"{F}: removed 1 test"],
         )
-        # a match arm is not a guard
-        arm = "    Some(w) if w > 0 => 1,\n"
-        self.assertEqual(self.check({f: before}, {f: before + arm}), [])
-        # a new file is a new test, which is not weakened, but its ignored tests are
-        self.assertEqual(self.check({"x": ""}, {f: after}), [])
-        ignored = "#[test]\n#[ignore]\nfn t() {}\n"
+        # a rename, a reordering of attributes, and a move to another file
+        self.one(BEFORE, BEFORE.replace("test_g", "test_h"), [])
+        doc = "#[test]\n#[should_panic]\nfn t() {}\n"
+        self.one(doc, "#[should_panic]\n/// doc\n#[test]\nfn t() {}\n", [])
+        moved: Files = {F: no_g, "tests/y.rs": "#[test]\nfn test_g() {}\n"}
+        self.assertEqual(self.check({F: BEFORE}, moved), [])
+
+    def test_ignored(self) -> None:
+        self.one(
+            BEFORE,
+            BEFORE.replace("#[test]\nfn test_g", "#[test]\n#[ignore]\nfn test_g"),
+            [f"{F}: ignored test"],
+        )
+        # also when moved to a new file
+        ignored: Files = {F: "", "tests/new.rs": "#[test]\n#[ignore]\nfn t() {}\n"}
         self.assertEqual(
-            self.check({"x": ""}, {"tests/new.rs": ignored}),
+            self.check({F: "#[test]\nfn t() {}\n"}, ignored),
             ["tests/new.rs: ignored test"],
         )
 
-    def test_removed_attributes(self) -> None:
-        f = "tests/x.rs"
-        before = '// c\n#[test]\n#[should_panic(expected = "x")]\n/// doc\nfn t() {}\n\nfn a() {}\n'
-        self.assertEqual(
-            self.check({f: before}, {f: "fn a() {}\n"}), [f"{f}: removed test `t`"]
+    def test_rows(self) -> None:
+        self.one(
+            BEFORE,
+            BEFORE.replace("        (3.0, 4.0),\n", ""),
+            [f"{F}: removed 1 row of a test table"],
         )
-        # the function stays
-        kept = before.replace("#[test]\n", "")
-        self.assertEqual(
-            self.check({f: before}, {f: kept}),
-            [f"{f}: removed `#[test]` of a function"],
+        # replaced by a row with other inputs
+        self.one(
+            BEFORE,
+            BEFORE.replace("(3.0, 4.0)", "(5.0, 4.0)"),
+            [f"{F}: removed 1 row of a test table"],
         )
+        # a new output for the same input
+        self.one(BEFORE, BEFORE.replace("(3.0, 4.0)", "(3.0, 5.0)"), [])
 
-    def test_unicode(self) -> None:
-        f = "tests/\u00e9.rs"
-        line = 'let x = "\u2028"; let rtol = {};\n'
-        found = self.check({f: line.format("1e-14")}, {f: line.format("1e-13")})
-        self.assertEqual(found, [f"{f}: tolerance 1e-13 > 1e-14"])
+    def test_exclusions(self) -> None:
+        f = "tests/properties/x.rs"
+        base = "property!(no_panic, f(a in positive()));\n"
+        found = [f"{f}: property-test exclusion"]
+        for new in [
+            "property!(no_panic, f(a in positive()) if a < 1e300);\n",
+            "property!(checks::no_panic, f(x in positive()) if x > 1.0);\n",
+            "property!(no_panic, f(x) if x > 0.0);\n",
+        ]:
+            with self.subTest(new):
+                self.one(base, base + new, found, f)
+        # a match arm is not a guard, and a new file is a new test
+        self.one(base, base + "    Some(w) if w > 0 => 1,\n", [], f)
+        self.assertEqual(self.check({"x": ""}, {f: base + new}), [])
 
     def test_xsref(self) -> None:
-        f = "tests/data/xsref/f/d-d.bin"
-        rows = [(1.0, 2.0, 1e-15, 0.0), (2.0, 3.0, 1e-15, 0.0)]
-        loose = [(1.0, 2.0, 1e-14, 0.0), (2.0, 3.0, 1e-15, 0.0)]
-        scaled = [(1.0, 2.0, 1e-15, 1.0), (2.0, 3.0, 1e-15, 0.0)]
-        self.assertEqual(self.check({f: table(rows)}, {f: table(rows[::-1])}), [])
-        self.assertEqual(
-            self.check({f: table(rows)}, {f: table(loose)}),
-            [f"{f}: larger tolerance or scale in 1 xsref row"],
-        )
-        self.assertEqual(
-            self.check({f: table(rows)}, {f: table(scaled)}),
-            [f"{f}: larger tolerance or scale in 1 xsref row"],
-        )
-        self.assertEqual(
-            self.check({f: table(rows)}, {f: table(rows[:1])}),
-            [f"{f}: removed 1 row of an xsref table"],
-        )
-        self.assertEqual(
-            self.check({f: table(rows)}, {f: None}), [f"{f}: removed xsref table"]
-        )
+        loose = [(1.0, 2.0, 1e-14, 0.0), ROWS[1]]
+        scaled = [(1.0, 2.0, 1e-15, 1.0), ROWS[1]]
+        row = f"{BIN}: larger tolerance or scale in 1 xsref row"
+        cases: list[tuple[list[tuple[float, ...]], list[str]]] = [
+            (ROWS[::-1], []),
+            (loose, [row]),
+            (scaled, [row]),
+            (ROWS[:1], [f"{BIN}: removed 1 row of an xsref table"]),
+        ]
+        for rows, expected in cases:
+            self.assertEqual(
+                self.check({BIN: table(ROWS)}, {BIN: table(rows)}), expected
+            )
         # a scale column that is added is a scale
-        plain = table([r[:3] for r in rows], scaled=False)
+        plain = table([r[:3] for r in ROWS], scaled=False)
         self.assertEqual(
-            self.check({f: plain}, {f: table([(1.0, 2.0, 1e-15, 1e3), rows[1]])}),
-            [f"{f}: larger tolerance or scale in 1 xsref row"],
+            self.check({BIN: plain}, {BIN: table([(1.0, 2.0, 1e-15, 1e3), ROWS[1]])}),
+            [row],
         )
-        self.assertEqual(self.check({f: plain}, {f: table(rows)}), [])
-        # only another table replaces a table
-        other = {"tests/data/xsref/f/README.md": "x"}
-        self.assertEqual(
-            self.check({f: table(rows)}, {f: None, **other}),
-            [f"{f}: removed xsref table"],
-        )
-        replaced = {"tests/data/xsref/f/d-d_d.bin": table(rows)}
-        self.assertEqual(self.check({f: table(rows)}, {f: None, **replaced}), [])
-        # not another, different table
-        different = {"tests/data/xsref/f/d-d_d.bin": table(rows[:1])}
-        self.assertEqual(
-            self.check({f: table(rows)}, {f: None, **different}),
-            [f"{f}: removed xsref table"],
-        )
+        self.assertEqual(self.check({BIN: plain}, {BIN: table(ROWS)}), [])
+
+    def test_xsref_removed(self) -> None:
+        removed = [f"{BIN}: removed xsref table"]
+        new = "tests/data/xsref/f/d-d_d.bin"
+        cases: list[tuple[Files, list[str]]] = [
+            ({BIN: None}, removed),
+            # only a table with the same rows replaces a table
+            ({BIN: None, "tests/data/xsref/f/README.md": "x"}, removed),
+            ({BIN: None, new: table(ROWS[:1])}, removed),
+            ({BIN: None, new: table(ROWS)}, []),
+        ]
+        for after, expected in cases:
+            self.assertEqual(self.check({BIN: table(ROWS)}, after), expected)
 
     def test_unreadable_head_table(self) -> None:
         # a changed table whose blob can't be read is an error, not a removal
-        repo = Repo({"tests/data/xsref/f/d-d.bin": table([(1.0, 2.0, 1e-15, 0.0)])})
-        self.addCleanup(repo.tmp.cleanup)
-        repo.commit({"tests/data/xsref/f/d-d.bin": table([(1.0, 2.0, 1e-14, 0.0)])})
-        cwd = Path.cwd()
+        repo = Repo({BIN: table(ROWS)})
+        self.addCleanup(repo.cleanup)
+        repo.commit({BIN: table(ROWS[:1])})
+        self.addCleanup(os.chdir, Path.cwd())
         os.chdir(repo.root)
-        try:
-            names = [("M", "tests/data/xsref/f/d-d.bin")]
-            with self.assertRaises(RuntimeError):
-                c.check_tables("HEAD~", "no-such-rev", names)
-        finally:
-            os.chdir(cwd)
-
-    def test_qualified_property_check(self) -> None:
-        f = "tests/properties/x.rs"
-        before = "property!(checks::no_panic, f(x in positive()));\n"
-        guard = "property!(checks::no_panic, f(x in positive()) if x > 1.0);\n"
-        self.assertEqual(
-            self.check({f: before}, {f: before + guard}),
-            [f"{f}: property-test exclusion"],
-        )
-
-    def test_unicode_line_separator_in_src(self) -> None:
-        f = "src/x.rs"
-        # `splitlines` would put `#[cfg(test)]` on line 4, after the tolerance
-        before = (
-            'const S: &str = "\u2028\u2028";\n#[cfg(test)]\nconst RTOL: f64 = 1e-5;\n'
-        )
-        found = self.check({f: before}, {f: before.replace("1e-5", "1e-4")})
-        self.assertEqual(found, [f"{f}: tolerance 0.0001 > 1e-05"])
+        with self.assertRaises(subprocess.CalledProcessError):
+            c.check_tables("HEAD~", "no-such-rev", [("M", BIN)])
 
 
 class History(unittest.TestCase):
