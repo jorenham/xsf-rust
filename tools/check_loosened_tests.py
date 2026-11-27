@@ -368,6 +368,7 @@ def output_loosened(old: Output, new: Output) -> bool:
         )
     if old.status == GAP:
         if new.status == CONVENTION:
+            # a gap without a stored rule (older tables) gives nothing to compare
             return old.rule is not None and not (
                 same(new.ref, old.rule) and new.tol <= EPSILON and new.scale == 0
             )

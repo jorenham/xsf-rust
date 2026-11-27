@@ -538,7 +538,8 @@ where
                 worst_err = error;
                 worst_in = case.r#in.clone();
                 worst_actual = actual.format();
-                worst_expect = if by_rule { &case.rule } else { &case.out }.format();
+                let expected = if by_rule { &case.rule } else { &case.out };
+                worst_expect = expected.format();
             }
         }
     }
