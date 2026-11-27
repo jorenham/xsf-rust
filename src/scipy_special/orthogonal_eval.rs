@@ -284,9 +284,8 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 ///   starting values, plus that of a rounding error in each step
 ///   `G_k = (p G_{k-1} - q G_{k-2}) / r` of `EPSILON` times `(|p G_{k-1}| + |q G_{k-2}|) / |r|` (by
 ///   the derivatives of `G_n` in the intermediate values, which can exceed those in the starting
-///   values). Within `4 EPSILON n` of an integer degree, it adds `HYP2F1_ETHRESH |G_n|`, as the
-///   starting values, with `a` near a nonpositive integer, can share a relative error of up to
-///   about `HYP2F1_ETHRESH` that the residual doesn't show.
+///   values), plus, outside the factor 2, `HYP2F1_ETHRESH |G_n|`, that of a relative error of
+///   `HYP2F1_ETHRESH` shared by the starting values, which the residual doesn't show.
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -296,12 +295,12 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
 ) -> Option<Z> {
     let (alpha, beta, ab) = (c - 1.0, lam - c, lam - 1.0);
     let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
-    let slack = 4.0 * f64::EPSILON;
     let eligible = if segment {
         c > 0.0 && beta > -1.0
     } else {
         let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
         let cancels = !series.is_finite() || series_loss(x, n) > ln_tol;
+        let slack = 4.0 * f64::EPSILON;
         // at `x = -1`, `hyp2f1` uses Gauss's sum (DLMF 15.4.20)
         cancels && (x + 1.0).norm() > 0.0 && c > -slack && lam + 1.0 - c > -slack
     };
@@ -338,7 +337,7 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     let mut gs = vec![g0, g1];
     let [(_, rec), (_, rec10), (_, rec01)] = (0..m as u32 - 1).rev().fold(start, |sols, j| {
         let (p, q, r) = pqr(n - f64::from(j));
-        let sols = sols.map(|(g0, g1)| (g1, (p * g1 - g0 * q) / r));
+        let sols = sols.map(|(a, b)| (b, (p * b - a * q) / r));
         gs.push(sols[0].1);
         sols
     });
@@ -360,11 +359,8 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
             step_error += d1.norm() * ((p * w[1]).norm() + (w[0] * q).norm()) / r.abs();
             (d0, d1) = (d1 * (-q / r), d0 + d1 * (p / r));
         }
-        let near_int = (n - n.round()).abs() <= slack * n;
-        // the relative error that the starting values can share
-        let shared = if near_int { HYP2F1_ETHRESH } else { 0.0 };
-        let estimate =
-            2.0 * (2.0 * residual * growth + f64::EPSILON * step_error) + shared * rec.norm();
+        let estimate = 2.0 * (2.0 * residual * growth + f64::EPSILON * step_error)
+            + HYP2F1_ETHRESH * rec.norm();
         estimate.min(tol * growth)
     } else {
         tol * growth
