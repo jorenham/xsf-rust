@@ -4752,9 +4752,7 @@ def _mathieu_radial2(odd: int) -> Entry:
 
 GAMMA_HUGE: Final = 8.98846567431105e307  # an xsref input, about 2^1023
 RGAMMA_BIG: Final = 2.99807699606115e154  # an xsref input, |Re z| or |Im z| of rgamma
-RGAMMA_SMALL: Final = (
-    10.0  # the largest |Re z| or |Im z| of xsref's rgamma rows at huge x
-)
+RGAMMA_SMALL: Final = 10.0  # bound on the smaller coordinate in these xsref rows
 # the rows where both output signs of xsf-rust already agree with Arb, by Re z
 RGAMMA_SIGN_OK: Final = (5.0, 5 / 3, -20 / 3)
 # the Im z at Re z = -RGAMMA_BIG where xsf already matches Arb
