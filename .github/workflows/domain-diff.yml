@@ -7,8 +7,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+# (a label event that skips the job gets its own group, so that it cannot cancel a run)
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number }}${{
+    contains(fromJSON('["labeled","unlabeled"]'), github.event.action)
+    && github.event.label.name != 'allow-slowdown' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 env:

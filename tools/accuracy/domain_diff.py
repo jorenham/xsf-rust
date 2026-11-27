@@ -213,11 +213,8 @@ def fmt(x: float | None) -> str:
 
 
 def seconds(exes: list[Path], lines: list[fuzz_diff.Line]) -> list[float] | None:
-    """The least time of the calls of `lines` of each program over interleaved runs, or None
-    if one cannot tell (e.g. a base without the option `time`). A run is repeated up to
-    `ROUNDS` times, at least `REPEATS` times unless the runs took `BUDGET` seconds already, and
-    while the head is slower than `SLOWDOWN` times the base, as the load of the machine can
-    look like a slowdown, but not a lasting one."""
+    """The least time of the calls of `lines` of each program over interleaved runs (see the
+    module docstring), or None if one cannot tell (e.g. a base without the option `time`)."""
     best = [math.inf] * len(exes)
     spent = 0.0
     limit = fuzz_diff.RUN_TIMEOUT + fuzz_diff.LINE_TIMEOUT * len(lines)
@@ -326,9 +323,7 @@ def compare(
         failed |= bool(fails)
         inconclusive |= unknown or hidden
         times = seconds(exes, lines[span.start : span.stop])
-        ratio = (
-            None if times is None or min(times) < MIN_SECONDS else times[1] / times[0]
-        )
+        ratio = None if times is None or times[0] < MIN_SECONDS else times[1] / times[0]
         slow |= ratio is not None and ratio > SLOWDOWN
         rows.append(
             [
