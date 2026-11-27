@@ -16,5 +16,6 @@
 | `domain-diff` | counts per domain the inputs where the working tree (or `--head`) is more or less accurate than `--base` |
 
 Usage: `just fuzz-diff [--base REV] [--head REV] [--only NAME ...] [--cases N]` and
-`just domain-diff [--base REV] [--head REV] [--only NAME ...] [--points N]`; see
+`just domain-diff [--base REV] [--head REV] [--only NAME ...] [--points N]` (exit 1 on a regression,
+2 if a comparison or reference is missing); see
 [`fuzz_diff.py`](../tools/accuracy/fuzz_diff.py) and [`domain_diff.py`](../tools/accuracy/domain_diff.py).

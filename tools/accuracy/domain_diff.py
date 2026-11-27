@@ -10,35 +10,44 @@ Steps:
 1. Sample each domain of the specs of `specs.py` (or of `--only`, by spec or function name) at
    `--points` scrambled Sobol points (rounded up to a power of 2), which its distributions map
    into the domain, so log-uniformly where they are log-uniform; repeated inputs count once.
+   A sampler that rejects draws or takes a variable number of them (e.g. of an array) runs out
+   of coordinates of its point and draws pseudo-randomly instead; the share of such points is
+   in the column "pseudo-random".
 2. Evaluate both revisions with the dump programs of `fuzz_diff.py`, and keep the inputs whose
    results differ in their bits (with all NaNs equal).
-3. Compute the references (as `fuzz_diff.ref`) of at most `--max-refs` differing inputs per
-   domain where only one result is NaN (or a panic), and of a random sample of at most
-   `--max-refs` of the others; they are cached by input in `.cache/domain-diff/`.
+3. Compute the references (as `fuzz_diff.ref`) of all differing inputs where a finite result
+   became NaN or the reverse, and of a random sample of at most `--max-refs` of the others;
+   they are cached by input in `.cache/domain-diff/`.
 4. Print a markdown table with a row per domain, and write the flagged inputs (those that got
-   worse, fail, or whose reference failed) to `.cache/domain-diff.tsv`.
+   worse, fail, panic, or whose reference failed) to `.cache/domain-diff.tsv`.
 
 Of the sample of the others, an input got better or worse if one error is more than twice the
 other and above 4 units of roundoff (`fuzz_diff.verdict`), which ignores last-bit changes, and
 one of its errors is above `ACCURATE`; one that got worse with both below it is a flag instead.
+Inputs of the sample whose reference failed are not counted; their number is in the column "refs".
 The log10 ratios (of the errors clamped to [2^-53, 1]), the share of errors above `ACCURATE`,
 and the gmean and peak (as in `docs/accuracy.md`) are also those of this sample.
 
 Exit with 1 if a domain has
 
 - (a) a finite result that is now NaN (or a panic), with a base error of at most `NAN_BASE`,
-- (b) a NaN that is now finite, with an error above `NAN_HEAD`,
-- (c) a net loss: `worse - better > SIGMAS * sqrt(worse + better)`, i.e. more than `SIGMAS`
-  standard deviations of a sign test, so that a loss in one domain fails whatever the gains in
-  the others, but a few losses among many gains do not,
+- (b) a NaN (not a panic) that is now finite, with an error above `NAN_HEAD`,
+- (c) a net loss: `worse - better > SIGMAS * sqrt(worse + better)`; a heuristic of a sign test
+  with more than `SIGMAS` standard deviations, so that a loss in one domain fails whatever the
+  gains in the others, but a few losses among many gains do not (the inputs of one Sobol net
+  are not independent, and failed references drop votes),
 - (d) a new panic,
 
 or if the head times out where the base does not.
+
+Exit with 2 (and 1 takes precedence) if nothing failed, but a comparison could not be made: a
+spec was skipped (an unsupported or timed out revision, other than a head-only timeout), or the
+reference of an input of (a) or (b) failed (marked "?" in "fails").
 """
 
 import argparse
 import cmath
-import glob
+import fcntl
 import hashlib
 import inspect
 import json
@@ -73,6 +82,7 @@ COLUMNS: Final = (
     "function",
     "domain",
     "differ / inputs",
+    "pseudo-random",
     "refs",
     "better",
     "worse",
@@ -98,14 +108,17 @@ class Quasi(random.Random):
     def __init__(self, seed: int) -> None:
         super().__init__(seed)
         self.coords: Iterator[float] = iter(())
+        self.fell = False  # whether `random()` ran out of coordinates since `at`
 
     def at(self, point: Iterable[float]) -> Self:
         self.coords = iter(point)
+        self.fell = False
         return self
 
     @override
     def random(self) -> float:
         u = next(self.coords, None)
+        self.fell |= u is None
         return super().random() if u is None else u
 
     def _randbelow(self, n: int) -> int:
@@ -120,22 +133,41 @@ def key(args: accuracy.Args) -> str:
 
 def sample(
     spec: specs.Spec, dom: specs.Domain, n: int, seed: int
-) -> list[accuracy.Args]:
-    """The distinct inputs at `n` Sobol points (rounded up to a power of 2)."""
+) -> tuple[list[accuracy.Args], float]:
+    """The distinct inputs at `n` Sobol points (rounded up to a power of 2), and the share of
+    the points that needed pseudo-random draws."""
     # (a value and a sign per argument, as for `LU(..., sign=0)`)
     sobol = qmc.Sobol(2 * len(spec.args), rng=seed)
     rng = Quasi(seed)
     points = sobol.random_base2((n - 1).bit_length())
-    xs = (dom.sample(rng.at(p.tolist())) for p in points)
-    return list({key(a): a for a in xs}.values())
+    xs: list[accuracy.Args] = []
+    fell = 0
+    for p in points:
+        xs.append(dom.sample(rng.at(p.tolist())))
+        fell += rng.fell
+    return list({key(a): a for a in xs}.values()), fell / len(points)
 
 
 def bits(y: Value) -> tuple[bytes | str, ...] | None:
     return None if y is None else accuracy.bits(y)
 
 
-def isnan(y: Value) -> bool:
-    return y is None or cmath.isnan(y)
+def finite(y: Value) -> bool:
+    return y is not None and cmath.isfinite(y)
+
+
+def nan(y: Value) -> bool:
+    return y is not None and cmath.isnan(y)
+
+
+def lost(b: Value, h: Value) -> bool:
+    """Rule (a): a finite result that is now NaN or a panic."""
+    return finite(b) and (h is None or nan(h))
+
+
+def gained(b: Value, h: Value) -> bool:
+    """Rule (b): a NaN (not a panic) that is now finite."""
+    return nan(b) and finite(h)
 
 
 def error(y: Value, r: accuracy.Ref) -> float:
@@ -168,9 +200,13 @@ def references(
         arb_src = inspect.getsource(arb)
     src = [
         accuracy.ref_key(spec, []),
+        inspect.getsource(accuracy.ref_task),
         inspect.getsource(fuzz_diff),
         arb_src,
         flint.__version__,
+        spec.complex,
+        # (also the globals that the key of the reference misses)
+        hashlib.sha1(Path(specs.__file__).read_bytes()).hexdigest(),
     ]
     digest = hashlib.sha1(json.dumps(src).encode()).hexdigest()
     CACHE.mkdir(parents=True, exist_ok=True)
@@ -183,14 +219,13 @@ def references(
         accuracy.log(f"{spec.name}: computing {len(todo)} references")
         tasks = [(spec.name, a) for a in todo.values()]
         new = dict(zip(todo, pool.map(fuzz_diff.ref, tasks, chunksize=1), strict=True))
-        # (merged with what concurrent runs wrote, and renamed into place)
-        cache = load(path) | {k: r for k, r in new.items() if isinstance(r, list)}
-        part = path.with_suffix(f".{os.getpid()}")
-        part.write_text(json.dumps(cache))
-        part.replace(path)
-        for old in CACHE.glob(f"{glob.escape(spec.name)}-*.json"):
-            if old != path:
-                old.unlink(missing_ok=True)
+        # (merged with what concurrent runs wrote, and renamed into place, under a lock)
+        with path.with_suffix(".lock").open("w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            merged = load(path) | {k: r for k, r in new.items() if isinstance(r, list)}
+            part = path.with_suffix(f".{os.getpid()}")
+            part.write_text(json.dumps(merged))
+            part.replace(path)
     return [cache[k] if k in cache else new[k] for k in keys]
 
 
@@ -214,33 +249,28 @@ def side(es: list[float]) -> tuple[str, str, str]:
     return f"{sum(e > ACCURATE for e in es) / len(es):.0%}", fmt(gmean), fmt(peak)
 
 
-def moved(
-    ids: list[int],
-    fails: list[int],
-    errs: dict[int, tuple[float, float]],
-    noref: set[int],
-) -> str:
+def moved(ids: list[int], fails: list[int], noref: set[int]) -> str:
     """The cell of the inputs whose results became NaN or finite."""
-    missing = sum(i in noref for i in ids)
-    unsampled = sum(i not in errs and i not in noref for i in ids)
-    counts = ((len(fails), "fail"), (missing, "no ref"), (unsampled, "unsampled"))
+    counts = ((len(fails), "fail"), (sum(i in noref for i in ids), "no ref"))
     extra = [f"{n} {s}" for n, s in counts if n]
     return f"{len(ids)} ({', '.join(extra)})" if extra else str(len(ids))
 
 
 def summarize(
     n: int,
+    fallback: float,
     diff: list[int],
     rest: list[int],
     errs: dict[int, tuple[float, float]],
     noref: set[int],
     b: list[Value],
     h: list[Value],
-) -> tuple[list[str], str, dict[int, str]]:
-    """The cells of a domain, its failures, and its flagged inputs (with a note), from its
-        number of inputs, its differing inputs (as indices), the sample of those whose results are
-        both NaN or neither, the base and head errors of the inputs with a reference, and the inputs
-    whose reference failed."""
+) -> tuple[list[str], str, dict[int, list[str]], bool]:
+    """The cells of a domain, its failures, and its flagged inputs (with notes), from its
+    number of inputs, the share of pseudo-random points, its differing inputs (as indices), the
+    sample of those whose results are both NaN or neither, the base and head errors of the
+    inputs with a reference, and the inputs whose reference failed. Also whether a reference
+    of (a) or (b) is missing."""
     pairs = {i: errs[i] for i in rest if i in errs}
     kinds = {i: fuzz_diff.verdict(*e) for i, e in pairs.items()}
     minor = {i for i, e in pairs.items() if max(e) < ACCURATE}
@@ -250,67 +280,94 @@ def summarize(
     loss = len(worse) - better > SIGMAS * math.sqrt(len(worse) + better)
     sides = [side([e[j] for e in pairs.values()]) for j in (0, 1)]
 
-    to_nan = [i for i in diff if isnan(h[i]) and not isnan(b[i])]
-    to_fin = [i for i in diff if isnan(b[i]) and not isnan(h[i])]
+    to_nan = [i for i in diff if lost(b[i], h[i])]
+    to_fin = [i for i in diff if gained(b[i], h[i])]
     fail_a = [i for i in to_nan if i in errs and errs[i][0] <= NAN_BASE]
     fail_b = [i for i in to_fin if i in errs and errs[i][1] > NAN_HEAD]
-    panics = sum(h[i] is None and b[i] is not None for i in diff)
+    panics = [i for i in diff if h[i] is None and b[i] is not None]
+    unknown = any(i in noref for i in [*to_nan, *to_fin])
     bad = (fail_a, fail_b, loss, panics)
     fails = "".join(c for c, x in zip("abcd", bad, strict=True) if x)
 
-    cells = [f"{len(diff)} / {n}", str(len(pairs)), str(better), str(len(worse))]
+    lost_refs = sum(i in noref for i in rest)
+    refs = f"{len(pairs)} ({lost_refs} fail)" if lost_refs else str(len(pairs))
+    cells = [
+        f"{len(diff)} / {n}",
+        f"{fallback:.0%}",
+        refs,
+        str(better),
+        str(len(worse)),
+    ]
     cells += [str(len(flags)), percentiles([log10_ratio(*e) for e in pairs.values()])]
     cells += [" -> ".join(s) for s in zip(*sides)] if pairs else ["-"] * 3
     cells += [
-        moved(to_nan, fail_a, errs, noref),
-        moved(to_fin, fail_b, errs, noref),
-        str(panics),
-        fails,
+        moved(to_nan, fail_a, noref),
+        moved(to_fin, fail_b, noref),
+        str(len(panics)),
+        fails + "?" * unknown,
     ]
-    notes = {i: "no ref" for i in to_nan if i in noref} | {i: "" for i in worse}
-    notes |= {i: "flag" for i in flags}
-    notes |= {i: "a" for i in fail_a} | {i: "b" for i in fail_b}
-    return cells, fails, notes
+    notes: dict[int, list[str]] = {}
+    labels = [(worse, "worse"), (flags, "flag"), (fail_a, "a"), (fail_b, "b")]
+    labels += [
+        (panics, "panic"),
+        ([i for i in [*to_nan, *to_fin, *rest] if i in noref], "no ref"),
+    ]
+    for ids, label in labels:
+        for i in ids:
+            notes.setdefault(i, []).append(label)
+    return cells, fails, notes, unknown
 
 
 def compare(
     spec: specs.Spec, exes: list[Path], pool: Pool, opts: argparse.Namespace
-) -> tuple[list[list[str]], list[tuple[float, str]], bool]:
+) -> tuple[list[list[str]], list[tuple[float, str]], bool, bool]:
     """The rows of the domains of `spec`, its flagged inputs (as TSV lines, with their head
-    errors), and whether it fails."""
+    errors), whether it fails, and whether it is inconclusive."""
     descs = [d.desc(spec.args) for d in spec.domains]
     seeds = [zlib.crc32(f"{opts.seed}:{spec.name}: {d}".encode()) for d in descs]
     spans: list[range] = []
+    fallbacks: list[float] = []
     lines: list[Line] = []
     for dom, seed in zip(spec.domains, seeds, strict=True):
-        xs = sample(spec, dom, opts.points, seed)
+        xs, fallback = sample(spec, dom, opts.points, seed)
         spans.append(range(len(lines), len(lines) + len(xs)))
+        fallbacks.append(fallback)
         lines += [(dom.call or spec.func, a) for a in xs]
     with ThreadPoolExecutor() as threads:
         b, h = threads.map(fuzz_diff.evaluate, exes, [lines] * len(exes))
     if isinstance(b, str) or isinstance(h, str):
         status = [y if isinstance(y, str) else "ok" for y in (b, h)]
         accuracy.log(f"{spec.name}: skipped, base {status[0]}, head {status[1]}")
-        if status != ["ok", "timeout"]:
-            return [], [], False
-        row = [spec.name, "-", *["-"] * (len(COLUMNS) - 3), "timeout"]
-        return [row], [(math.inf, f"{spec.name}{'\t' * 8}timeout")], True
-
-    # per domain, the differing inputs, and a sample of those where only one result is NaN, and
-    # one of the others
-    diffs = [[i for i in span if bits(b[i]) != bits(h[i])] for span in spans]
-    samples: list[tuple[list[int], list[int]]] = []
-    for diff, seed in zip(diffs, seeds, strict=True):
-        rng = random.Random(seed)
-        moves = [i for i in diff if isnan(b[i]) != isnan(h[i])]
-        rest = [i for i in diff if isnan(b[i]) == isnan(h[i])]
-        k = opts.max_refs
-        samples.append(
-            (rng.sample(moves, min(k, len(moves))), rng.sample(rest, min(k, len(rest))))
+        head_only = status == ["ok", "timeout"]
+        note = (
+            "timeout" if head_only else f"skipped: base {status[0]}, head {status[1]}"
         )
-    todo = sorted({i for s in samples for g in s for i in g})
+        row = [spec.name, "-", *["-"] * (len(COLUMNS) - 3), note]
+        return (
+            [row],
+            [(math.inf, f"{spec.name}{'\t' * 8}{note}")],
+            head_only,
+            not head_only,
+        )
+
+    # per domain, the differing inputs, the inputs that became NaN or finite, and a sample of
+    # the others
+    diffs = [[i for i in span if bits(b[i]) != bits(h[i])] for span in spans]
+    samples: list[list[int]] = []
+    todo: set[int] = set()
+    for diff, seed in zip(diffs, seeds, strict=True):
+        rest = [i for i in diff if not (lost(b[i], h[i]) or gained(b[i], h[i]))]
+        todo |= set(diff) - set(rest)
+        sampled = random.Random(seed).sample(rest, min(opts.max_refs, len(rest)))
+        samples.append(sampled)
+        todo |= set(sampled)
+    todo_sorted = sorted(todo)
     rr = dict(
-        zip(todo, references(spec, [lines[i][1] for i in todo], pool), strict=True)
+        zip(
+            todo_sorted,
+            references(spec, [lines[i][1] for i in todo_sorted], pool),
+            strict=True,
+        )
     )
     errs = {
         i: (error(b[i], r), error(h[i], r))
@@ -321,18 +378,23 @@ def compare(
 
     rows: list[list[str]] = []
     flagged: list[tuple[float, str]] = []
-    failed = False
-    for desc, span, diff, (_, rest) in zip(descs, spans, diffs, samples, strict=True):
-        cells, fails, notes = summarize(len(span), diff, rest, errs, noref, b, h)
+    failed = inconclusive = False
+    for desc, span, diff, rest, fb in zip(
+        descs, spans, diffs, samples, fallbacks, strict=True
+    ):
+        cells, fails, notes, unknown = summarize(
+            len(span), fb, diff, rest, errs, noref, b, h
+        )
         rows.append([spec.name, desc, *cells])
         failed |= bool(fails)
-        for i, note in notes.items():
+        inconclusive |= unknown
+        for i, labels in notes.items():
             show = ["panic" if y is None else repr(y) for y in (b[i], h[i])]
             ref = json.dumps(rr[i][0]) if i in errs else "-"
             eb, eh = errs.get(i, (math.nan, math.inf))
             cols = [spec.name, desc, key(lines[i][1]), *show, ref, fmt(eb), fmt(eh)]
-            flagged.append((eh, "\t".join([*cols, note])))
-    return rows, flagged, failed
+            flagged.append((eh, "\t".join([*cols, ", ".join(labels)])))
+    return rows, flagged, failed, inconclusive
 
 
 def positive(s: str) -> int:
@@ -377,22 +439,25 @@ def main() -> None:
     print("|", " | ".join(COLUMNS), "|")
     print("|", " | ".join("---" for _ in COLUMNS), "|")
     flagged: list[tuple[float, str]] = []
-    failed = False
+    failed = inconclusive = False
     with multiprocessing.Pool(opts.jobs, maxtasksperchild=500) as pool:
         for spec in chosen:
-            rows, f, bad = compare(spec, exes, pool, opts)
+            rows, f, bad, unknown = compare(spec, exes, pool, opts)
             for row in rows:
                 print("|", " | ".join(row), "|", flush=True)
             flagged += f
             failed |= bad
+            inconclusive |= unknown
 
     head = (
         "function\tdomain\tinput\tbase\thead\treference\tbase error\thead error\tnote"
     )
     lines = [line for _, line in sorted(flagged, reverse=True)]
     TSV.write_text("".join(f"{line}\n" for line in [head, *lines]))
-    print(f"\n{len(lines)} inputs flagged, in {TSV}; {'FAIL' if failed else 'ok'}")
-    sys.exit(1 if failed else 0)
+    code = 1 if failed else 2 if inconclusive else 0
+    verdict = ("ok", "FAIL", "INCONCLUSIVE")[code]
+    print(f"\n{len(lines)} inputs flagged, in {TSV}; {verdict}")
+    sys.exit(code)
 
 
 if __name__ == "__main__":
