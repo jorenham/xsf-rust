@@ -453,7 +453,7 @@ where
 {
     let cases = load_testcases::<T>(name, signature).unwrap();
     match check(name, &cases, test_fn) {
-        Ok(0) => {}
+        Ok(0) => {},
         Ok(known_gaps) => println!("{name} {signature}: {known_gaps} known gaps"),
         Err(message) => panic!("{message}"),
     }
