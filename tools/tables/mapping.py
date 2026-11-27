@@ -1036,9 +1036,11 @@ def _complex(
     arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
+    floors: tuple[Floor, ...] = (),
 ) -> Entry:
-    """A table with the complex output `_complex_out(func, ref, arb, rules, overrides)`."""
-    return Entry((_complex_out(func, ref, arb, rules, overrides),))
+    """A table with the complex output `_complex_out(func, ref, arb, rules, overrides,
+    floors)`."""
+    return Entry((_complex_out(func, ref, arb, rules, overrides, floors),))
 
 
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
@@ -4791,6 +4793,46 @@ RGAMMA_HUGE_GAPS: Final = (
     ),
 )
 
+
+def _stirling_floor(a: tuple[float, ...]) -> float:
+    """eps |z - 1/2| |ln w|, with w = z or 1 - z in Re w >= 1/2: the change of (w - 1/2) ln w
+    in ln Gamma(w) (DLMF 5.11.1) by an ulp of ln w, at w = 1 - z by reflection (DLMF 5.5.3)."""
+    z = complex(*a)
+    w = z if z.real >= 0.5 else 1 - z
+    return sys.float_info.epsilon * abs(z - 0.5) * abs(cmath.log(w))
+
+
+def _exp_loggamma(a: tuple[float, ...], rgamma: bool) -> bool:
+    """Where xsf-rust's Gamma(z) (or 1 / Gamma(z)) is exp(+-ln Gamma(z)), a finite nonzero
+    f64, and `_stirling_floor` exceeds eps: not on the negative real axis, where it uses the
+    real Gamma (or 1 / Gamma) of cephes, nor, for 1 / Gamma, at the reflection of `crgamma` for
+    a nonpositive integer Re z >= -170 and DBL_MIN <= |Im z| <= 2^-27."""
+    x, y = a
+    if not (math.isfinite(x) and math.isfinite(y)) or y == 0 and x < 0:
+        return False
+    if (
+        rgamma
+        and x.is_integer()
+        and -170 <= x <= 0
+        and sys.float_info.min <= abs(y) <= 2.0**-27
+    ):
+        return False
+    return (
+        _stirling_floor(a) > sys.float_info.epsilon
+        and abs(mp.loggamma(mp.mpc(x, y)).real) < LOG_MAX
+    )
+
+
+def _exp_loggamma_floor(rgamma: bool) -> Floor:
+    return Floor(
+        lambda a: _exp_loggamma(a, rgamma),
+        _stirling_floor,
+        "Gamma(z) and 1 / Gamma(z) are exp(+-ln Gamma(z)) here, so an ulp of the platform's"
+        " libm in ln w changes them by up to eps |z - 1/2| |ln w| (1.48e-13 for 1 / Gamma at"
+        " (-167.9999999, -0.1) on macOS and Windows, where xsf has 3.6e-14)",
+    )
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -4879,6 +4921,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 "xsf has NaN + NaN i where Gamma underflows to 0 (#2315)",
             ),
         ),
+        (_exp_loggamma_floor(False),),
     ),
     ("rgamma", "cd-cd"): _complex(
         "rgamma",
@@ -4896,6 +4939,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 " overflows (#2315)",
             ),
         ),
+        (_exp_loggamma_floor(True),),
     ),
     ("gammasgn", "d-d"): Entry(
         (
