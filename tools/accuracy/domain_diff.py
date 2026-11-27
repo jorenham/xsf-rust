@@ -9,7 +9,7 @@ Both revisions are evaluated with the dump programs of `fuzz_diff.py`. The refer
 `fuzz_diff.ref`) of all inputs whose results differ and are of (a) or (b), and of a random sample
 of at most `--max-refs` of the others, are cached by input in `.cache/domain-diff/`. Of that
 sample, an input got better or worse if `fuzz_diff.verdict` says so and one of its errors is at
-least `ACCURATE`; its peak error is also that of the sample. The table has a row per domain, and
+least `ACCURATE`. The peak errors are those of that sample. The table has a row per domain, and
 `.cache/domain-diff.tsv` has the inputs that got worse, fail, panic, or whose reference failed.
 
 Exit with 1 if a domain has
@@ -202,6 +202,7 @@ def compare(
         note = (
             "timeout" if head_only else f"skipped: base {status[0]}, head {status[1]}"
         )
+        # The reason takes the place of the counts.
         row = [spec.name, "-", note, *["-"] * (len(COLUMNS) - 3)]
         return [row], [], head_only, not head_only
 
@@ -281,7 +282,7 @@ def compare(
             "panic": panics,
             "no ref": noref,
         }
-        for i in sorted({i for ids in labels.values() for i in ids}):
+        for i in sorted({i for v in labels.values() for i in v}):
             show = ["panic" if y is None else repr(y) for y in (b[i], h[i])]
             eb, eh = errs.get(i, (math.nan, math.inf))
             ref = json.dumps(refs[ids.index(i)][0]) if i in errs else "-"
@@ -300,6 +301,12 @@ def compare(
     return rows, flagged, failed, inconclusive
 
 
+def positive(s: str) -> int:
+    if (n := int(s)) < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1: {s}")
+    return n
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__.splitlines()[0] if __doc__ else None
@@ -309,18 +316,20 @@ def main() -> None:
     ap.add_argument("--only", nargs="+", default=[], help="spec or function names")
     ap.add_argument(
         "--points",
-        type=int,
+        type=positive,
         default=2**14,
         help="inputs per domain (default: %(default)s)",
     )
     ap.add_argument(
         "--max-refs",
-        type=int,
+        type=positive,
         default=500,
         help="references per domain and kind (default: %(default)s)",
     )
     ap.add_argument("--seed", default="0", help="the seed of the inputs")
-    ap.add_argument("--jobs", type=int, default=2, help="reference worker processes")
+    ap.add_argument(
+        "--jobs", type=positive, default=2, help="reference worker processes"
+    )
     opts = ap.parse_args()
     only = set(opts.only)
     chosen = [s for s in specs.SPECS if not only or only & {s.name, s.func}]
@@ -336,12 +345,12 @@ def main() -> None:
     failed = inconclusive = False
     with multiprocessing.Pool(opts.jobs, maxtasksperchild=500) as pool:
         for spec in chosen:
-            rows, f, bad, unknown = compare(spec, exes, pool, opts)
+            rows, f, bad, unsure = compare(spec, exes, pool, opts)
             for row in rows:
                 print("|", " | ".join(row), "|", flush=True)
             flagged += f
             failed |= bad
-            inconclusive |= unknown
+            inconclusive |= unsure
 
     head = (
         "function\tdomain\tinput\tbase\thead\treference\tbase error\thead error\tnote"
