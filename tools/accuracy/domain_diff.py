@@ -41,7 +41,8 @@ panics, fewer than `REPEATS` pairs fit in the budget, or a revision lacks the op
 
 Exit with 3 if there is no failure, but a ratio above `SLOWDOWN` (marked "SLOW"), even if a
 comparison is inconclusive. The precedence is FAIL (1) over SLOW (3) over INCONCLUSIVE (2). CI
-fails on SLOW unless the PR has the label `allow-slowdown` (add it, then re-run the job).
+fails on SLOW unless the PR has the label `allow-slowdown` (re-run the job after adding or
+removing it).
 """
 
 import argparse
@@ -246,19 +247,24 @@ def seconds(exes: list[Path], lines: list[fuzz_diff.Line]) -> list[float] | None
         return None
     best = [math.inf] * len(exes)
     done: list[float] | None = None  # the least times once `REPEATS` pairs are complete
+    inp = accuracy.dump_input(lines)
     deadline = time.monotonic() + BUDGET
     for i in range(ROUNDS):
         # (alternating the order, as the first of two runs may be slower)
         for j in ((0, 1), (1, 0))[i % 2]:
-            cmd = [str(exes[j]), "xsf", "time"]
+            if (left := deadline - time.monotonic()) <= 0:
+                return done
             try:
-                out = accuracy.dump(cmd, lines, max(deadline - time.monotonic(), 0))
+                out = accuracy.feed([str(exes[j]), "xsf", "time"], inp, left)
             except subprocess.TimeoutExpired:
                 return done
             except subprocess.SubprocessError:
                 return None
             if (t := parse_seconds(out)) is None:
                 return None
+            # (a run that ends after the deadline does not count)
+            if time.monotonic() > deadline:
+                return done
             best[j] = min(best[j], t)
             if j == 0 and best[0] < MIN_SECONDS:
                 return best
@@ -266,8 +272,6 @@ def seconds(exes: list[Path], lines: list[fuzz_diff.Line]) -> list[float] | None
             done = best.copy()
             if best[1] <= SLOWDOWN * best[0]:
                 break
-        if time.monotonic() >= deadline:
-            return done
     return best
 
 

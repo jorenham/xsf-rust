@@ -141,7 +141,16 @@ def dump(
     cmd: list[str], lines: list[tuple[str, Args]], timeout: float | None = None
 ) -> str:
     """Feed `<name> <args>...` lines to a dump program; return its output."""
-    inp = "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
+    return feed(cmd, dump_input(lines), timeout)
+
+
+def dump_input(lines: list[tuple[str, Args]]) -> str:
+    """The input of a dump program: a line `<name> <args>...` per call."""
+    return "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
+
+
+def feed(cmd: list[str], inp: str, timeout: float | None = None) -> str:
+    """Run a dump program on the input `inp`; return its output."""
     return subprocess.run(
         cmd, input=inp, capture_output=True, text=True, check=True, timeout=timeout
     ).stdout

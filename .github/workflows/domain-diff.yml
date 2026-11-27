@@ -61,7 +61,7 @@ jobs:
       # files of src/. Exit code 1 is a regression. Exit code 2 is a comparison that could not be
       # made (e.g. a new function, which the base lacks, or a missing reference), which only warns.
       # Exit code 3 is a function that got slower, which fails unless the PR has the label
-      # `allow-slowdown`; after adding it, re-run the job (a label event starts no run).
+      # `allow-slowdown`; re-run the job after adding or removing it (a label event starts no run).
       # Its last line tells these from a failure of the script itself (e.g. a build error).
       - if: steps.src.outputs.changed
         name: domain-diff

@@ -22,10 +22,11 @@ Usage: `just fuzz-diff [--base REV] [--head REV] [--only NAME ...] [--cases N]` 
 | `domain-diff` exit | meaning (checked in this order)                                                       |
 | ------------------ | ------------------------------------------------------------------------------------- |
 | 1 `FAIL`           | a regression                                                                          |
-| 3 `SLOW`           | a time ratio above 1.25 (`-` if not measured: a panic, timeout, or old base)          |
+| 3 `SLOW`           | a time ratio above 1.25 (`-`: unmeasured, see [`domain_diff.py`](../tools/accuracy/domain_diff.py)) |
 | 2 `INCONCLUSIVE`   | a comparison or reference is missing                                                  |
 
-CI fails on `SLOW` unless the PR has the label `allow-slowdown`; add it, then re-run the job.
+CI fails on `SLOW` unless the PR has the label `allow-slowdown`; re-run the job after adding or
+removing it.
 
 CI runs [`check_loosened_tests.py`](../tools/check_loosened_tests.py), which warns about loosened
 tolerances, new property-test exclusions, and removed or ignored tests. It fails the PR unless it has
