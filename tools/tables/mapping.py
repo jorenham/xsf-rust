@@ -723,15 +723,16 @@ def _dawsn_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return flint.arb.pi().sqrt() / 2 * (-x * x).exp() * x.erfi()
 
 
-def _zero_signs(
+def _signed_rules(
     when: Callable[[tuple[float, ...], float], bool],
     value: Callable[[float], complex],
     why: str,
+    gap: bool = False,
 ) -> tuple[Rule, Rule]:
-    """The `Rule`s for both signs s = +-1 of a zero part of the result."""
+    """The pair of `Rule`s for s = +-1, e.g. for the sign of a zero or infinite part."""
     return (
-        Rule(lambda a: when(a, 1.0), value(1.0), why),
-        Rule(lambda a: when(a, -1.0), value(-1.0), why),
+        Rule(lambda a: when(a, 1.0), value(1.0), why, gap),
+        Rule(lambda a: when(a, -1.0), value(-1.0), why, gap),
     )
 
 
@@ -752,7 +753,7 @@ WOFZ_AT_INF: Final = (
         complex(0, -0.0),
         "w(z) -> 0 - 0i for z -> -inf along Im z = +-0",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: a[0] == 0 and math.copysign(1, a[0]) == s and math.isnan(a[1]),
         lambda s: complex(math.nan, s * 0.0),
         "w(z) = NaN + 0i for z = 0 + NaN i, with the sign of Re z, as w(iy) = erfcx(y) is real",
@@ -1045,9 +1046,11 @@ def _complex(
     arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
+    floors: tuple[Floor, ...] = (),
 ) -> Entry:
-    """A table with the complex output `_complex_out(func, ref, arb, rules, overrides)`."""
-    return Entry((_complex_out(func, ref, arb, rules, overrides),))
+    """A table with the complex output `_complex_out(func, ref, arb, rules, overrides,
+    floors)`."""
+    return Entry((_complex_out(func, ref, arb, rules, overrides, floors),))
 
 
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
@@ -1264,13 +1267,13 @@ EXPM1_AT_INF: Final = (
         complex(-1, 0),
         "e^z - 1 -> -1 + 0i for Re z -> -inf, with an infinite or NaN Im z, like C's cexp",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: a[0] == -math.inf and math.copysign(1, math.sin(a[1])) == s,
         lambda s: complex(-1, s * 0.0),
         "e^z - 1 -> -1 + 0i for Re z -> -inf, with a finite Im z and the sign of sin(Im z),"
         " like C's cexp",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: math.isnan(a[0]) and a[1] == 0 and math.copysign(1, a[1]) == s,
         lambda s: complex(math.nan, s * 0.0),
         "e^z - 1 = NaN + 0i for z = NaN + 0i, with the sign of Im z, like C's cexp",
@@ -1281,7 +1284,7 @@ EXPM1_AT_INF: Final = (
         COMPLEX_NAN.value,
         "e^z - 1 has no limit for Im z -> +-inf, with a finite Re z",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == s,
         lambda s: complex(math.inf, s * 0.0),
         "e^z - 1 -> inf + 0i for z -> +inf along Im z = 0, with its sign, like C's cexp",
@@ -4759,6 +4762,87 @@ def _mathieu_radial2(odd: int) -> Entry:
     )
 
 
+GAMMA_HUGE: Final = 8.98846567431105e307  # an xsref input, about 2^1023
+RGAMMA_BIG: Final = 2.99807699606115e154  # an xsref input, |Re z| or |Im z| of rgamma
+RGAMMA_SMALL: Final = 10.0  # bound on the smaller coordinate in these xsref rows
+# the rows where both output signs of xsf-rust already agree with Arb, by Re z
+RGAMMA_SIGN_OK: Final = (5.0, 5 / 3, -20 / 3)
+# the Im z at Re z = -RGAMMA_BIG where xsf already matches Arb
+RGAMMA_XSF_OK: Final = (-20 / 7, -30 / 7, 10 / 3)
+
+
+RGAMMA_HUGE_GAPS: Final = (
+    Rule(
+        lambda a: abs(a[1]) == GAMMA_HUGE and a[0] < GAMMA_HUGE,
+        complex(math.inf, math.nan),
+        "xsf-rust has NaN where Im ln Gamma overflows (#2358)",
+        gap=True,
+    ),
+    Rule(
+        lambda a: abs(a[1]) == RGAMMA_BIG and a[0] == -GAMMA_HUGE,
+        complex(math.inf, math.nan),
+        "xsf-rust has NaN where Im ln Gamma overflows (#2358)",
+        gap=True,
+    ),
+    *_signed_rules(
+        lambda a, s: abs(a[1]) == RGAMMA_BIG and a[0] == -RGAMMA_BIG and a[1] * s > 0,
+        lambda s: complex(-math.inf, -s * math.inf),
+        "xsf-rust has the wrong sign where Im ln Gamma is unresolved (#2358)",
+        gap=True,
+    ),
+    *_signed_rules(
+        lambda a, s: (
+            abs(a[1]) == RGAMMA_BIG
+            and abs(a[0]) <= RGAMMA_SMALL
+            and a[0] not in RGAMMA_SIGN_OK
+            and a[1] * s > 0
+        ),
+        lambda s: complex(-math.inf, s * math.inf),
+        "xsf-rust has the wrong sign where Im ln Gamma is unresolved (#2358)",
+        gap=True,
+    ),
+)
+
+
+def _stirling_floor(a: tuple[float, ...]) -> float:
+    """eps |z - 1/2| |ln w|, with w = z or 1 - z in Re w >= 1/2: the change of (w - 1/2) ln w
+    in ln Gamma(w) (DLMF 5.11.1) by an ulp of ln w, at w = 1 - z by reflection (DLMF 5.5.3)."""
+    z = complex(*a)
+    w = z if z.real >= 0.5 else 1 - z
+    return sys.float_info.epsilon * abs(z - 0.5) * abs(cmath.log(w))
+
+
+def _exp_loggamma(a: tuple[float, ...], rgamma: bool) -> bool:
+    """Where xsf-rust's Gamma(z) (or 1 / Gamma(z)) is exp(+-ln Gamma(z)), a finite nonzero
+    f64, and `_stirling_floor` exceeds eps: not on the negative real axis, where it uses the
+    real Gamma (or 1 / Gamma) of cephes, nor, for 1 / Gamma, at the reflection of `crgamma` for
+    a nonpositive integer Re z >= -170 and DBL_MIN <= |Im z| <= 2^-27."""
+    x, y = a
+    if not (math.isfinite(x) and math.isfinite(y)) or y == 0 and x < 0:
+        return False
+    if (
+        rgamma
+        and x.is_integer()
+        and -170 <= x <= 0
+        and sys.float_info.min <= abs(y) <= 2.0**-27
+    ):
+        return False
+    return (
+        _stirling_floor(a) > sys.float_info.epsilon
+        and abs(mp.loggamma(mp.mpc(x, y)).real) < LOG_MAX
+    )
+
+
+def _exp_loggamma_floor(rgamma: bool) -> Floor:
+    return Floor(
+        lambda a: _exp_loggamma(a, rgamma),
+        _stirling_floor,
+        "Gamma(z) and 1 / Gamma(z) are exp(+-ln Gamma(z)) here, so an ulp of the platform's"
+        " libm in ln w changes them by up to eps |z - 1/2| |ln w| (1.48e-13 for 1 / Gamma at"
+        " (-167.9999999, -0.1) on macOS and Windows, where xsf has 3.6e-14)",
+    )
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -4813,6 +4897,59 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     ("rgamma", "d-d"): Entry(
         (Out("rgamma", (specs.r_rgamma,), (specs.ARB["rgamma"],), (NAN,)),)
+    ),
+    ("gamma", "cd-cd"): _complex(
+        "gamma",
+        specs._c(mp.gamma),
+        flint.acb.gamma,
+        (
+            COMPLEX_NAN,
+            COMPLEX_POLE,
+            Rule(
+                lambda a: a[0] == -math.inf and a[1] == 0,
+                complex(math.nan, math.nan),
+                "no limit for z -> -inf",
+            ),
+            Rule(
+                lambda a: (
+                    a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == 1
+                ),
+                complex(math.inf, 0.0),
+                "the limit for z -> +inf along the positive real axis",
+            ),
+            Rule(
+                lambda a: a[0] == GAMMA_HUGE and abs(a[1]) == GAMMA_HUGE,
+                complex(math.inf, math.nan),
+                "xsf-rust lacks the huge-argument guards of xsf (#2315), and has NaN"
+                " where both parts overflow",
+                gap=True,
+            ),
+        ),
+        (
+            Override(
+                lambda a: abs(a[1]) == GAMMA_HUGE and -(2.0**53) < a[0] < GAMMA_HUGE,
+                "xsf has NaN + NaN i where Gamma underflows to 0 (#2315)",
+            ),
+        ),
+        (_exp_loggamma_floor(False),),
+    ),
+    ("rgamma", "cd-cd"): _complex(
+        "rgamma",
+        specs._c(mp.rgamma),
+        flint.acb.rgamma,
+        RGAMMA_HUGE_GAPS,
+        (
+            Override(
+                lambda a: (
+                    a[0] <= -(2.0**53)
+                    and 0 < abs(a[1]) <= RGAMMA_SMALL
+                    and not (a[0] == -RGAMMA_BIG and a[1] in RGAMMA_XSF_OK)
+                ),
+                "xsf has the wrong overflow signs or a NaN part where 1/Gamma"
+                " overflows (#2315)",
+            ),
+        ),
+        (_exp_loggamma_floor(True),),
     ),
     ("gammasgn", "d-d"): Entry(
         (
