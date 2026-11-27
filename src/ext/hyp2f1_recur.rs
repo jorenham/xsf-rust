@@ -753,11 +753,11 @@ pub(crate) fn trigamma_lo(g: Dd, d: f64) -> f64 {
     }
 }
 
-/// `psi(v)` at `v.hi`, and a bound of its absolute error, or `None` at (or too close to) a pole.
-/// For `v < 0`, `psi` uses `psi(v) = psi(1 - v) - pi cot(pi v)` (DLMF 5.5.4), with
-/// `|pi cot(pi v)| <= 1/d` (`d` as in `pole_distance`), and its error is relative to both terms.
-/// If also `v.lo != 0`, as `v.lo` matters near a pole, `psi(1 - v)` is at its high word, and the
-/// cotangent at the double-double `v - k` for `k = round(v.hi)`.
+/// An approximation to `psi(v)`, taken at `v.hi`, and a bound of its absolute error, or `None` at
+/// (or too close to) a pole. For `v < 0`, `psi` uses `psi(v) = psi(1 - v) - pi cot(pi v)` (DLMF
+/// 5.5.4), with `|pi cot(pi v)| <= 1/d` (`d` as in `pole_distance`), and its error is relative to
+/// both terms. If also `v.lo != 0`, as `v.lo` matters near a pole, `psi` is taken at the high word
+/// of `1 - v`, and the cotangent at the double-double `v - k` for `k = round(v.hi)`.
 fn psi_dd(v: Dd) -> Option<(f64, f64)> {
     let d = pole_distance(v)?;
     let (y, lo_err) = if v.hi < 0.0 && v.lo != 0.0 {
