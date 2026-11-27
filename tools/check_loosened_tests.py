@@ -29,6 +29,7 @@ import re
 import struct
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from functools import cache
@@ -176,7 +177,7 @@ def loosened(path: str, removed: list[Line], added: list[Line]) -> Iterator[Find
 def check_code(diff: str, base: str, head: str) -> list[Finding]:
     out: list[Finding] = []
     gone_tests: list[tuple[str, Line]] = []
-    n_added_tests = 0
+    n_added_tests: Counter[str] = Counter()  # by file
     gone_rows: list[tuple[str, Line]] = []
     # a row with the same inputs as a removed one only gets other outputs
     added_rows: set[tuple[float, ...]] = set()
@@ -195,18 +196,23 @@ def check_code(diff: str, base: str, head: str) -> list[Finding]:
             ):
                 out.append(Finding(h.path, ln.no, "property-test exclusion"))
         gone_tests += [(h.path, ln) for ln in removed if is_test(ln.text)]
-        n_added_tests += sum(is_test(ln.text) for ln in added)
+        n_added_tests[h.path] += sum(is_test(ln.text) for ln in added)
         gone_rows += [(h.path, ln) for ln in removed if is_row(ln.text)]
         added_rows |= {numbers(ln.text)[:-1] for ln in added if is_row(ln.text)}
 
-    # a renamed or moved test is not removed
-    if (n := len(gone_tests) - n_added_tests) > 0:
-        path, ln = gone_tests[0]
-        out.append(Finding(path, ln.no, f"removed {plural(n, 'test')}"))
-    if gone := [r for r in gone_rows if numbers(r[1].text)[:-1] not in added_rows]:
-        path, ln = gone[0]
+    # a test that is renamed in its file is not removed; one that is moved is
+    for path in dict.fromkeys(p for p, _ in gone_tests):
+        gone = [ln for p, ln in gone_tests if p == path][n_added_tests[path] :]
+        if gone:
+            out.append(
+                Finding(path, gone[0].no, f"removed {plural(len(gone), 'test')}")
+            )
+    if gone_r := [r for r in gone_rows if numbers(r[1].text)[:-1] not in added_rows]:
+        path, ln = gone_r[0]
         out.append(
-            Finding(path, ln.no, f"removed {plural(len(gone), 'row')} of a test table")
+            Finding(
+                path, ln.no, f"removed {plural(len(gone_r), 'row')} of a test table"
+            )
         )
     return out
 

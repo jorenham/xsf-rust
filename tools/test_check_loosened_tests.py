@@ -160,8 +160,9 @@ class Synthetic(unittest.TestCase):
         self.one(BEFORE, BEFORE.replace("test_g", "test_h"), [])
         doc = "#[test]\n#[should_panic]\nfn t() {}\n"
         self.one(doc, "#[should_panic]\n/// doc\n#[test]\nfn t() {}\n", [])
+        # a removal in one file is not replaced by an addition in another
         moved: Files = {F: no_g, "tests/y.rs": "#[test]\nfn test_g() {}\n"}
-        self.assertEqual(self.check({F: BEFORE}, moved), [])
+        self.assertEqual(self.check({F: BEFORE}, moved), [f"{F}: removed 1 test"])
 
     def test_ignored(self) -> None:
         self.one(
@@ -173,7 +174,7 @@ class Synthetic(unittest.TestCase):
         ignored: Files = {F: "", "tests/new.rs": "#[test]\n#[ignore]\nfn t() {}\n"}
         self.assertEqual(
             self.check({F: "#[test]\nfn t() {}\n"}, ignored),
-            ["tests/new.rs: ignored test"],
+            ["tests/new.rs: ignored test", f"{F}: removed 1 test"],
         )
 
     def test_rows(self) -> None:
