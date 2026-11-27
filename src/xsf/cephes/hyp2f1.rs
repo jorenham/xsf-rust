@@ -1226,12 +1226,14 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             }
         }
         // Unlike in xsf, if `hyp2f1_recur` was inaccurate above, also try `s^d y` by `hyp2f1_recur`
-        // with `c - a` and `c - b` in double-double: if either rounds, which near a pole of
-        // `1 / (c)_k` can dominate the error of `y`, or if `y` isn't finite (as above for a tiny
-        // `c`). Its steps aren't symmetric under this transformation, so they can be accurate
-        // where those for `F(a, b; c; x)` aren't.
+        // with `c - a` and `c - b` in double-double for x < -1 and `c` so close to a pole of
+        // `1 / (c)_k` that the rounding of `c` over its distance to it exceeds `HYP2F1_ETHRESH`:
+        // if either rounds, which can then dominate the error of `y`, or if `y` isn't finite (as
+        // above for a tiny `c`). Its steps aren't symmetric under this transformation, so they
+        // can be accurate where those for `F(a, b; c; x)` aren't.
+        let near_pole = c < 0.0 && (c - c.round()).abs() * HYP2F1_ETHRESH < c.abs() * f64::EPSILON;
         let rounds = [a, b].into_iter().any(|t| two_sum(c, -t).1 != 0.0);
-        if inexact.is_some() && (rounds || !y.is_finite()) {
+        if inexact.is_some() && x < -1.0 && near_pole && (rounds || !y.is_finite()) {
             if let Some((y, _)) = hyp2f1_recur(c_dd - a, c_dd - b, c_dd, x).and_then(times_p) {
                 return y;
             }

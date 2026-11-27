@@ -3243,8 +3243,8 @@ fn test_hyp2f1_f64_c_near_pole() {
         -3.855_317_161_553_812e-40,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
-    // within 1e-7 of -n for x < -1, where c - a rounds in f64 or its Euler transformation
-    // overflows
+    // within 2e-7 of -n for x < -1, where c - a rounds in f64 or the inner value of its Euler
+    // transformation overflows
     let actual = [
         xsf::hyp2f1(53.0, 100.0, -85.999_999_973_862_9, -34.218_450_427_661_224),
         xsf::hyp2f1(94.0, 153.0, -162.000_000_000_010_03, -80.0),
