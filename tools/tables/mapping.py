@@ -2104,9 +2104,8 @@ def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
     return float(abs(k).log().mid()) > LOG_MAX
 
 
-def _i_nonzero(a: tuple[float, ...]) -> bool:
-    """Whether a part of I_v(z) rounds to a nonzero f64."""
-    y = _i_ball(a)
+def _nonzero(y: flint.acb) -> bool:
+    """Whether a part of `y` certainly rounds to a nonzero f64."""
     return any(abs(p) > F64_ZERO_TIE for p in (y.real, y.imag))
 
 
@@ -2277,10 +2276,20 @@ def _j_huge_order(a: tuple[float, ...]) -> bool:
 
 
 @functools.cache
-def _j_log(a: tuple[float, ...]) -> float:
-    """log |J_v(z)| of v, Re z, Im z = `a`, to some 30 digits (-inf for 0)."""
+def _j_ball(a: tuple[float, ...]) -> flint.acb:
+    """J_v(z) of v, Re z, Im z = `a`, to some 30 digits."""
     with flint.ctx.workprec(128):
-        return float(abs(flint.acb(a[1], a[2]).bessel_j(flint.acb(a[0]))).log().mid())
+        return flint.acb(a[1], a[2]).bessel_j(flint.acb(a[0]))
+
+
+def _j_log(a: tuple[float, ...]) -> float:
+    """log |J_v(z)| (-inf for 0)."""
+    return float(abs(_j_ball(a)).log().mid())
+
+
+def _j_underflows(a: tuple[float, ...]) -> bool:
+    """Whether AMOS underflows J_v(z) to 0 for z != 0, below e^-elim."""
+    return (a[1] != 0 or a[2] != 0) and _j_log(a) < -AMOS_ELIM
 
 
 def _j_mlri(a: tuple[float, ...]) -> bool:
@@ -2535,7 +2544,14 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " the direction (DLMF 10.8.1)",
                 ),
                 Rule(
-                    lambda a: (a[1] != 0 or a[2] != 0) and _j_log(a) < -AMOS_ELIM,
+                    lambda a: _j_underflows(a) and _nonzero(_j_ball(a)),
+                    complex(0, 0),
+                    "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
+                    " J_v(z) is a nonzero f64 (#TBD)",
+                    gap=True,
+                ),
+                Rule(
+                    _j_underflows,
                     complex(0, 0),
                     "AMOS underflows to 0 below e^-elim (about 4e-305)",
                 ),
@@ -2577,7 +2593,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " the direction (DLMF 10.30.1)",
                 ),
                 Rule(
-                    lambda a: _i_log(a) < -AMOS_ELIM and _i_nonzero(a),
+                    lambda a: _i_log(a) < -AMOS_ELIM and _nonzero(_i_ball(a)),
                     complex(0, 0),
                     "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
                     " I_v(z) is a nonzero f64",
