@@ -62,20 +62,33 @@ LOG = cmath.log(Z)
 E2 = math.exp(2)
 EI = c(-743.8628562564797, -PI)
 W = c(0.33408142401229419, -1.7585360826226356)
+W1 = 0.5671432904097838
+EXP = cmath.exp(c(709.9, PI / 4))
+M = 0.5043435602314388
+DBL_MAX, DBL_MIN = fd.DBL_MAX, fd.DBL_MIN
 
 # the line, the results of the base and the head, and the kind
 CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # the real functions return the Cauchy principal value
     (("elliprc", (1.0, -1.0)), 0.6232252401402306, NAN, "regressed"),
     (("elliprj", (1.0, 2.0, 3.0, -1.0)), -0.09324045243867635, NAN, "regressed"),
-    # U is not real for x < 0, unless it is a polynomial
+    # the real U rejects x < 0, also where it is a polynomial
     (U, NAN, 1.0, "regressed"),
     (U, NAN, None, "both right"),
-    (("hypu", (-1.0, 1.0, -2.0)), -3.0, NAN, "regressed"),
-    (("hypu", (-2.0, 0.5, -2.0)), NAN, 10.75, "improved"),
-    # a NaN of mpmath, where the function has a limit
-    (("entr", (0.0,)), 0.0, NAN, "no ref"),
-    (("xlogy", (0.0, 0.0)), 0.0, NAN, "no ref"),
+    (("hypu", (-1.0, 1.0, -2.0)), -3.0, NAN, "improved"),
+    (("hypu", (-2.0, 0.5, -2.0)), NAN, 10.75, "regressed"),
+    # and any NaN argument
+    (("elliprj", (1.0, NAN, 2.0, 3.0)), NAN, 1.0, "regressed"),
+    # 0 log 0 = 0, where mpmath is NaN
+    (("entr", (0.0,)), 0.0, NAN, "regressed"),
+    (("xlogy", (0.0, 0.0)), 0.0, NAN, "regressed"),
+    # a NaN is better than a large error
+    (("sinpi", (0.5,)), NAN, 0.5, "regressed"),
+    # over- and underflow as for the reference rounded to f64
+    (("hyp0f0#c", (709.9, PI / 4)), EXP, c(INF, INF), "regressed"),
+    (("hypu", (-1.0, -(2.0**969), DBL_MAX)), DBL_MAX, INF, "regressed"),
+    (("xlogy", (3.2101030212800104e-308, 2.0)), DBL_MIN, 0.0, "regressed"),
+    (("erfcinv", (0.0,)), INF, -INF, "regressed"),
     # an argument precondition, where the reference fails
     (("roots_gengegenbauer.1", (41.0, 33.0, -1.0, 1.0)), NAN, None, "no ref"),
     (LOG1P, c(0, -PI), c(0, PI), "regressed"),
@@ -87,6 +100,8 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (HYP2F1, 319.19260460853, c(167.995, 0.2375), "regressed"),
     # J_v(z) ~ (z / 2)^v
     (("bessel_j#c", (0.01, 0.0, 0.0)), 0j, c(5.84e-4, 9.2e-6), "regressed"),
+    # I_v(z) ~ (z / 2)^v, still 1 at the offsets of 0 for a tiny v
+    (("bessel_i#c", (fd.TINY, 0.0, 0.0)), 0j, c(1, 0), "regressed"),
     # no side of the pole at z = 1
     (("hyp2f1#c", (1.0, 1.0, 1.0, 1.0, 0.0)), c(INF, 0), c(0, INF), "no ref"),
     (("sinpi", (-0.0,)), -0.0, 0.0, "regressed"),
@@ -96,6 +111,10 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("hyp1f1#c", (1.0, 1.0, 0.0, 1e-100)), c(1, 1e-100), c(1, 0), "regressed"),
     # e^z on the real axis, with the sign of the zero imaginary part
     (HYP1F1, c(E2, -0.0), c(E2, 0.0), "regressed"),
+    # also where Arb cannot tell it at the smaller offsets
+    (("hyp1f1#c", (0.5, 1.5, -3.0, -0.0)), c(M, -0.0), c(M, 0.0), "regressed"),
+    # and where mpmath cannot
+    (("lambertw#c", (1.0, -0.0)), c(W1, -0.0), c(W1, 0.0), "regressed"),
     # a zero of the function on the real axis, with that of its imaginary part
     (("cospi#c", (-2.5, -0.0)), c(0, -0.0), c(0, 0.0), "regressed"),
     (("sinpi#c", (3.0, 0.0)), c(0, -0.0), c(0, 0.0), "regressed"),
@@ -103,6 +122,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
 
 
 def test_verdicts() -> None:
+    assert fd.differ(-0.0, 0.0, fd.RTOL)
     wrong = [(ln, b, h) for ln, b, h, want in CASES if kind(ln, b, h) != want]
     assert not wrong, wrong
 
@@ -113,6 +133,7 @@ def test_lambertw_cut() -> None:
     value = fd._value
 
     def fails(name: str, args: tuple[float, ...]) -> object:
+        # (an error string of `accuracy.ref_task`)
         return "timeout" if 0 < abs(args[-1]) < fd.TINY else value(name, args)
 
     for ctx in [
@@ -138,6 +159,8 @@ def test_references() -> None:
     with mock.patch.object(fd, "_value", side_effect=ValueError):
         assert fd.ref(line) == f"{fd.FAILED}ValueError: "
 
+
+def test_precisions() -> None:
     # the last accurate precision, if a higher one is less accurate
     def f(*_: flint.arb) -> flint.acb:
         return flint.acb(1, flint.arb(0, 1e-30 if flint.ctx.prec < 512 else 1))
@@ -158,9 +181,9 @@ def test_panics_and_unknown() -> None:
         assert fd.evaluate(exe, lines) == [0.0, None, 2.0, None]
         # one run per panic
         assert len(runs.read_text().splitlines()) == 2
-        # an abort, after which the lines that it lost run again
+        # an abort, after which the lines that it lost run again, until one aborts alone
         died: list[Line] = [("a", (0.25,)), ("abort", (1.0,)), ("b", (2.0,))]
-        assert fd.evaluate(exe, died) == [0.25, None, 2.0]
+        assert fd.evaluate(exe, died) == "exit -9"
         # a variant of the function that the program lacks, after others
         assert fd.evaluate(exe, [*lines, ("unknown", (4.0,))]) == "unsupported"
         # the time of one run for all lines, also after panics
