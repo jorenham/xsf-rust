@@ -81,15 +81,16 @@ fn endpoint_mean((a, d, q): (Dd, Dd, C64), p1: Dd) -> Option<Estimate> {
     let beta_sum = p1 + a;
     let alpha = Dd::ONE - d;
     let shapes = [(a, alpha), (alpha, a)];
-    // Bound the remainder from the term n. For a positive beta weight in either
-    // upper parameter, the integral remainder of the Taylor expansion in the other
-    // is at most the term's magnitude times min|1-q*u|^(-other-n). The distance
+    // Bound the remainder from the term n. It is the term times a mean of
+    // (1-q*u)^(-other-n) over u in [0, 1], with a positive weight if shape+n and
+    // beta_sum-shape are positive, taking either upper parameter as the shape. So
+    // it is at most the term's magnitude times min|1-q*u|^(-other-n). The distance
     // from 1 to the full line through 0 and q is a lower bound. For |q| < 1 and
     // positive parameters, both factors of the term ratio tend monotonically to 1.
     let tail = |n: f64, abs_term: f64| {
         let beta_bounds = shapes.into_iter().filter_map(|(shape, other)| {
             let power = -(other + n).hi;
-            (shape.hi > 0.0 && (beta_sum - shape).hi > 0.0 && power <= 0.0)
+            ((shape + n).hi > 0.0 && (beta_sum - shape).hi > 0.0 && power <= 0.0)
                 .then(|| min_distance.powf(power))
         });
         let [alpha_n, a_n, gamma_n] = [alpha, a, beta_sum].map(|x| (x + n).hi);
