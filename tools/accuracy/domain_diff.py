@@ -1,9 +1,11 @@
 """Compare the accuracy of the working tree (or `--head`) with a base revision over whole domains.
 
 Each domain of the specs of `specs.py` is sampled at `--points` scrambled Sobol points (rounded
-up to a power of 2), which its distributions map into the domain; repeated inputs count once. A
-sampler that runs out of coordinates of its point (e.g. when it rejects draws) draws
-pseudo-randomly instead.
+up to a power of 2, and lowered so that all domains have at most `--max-inputs`), which its
+distributions map into the domain; repeated inputs count once. A sampler that runs out of
+coordinates of its point (e.g. when it rejects draws) draws pseudo-randomly instead. With
+`--affected`, only the specs that depend on the files of `src/` changed since `--base` (see
+`affected.py`) are compared.
 
 Both revisions are evaluated with the dump programs of `fuzz_diff.py`. The references (as
 `fuzz_diff.ref`) of all inputs whose results differ and are of (a) or (b), and of a random sample
@@ -41,6 +43,7 @@ import math
 import multiprocessing
 import os
 import random
+import subprocess
 import sys
 import zlib
 from collections.abc import Iterator
@@ -49,6 +52,7 @@ from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Final, override
 
+import affected
 import flint
 import fuzz_diff
 import mpmath as mp
@@ -62,6 +66,7 @@ NAN_BASE: Final = 1e-3
 NAN_HEAD: Final = 1e-2
 SIGMAS: Final = 3
 ACCURATE: Final = 1e-13
+MIN_POINTS: Final = 2**10
 CACHE: Final = accuracy.CACHE / "domain-diff"
 TSV: Final = accuracy.CACHE / "domain-diff.tsv"
 COLUMNS: Final = (
@@ -315,10 +320,22 @@ def main() -> None:
     ap.add_argument("--head", help="the revision to check (default: the working tree)")
     ap.add_argument("--only", nargs="+", default=[], help="spec or function names")
     ap.add_argument(
+        "--affected",
+        action="store_true",
+        help="only the specs that depend on the files of src/ changed since --base"
+        " (see affected.py); exit at once if there are none",
+    )
+    ap.add_argument(
         "--points",
         type=positive,
         default=2**14,
         help="inputs per domain (default: %(default)s)",
+    )
+    ap.add_argument(
+        "--max-inputs",
+        type=positive,
+        help="lower --points to a power of 2 (at least MIN_POINTS) so that all domains have"
+        " at most this many inputs",
     )
     ap.add_argument(
         "--max-refs",
@@ -332,9 +349,23 @@ def main() -> None:
     )
     opts = ap.parse_args()
     only = set(opts.only)
+    if opts.affected:
+        revs = [opts.base, *([opts.head] if opts.head else [])]
+        diff = ["git", "-C", str(accuracy.ROOT), "diff", "--name-only", "-z", *revs]
+        out = subprocess.check_output([*diff, "--", "src"], text=True)
+        files = [accuracy.ROOT / f for f in out.split("\0") if f]
+        only |= set(affected.affected(files))
+        if not only:
+            print("no function is affected")
+            sys.exit(0)
     chosen = [s for s in specs.SPECS if not only or only & {s.name, s.func}]
     if unknown := only - {n for s in chosen for n in (s.name, s.func)}:
         ap.error(f"unknown spec or function: {', '.join(sorted(unknown))}")
+    if opts.max_inputs:
+        each = opts.max_inputs // sum(len(s.domains) for s in chosen)
+        opts.points = min(
+            opts.points, max(MIN_POINTS, 1 << max(each.bit_length() - 1, 0))
+        )
     fuzz_diff.CACHE.mkdir(parents=True, exist_ok=True)
     exes = [fuzz_diff.program(opts.base), fuzz_diff.program(opts.head)]
     mp.mp.dps = specs.DPS
