@@ -178,6 +178,18 @@ fn test_eval_real_degree_complex_recurrence() {
 }
 
 #[test]
+fn test_eval_real_degree_recurrence_rounding() {
+    // Arb. `hyp2f1` is kept where the rounding in the steps of the recurrence can exceed their
+    // difference, near x = -1.
+    let actual = eval_chebyshev_u(35.000_000_01, c64(-0.9961, 1e-10));
+    let expected = c64(0.440_496_638_670_150_8, 4.564_544_621_096_426_7e-7);
+    assert!((actual - expected).norm() <= 2e-15 * expected.norm());
+    // (the real part)
+    let actual = eval_jacobi(119.999_999_999_999_99, -0.99, -0.01, -1.000_000_000_000_000_2);
+    np_assert_allclose!([actual], [0.947_649_170_967_141], rtol = 1e-13);
+}
+
+#[test]
 fn test_eval_integer_degree_reflection() {
     // the integer degrees use the symmetry for x < 0 (Arb)
     let actual = [
