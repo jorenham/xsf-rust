@@ -23,14 +23,15 @@ Exit with 1 if a domain has
 - (c) a net loss: `worse - better > SIGMAS * sqrt(worse + better)`; a heuristic of a sign test
   with more than `SIGMAS` standard deviations, so that a loss in one domain fails whatever the
   gains in the others, but a few losses among many gains do not (the inputs of one Sobol net
-  are not independent, and failed references drop votes),
-- (d) a new panic,
+  are not independent),
+- (d) a new panic.
 
-or if the head times out where the base does not.
-
-Otherwise exit with 2 if a comparison could not be made: a spec was skipped (an unsupported or
-timed out revision, other than a head-only timeout), or the reference of an input of (a) or (b)
-failed or is NaN (marked "?" in "fails").
+Otherwise exit with 2 if a comparison could not be made: a spec was skipped (a revision that
+failed, e.g. unsupported or timed out; a timeout is retried once if the other revision
+succeeded), the reference of an input of (a) or (b) failed or is NaN (marked "?" in "fails"),
+or the sampled inputs without a reference would make (c) a net loss if they all got worse
+(marked with their count). (c) fails only if it holds when they all got better. Each bound
+counts only the inputs that can vote that way.
 """
 
 import argparse
@@ -126,6 +127,11 @@ def nan(y: Value) -> bool:
     return y is not None and cmath.isnan(y)
 
 
+def bad(y: Value) -> bool:
+    """NaN or a panic"""
+    return y is None or cmath.isnan(y)
+
+
 def error(y: Value, r: accuracy.Ref) -> float:
     return math.inf if y is None else accuracy.error(y, r)
 
@@ -180,6 +186,10 @@ def references(
     return [cache[k] if k in cache else new[k] for k in keys]
 
 
+def net_loss(worse: int, better: int) -> bool:
+    return worse - better > SIGMAS * math.sqrt(worse + better)
+
+
 def fmt(x: float | None) -> str:
     return "-" if x is None else f"{x:.1e}"
 
@@ -199,17 +209,22 @@ def compare(
         spans.append(range(len(lines), len(lines) + len(xs)))
         lines += [(dom.call or spec.func, x) for x in xs]
     with ThreadPoolExecutor() as threads:
-        b, h = threads.map(fuzz_diff.evaluate, exes, [lines] * len(exes))
+        res = list(threads.map(fuzz_diff.evaluate, exes, [lines] * len(exes)))
+    # a timeout of one revision only is probably the load of the machine, so it gets a retry
+    timed_out = [y == "timeout" for y in res]
+    if sum(timed_out) == 1 and not any(
+        isinstance(y, str) and y != "timeout" for y in res
+    ):
+        i = timed_out.index(True)
+        res[i] = fuzz_diff.evaluate(exes[i], lines)
+    b, h = res
     if isinstance(b, str) or isinstance(h, str):
         status = [y if isinstance(y, str) else "ok" for y in (b, h)]
         accuracy.log(f"{spec.name}: skipped, base {status[0]}, head {status[1]}")
-        head_only = status == ["ok", "timeout"]
-        note = (
-            "timeout" if head_only else f"skipped: base {status[0]}, head {status[1]}"
-        )
+        note = f"skipped: base {status[0]}, head {status[1]}"
         # The reason takes the place of the counts.
         row = [spec.name, "-", note, *["-"] * (len(COLUMNS) - 3)]
-        return [row], [], head_only, not head_only
+        return [row], [], False, True
 
     rows: list[list[str]] = []
     flagged: list[tuple[float, str]] = []
@@ -217,12 +232,8 @@ def compare(
     for desc, span, seed in zip(descs, spans, seeds, strict=True):
         # the differing inputs, the candidates of (a) and (b), and a sample of the others
         diff = [i for i in span if fuzz_diff.differ(b[i], h[i], 0.0)]
-        cand_a = [
-            i
-            for i in diff
-            if b[i] is not None and not nan(b[i]) and (h[i] is None or nan(h[i]))
-        ]
-        cand_b = [i for i in diff if nan(b[i]) and h[i] is not None and not nan(h[i])]
+        cand_a = [i for i in diff if not bad(b[i]) and bad(h[i])]
+        cand_b = [i for i in diff if nan(b[i]) and not bad(h[i])]
         rest = [i for i in diff if i not in {*cand_a, *cand_b}]
         rest = random.Random(seed).sample(rest, min(opts.max_refs, len(rest)))
         ids = [*cand_a, *cand_b, *rest]
@@ -246,7 +257,15 @@ def compare(
         better = sum(k == "improved" for k in kinds.values())
         worse_ids = [i for i, k in kinds.items() if k == "regressed"]
         worse = len(worse_ids)
-        loss = worse - better > SIGMAS * math.sqrt(worse + better)
+        # inputs without a reference could vote for either side, except a side that is NaN or a
+        # panic, whose error is infinite, or a tie such as +0 and -0: a loss must hold if they
+        # all got better, and the domain is inconclusive if they could still make one
+        noref_rest = [i for i in rest if i in noref]
+        votes = [i for i in noref_rest if b[i] != h[i]]
+        maybe_worse = sum(not bad(b[i]) for i in votes)
+        maybe_better = sum(not bad(h[i]) for i in votes)
+        loss = net_loss(worse, better + maybe_better)
+        hidden = not loss and net_loss(worse + maybe_worse, better)
         sample_errs = [errs[i] for i in rest if i in errs]
         peak = " -> ".join(
             fmt(max((e[j] for e in sample_errs), default=None)) for j in (0, 1)
@@ -264,7 +283,7 @@ def compare(
             if bad
         )
         failed |= bool(fails)
-        inconclusive |= unknown
+        inconclusive |= unknown or hidden
         rows.append(
             [
                 spec.name,
@@ -276,7 +295,7 @@ def compare(
                 str(len(cand_a)),
                 str(len(cand_b)),
                 str(len(panics)),
-                fails + "?" * unknown,
+                fails + "?" * unknown + f" ({len(noref_rest)} no ref)" * hidden,
             ]
         )
 
