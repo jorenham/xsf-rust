@@ -1299,7 +1299,32 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     Some((t1 + t2, t1.norm() * t1_error + t2.norm() * t2_error))
 }
 
+/// The Pfaff transform (1 - z)^(-b) F(b, c - a; c; z / (z - 1)) (DLMF 15.8.1) for b < 0 < c < a,
+/// or with a and b swapped, and the estimated cancellation of its series
+//
+// Its upper parameters are then both negative, and each of its terms is smaller in magnitude than
+// that of the transform in a, as |b + k| < c - b + k and |c - a + k| < a + k.
+fn hyp2f1_pfaff_negative(a: f64, b: f64, c: f64, z: C64) -> Option<Cancelled> {
+    let (a, b) = if a < b { (b, a) } else { (a, b) };
+    (b < 0.0 && 0.0 < c && c < a).then(|| {
+        let series_generator = hypergeometric_series_generator(b, c - a, c, z / (z - 1.0));
+        let series = series_eval_cancellation(series_generator);
+        Cancelled {
+            value: (1.0 - z).powf(-b) * series.value,
+            ..series
+        }
+    })
+}
+
 fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
+    // Unlike in xsf, transform in the negative upper parameter for b < 0 < c < a, or a and b
+    // swapped, and continue it analytically if it cancels.
+    if let Some(series) = hyp2f1_pfaff_negative(a, b, c, z) {
+        if series.is_continued() {
+            return hyp2f1_continuation(a, b, c, z, series.value.into()).unwrap_or(series.value);
+        }
+        return series.value;
+    }
     let (a, b) = if 0.0 < b && b < a && a < c {
         (b, a)
     } else {
@@ -1664,12 +1689,14 @@ fn hyp2f1_continued(a: f64, b: f64, c: f64, z: C64) -> Option<Estimate> {
     // Unlike in xsf, also continue the Pfaff transform: F(a, b; c; z) = (1 - z)^(-a)
     // F(a, c - b; c; z / (z - 1)) (DLMF 15.8.1), whose argument is within the unit circle about 1
     // if z is not, and off the cut for Re z < 1.
-    let (power, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
+    let (power, a, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
+        // (in b if a < 0 < b, so that both upper parameters are positive)
+        let (a, b) = if a < 0.0 && 0.0 < b { (b, a) } else { (a, b) };
         // (only if normal, as the error estimate omits the rounding of a subnormal power)
         let power = Some(pfaff_power(a, z)).filter(|p| p.norm().is_normal())?;
-        (Some(power), c - b, z / (z - 1.0))
+        (Some(power), a, c - b, z / (z - 1.0))
     } else {
-        (None, b, z)
+        (None, a, b, z)
     };
     let w = 1.0 - z;
     let r = w.norm();
@@ -2074,6 +2101,14 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
                     ..euler_series
                 };
             }
+        }
+    }
+    // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, use the Pfaff
+    // transform in a negative upper parameter for Re z < 0 if it cancels less.
+    if z.re < 0.0 && series.is_lossy() {
+        let pfaff = hyp2f1_pfaff_negative(a, b, c, z);
+        if let Some(pfaff) = pfaff.filter(|p| p.cancellation < series.cancellation) {
+            return pfaff.value;
         }
     }
     // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, also sum the
