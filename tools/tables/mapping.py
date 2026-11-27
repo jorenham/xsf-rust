@@ -2187,9 +2187,12 @@ def _j_arb(v: flint.arb, z: flint.acb) -> flint.acb | None:
 
 def _j_huge_order(a: tuple[float, ...]) -> bool:
     """Whether J_v(x) underflows for real x and |v| above AMOS's range, by the bound
-    |J_v(x)| <= e^-t of DLMF 10.14.5 with t >= |v| w^3 / 3 for w = sqrt(1 - (x / v)^2)."""
+    |J_v(x)| <= e^-t of DLMF 10.14.5 with t >= |v| w^3 / 3 for w = sqrt(1 - (x / v)^2). For
+    v < 0 not an integer, Y_|v| dominates and overflows instead."""
     v, x, y = abs(a[0]), abs(a[1]), a[2]
-    if y != 0 or not v > AMOS_ORDERS or not math.isfinite(v):
+    if y != 0 or not AMOS_ORDERS < v < math.inf or not x < v:
+        return False
+    if a[0] < 0 and not v.is_integer():
         return False
     w2 = (1 - x / v) * (1 + x / v)
     return v * w2 * math.sqrt(w2) / 3 > 2 * LOG_MAX
@@ -2202,8 +2205,20 @@ def _j_log(a: tuple[float, ...]) -> float:
         return float(abs(flint.acb(a[1], a[2]).bessel_j(flint.acb(a[0]))).log().mid())
 
 
+def _j_mlri(a: tuple[float, ...]) -> bool:
+    """Whether the result of `cyl_bessel_j_c64` depends on `mlri` with a non-integer order
+    (else its binomial coefficient is exactly 1): through `besj` (`binu`) unless v < 0 is a
+    half-integer, where `rotate_jy` drops J, or through `besy` (`besh`, `acon`, `binu`) for
+    v < 0 unless z > 0, where `besh` doesn't continue to the left half plane."""
+    v, x, y = a
+    order = abs(v)
+    if order.is_integer() or not _amos_mlri(order, math.hypot(x, y)):
+        return False
+    return v > 0 or not (2 * order).is_integer() or y != 0 or x < 0
+
+
 J_MLRI_FLOOR: Final = Floor(
-    lambda a: _amos_mlri(abs(a[0]), math.hypot(a[1], a[2])),
+    _j_mlri,
     J_MILLER_FLOOR.tol,
     "AMOS's Miller algorithm (`mlri`) takes its binomial coefficient from `poch`, unlike xsf,"
     " and so rounds differently (1.94e-15 at J_v(-3.33i) with v = -1.58e-15, where xsf has"
