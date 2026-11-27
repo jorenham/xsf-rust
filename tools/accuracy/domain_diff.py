@@ -30,7 +30,8 @@ Otherwise exit with 2 if a comparison could not be made: a spec was skipped (a r
 failed, e.g. unsupported or timed out; a timeout is retried once if the other revision
 succeeded), the reference of an input of (a) or (b) failed or is NaN (marked "?" in "fails"),
 or the sampled inputs without a reference would make (c) a net loss if they all got worse
-(marked with their count). (c) fails only if it holds when they all got better.
+(marked with their count). (c) fails only if it holds when they all got better. Each bound
+counts only the inputs that can vote that way.
 """
 
 import argparse
@@ -257,10 +258,12 @@ def compare(
         worse_ids = [i for i, k in kinds.items() if k == "regressed"]
         worse = len(worse_ids)
         # inputs without a reference could vote for either side, except a side that is NaN or a
-        # panic, whose error is infinite: a loss must hold if they all got better, and the domain
-        # is inconclusive if they could still make one
-        maybe_worse = sum(i in noref and not bad(b[i]) for i in rest)
-        maybe_better = sum(i in noref and not bad(h[i]) for i in rest)
+        # panic, whose error is infinite, or a tie such as +0 and -0: a loss must hold if they
+        # all got better, and the domain is inconclusive if they could still make one
+        noref_rest = [i for i in rest if i in noref]
+        votes = [i for i in noref_rest if b[i] != h[i]]
+        maybe_worse = sum(not bad(b[i]) for i in votes)
+        maybe_better = sum(not bad(h[i]) for i in votes)
         loss = net_loss(worse, better + maybe_better)
         hidden = not loss and net_loss(worse + maybe_worse, better)
         sample_errs = [errs[i] for i in rest if i in errs]
@@ -292,7 +295,7 @@ def compare(
                 str(len(cand_a)),
                 str(len(cand_b)),
                 str(len(panics)),
-                fails + "?" * unknown + f" ({maybe_worse} no ref)" * hidden,
+                fails + "?" * unknown + f" ({len(noref_rest)} no ref)" * hidden,
             ]
         )
 
