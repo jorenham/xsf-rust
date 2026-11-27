@@ -4321,7 +4321,7 @@ def _pmv_degree(v: float | mp.mpf) -> int | None:
 
 
 def _pmv_f64_degree(v: float) -> float:
-    """The degree -v - 1 or v >= 0 that xsf uses (DLMF 14.9.5), rounded as a double."""
+    """The degree of P_v as xsf computes it in f64: -v - 1 for v < 0 (DLMF 14.9.5), else v."""
     return -v - 1 if v < 0 else v
 
 
