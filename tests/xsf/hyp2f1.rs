@@ -1786,6 +1786,24 @@ fn test_hyp2f1_c64_centered_polynomial_arb() {
             c64(0.75, 1e-4),
             c64(-1.777_777_777_777_778e-8, 7.049_838_436_987_915e-122),
         ),
+        // Subnormal ordinates at z = 1, with zero lower coefficients or a far smaller imaginary part.
+        (-3.0, 1.75, -0.25, c64(1.0, DENORM_MIN), c64(0.0, 32.0 * DENORM_MIN)),
+        (
+            -3.0,
+            f64::EPSILON,
+            -2.0 + f64::EPSILON,
+            c64(1.0, DENORM_MIN),
+            c64(0.0, -3.0 * DENORM_MIN),
+        ),
+        (-2.0, 0.75, -0.25, c64(1.0, DENORM_MIN), c64(0.0, -8.0 * DENORM_MIN)),
+        (-87.0, 10.5, -75.5, c64(1.0, DENORM_MIN), c64(0.0, -1.336_947_332_458_579_7e-307)),
+        (
+            -80.0,
+            1.25,
+            -0.5,
+            c64(1.0, 2.072_261_5e-317),
+            c64(-0.005_503_047_963_615_845, 1.4762e-319),
+        ),
     ] {
         for (a, b) in [(a, b), (b, a)] {
             for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
@@ -1798,9 +1816,13 @@ fn test_hyp2f1_c64_centered_polynomial_arb() {
             }
         }
     }
+}
 
-    // Relative to |F| where the origin or Pfaff sum alone is accurate in norm.
-    for (a, b, c, z, expected, rtol) in [
+#[test]
+fn test_hyp2f1_c64_centered_polynomial_norm_arb() {
+    // As above, relative to |F| where the origin or Pfaff sum alone is accurate in norm, and to
+    // |Im(F)|.
+    for (a, b, c, z, expected, rtol, im_rtol) in [
         (
             -101.0,
             0.139_325_521_556_259,
@@ -1808,6 +1830,7 @@ fn test_hyp2f1_c64_centered_polynomial_arb() {
             c64(0.558_364_520_223_908_3, -1.882_749_894_611_628_2e-183),
             c64(205_788_035_551.881_9, -1.989_333_011_292_264e-170),
             1e-14,
+            1e-4,
         ),
         (
             -80.0,
@@ -1816,6 +1839,7 @@ fn test_hyp2f1_c64_centered_polynomial_arb() {
             c64(0.225, 1e-12),
             c64(380.553_117_365_774, -1.681_891_388_276_287_7e-8),
             1e-14,
+            1e-4,
         ),
         (
             -88.0,
@@ -1824,6 +1848,7 @@ fn test_hyp2f1_c64_centered_polynomial_arb() {
             c64(0.367_730_860_530_162_24, 1e-12),
             c64(1_124_530.910_297_318_4, 0.001_077_911_196_136_953_2),
             1e-9,
+            1e-6,
         ),
     ] {
         for (a, b) in [(a, b), (b, a)] {
@@ -1833,6 +1858,7 @@ fn test_hyp2f1_c64_centered_polynomial_arb() {
                     (actual - expected).norm() <= rtol * expected.norm(),
                     "hyp2f1({a}, {b}, {c}, {z}) = {actual}"
                 );
+                np_assert_allclose!([actual.im], [expected.im], rtol = im_rtol);
             }
         }
     }

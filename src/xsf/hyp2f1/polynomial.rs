@@ -397,7 +397,7 @@ fn select_positive_beta(origin: C64, centered: &Estimate, n: u64, z: C64) -> C64
     )
 }
 
-// The leading coefficient is (b)_n/(c)_n. Carry the products' binary scales separately.
+// The leading coefficient is (b)_n/(c)_n, as a mantissa and a binary scale.
 fn leading_coefficient(n: u64, b: f64, c: f64) -> (Dd, i32) {
     let product = |p: f64| {
         let shift = if p.abs() > pow2(384) {
@@ -421,11 +421,18 @@ fn leading_coefficient(n: u64, b: f64, c: f64) -> (Dd, i32) {
     };
     let (num, num_scale) = product(b);
     let (den, den_scale) = product(c);
-    (num / den, num_scale - den_scale)
+    let (quotient, exponent) = (num / den).frexp();
+    (quotient, num_scale - den_scale + exponent)
 }
 
 /// Polynomial in 1 - z and its absolute rounding estimate before the final projection to f64.
 fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
+    // The least exponent where the square of the least subnormal ordinate is still normal.
+    const MIN_EXPONENT: i32 = MIN_SUBNORMAL_EXP - (f64::MIN_EXP - 1) / 2;
+    // The double-double rounding unit of the estimate, and the mass whose rounding is the least
+    // subnormal, charged per step so that the estimate also bounds underflow.
+    const ROUNDING: f64 = pow2(-104);
+    const UNDERFLOW: f64 = DENORM_MIN / ROUNDING;
     // The t = 1 - z coefficients follow from Chu–Vandermonde summation (DLMF 15.4.24).
     if c > 0.0 && z.is_real() && (0.0..=1.0).contains(&z.re) {
         if let Some(result) = positive_beta_real(n, b, c, z.re) {
@@ -433,10 +440,12 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         }
     }
     let (leading, mut scale) = leading_coefficient(n, b, c);
-    // Run Horner in t = (1 - z) / 2^exponent, near the unit circle, so that its squared ordinate
-    // stays normal.
+    // Run Horner in t = (1 - z) / 2^exponent, which keeps the squared ordinate normal near z = 1.
+    // Stop at MIN_EXPONENT, as Im(P) / Im(t) shrinks against Re(P) with the exponent.
     let w = Dd::ONE - z.re;
-    let (radius, exponent) = frexp_f64(w.hi.hypot(z.im));
+    let modulus = w.hi.hypot(z.im);
+    let exponent = frexp_f64(modulus).1.max(MIN_EXPONENT);
+    let radius = ldexp_f64(modulus, -exponent);
     let t = w.ldexp(-exponent);
     let ordinate = ldexp_f64(z.im, -exponent);
     let square = Dd::new(ordinate) * ordinate;
@@ -471,7 +480,8 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         coefficient = m;
         coefficient_scale += e + ue - le;
         let delta = coefficient_scale - scale;
-        let term = if delta > 384 {
+        // A zero coefficient keeps the scale, as it cannot outgrow the accumulators.
+        let term = if delta > 384 && coefficient.hi != 0.0 {
             [re, im] = [re, im].map(|v| v.ldexp(-delta));
             mass = ldexp_f64(mass, -delta);
             scale = coefficient_scale;
@@ -481,17 +491,19 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         };
         // Carry Im(P) divided by Im(t) so even a subnormal ordinate survives Horner.
         (re, im) = (re * t - im * square + term, re + im * t);
-        mass = mass * radius + term.hi.abs();
+        mass = mass * radius + term.hi.abs() + UNDERFLOW;
         let size = mass.max(im.hi.abs());
-        if size != 0.0 && !(pow2(-384)..=pow2(384)).contains(&size) {
+        if !(pow2(-384)..=pow2(384)).contains(&size) {
             let (_, shift) = frexp_f64(size);
             [re, im] = [re, im].map(|v| v.ldexp(-shift));
             mass = ldexp_f64(mass, -shift);
             scale += shift;
         }
     }
+    // Multiply mantissas so that no product underflows before the final scaling.
     let round = |v: Dd, scale: i32| {
-        let v = v * leading;
+        let (v, e) = v.frexp();
+        let (v, scale) = (v * leading, scale + e);
         let x = ldexp_f64(v.hi, scale);
         if x.abs() < f64::MIN_POSITIVE {
             v.ldexp(scale - MIN_SUBNORMAL_EXP).round_subnormal_units()
@@ -506,7 +518,7 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         round(im * u, scale + e - exponent)
     };
     let rounding =
-        ldexp_f64(mass * leading.hi.abs() * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
+        ldexp_f64(mass * leading.hi.abs() * ((40.0 * n as f64 + 64.0) * ROUNDING), scale);
     Estimate {
         value: c64(round(re, scale), imag),
         error: rounding,
