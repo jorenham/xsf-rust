@@ -180,13 +180,20 @@ fn test_eval_real_degree_complex_recurrence() {
 #[test]
 fn test_eval_real_degree_recurrence_rounding() {
     // Arb. `hyp2f1` is kept where the rounding in the steps of the recurrence can exceed their
-    // difference, near x = -1.
+    // difference, near x = -1, and where the starting values can share an error, near integer
+    // degrees.
     let actual = eval_chebyshev_u(35.000_000_01, c64(-0.9961, 1e-10));
     let expected = c64(0.440_496_638_670_150_8, 4.564_544_621_096_426_7e-7);
     assert!((actual - expected).norm() <= 2e-15 * expected.norm());
     // (the real part)
     let actual = eval_jacobi(119.999_999_999_999_99, -0.99, -0.01, -1.000_000_000_000_000_2);
     np_assert_allclose!([actual], [0.947_649_170_967_141], rtol = 1e-13);
+    let actual = eval_jacobi(9.999_999_999_999_998, 9.5, 9.5, c64(-0.95, 0.55));
+    let expected = c64(1_098_810.208_151_795_2, 60_928.450_498_109_64);
+    assert!((actual - expected).norm() <= 4e-15 * expected.norm());
+    let actual = eval_jacobi(37.999_999_999_999_99, 9.99, 9.99, c64(-1.1, 0.4));
+    let expected = c64(1.977_056_492_742_335_6e16, 1.250_121_959_495_729_4e16);
+    assert!((actual - expected).norm() <= 3e-14 * expected.norm());
 }
 
 #[test]

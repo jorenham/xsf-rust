@@ -272,17 +272,21 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 ///   rounding of `c` and `lam`, and `alpha, beta` a few ulps below -1 (the recurrence is
 ///   continuous in `alpha` and `beta`).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
-///   `error`. Off `-1 < x < 1`, where `series` can overflow, it must also be finite.
-/// - `error` is `tol * growth`, the estimated effect of relative errors `tol` in the two starting
-///   values, with `tol = HYP2F1_ETHRESH`. Off `-1 < x < 1`, `tol` is twice the relative residual of
-///   the starting values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can
-///   lose accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in
-///   the steps. There, `error` is also at most twice the estimated error of the recurrence: that
-///   of errors of twice that residual in the starting values, plus that of a relative rounding
-///   error `EPSILON` in each step (by the derivatives of `G_n` in the intermediate values, which
-///   can exceed those in the starting values).
-/// - `error` is `growth` if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
+///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values. Off
+///   `-1 < x < 1`, where `series` can overflow, it must also be finite.
+/// - `tol` is `HYP2F1_ETHRESH`. Off `-1 < x < 1`, it is twice the relative residual of the starting
+///   values in the recurrence for `G_{n - floor(n) + 2}` if larger, since `hyp2f1` can lose
+///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the
+///   steps. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
 ///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
+/// - Off `-1 < x < 1`, if `tol < 1`, the threshold `tol * growth` is lowered to twice the
+///   estimated error of the recurrence if smaller: that of errors of twice that residual in the
+///   starting values, plus that of a rounding error in each step
+///   `G_k = (p G_{k-1} - q G_{k-2}) / r` of `EPSILON` times `(|p G_{k-1}| + |q G_{k-2}|) / |r|` (by
+///   the derivatives of `G_n` in the intermediate values, which can exceed those in the starting
+///   values). Within `4 EPSILON n` of an integer degree, it adds `HYP2F1_ETHRESH |G_n|`, as the
+///   starting values, with `a` near a nonpositive integer, can share a relative error of up to
+///   about `HYP2F1_ETHRESH` that the residual doesn't show.
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -292,12 +296,12 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
 ) -> Option<Z> {
     let (alpha, beta, ab) = (c - 1.0, lam - c, lam - 1.0);
     let segment = x.as_f64().is_some_and(|x| x.abs() < 1.0);
+    let slack = 4.0 * f64::EPSILON;
     let eligible = if segment {
         c > 0.0 && beta > -1.0
     } else {
         let ln_tol = (HYP2F1_ETHRESH / f64::EPSILON).ln();
         let cancels = !series.is_finite() || series_loss(x, n) > ln_tol;
-        let slack = 4.0 * f64::EPSILON;
         // at `x = -1`, `hyp2f1` uses Gauss's sum (DLMF 15.4.20)
         cancels && (x + 1.0).norm() > 0.0 && c > -slack && lam + 1.0 - c > -slack
     };
@@ -327,34 +331,43 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     } else {
         return None;
     };
+    // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
+    let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
+    let start = [(g0, g1), (one, zero), (zero, one)];
     // `G_{n - m}, ..., G_n`
     let mut gs = vec![g0, g1];
-    for j in (0..m as u32 - 1).rev() {
+    let [(_, rec), (_, rec10), (_, rec01)] = (0..m as u32 - 1).rev().fold(start, |sols, j| {
         let (p, q, r) = pqr(n - f64::from(j));
-        let k = gs.len();
-        gs.push((p * gs[k - 1] - gs[k - 2] * q) / r);
-    }
-    // the derivatives `(dG_n / dG_{k-1}, dG_n / dG_k)` from `k = n` down to `n - m + 1`, and the
-    // effect on `G_n` of a relative rounding error `EPSILON` in each step
-    let (mut d0, mut d1, mut step_error) = (Z::ZERO, Z::ZERO + 1.0, 0.0);
-    for (j, w) in (0..m as u32 - 1).zip(gs.windows(3).rev()) {
-        let (p, q, r) = pqr(n - f64::from(j));
-        step_error += d1.norm() * ((p * w[1]).norm() + (w[0] * q).norm()) / r.abs();
-        (d0, d1) = (d1 * (-q / r), d0 + d1 * (p / r));
-    }
-    let rec = gs[gs.len() - 1];
-    let growth = (d0 * g0).norm() + (d1 * g1).norm();
-    // the estimated relative error of the starting values
-    let start = 2.0 * residual;
-    let error = if growth * SQRT_EPSILON > rec.norm() || residual > SQRT_EPSILON {
-        growth
+        let sols = sols.map(|(g0, g1)| (g1, (p * g1 - g0 * q) / r));
+        gs.push(sols[0].1);
+        sols
+    });
+    let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
+    let stable = growth * SQRT_EPSILON <= rec.norm();
+    let trusted = stable && residual <= SQRT_EPSILON;
+    let tol = if trusted {
+        (2.0 * residual).max(HYP2F1_ETHRESH) + rounding
     } else {
-        let trusted = (start.max(HYP2F1_ETHRESH) + rounding) * growth;
-        if segment {
-            trusted
-        } else {
-            trusted.min(2.0 * (start * growth + f64::EPSILON * step_error))
+        1.0
+    };
+    let error = if trusted && !segment {
+        // the derivatives `(dG_n / dG_{k-1}, dG_n / dG_k)` from `k = n` down to `n - m + 1`, and
+        // the effect on `G_n` of the rounding error in each step, `EPSILON` times the sum of its
+        // two term magnitudes divided by `|r|`
+        let (mut d0, mut d1, mut step_error) = (zero, one, 0.0);
+        for (j, w) in (0..m as u32 - 1).zip(gs.windows(3).rev()) {
+            let (p, q, r) = pqr(n - f64::from(j));
+            step_error += d1.norm() * ((p * w[1]).norm() + (w[0] * q).norm()) / r.abs();
+            (d0, d1) = (d1 * (-q / r), d0 + d1 * (p / r));
         }
+        let near_int = (n - n.round()).abs() <= slack * n;
+        // the relative error that the starting values can share
+        let shared = if near_int { HYP2F1_ETHRESH } else { 0.0 };
+        let estimate =
+            2.0 * (2.0 * residual * growth + f64::EPSILON * step_error) + shared * rec.norm();
+        estimate.min(tol * growth)
+    } else {
+        tol * growth
     };
     let better = !series.is_finite() || (rec - series).norm() > error;
     (better && (segment || rec.is_finite())).then_some(rec)
