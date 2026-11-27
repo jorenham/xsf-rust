@@ -239,6 +239,14 @@ def f64s(data: bytes) -> tuple[float, ...]:
     return struct.unpack(f"<{len(data) // 8}d", data)
 
 
+def to_f32(x: float) -> float:
+    """`x` rounded to an f32 (ties to even, infinite past the f32 range), as an f64."""
+    try:
+        return struct.unpack("<f", struct.pack("<f", x))[0]
+    except OverflowError:
+        return math.copysign(math.inf, x)
+
+
 def value(x: tuple[float, ...]) -> complex:
     """The output with the f64s `x`."""
     return complex(*x) if len(x) == 2 else x[0]
@@ -613,10 +621,16 @@ def generate(
                 ]
                 f = value(tuple(f for f, _, _ in checked))
                 if rule:
-                    # xsf-rust must still follow the rule, like the reader's check of a gap
+                    # xsf-rust must still follow the rule, like the reader's check of a gap,
+                    # which reads the rule of an f32 output as an f32
+                    want = (
+                        value(tuple(map(to_f32, parts(rule.value))))
+                        if f32[i]
+                        else rule.value
+                    )
                     require(
-                        same_class(rust[r, i], rule.value)
-                        and table_error(rust[r, i], rule.value) <= 4 * EPS,
+                        same_class(rust[r, i], want)
+                        and table_error(rust[r, i], want) <= 4 * EPS,
                         f"xsf-rust has {rust[r, i]}, the gap rule {rule.value} "
                         f"({rule.why}): replace the rule by a computed reference",
                     )
