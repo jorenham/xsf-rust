@@ -1732,6 +1732,139 @@ fn test_hyp2f1_c64_pfaff_polynomial_arb() {
 }
 
 #[test]
+fn test_hyp2f1_c64_centered_polynomial_arb() {
+    // Both the origin and Pfaff sums cancel (#2310). Arb at the exact binary64 inputs, for both
+    // orders of (a, b), also at conj(z).
+    for (a, b, c, z, expected) in [
+        (
+            -482.0,
+            -4.56,
+            -16.91,
+            c64(0.3973, -0.9202),
+            c64(2.248_612_467_390_046_5e40, -2.915_717_315_212_302e39),
+        ),
+        (
+            -405.0,
+            8.445,
+            -5.303,
+            c64(0.0136, 1.0314),
+            c64(-7.981_009_357_816_551e89, 4.581_579_155_703_376e90),
+        ),
+        (
+            7.73,
+            -394.0,
+            -3.092,
+            c64(0.0272, -1.0566),
+            c64(1.495_937_704_424_21e85, 1.729_828_692_801_060_7e85),
+        ),
+        // Underflow near z = 1, and tiny or huge parameters.
+        (
+            -3.0,
+            1.0,
+            DENORM_MIN,
+            c64(1.0, 1.6e-162),
+            c64(1.054_449_305_400_145_4, 4.887_118_888_640_232_5e-162),
+        ),
+        (
+            -3.0,
+            1.0,
+            -DENORM_MIN,
+            c64(1.0, 1.6e-162),
+            c64(-2.054_449_305_400_145, -8.711_888_864_023_25e-164),
+        ),
+        (
+            -2.0,
+            -2.0,
+            -0.25 * f64::MIN_POSITIVE,
+            c64(0.125, 0.125),
+            c64(-8.988_465_674_311_58e307, -1.011_202_388_360_052_7e308),
+        ),
+        (
+            -2.0,
+            -(2.0_f64.powi(389)),
+            -0.75 * 2.0_f64.powi(389),
+            c64(0.75, 1e-4),
+            c64(-1.777_777_777_777_778e-8, 7.049_838_436_987_915e-122),
+        ),
+        // Subnormal ordinates at z = 1, with zero lower coefficients or a far smaller imaginary part.
+        (-3.0, 1.75, -0.25, c64(1.0, DENORM_MIN), c64(0.0, 32.0 * DENORM_MIN)),
+        (
+            -3.0,
+            f64::EPSILON,
+            -2.0 + f64::EPSILON,
+            c64(1.0, DENORM_MIN),
+            c64(0.0, -3.0 * DENORM_MIN),
+        ),
+        (-2.0, 0.75, -0.25, c64(1.0, DENORM_MIN), c64(0.0, -8.0 * DENORM_MIN)),
+        (-87.0, 10.5, -75.5, c64(1.0, DENORM_MIN), c64(0.0, -1.336_947_332_458_579_7e-307)),
+        (
+            -80.0,
+            1.25,
+            -0.5,
+            c64(1.0, 2.072_261_5e-317),
+            c64(-0.005_503_047_963_615_845, 1.4762e-319),
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 1e-15
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_centered_polynomial_norm_arb() {
+    // As above, relative to |F| where the origin or Pfaff sum alone is accurate in norm, and to
+    // |Im(F)|.
+    for (a, b, c, z, expected, rtol, im_rtol) in [
+        (
+            -101.0,
+            0.139_325_521_556_259,
+            -67.000_000_000_000_01,
+            c64(0.558_364_520_223_908_3, -1.882_749_894_611_628_2e-183),
+            c64(205_788_035_551.881_9, -1.989_333_011_292_264e-170),
+            1e-14,
+            1e-4,
+        ),
+        (
+            -80.0,
+            4.5,
+            -25.125,
+            c64(0.225, 1e-12),
+            c64(380.553_117_365_774, -1.681_891_388_276_287_7e-8),
+            1e-14,
+            1e-4,
+        ),
+        (
+            -88.0,
+            10.739_726_023_974_2,
+            -23.002_331_462_361_965,
+            c64(0.367_730_860_530_162_24, 1e-12),
+            c64(1_124_530.910_297_318_4, 0.001_077_911_196_136_953_2),
+            1e-9,
+            1e-6,
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                assert!(
+                    (actual - expected).norm() <= rtol * expected.norm(),
+                    "hyp2f1({a}, {b}, {c}, {z}) = {actual}"
+                );
+                np_assert_allclose!([actual.im], [expected.im], rtol = im_rtol);
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_pfaff_polynomial_exact() {
     let bits = |z: num_complex::Complex64| [z.re.to_bits(), z.im.to_bits()];
 
@@ -1764,9 +1897,14 @@ fn test_hyp2f1_c64_pfaff_polynomial_exact() {
 
 #[test]
 fn test_hyp2f1_c64_pfaff_polynomial_limits() {
-    // Rational arithmetic gives -0.008 + 0.0192i at the binary64 inputs, but 2(c + 1)
-    // overflows: NaN.
-    assert!(xsf::hyp2f1(-2.0, 1.2e308, 1e308, c64(0.9, 0.1)).is_nan());
+    // 2(c + 1) overflows in the origin and Pfaff sums, but not in the centered one (Arb at the
+    // binary64 inputs).
+    let actual = xsf::hyp2f1(-2.0, 1.2e308, 1e308, c64(0.9, 0.1));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-0.008_000_000_000_000_007, 0.019_199_999_999_999_988],
+        rtol = 1e-15
+    );
 
     // Both components overflow.
     let z = c64(9.324_507_004_751_248e30, -1.997_223_793_753_443_4e31);
