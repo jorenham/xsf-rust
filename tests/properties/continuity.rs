@@ -215,8 +215,8 @@ fn known_hyp2f1_complex_balanced(a: f64, b: f64, c: f64, re: f64, im: f64) -> bo
         || ((near_pole(a) || near_pole(b)) && almost_int(gap) && (0.9..=1.1).contains(&r))
         // wrong for negative a and b with c = a + b (#2335)
         || (gap == 0.0 && a.max(b) < 0.0)
-        // NEW1: wrong in the 1 - z transformation for a or b above 64 (seen from 87) and c - a - b
-        // within rounding of a negative integer
+        // wrong in the 1 - z transformation for a or b above 64 (seen from 87) and c - a - b
+        // within rounding of a negative integer (#2339)
         || (a.min(b) > 0.0
             && a.max(b) > 64.0
             && int_distance(gap) <= NEAR_POLE

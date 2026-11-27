@@ -24,8 +24,8 @@ fn at_pole(x: f64) -> bool {
 fn hyp2f1_symmetric(a: f64, b: f64, c: f64, x: f64) -> Result<(), TestCaseError> {
     // known: asymmetries near the poles of c
     prop_assume!(!at_pole(c));
-    // NEW3: NaN or infinite in one order for x > 1, where c - a - b rounds to an integer in only
-    // one order of a and b
+    // NaN or infinite in one order for x > 1, where c - a - b rounds to an integer in only
+    // one order of a and b (#2341)
     prop_assume!(!(x > 1.0 && c - a - b != c - b - a && int_distance(c - a - b) <= NEAR_POLE));
     let (ab, ba) = (xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x));
     prop_assert!(close(ab, ba, f64::EPSILON.sqrt()), "{ab:e} != {ba:e}");
@@ -55,14 +55,14 @@ fn known_hyp2f1_balanced(a: f64, b: f64, c: f64, x: f64) -> bool {
         pole_distance(p) <= NEAR_DEGENERATE && near(q) && near(c - q) && (c - q).round() < 0.0
     };
     // wrong for x > 0.9 or x < -100 (seen from -288) if c - a - b is next to -1, for a tiny a or b
-    // (#2333), or NEW5: one next to a negative pole
+    // (#2333), or one next to a negative pole (#2343)
     let shifted = |p: f64| p.fract() != 0.0 && pole_distance(p) <= NEAR_DEGENERATE;
     // 0 or NaN at x = -inf, and inf at -f64::MAX, for a tiny a or b (#2325)
     (x <= -f64::MAX && (tiny(a) || tiny(b)))
         || underflow
         || ((-1.0..=0.0).contains(&n) && c < 0.0 && x > 0.9 && (integers(a, b) || integers(b, a)))
         || (n == -1.0 && near(c - a - b) && (x > 0.9 || x < -100.0) && (shifted(a) || shifted(b)))
-        // NEW4: 1 in one order for c = a or c = b in (-NEAR_POLE, 0) and x > -1
+        // 1 in one order for c = a or c = b in (-NEAR_POLE, 0) and x > -1 (#2342)
         || ((a == c || b == c) && c < 0.0 && -c < NEAR_POLE && x > -1.0)
 }
 
