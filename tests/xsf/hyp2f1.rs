@@ -1456,13 +1456,14 @@ fn test_hyp2f1_c64_large_balanced_disk() {
 fn test_hyp2f1_c64_continued_mixed_signs() {
     // Arb at the exact binary64 inputs. Large a > 0 > b with c near a + b and |1 - z| < 1, where
     // the 1 - z, Maclaurin and 1/z series cancel (#2092)
-    for (a, b, c, z, expected) in [
+    for (a, b, c, z, expected, rtol) in [
         (
             630.125,
             -368.125_09,
             262.0,
             c64(0.98, 0.08),
             c64(-3.878_394_050_789_260_5e-110, -4.296_157_749_840_228_6e-110),
+            5e-13,
         ),
         (
             565.142_067_668_103_7,
@@ -1470,6 +1471,8 @@ fn test_hyp2f1_c64_continued_mixed_signs() {
             279.0,
             c64(0.739_197_583_574_562_3, 0.039_036_958_265_022_39),
             c64(2.116_418_362_513_058_4e-137, -3.025_690_067_707_499_7e-138),
+            // 1.8e-13 or 9.7e-13 from Arb, depending on the machine
+            2e-12,
         ),
         (
             355.320_770_280_946_53,
@@ -1477,10 +1480,11 @@ fn test_hyp2f1_c64_continued_mixed_signs() {
             330.0,
             c64(1.408_039_141_118_843, 0.253_651_243_105_164_96),
             c64(-4.533_028_131_348_748e-7, 7.260_072_759_464_002e-7),
+            5e-13,
         ),
     ] {
         let actual = xsf::hyp2f1(a, b, c, z);
-        assert!((actual - expected).norm() <= 5e-13 * expected.norm(), "{actual}");
+        assert!((actual - expected).norm() <= rtol * expected.norm(), "{actual}");
     }
 }
 
