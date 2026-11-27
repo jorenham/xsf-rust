@@ -764,7 +764,7 @@ mod tests {
         assert_eq!(run(2.0 + 1e-10), Ok(1));
         // a zero against a nonzero reference is a class mismatch, however small the reference
         let tiny = |actual: f64| {
-            let row = [1.0, 5e-324, gap.tol, gap.scale];
+            let row = [1.0, 5e-324, gap.tol, f64::MIN_POSITIVE];
             let table =
                 file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
             check("f", &Table::parse(&table).unwrap().test_cases::<f64>(), |_| actual)

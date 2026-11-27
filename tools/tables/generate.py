@@ -132,6 +132,14 @@ def table_error(y: complex, f: complex, scale: float = 0.0) -> float:
     return min(e, d / scale) if scale else e
 
 
+def rtol_ill_conditioned(name: str, x: Args) -> float:
+    """The smallest relative tolerance of the reader where the function is ill-conditioned, like
+    `rtol_ill_conditioned` in `testing/src/xsref.rs`."""
+    if name == "cyl_bessel_i" and x[0] < -100 and x[0] % 1 != 0:
+        return 5e-15 * abs(x[0])
+    return 0.0
+
+
 def same_class(y: complex, f: complex, zeros: bool = True) -> bool:
     """Whether each part of `y` is NaN, the same infinity, or finite, like that of `f`; with
     `zeros`, also the same zero or nonzero (like in `testing/src/xsref.rs`)."""
@@ -646,14 +654,16 @@ def generate(
             # xsf-rust is wrong here, so only the test of a fix matters, which needs half the
             # digits, as for xsf
             tol = max(XSF_WRONG_F32 if f32[i] else XSF_WRONG, low)
-            # the test must fail on what xsf-rust returns, which is the rule's value
-            rule = rules[r, i]
-            if same_class(rule.value, c.ref) and (
-                table_error(rule.value, c.ref, c.scale) <= 4 * max(EPS, tol)
+            # the test must fail on what xsf-rust returns, like the reader of the table
+            out_rust = rust[r, i]
+            rtol = max(4 * max(EPS, tol), rtol_ill_conditioned(table, inputs[r]))
+            if same_class(out_rust, c.ref) and (
+                table_error(out_rust, c.ref, c.scale) <= rtol
             ):
                 problems.append(
-                    f"[{i}] at {inputs[r]}: the gap rule {rule.value} ({rule.why}) "
-                    f"passes the test for the reference {c.ref}"
+                    f"[{i}] at {inputs[r]}: the gap rule {rules[r, i].value} "
+                    f"({rules[r, i].why}) passes the test for the reference {c.ref} "
+                    f"with the xsf-rust output {out_rust}: the gap is closed"
                 )
                 continue
             new[r, i] = Cell(GAP, ref, struct.pack("<d", tol), c.scale)
