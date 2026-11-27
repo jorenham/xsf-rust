@@ -136,7 +136,7 @@ proptest! {
         }
         let p = [a, b, c, re, im];
         let i = i.index(p.len());
-        // relative to |z| at Re z = 0, so that it crosses that switch
+        // relative to |z| at Re z = 0 (p[3]), so that it crosses that switch
         let scale = if i == 3 && re == 0.0 { im.abs() } else { p[i].abs() };
         continuous(neighbours(p, i, scale, k, |[a, b, c, re, im]| {
             xsf::hyp2f1(a, b, c, c64(re, im))
@@ -175,13 +175,13 @@ fn known_hyp2f1(a: f64, b: f64, c: f64, x: f64) -> bool {
 
 /// The known failures of `hyp2f1` for real arguments and a nearly integer `c - a - b`
 fn known_hyp2f1_balanced_x(a: f64, b: f64, c: f64, x: f64) -> bool {
-    // a terminating `p` with `c - q` next to an integer in `(p, 0]` near x = 1 (#2330)
+    // a terminating `p` with `c - q` next to an integer in `(p, 0]`, for x > 0.9 (#2330)
     let terminating = |p: f64, q: f64| {
         is_pole(p) && int_distance(c - q) <= NEAR_POLE && (p + 1.0..=0.0).contains(&(c - q).round())
     };
     known_hyp2f1(a, b, c, x)
-        // for 0 < c - a - b <= sqrt(eps), (1 - x)^(c - a - b) is 0 at x = 1 but about 1 at its
-        // neighbours
+        // not a bug: for 0 < c - a - b <= sqrt(eps), (1 - x)^(c - a - b) is 0 at x = 1 but about 1
+        // at its neighbours
         || (x == 1.0 && c - a - b <= f64::EPSILON.sqrt())
         || (x > 0.9 && (terminating(a, b) || terminating(b, a)))
         // c < 0 at a subnormal x (#2255, #2332)

@@ -24,7 +24,7 @@ fn near_pole(poles: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
     (poles, offset()).prop_map(|(n, d)| -f64::from(n) + d)
 }
 
-/// Subnormal or near-overflow magnitudes with a random sign, e.g. -5e-324 or 2^900
+/// Subnormal or huge magnitudes with a random sign, e.g. -5e-324 or 2^900
 fn extreme() -> impl Strategy<Value = f64> {
     let subnormal = (any::<bool>(), 1..1_u64 << (f64::MANTISSA_DIGITS - 1))
         .prop_map(|(neg, m)| f64::from_bits(m | u64::from(neg) << 63));
@@ -122,15 +122,15 @@ pub(super) fn balanced() -> impl Strategy<Value = [f64; 3]> {
         let (a, b) = ((a / q).round() * q, (b / q).round() * q);
         [a, b, a + b + n]
     });
-    let near = (moderate(), moderate(), -4..=4_i32, offset()).prop_map(|(a, b, n, d)| {
+    let inexact = (moderate(), moderate(), -4..=4_i32, offset()).prop_map(|(a, b, n, d)| {
         // at least an ulp of `c`, so that it differs from `a + b + n`
         let c = a + b + f64::from(n);
         [a, b, c + d.signum() * d.abs().max(f64::EPSILON * c.abs())]
     });
-    prop_oneof![exact, near]
+    prop_oneof![exact, inexact]
 }
 
-/// Magnitudes up to 2^8, or near an integer
+/// Magnitudes up to 2^8, or near an integer or a pole
 pub(super) fn moderate() -> impl Strategy<Value = f64> {
     // half the weight for `near_pole`, so that it gets a fifth of the cases
     prop_oneof![
@@ -140,7 +140,7 @@ pub(super) fn moderate() -> impl Strategy<Value = f64> {
     ]
 }
 
-/// Magnitudes up to 2^4, or near an integer
+/// Magnitudes up to 2^4, or near an integer or a pole
 pub(super) fn small() -> impl Strategy<Value = f64> {
     // as in `moderate`
     prop_oneof![4 => log_uniform(-64.0..4.0), 4 => near_int(-16..16), 2 => near_pole(0..=16)]

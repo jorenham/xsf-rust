@@ -56,14 +56,14 @@ fn known_hyp2f1_balanced(a: f64, b: f64, c: f64, x: f64) -> bool {
     let shifted = |p: f64| p.fract() != 0.0 && pole_distance(p) <= NEAR_DEGENERATE;
     // 0 or NaN at x = -inf, and inf at -f64::MAX, for a tiny a or b (#2325)
     (x <= -f64::MAX && (tiny(a) || tiny(b)))
-        // NaN or infinite in one order for x > 1, where c - a - b rounds to an integer in only
-        // one order of a and b (#2341)
-        || (x > 1.0 && c - a - b != c - b - a && int_distance(c - a - b) <= NEAR_POLE)
+        // NaN or infinite in one order for x > 1, where c - a - b is an integer in only one order
+        // of a and b (#2341)
+        || (x > 1.0 && ((c - a - b).fract() == 0.0) != ((c - b - a).fract() == 0.0))
         || underflow
         || ((-1.0..=0.0).contains(&n) && c < 0.0 && x > 0.9 && (integers(a, b) || integers(b, a)))
         || (n == -1.0 && near(c - a - b) && (x > 0.9 || x < -100.0) && (shifted(a) || shifted(b)))
-        // 1 in one order for c = a or c = b in (-NEAR_POLE, 0) and x > -1 (#2342)
-        || ((a == c || b == c) && c < 0.0 && -c < NEAR_POLE && x > -1.0)
+        // 1 in one order for c = a or c = b in (-1e-13, 0) and x > -1 (#2342)
+        || ((a == c || b == c) && (-1e-13..0.0).contains(&c) && x > -1.0)
 }
 
 proptest! {
