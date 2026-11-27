@@ -546,9 +546,12 @@ fn test_hyp2f1_c64_inverse_integer_large_a() {
         [2.265_408_42e-315, 1.079_529_834e-315],
         rtol = 1e-8
     );
-    // The 1/z series lose all digits of 7.4e-281, and return NaN (a known limitation).
+    // The 1/z series lose all digits of 7.4e-281, unlike a continuation of the Pfaff transform
+    // (Arb).
     let z = c64(-5.116_255_236_708_257, 1.081_168_310_773_071_4);
-    assert!(xsf::hyp2f1(269.209, 269.209, 102.193, z).is_nan());
+    let actual = xsf::hyp2f1(269.209, 269.209, 102.193, z);
+    let expected = [-2.751_056_993_986_911_6e-281, -6.883_612_334_113_631e-281];
+    np_assert_allclose!([actual.re, actual.im], expected, rtol = 5e-13);
     // (-z)^(-b) overflows (Arb).
     let z = c64(-53.532_855_637_485_9, -13.238_624_013_961_552);
     let actual = xsf::hyp2f1(-111.6, -182.6, 25.5, z);
@@ -1446,6 +1449,38 @@ fn test_hyp2f1_c64_large_balanced_disk() {
         // is accepted, but not a wrong value)
         let close = (actual - expected).norm() <= 1e-12 * expected.norm();
         assert!(actual.is_nan() || close, "{actual}");
+    }
+}
+
+#[test]
+fn test_hyp2f1_c64_continued_mixed_signs() {
+    // Arb at the exact binary64 inputs. Large a > 0 > b with c near a + b and |1 - z| < 1, where
+    // the 1 - z, Maclaurin and 1/z series cancel (#2092)
+    for (a, b, c, z, expected) in [
+        (
+            630.125,
+            -368.125_09,
+            262.0,
+            c64(0.98, 0.08),
+            c64(-3.878_394_050_789_260_5e-110, -4.296_157_749_840_228_6e-110),
+        ),
+        (
+            565.142_067_668_103_7,
+            -286.142_067_667_834_57,
+            279.0,
+            c64(0.739_197_583_574_562_3, 0.039_036_958_265_022_39),
+            c64(2.116_418_362_513_058_4e-137, -3.025_690_067_707_499_7e-138),
+        ),
+        (
+            355.320_770_280_946_53,
+            -25.320_770_778_802_114,
+            330.0,
+            c64(1.408_039_141_118_843, 0.253_651_243_105_164_96),
+            c64(-4.533_028_131_348_748e-7, 7.260_072_759_464_002e-7),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        assert!((actual - expected).norm() <= 5e-13 * expected.norm(), "{actual}");
     }
 }
 
