@@ -63,7 +63,8 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
   true value (e.g. NaN where `ellipkinc` is real). The reference is computed as above, but
   neither xsf-rust nor xsf need be near it. The tolerance is `max(2^-26, floor)` for `f64` and
   `max(2^-12, floor)` for `f32`, and the test must fail there, so that it notices when the gap
-  closes. The generator errors if xsf-rust's output already passes.
+  closes. The table also keeps the rule's value, which xsf-rust must still return. The generator
+  errors if xsf-rust's output already passes.
 - legacy: where our reference timed out.
 
 ## Statuses and scales
@@ -77,9 +78,10 @@ Each logical output of each row has a status:
 | 2 convention | a rule, e.g. NaN outside of the domain         | NaN, the infinities, and the zeros |
 | 3 gap        | the `f64` (or `f32`) nearest to the true value | NaN, the infinities, and the zeros |
 
-A gap is checked like a computed output, but must fail: the test counts it as a known gap, and
-fails if it passes (the gap is closed, so replace the rule by a computed reference, with an
-`Override` where xsf still differs, and regenerate). Keep gaps to classes (e.g. NaN for a finite
+If an output passes the check against the reference of a gap, the test fails (the gap is closed,
+so replace the rule by a computed reference, with an `Override` where xsf still differs, and
+regenerate). Otherwise the output is checked against the rule's value, as for a convention, and
+the test counts a pass as a known gap. Keep gaps to classes (e.g. NaN for a finite
 value, or zero for a nonzero one), which do not flip on a rounding error. The zeros are a class
 of their own, as for a convention.
 
@@ -95,22 +97,26 @@ or 0 for none) if that is smaller.
 ## Format (version 1)
 
 All numbers are little-endian. A complex output is two `f64`s (real part first) with one
-tolerance, scale, and status. Header flag bit 0 announces the statuses and bit 1 the scales
-(`s_0` and `s_1` below are 1 with that flag, and 0 without).
+tolerance, scale, and status. Header flag bit 0 announces the statuses, bit 1 the scales, and
+bit 2 the rule values (`s_0`, `s_1`, and `s_2` below are 1 with that flag, and 0 without). The
+rule values need the statuses.
 
-| Bytes                                       | Type  | Content                                         |
-| ------------------------------------------- | ----- | ----------------------------------------------- |
-| 4                                           |       | magic `XSFT`                                    |
-| 4                                           | `u32` | version: 1                                      |
-| 4                                           | `u32` | `n_rows`                                        |
-| 2                                           | `u16` | `n_in`: input `f64`s per row                    |
-| 2                                           | `u16` | `n_out`: output `f64`s per row                  |
-| 2                                           | `u16` | `n_tol`: logical outputs (tolerances) per row   |
-| 2                                           | `u16` | flags: bit 0 and bit 1                          |
-| `8 n_rows (n_in + n_out + n_tol (1 + s_1))` | `f64` | inputs, outputs, tolerances, scales (row-major) |
-| `n_rows`                                    | `u8`  | row flags: bit 0 is xsref's `fallback`          |
-| `n_rows n_tol s_0`                          | `u8`  | statuses (row-major)                            |
+| Bytes                                                   | Type  | Content                                                      |
+| ------------------------------------------------------- | ----- | ------------------------------------------------------------ |
+| 4                                                       |       | magic `XSFT`                                                 |
+| 4                                                       | `u32` | version: 1                                                   |
+| 4                                                       | `u32` | `n_rows`                                                     |
+| 2                                                       | `u16` | `n_in`: input `f64`s per row                                 |
+| 2                                                       | `u16` | `n_out`: output `f64`s per row                               |
+| 2                                                       | `u16` | `n_tol`: logical outputs (tolerances) per row                |
+| 2                                                       | `u16` | flags: bits 0 to 2                                           |
+| `8 n_rows (n_in + n_out + n_tol (1 + s_1) + n_out s_2)` | `f64` | inputs, outputs, tolerances, scales, rule values (row-major) |
+| `n_rows`                                                | `u8`  | row flags: bit 0 is xsref's `fallback`                       |
+| `n_rows n_tol s_0`                                      | `u8`  | statuses (row-major)                                         |
 
-So a file is exactly `20 + n_rows (8 (n_in + n_out + n_tol (1 + s_1)) + 1 + n_tol s_0)` bytes
-long. Without the statuses, every output is a legacy one. Readers reject other versions, and
+The rule values are laid out like the outputs: a gap output has the rule's value, and any other
+output repeats its reference. A table without them has no gaps.
+
+So a file is exactly `20 + n_rows (8 (n_in + n_out + n_tol (1 + s_1) + n_out s_2) + 1 + n_tol s_0)`
+bytes long. Without the statuses, every output is a legacy one. Readers reject other versions, and
 unknown flags or statuses.

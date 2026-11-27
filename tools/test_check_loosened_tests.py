@@ -3,6 +3,7 @@
 python3 -m unittest discover -s tools -p 'test_check*.py'
 """
 
+import math
 import os
 import struct
 import subprocess
@@ -52,6 +53,14 @@ def table(rows: Sequence[tuple[float, ...]], *, scaled: bool = True) -> bytes:
     header = b"XSFT" + struct.pack("<IIHHHH", 1, len(rows), 1, 1, 1, 2 * scaled)
     values = b"".join(struct.pack(f"<{len(row)}d", *row) for row in rows)
     return header + values + bytes(len(rows))
+
+
+def statuses(rows: Sequence[tuple[float, ...]], status: int, *, ruled: bool) -> bytes:
+    """A table of rows `(input, output, tolerance, scale[, rule value])` of one status"""
+    flags = 3 | 4 * ruled
+    header = b"XSFT" + struct.pack("<IIHHHH", 1, len(rows), 1, 1, 1, flags)
+    values = b"".join(struct.pack(f"<{len(row)}d", *row) for row in rows)
+    return header + values + bytes(len(rows)) + bytes([status]) * len(rows)
 
 
 class Repo:
@@ -251,7 +260,7 @@ class Synthetic(unittest.TestCase):
     def test_xsref(self) -> None:
         loose = [(1.0, 2.0, 1e-14, 0.0), ROWS[1]]
         scaled = [(1.0, 2.0, 1e-15, 1.0), ROWS[1]]
-        row = f"{BIN}: larger tolerance or scale in 1 xsref row"
+        row = f"{BIN}: larger tolerance or scale, or weaker status in 1 xsref row"
         cases: list[tuple[list[tuple[float, ...]], list[str]]] = [
             (ROWS[::-1], []),
             (loose, [row]),
@@ -269,6 +278,49 @@ class Synthetic(unittest.TestCase):
             [row],
         )
         self.assertEqual(self.check({BIN: plain}, {BIN: table(ROWS)}), [])
+
+    def test_xsref_gap(self) -> None:
+        nan = math.nan
+        convention = statuses([(1.0, nan, 0.0, 0.0)], 2, ruled=False)
+        computed = statuses([(1.0, 2.0, 1e-15, 0.0)], 1, ruled=False)
+        found = f"{BIN}: larger tolerance or scale, or weaker status in 1 xsref row"
+
+        def gap(rule: float, tol: float = 1e-8) -> bytes:
+            return statuses([(1.0, 2.0, tol, 1.0, rule)], 3, ruled=True)
+
+        # a convention that becomes a gap with the same rule value, whatever its tolerance
+        self.assertEqual(self.check({BIN: convention}, {BIN: gap(nan)}), [])
+        self.assertEqual(self.check({BIN: gap(nan, 1e-12)}, {BIN: gap(nan, 1e-6)}), [])
+        # another rule value, a computed output, or a gap that is a convention for another value
+        self.assertEqual(self.check({BIN: gap(nan)}, {BIN: gap(0.0)}), [found])
+        self.assertEqual(self.check({BIN: computed}, {BIN: gap(nan)}), [found])
+        self.assertEqual(self.check({BIN: convention}, {BIN: gap(0.0)}), [found])
+        self.assertEqual(
+            self.check(
+                {BIN: gap(nan)}, {BIN: statuses([(1.0, 0.0, 0.0, 0.0)], 2, ruled=False)}
+            ),
+            [found],
+        )
+        # a computed output that becomes a convention
+        self.assertEqual(
+            self.check(
+                {BIN: computed}, {BIN: statuses([(1.0, 2.0, 0.0, 0.0)], 2, ruled=False)}
+            ),
+            [found],
+        )
+        # a gap without a rule value accepts any wrong output, so a rule value is stricter
+        old = statuses([(1.0, 2.0, 1e-8, 1.0)], 3, ruled=False)
+        self.assertEqual(self.check({BIN: old}, {BIN: gap(nan)}), [])
+        # a gap that closes, or becomes a convention for its rule value
+        self.assertEqual(self.check({BIN: gap(nan)}, {BIN: computed}), [])
+        loose = statuses([(1.0, 2.0, 1e-7, 0.0)], 1, ruled=False)
+        self.assertEqual(self.check({BIN: gap(nan)}, {BIN: loose}), [found])
+        self.assertEqual(
+            self.check(
+                {BIN: gap(nan)}, {BIN: statuses([(1.0, nan, 0.0, 0.0)], 2, ruled=False)}
+            ),
+            [],
+        )
 
     def test_xsref_removed(self) -> None:
         removed = [f"{BIN}: removed xsref table"]

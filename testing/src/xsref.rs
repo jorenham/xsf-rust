@@ -174,7 +174,8 @@ enum Status {
     Computed,
     /// Fixed by a convention, e.g. NaN outside of the domain
     Convention,
-    /// Computed like `Computed`, but xsf-rust is known to get it wrong, so the check must fail
+    /// Computed like `Computed`, but xsf-rust is known to return the rule's value instead, so
+    /// the check against the reference must fail
     Gap,
 }
 
@@ -264,6 +265,8 @@ fn same_class<T: TestOutputValue>(actual: T, expected: T, zeros: bool) -> bool {
 struct TestCase<T: TestOutput> {
     r#in: Vec<f64>,
     out: T,
+    /// The value of each output that a rule fixes (what xsf-rust returns on a gap)
+    rule: T,
     /// The check of each output
     checks: Vec<Check>,
 }
@@ -288,9 +291,12 @@ struct Table {
     n_in: usize,
     n_out: usize,
     n_tol: usize,
+    /// The number of rule values per row, which is `n_out` or 0
+    n_rules: usize,
     /// The number of `f64`s per row
     width: usize,
-    /// The inputs, outputs, tolerances, and scales (if any) of each row (row-major)
+    /// The inputs, outputs, tolerances, scales (if any), and rule values (if any) of each row
+    /// (row-major)
     values: Vec<f64>,
     /// The check of each output of each row (row-major)
     checks: Vec<Check>,
@@ -304,6 +310,8 @@ impl Table {
     const STATUS: u16 = 1;
     /// The header flag for an error scale per logical output, after the tolerances
     const SCALES: u16 = 2;
+    /// The header flag for the rule values (like the outputs), after the scales
+    const RULES: u16 = 4;
     /// The row flag for a reference that is xsf's own value (xsref's `fallback`)
     const FALLBACK: u8 = 1;
 
@@ -317,7 +325,8 @@ impl Table {
         let flags = u16_at(18);
         if &header[..4] != Self::MAGIC
             || u32_at(4) != Self::VERSION
-            || flags & !(Self::STATUS | Self::SCALES) != 0
+            || flags & !(Self::STATUS | Self::SCALES | Self::RULES) != 0
+            || flags & Self::RULES != 0 && flags & Self::STATUS == 0
         {
             return Err(TestError::DataFormat);
         }
@@ -325,7 +334,8 @@ impl Table {
         let [n_in, n_out, n_tol] = [12, 14, 16].map(|i| usize::from(u16_at(i)));
         let scaled = flags & Self::SCALES != 0;
         let n_status = if flags & Self::STATUS == 0 { 0 } else { n_tol };
-        let width = n_in + n_out + n_tol * (1 + usize::from(scaled));
+        let n_rules = if flags & Self::RULES == 0 { 0 } else { n_out };
+        let width = n_in + n_out + n_tol * (1 + usize::from(scaled)) + n_rules;
 
         // each row has its `f64` values, a flags byte, and the status bytes (if any)
         let len = n_rows
@@ -346,7 +356,7 @@ impl Table {
             .collect::<Vec<_>>();
         let mut checks = Vec::with_capacity(n_rows * n_tol);
         for (r, row) in values.chunks_exact(width).enumerate() {
-            let (tols, scales) = row[n_in + n_out..].split_at(n_tol);
+            let (tols, scales) = row[n_in + n_out..width - n_rules].split_at(n_tol);
             for (i, &tol) in tols.iter().enumerate() {
                 let check = Check {
                     tol,
@@ -354,7 +364,8 @@ impl Table {
                     // without the status bytes, every reference is xsref's
                     status: status.get(r * n_tol + i).copied().unwrap_or(0).try_into()?,
                 };
-                if !check.is_valid() {
+                // a gap needs the rule's value
+                if !check.is_valid() || check.status == Status::Gap && n_rules == 0 {
                     return Err(TestError::DataFormat);
                 }
                 checks.push(check);
@@ -364,27 +375,35 @@ impl Table {
             n_in,
             n_out,
             n_tol,
+            n_rules,
             width,
             values,
             checks,
         })
     }
 
-    /// The inputs, outputs, and checks of each row
-    fn rows(&self) -> impl Iterator<Item = (&[f64], &[f64], &[Check])> {
+    /// The inputs, outputs, rule values (the outputs, without any), and checks of each row
+    fn rows(&self) -> impl Iterator<Item = (&[f64], &[f64], &[f64], &[Check])> {
         (self.values.chunks_exact(self.width))
             .zip(self.checks.chunks_exact(self.n_tol))
             .map(|(row, checks)| {
                 let (inputs, rest) = row.split_at(self.n_in);
-                (inputs, &rest[..self.n_out], checks)
+                let outputs = &rest[..self.n_out];
+                let rules = if self.n_rules == 0 {
+                    outputs
+                } else {
+                    &row[self.width - self.n_rules..]
+                };
+                (inputs, outputs, rules, checks)
             })
     }
 
     fn test_cases<T: TestOutput>(&self) -> Vec<TestCase<T>> {
         self.rows()
-            .map(|(inputs, outputs, checks)| TestCase {
+            .map(|(inputs, outputs, rules, checks)| TestCase {
                 r#in: inputs.to_vec(),
                 out: T::from_row(outputs),
+                rule: T::from_row(rules),
                 checks: checks.to_vec(),
             })
             .collect()
@@ -484,21 +503,28 @@ where
             .iter()
             .zip(case.out.values())
             .zip(&case.checks)
+            .zip(case.rule.values())
             .enumerate())
-        .filter_map(|(i, ((&actual, expected), check))| {
+        .filter_map(|(i, (((&actual, expected), check), rule))| {
             let mut rtol = rtol_ill_conditioned(name, &case.r#in);
             if check.status == Status::Legacy {
                 rtol = rtol.max(rtol_min(name, &case.r#in, i));
             }
             let failure = check.failure(actual, expected, rtol);
             if check.status == Status::Gap {
-                // a gap must fail, and then it is not a failure of the test
-                if failure.is_some() {
-                    known_gaps += 1;
-                } else {
+                // a gap must not pass on the reference, and must still return the rule's value
+                const RULE: Check = Check {
+                    tol: 0.0,
+                    scale: 0.0,
+                    status: Status::Convention,
+                };
+                if failure.is_none() {
                     closed_gaps.push(row);
+                    return None;
                 }
-                return None;
+                let wrong = RULE.failure(actual, rule, 0.0);
+                known_gaps += usize::from(wrong.is_none());
+                return wrong;
             }
             failure
         })
@@ -573,10 +599,11 @@ mod tests {
 
         let rows = table.rows().collect::<Vec<_>>();
         assert_eq!(rows.len(), 1);
-        let (inputs, outputs, checks) = rows[0];
+        let (inputs, outputs, rules, checks) = rows[0];
         let bits = |x: &[f64]| x.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
         assert_eq!(bits(inputs), bits(&row[..1]));
         assert_eq!(bits(outputs), bits(&row[1..5]));
+        assert_eq!(bits(rules), bits(outputs));
         assert_eq!(bits(&checks.iter().map(|c| c.tol).collect::<Vec<_>>()), bits(&row[5..]));
         // without the optional sections, the outputs are xsref's and have no scale
         assert!(
@@ -647,6 +674,8 @@ mod tests {
         assert!(invalid(|b| b.truncate(Table::HEADER_LEN - 1)));
         assert!(invalid(|b| b[0] = b'Y'));
         assert!(invalid(|b| b[4] = 2));
+        assert!(invalid(|b| b[18] = 8));
+        // rule values without statuses
         assert!(invalid(|b| b[18] = 4));
         assert!(invalid(|b| *b.last_mut().unwrap() = 2));
         // a section that the header flags announce is missing
@@ -666,8 +695,8 @@ mod tests {
         };
         assert!(valid([1.0, 2.0, 1e-15, 0.0], 1));
         assert!(valid([1.0, 2.0, 0.0, 5.0], 2));
-        assert!(valid([1.0, 2.0, 1e-15, 0.0], 3));
-        // an unknown status
+        // a gap without the rule values, or an unknown status
+        assert!(!valid([1.0, 2.0, 1e-15, 0.0], 3));
         assert!(!valid([1.0, 2.0, 1e-15, 0.0], 4));
         // a scale that is negative, infinite, or NaN, or that a legacy output has
         assert!(!valid([1.0, 2.0, 1e-15, -1.0], 1));
@@ -747,31 +776,40 @@ mod tests {
 
     #[test]
     fn test_gap() {
-        let gap = Check {
-            tol: 1e-15,
-            scale: 0.0,
-            status: Status::Gap,
-        };
-        let run = |actual: f64| {
-            let row = [1.0, 2.0, gap.tol, gap.scale];
-            let table =
-                file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
-            let cases = Table::parse(&table).unwrap().test_cases::<f64>();
-            check("f", &cases, |_| actual)
-        };
-        // the gap is open if the class or the value is wrong, and closed if it is right
-        assert_eq!(run(f64::NAN), Ok(1));
-        assert_eq!(run(2.0 + 1e-10), Ok(1));
-        // a zero against a nonzero reference is a class mismatch, however small the reference
-        let tiny = |actual: f64| {
-            let row = [1.0, 5e-324, gap.tol, f64::MIN_POSITIVE];
-            let table =
-                file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
+        let flags = Table::STATUS | Table::SCALES | Table::RULES;
+        let (tol, status) = (1e-15, Status::Gap as u8);
+        // a gap with the reference 2 and the rule value `rule`, and the actual output `actual`
+        let run = |reference: f64, rule: f64, scale: f64, actual: f64| {
+            let row = [1.0, reference, tol, scale, rule];
+            let table = file([1, 1, 1], flags, &[(&row, 0, &[status])]);
             check("f", &Table::parse(&table).unwrap().test_cases::<f64>(), |_| actual)
         };
-        assert_eq!(tiny(0.0), Ok(1));
-        assert!(tiny(5e-324).unwrap_err().contains("gap closed"));
-        assert!(run(2.0).unwrap_err().contains("gap closed at row 0"));
+        let nan = f64::NAN;
+        // the gap is open if the output is the rule's value
+        assert_eq!(run(2.0, nan, 0.0, nan), Ok(1));
+        assert_eq!(run(2.0, 0.0, 0.0, 0.0), Ok(1));
+        // and closed if it is the reference
+        assert!(
+            run(2.0, nan, 0.0, 2.0)
+                .unwrap_err()
+                .contains("gap closed at row 0")
+        );
+        // a zero against a nonzero reference is a class mismatch, however small the reference
+        assert!(
+            run(5e-324, nan, f64::MIN_POSITIVE, 5e-324)
+                .unwrap_err()
+                .contains("gap closed")
+        );
+        // anything else fails, even if it is near neither
+        for actual in [3.0, 2.0 + 1e-10, f64::INFINITY, 0.0] {
+            assert!(
+                run(2.0, nan, 0.0, actual)
+                    .unwrap_err()
+                    .contains("1/1 tests failed")
+            );
+        }
+        assert!(run(2.0, 0.0, 0.0, -0.0).is_err());
+        assert!(run(2.0, 0.0, 0.0, 1e-300).is_err());
     }
 
     #[test]
