@@ -82,11 +82,14 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
         if n == 1 || one_sign(other, c, n, z) || origin.accurate() {
             origin
         } else {
-            let pfaff = pfaff(two_sum(c, -other), c, n, z, origin);
+            let [re, im] = pfaff(two_sum(c, -other), c, n, z, origin);
+            let pfaff = join([re, im]);
             (centerable && !pfaff.accurate())
                 .then(|| centered(n, other, c, z))
-                .filter(|centered| centered.resolved() && !(centered.error >= pfaff.error))
-                .unwrap_or(pfaff)
+                .filter(Estimate::resolved)
+                .map_or(pfaff, |Estimate { value, error }| {
+                    join([refine(re, value.re, error), refine(im, value.im, error)])
+                })
         }
     };
     // Unlike in xsf, recover a finite linear result when forming its
@@ -109,6 +112,28 @@ fn series(a: f64, b: f64, c: f64, z: C64, n: u64, other: f64) -> Estimate {
         }
     }
     estimate
+}
+
+// The centered component `value` with absolute error `error` where it refutes the incumbent, by
+// differing from it by more than twice its error after the final rounding, or where it is more
+// certain than an incumbent whose own error does not resolve it.
+fn refine(old: Estimate<f64>, value: f64, error: f64) -> Estimate<f64> {
+    let limit = error + f64::EPSILON * value.abs() + DENORM_MIN;
+    let refuted = !((old.value - value).abs() <= 2.0 * limit);
+    let unresolved = !(old.error < old.value.abs());
+    if refuted || (unresolved && limit < old.error) {
+        Estimate { value, error }
+    } else {
+        old
+    }
+}
+
+// The complex estimate of two components, with the larger error.
+fn join([re, im]: [Estimate<f64>; 2]) -> Estimate {
+    Estimate {
+        value: c64(re.value, im.value),
+        error: re.error.max(im.error),
+    }
 }
 
 // Mean of 1, w, ..., w^(count-1), with w = 1-z.
@@ -249,16 +274,25 @@ pub(super) fn complement(a: f64, c: f64, n: u64, z: C64, estimate: Estimate) -> 
     let relative = rounding_change(c_minus_a, rounding, n);
     let rounded = estimated_sum(-degree, c_minus_a, c, n, z, relative);
     let error = estimate.error.max(rounded.error);
-    pfaff((a, 0.0), c, n, z, Estimate { error, ..estimate })
+    join(pfaff((a, 0.0), c, n, z, Estimate { error, ..estimate }))
 }
 
 // F(-n, b; c; z) = (1 - z)^n F(-n, c - b; c; z / (z - 1)) (DLMF 15.8.1), where the tuple is c - b
-// rounded and its rounding error
+// rounded and its rounding error, by component
 #[cold]
-fn pfaff((c_minus_b, rounding): (f64, f64), c: f64, n: u64, z: C64, origin: Estimate) -> Estimate {
+fn pfaff(
+    (c_minus_b, rounding): (f64, f64),
+    c: f64,
+    n: u64,
+    z: C64,
+    origin: Estimate,
+) -> [Estimate<f64>; 2] {
     let x = z / (z - 1.0);
     if !x.is_finite() {
-        return origin;
+        return [origin.value.re, origin.value.im].map(|value| Estimate {
+            value,
+            error: origin.error,
+        });
     }
     let degree = n as f64;
     let relative = rounding_change(c_minus_b, rounding, n);
@@ -275,17 +309,18 @@ fn pfaff((c_minus_b, rounding): (f64, f64), c: f64, n: u64, z: C64, origin: Esti
     let select = |new: f64, old: f64| {
         let differs = pfaff_error < origin.error && (new - old).abs() > pfaff_error;
         if new.is_finite() && pfaff_error < new.abs() && (differs || !old.is_finite()) {
-            (new, pfaff_error)
+            Estimate {
+                value: new,
+                error: pfaff_error,
+            }
         } else {
-            (old, origin.error)
+            Estimate {
+                value: old,
+                error: origin.error,
+            }
         }
     };
-    let (re, re_error) = select(value.re, origin.value.re);
-    let (im, im_error) = select(value.im, origin.value.im);
-    Estimate {
-        value: c64(re, im),
-        error: re_error.max(im_error),
-    }
+    [select(value.re, origin.value.re), select(value.im, origin.value.im)]
 }
 
 // Rounding p changes each term of F(-n, p; c; z) by a relative n |rounding| / min |p + j| for
@@ -362,27 +397,21 @@ fn select_positive_beta(origin: C64, centered: &Estimate, n: u64, z: C64) -> C64
     )
 }
 
-// The leading coefficient is (b)_n/(c)_n, from the rising factors p + j of each parameter p, or
-// else the falling factors -p - j. Carry the products' binary scales separately.
-fn leading_coefficient(n: u64, b: f64, c: f64, rising: bool) -> (Dd, i32) {
+// The leading coefficient is (b)_n/(c)_n. Carry the products' binary scales separately.
+fn leading_coefficient(n: u64, b: f64, c: f64) -> (Dd, i32) {
     let product = |p: f64| {
         let shift = if p.abs() > pow2(384) {
             frexp_f64(p).1
         } else {
             0
         };
+        // Each rising factor p + j is exact as a double-double.
         (0..n).fold((Dd::ONE, 0), |(product, scale), j| {
-            let factor = if rising {
-                (Dd::new(p) + j as f64).ldexp(-shift)
-            } else {
-                // The integral offset j is exact; -p - j is exact when p is integral.
-                Dd::new(-p - j as f64)
-            };
-            let product = product * factor;
+            let product = product * (Dd::new(p) + j as f64).ldexp(-shift);
             let scale = scale + shift;
             if product.hi.abs() > pow2(384) {
                 (product.ldexp(-512), scale + 512)
-            } else if rising && product.hi.abs() < pow2(-384) {
+            } else if product.hi.abs() < pow2(-384) {
                 let (mantissa, shift) = product.frexp();
                 (mantissa, scale + shift)
             } else {
@@ -403,12 +432,14 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
             return result;
         }
     }
-    // Use falling factors, with exact offsets, for an integral b < 0 and c < 0.
-    let rising = c > 0.0 || b > 0.0 || b != b.trunc();
-    let (leading, mut scale) = leading_coefficient(n, b, c, rising);
-    let t = Dd::ONE - z.re;
-    let square = Dd::new(z.im) * z.im;
-    let radius = t.hi.hypot(z.im);
+    let (leading, mut scale) = leading_coefficient(n, b, c);
+    // Run Horner in t = (1 - z) / 2^exponent, near the unit circle, so that its squared ordinate
+    // stays normal.
+    let w = Dd::ONE - z.re;
+    let (radius, exponent) = frexp_f64(w.hi.hypot(z.im));
+    let t = w.ldexp(-exponent);
+    let ordinate = ldexp_f64(z.im, -exponent);
+    let square = Dd::new(ordinate) * ordinate;
     let mut coefficient = Dd::ONE;
     let (mut re, mut im) = (Dd::ONE, Dd::ZERO);
     let mut mass = 1.0;
@@ -433,25 +464,20 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
     for j in (1..=n).rev() {
         let j = j as f64;
         let remaining = n as f64 - j;
-        let term = if rising {
-            let (u, ue) = (h + remaining).frexp();
-            let (l, le) = (Dd::new(b) + (j - 1.0)).frexp();
-            let (m, e) = divide(coefficient * u * j, l * (remaining + 1.0)).frexp();
-            coefficient = m;
-            coefficient_scale += e + ue - le;
-            let delta = coefficient_scale - scale;
-            if delta > 384 {
-                [re, im] = [re, im].map(|v| v.ldexp(-delta));
-                mass = ldexp_f64(mass, -delta);
-                scale = coefficient_scale;
-                coefficient
-            } else {
-                coefficient.ldexp(delta)
-            }
-        } else {
-            coefficient =
-                divide(coefficient * (excess + j) * j, Dd::new(-b - j + 1.0) * (remaining + 1.0));
+        scale += exponent;
+        let (u, ue) = (h + remaining).frexp();
+        let (l, le) = (Dd::new(b) + (j - 1.0)).frexp();
+        let (m, e) = divide(coefficient * u * j, l * (remaining + 1.0)).frexp();
+        coefficient = m;
+        coefficient_scale += e + ue - le;
+        let delta = coefficient_scale - scale;
+        let term = if delta > 384 {
+            [re, im] = [re, im].map(|v| v.ldexp(-delta));
+            mass = ldexp_f64(mass, -delta);
+            scale = coefficient_scale;
             coefficient
+        } else {
+            coefficient.ldexp(delta)
         };
         // Carry Im(P) divided by Im(t) so even a subnormal ordinate survives Horner.
         (re, im) = (re * t - im * square + term, re + im * t);
@@ -460,9 +486,6 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         if size != 0.0 && !(pow2(-384)..=pow2(384)).contains(&size) {
             let (_, shift) = frexp_f64(size);
             [re, im] = [re, im].map(|v| v.ldexp(-shift));
-            if !rising {
-                coefficient = coefficient.ldexp(-shift);
-            }
             mass = ldexp_f64(mass, -shift);
             scale += shift;
         }
@@ -480,7 +503,7 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         0.0
     } else {
         let (u, e) = Dd::new(-z.im).frexp();
-        round(im * u, scale + e)
+        round(im * u, scale + e - exponent)
     };
     let rounding =
         ldexp_f64(mass * leading.hi.abs() * ((40.0 * n as f64 + 64.0) * pow2(-104)), scale);
