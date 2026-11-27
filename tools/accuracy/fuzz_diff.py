@@ -412,7 +412,7 @@ def _agree(x: accuracy.Ref, y: accuracy.Ref) -> bool:
 
 
 def _signs(r: accuracy.Ref, s: accuracy.Ref) -> accuracy.Ref:
-    """`r`, with a part that is 0 given the sign of that of `s`, as `TINY`."""
+    """`r`, with each zero part replaced by `TINY` signed as the same part of `s`."""
     parts = [
         repr(math.copysign(TINY, mp.sign(q))) if x == 0 and q else p
         for p, x, q in zip(_values(r), _mpfs(r), _mpfs(s), strict=True)
@@ -423,10 +423,11 @@ def _signs(r: accuracy.Ref, s: accuracy.Ref) -> accuracy.Ref:
 def _side(
     name: str, args: accuracy.Args, imag: set[int], r: accuracy.Ref
 ) -> accuracy.Ref:
-    """The limit from the side of the signed zeros at `imag`: the value at the second of two
-    offsets of `SIDES` that agree (with the signs of its zero parts from the first), unless the other side agrees but `r`, the value at the point,
-    does not (as at a branch point of z^TINY); else `r` (as near one of (1 - z)^0.01). Where the
-    reference fails, or is the same non-real value on both sides, that at the last offset."""
+    """The limit from the side of the signed zeros at `imag`: the value at the smaller of two
+    offsets of `SIDES` that agree (with the zero parts signed as at the larger), unless the other
+    side agrees but `r`, the value at the point, does not (as at a branch point of z^TINY); else
+    `r` (as near one of (1 - z)^0.01). Where the reference fails, or is the same non-real value on
+    both sides, that at the last offset."""
     last = r
     for i, d in enumerate(SIDES):
         s = _value(name, _sided(args, imag, d))
@@ -501,7 +502,7 @@ def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float,
         return "unchecked" if r is None else "no ref", math.nan, math.nan
     eb, eh = (accuracy.error(math.nan if v is None else v, r) for v in (x, y))
     kind = verdict(eb, eh)
-    if nan == [True, False] and eh > NAN_ERR and cmath.isfinite(y or 0):
+    if nan == [True, False] and eh > NAN_ERR and y is not None and cmath.isfinite(y):
         kind = "regressed"
     if (
         kind == "both right"
