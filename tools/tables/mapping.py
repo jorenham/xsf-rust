@@ -1985,6 +1985,20 @@ def _amos_range_gap(arb: Callable[[flint.arb, flint.acb], flint.acb | None]) -> 
     return Rule(when, AMOS_RANGE.value, why, gap=True)
 
 
+def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
+    """`rule` as a gap, where the real value (`arb` of the inputs) is certainly a finite f64,
+    with `why` added to its reason."""
+
+    def when(a: tuple[float, ...]) -> bool:
+        if not rule.when(a):
+            return False
+        with flint.ctx.workprec(ARB_BITS):
+            y = arb(*map(flint.arb, a))
+        return y is not None and abs(y) < F64_INF_TIE
+
+    return Rule(when, rule.value, f"{rule.why}, {why}", gap=True)
+
+
 CBESSEL_AT_0: Final = Rule(
     lambda a: a[1] == a[2] == 0,
     complex(math.nan, math.nan),
@@ -4231,11 +4245,12 @@ def _pmv(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> mp.mpf:
     """The Ferrers function P_v^m(x) for an integer m (DLMF 14.3.1), as the product of
     ((1 + x) / (1 - x))^(m / 2) and the regularized 2F1(v + 1, -v; 1 - m; (1 - x) / 2), which
     for m > 0 is (v + 1)_m (-v)_m / m! z^m 2F1(v + m + 1, m - v; m + 1; z); for an integer v
-    and x < 0 with P_n^m(-x) = (-1)^(n + m) P_n^m(x) for its degree n (DLMF 14.9.10)."""
+    and x < 0 with P_n^m(-x) = (-1)^(n + m) P_n^m(x) for its degree n (DLMF 14.9.10), unless
+    n + m < 0, where the Q_n^m(x) of that formula has a pole."""
     with specs.wdps(specs.xd(v) + 20):
-        if x < 0 and v == int(v):
-            n = int(v) if v >= 0 else int(-v) - 1
-            return (-1) ** (n + int(m)) * _pmv(m, v, -x)
+        n = _pmv_degree(float(v))
+        if x < 0 and n.is_integer() and n + m >= 0:
+            return (-1) ** int(n + m) * _pmv(m, v, -x)
         z = (1 - x) / 2
         if m >= 0:
             c = mp.rf(v + 1, m) * mp.rf(-v, m) / mp.factorial(m)
@@ -4276,6 +4291,16 @@ def _pmv_degree(v: float) -> float:
     return -v - 1 if v < 0 else v
 
 
+PMV_NEGATIVE_ORDER: Final = Rule(
+    lambda a: (
+        a[0] < 0
+        and _pmv_degree(a[1]).is_integer()
+        and _pmv_degree(a[1]) + a[0] + 1 <= 0
+    ),
+    math.nan,
+    "xsf has no formula for a negative order -k and an integer degree n < k, where "
+    "DLMF 14.9.3 does not help",
+)
 PMV_RULES: Final = (
     NAN,
     Rule(
@@ -4288,16 +4313,8 @@ PMV_RULES: Final = (
         math.nan,
         "xsf has NaN for |x| > 1 and m != 0, where the Ferrers function has its sqrt(1 - x^2)",
     ),
-    Rule(
-        lambda a: (
-            a[0] < 0
-            and _pmv_degree(a[1]).is_integer()
-            and _pmv_degree(a[1]) + a[0] + 1 <= 0
-        ),
-        math.nan,
-        "xsf has no formula for a negative order -k and an integer degree n < k, where "
-        "DLMF 14.9.3 does not help",
-    ),
+    _finite_gap(PMV_NEGATIVE_ORDER, _pmv_arb, "but P_n^-k(x) is finite (#TBD)"),
+    PMV_NEGATIVE_ORDER,
 )
 
 
