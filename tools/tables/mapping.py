@@ -3972,9 +3972,44 @@ def _hypu_x0_sign(a: tuple[float, ...]) -> int:
     return 1 if a[0] > 0 else (-1) ** (math.floor(-a[0]) + 1)
 
 
+def _hypu_poly_neg_x(a: tuple[float, ...]) -> bool:
+    """Whether x < 0 and U(a, b, x) is a polynomial, for a = 0, -1, ... (DLMF 13.2.7)."""
+    return a[2] < 0 and _nonpos_int(a[0])
+
+
+def _hypu_real_neg_x(a: tuple[float, ...]) -> bool:
+    """Whether x < 0 and U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) is real otherwise, for an
+    integer b and a-b+1 = 0, -1, ... (DLMF 13.2.40)."""
+    return (
+        a[2] < 0
+        and not _nonpos_int(a[0])
+        and a[1].is_integer()
+        and _nonpos_int(a[0] - a[1] + 1)
+    )
+
+
 HYPU_RULES: Final = (
     NAN,
-    Rule(lambda a: a[2] < 0, math.nan, "NaN for x < 0, outside of the domain of xsf"),
+    Rule(
+        lambda a: (
+            _hypu_poly_neg_x(a)
+            and _hypu_poly(-int(a[0]), Fraction(a[1]), Fraction(a[2])) == 0
+        ),
+        math.nan,
+        "U(-m, b, x) = 0 here, but NaN, as the sum of chgul cancels",
+        gap=True,
+    ),
+    Rule(
+        _hypu_real_neg_x,
+        math.nan,
+        "U is real here (DLMF 13.2.40), but NaN like in xsf",
+        gap=True,
+    ),
+    Rule(
+        lambda a: a[2] < 0 and not _nonpos_int(a[0]),
+        math.nan,
+        "NaN for x < 0 and a != 0, -1, ..., outside of the domain of xsf",
+    ),
     *(
         Rule(
             lambda a, s=s: _hypu_x0_sign(a) == s,
@@ -4000,6 +4035,10 @@ HYPU_OVERRIDES: Final = (
             and (Fraction(a[0]) - Fraction(a[1])).denominator != 1
         ),
         "xsf returns 0 at x = 0 for b < 1 where its 1 - b + a rounds onto a pole of Gamma",
+    ),
+    Override(
+        _hypu_poly_neg_x,
+        "xsf returns NaN for x < 0, where U(-m, b, x) is a polynomial (DLMF 13.2.7)",
     ),
     Override(
         lambda a: a in {(1.0, -10.0, 10.0), (1.0, -1.0, 10.0), (1.0, 1.0, 10.0)},

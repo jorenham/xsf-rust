@@ -1613,6 +1613,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// once (step 1); chgubi needs as many to be kept as is (step 2).
 pub(super) const ID_MIN: i32 = 12;
 
+/// The digits below which `chgu` flags its result (NaN in `hypu`)
+pub(super) const ID_ACCEPT: i32 = 6;
+
 /// Tricomi's function `U(a, b, x)`.
 ///
 /// Unlike in xsf (scipy/xsf#380), which returns the first of `chgus` and `chgul` with 9 digits,
@@ -1670,9 +1673,6 @@ pub(crate) fn chgu(
     //      (3) CHGUBI for integer b ( MD=3 )
     //      (4) CHGUIT for numerical integration ( MD=4 )
     // =======================================================
-
-    // results with fewer digits are flagged (and NaN in `hypu`)
-    const ID_ACCEPT: i32 = 6;
 
     let mut id1: i32 = 0;
     let mut hu = 0.0;
@@ -2338,6 +2338,22 @@ pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
     (rounded, d)
 }
 
+/// `-(a + k - 1) (a - b + k)`: over `k x`, the ratio of the terms `k` and `k - 1` of the sum of
+/// `chgul`
+fn chgul_numerator(a: f64, b: f64, k: f64) -> f64 {
+    -(a + (k - 1.0)) * ((a + k) - b)
+}
+
+/// The polynomial `U(a, b, x)` for an integer `a <= 0` (DLMF 13.2.7) by Horner's method
+pub(super) fn chgul_horner(x: f64, a: f64, b: f64) -> f64 {
+    let (_, value) = (1..=-a as i32).fold((1.0, 1.0_f64), |(coef, value), k| {
+        let k = f64::from(k);
+        let coef = coef * (chgul_numerator(a, b, k) / k);
+        (coef, value.mul_add(x, coef))
+    });
+    value
+}
+
 fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option<f64> {
     // Each term uses at most five roundings per iteration. Bound the
     // error with room for the sum and final scaling (1000 eps < 1e-12).
@@ -2353,18 +2369,12 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option
         .then_some(value)
     };
     let degree = -a as i32;
-    let numerator = |k: f64| -(a + (k - 1.0)) * ((a + k) - b);
     // Unlike in xsf, evaluate the polynomial by Horner's method for small x.
     // At x = 1/64, the inverse-power terms are bounded by (128n)^n.
     // Below it, for 16 <= -round(b) < n, the absolute nonconstant
     // terms sum to less than 1/5 of the constant term.
     if x < 1.0 / 64.0 && degree <= 75 && (a + 1.0..=-16.0).contains(&b.round()) {
-        let (_, value) = (1..=degree).fold((1.0, 1.0_f64), |(coef, value), k| {
-            let k = f64::from(k);
-            let coef = coef * (numerator(k) / k);
-            (coef, value.mul_add(x, coef))
-        });
-        return certify(value, 1.5);
+        return certify(chgul_horner(x, a, b), 1.5);
     }
     if !old_is_normal {
         return None;
@@ -2374,7 +2384,7 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option
     let (_, sum, absolute_sum) =
         (1..=degree).try_fold((1.0, 1.0, 1.0), |(term, sum, absolute_sum), k| {
             let k = f64::from(k);
-            let numerator = numerator(k);
+            let numerator = chgul_numerator(a, b, k);
             let denominator = k * x;
             let ratio = numerator / denominator;
             let term = term * ratio;
@@ -2387,7 +2397,7 @@ fn chgul_exact_polynomial(x: f64, a: f64, b: f64, old_is_normal: bool) -> Option
     certify(sum * scale, absolute_sum / sum.abs())
 }
 
-fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
+pub(super) fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
     //          U(a,b,x) for large argument x
@@ -2507,13 +2517,14 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
             }
         }
         // m 2^e x^p, for finite m and x in log space if x^p, or its product with m, over- or
-        // underflows
+        // underflows (for x < 0, from `hypu`, p is an integer)
         let pow_scaled = |m: f64, e: i32, p: f64| {
             let xp = x.powf(p);
             if xp.is_normal() && (m * xp).is_normal() || !(m.is_finite() && x.is_finite()) {
                 ldexp_f64(m * xp, e)
             } else {
-                let l = ln_dd(x) * p;
+                let l = ln_dd(x.abs()) * p;
+                let m = m * x.signum().powf(p);
                 Scaled::new(m, e, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0)
             }
         };

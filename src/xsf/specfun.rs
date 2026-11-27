@@ -299,6 +299,18 @@ fn hypu_scaled_rising(b: f64, m: u32) -> f64 {
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     if a.is_nan() || b.is_nan() || x.is_nan() {
         f64::NAN
+    } else if x < 0.0 && is_nonpos_int(a) && a > f64::from(i32::MIN) {
+        // Unlike in xsf, the polynomial U(-m, b, x) (DLMF 13.2.7) for x < 0, by Horner's method
+        // where the terms of chgul overflow (for tiny x)
+        let mut id = 0;
+        let u = hyperg::chgul(x, a, b, 0.0, &mut id);
+        if u.is_nan() {
+            hyperg::chgul_horner(x, a, b)
+        } else if id >= hyperg::ID_ACCEPT {
+            u
+        } else {
+            f64::NAN
+        }
     } else if x < 0.0 {
         // Domain error
         f64::NAN

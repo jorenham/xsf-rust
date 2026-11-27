@@ -439,6 +439,42 @@ fn test_hypu_poly_overflow() {
 }
 
 #[test]
+fn test_hypu_poly_neg_x() {
+    // Arb; NaN in xsf
+    let abx = [
+        (-1.0, 1.0, -2.0),
+        (-2.0, 0.5, -2.0),
+        (-5.0, -2.5, -0.75),
+        (-10.0, 3.0, -12.5),
+        (-20.0, -7.0, -4.0),
+        (-20.0, 15.25, -40.0),
+        (-6.0, -12.0, -30.0),
+        (-12.0, 1.5, -1e-200),
+        (-3.0, -1.0, -1e-100),
+    ];
+    let expected = [
+        -3.0,
+        10.75,
+        -4.368_164_062_5,
+        33_403_670_103_769.36,
+        1.994_095_811_191_436_7e20,
+        8.460_350_778_395_577e36,
+        175_366_080.0,
+        1_930_140_034.332_275_4,
+        -3e-200,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+
+    // Arb: 2.22e450 and -7.30e452
+    assert_eq!(xsf::hypu(-200.0, 1.0, -50.0), f64::INFINITY);
+    assert_eq!(xsf::hypu(-201.0, 1.0, -50.0), f64::NEG_INFINITY);
+
+    // not real
+    assert!(xsf::hypu(0.5, 1.0, -2.0).is_nan());
+}
+
+#[test]
 fn test_hypu_small_a() {
     // mpmath; 0.045763206, 0.067619064, and 7.5410439102e-4 in xsf
     let abx = [
