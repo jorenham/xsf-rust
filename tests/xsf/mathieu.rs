@@ -295,6 +295,11 @@ fn test_mathieu_mod_second_kind_negative_x() {
     for ((y, dy), (f, df)) in actual.into_iter().zip(expected) {
         xsref::np_assert_allclose!(&[y, dy], &[f, df], rtol = 1e-11);
     }
+    // where the reflection is not finite or the phase of the Bessel functions is lost
+    let (_, dy) = xsf::mathieu_modcem2(1, 1e-40, -47.643_326);
+    xsref::np_assert_allclose!(&[dy], &[-8.857_097_072_760_86e39], rtol = 1e-5);
+    let (_, dy) = xsf::mathieu_modcem2(0, 1e-100, -200.0);
+    assert!(dy.is_nan() || (dy / -3.141_708_123_336e20 - 1.0).abs() < 1e-2, "{dy}");
 }
 
 #[test]

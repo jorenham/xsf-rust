@@ -153,11 +153,12 @@ fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     let int_m = m as i32;
-    // Unlike in xsf, reflect the second kind at `x < -1` past the turning point, as the series in
-    // `Y_n(sqrt(q) exp(x))` cancels catastrophically there (it is accurate for `|x| <= 1`).
-    let cva = if kf == 1 { cem_cva } else { sem_cva };
-    if kc == 2 && x < -1.0 && 2.0 * q * (2.0 * x).cosh() > cva(m, q) {
-        return mathieu_mod2_reflected(kf, int_m, q, -x);
+    // Unlike in xsf, reflect the second kind at `x < -1` where possible, as the series in
+    // `Y_n(sqrt(q) exp(x))` loses accuracy fast as `x` decreases.
+    if kc == 2 && x < -1.0 {
+        if let Some(pair) = mathieu_mod2_reflected(kf, int_m, q, -x) {
+            return pair;
+        }
     }
     let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
     if status != Status::Ok {
@@ -166,13 +167,22 @@ fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
     if kc == 1 { (f1r, d1r) } else { (f2r, d2r) }
 }
 
-/// The second kind `Y2` (`kf` as in `mathieu_mod`) and its derivative at `-x`, for `x > 0`.
+/// The second kind `Y2` (`kf` as in `mathieu_mod`) and its derivative at `-x`, for `x > 1`.
 ///
 /// The first kind `Y1` is even (`kf = 1`) or odd (`kf = 2`) (DLMF 28.22.1-2), so
 /// `Y2(-x) = alpha Y1(x) - s Y2(x)`, with `s = 1` or `-1` from the Wronskian
 /// `W{Y1, Y2} = 2/pi` (DLMF 28.20.21), which at `x = 0` also gives `alpha = pi Y2(0) Y2'(0)`.
-/// Before the turning point `2 q cosh(2x) = a`, `Y1` is too inaccurate for this.
-fn mathieu_mod2_reflected(kf: i32, m: i32, q: f64, x: f64) -> (f64, f64) {
+/// `None` before the turning point `2 q cosh(2x) = a`, where `Y1` is too inaccurate for this,
+/// where the Bessel functions of `u = sqrt(q) e^x` keep less than half their digits (their phase
+/// has an error of about `u EPSILON`), or where the result is not finite.
+fn mathieu_mod2_reflected(kf: i32, m: i32, q: f64, x: f64) -> Option<(f64, f64)> {
+    let u = q.sqrt() * x.exp();
+    let uu = u * u;
+    let cva = if kf == 1 { cem_cva } else { sem_cva };
+    // `2 q cosh(2x) = u^2 + (q / u)^2`, which does not overflow for such `u`
+    if !(uu * f64::EPSILON < 1.0 && uu + (q / u).powi(2) > cva(f64::from(m), q)) {
+        return None;
+    }
     // `mtu12` sets all outputs to NaN on failure
     let at = |kc, x| {
         let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
@@ -183,7 +193,8 @@ fn mathieu_mod2_reflected(kf: i32, m: i32, q: f64, x: f64) -> (f64, f64) {
     let alpha = PI * f2r * d2r;
     let s = if kf == 1 { 1.0 } else { -1.0 };
     let (f1r, d1r, f2r, d2r) = at(3, x);
-    (alpha * f1r - s * f2r, s * d2r - alpha * d1r)
+    let (y, dy) = (alpha * f1r - s * f2r, s * d2r - alpha * d1r);
+    (y.is_finite() && dy.is_finite()).then_some((y, dy))
 }
 
 /// Characteristic value of even Mathieu functions
