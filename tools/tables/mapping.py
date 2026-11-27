@@ -1996,12 +1996,13 @@ def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
         for k in range(4):
             with flint.ctx.workprec(ARB_BITS << k):
                 y = arb(*map(flint.arb, a))
-            if y is None:
-                return False
-            if F64_ZERO_TIE < abs(y) < F64_INF_TIE:
-                return True
-            if abs(y) <= F64_ZERO_TIE or abs(y) >= F64_INF_TIE:
-                return False
+                if y is None:
+                    return False
+                y = abs(y)
+                if F64_ZERO_TIE < y < F64_INF_TIE:
+                    return True
+                if y <= F64_ZERO_TIE or y >= F64_INF_TIE:
+                    return False
         return False
 
     return Rule(when, rule.value, f"{rule.why}, {why}", gap=True)
@@ -4319,8 +4320,15 @@ def _pmv_degree(v: float | mp.mpf) -> int | None:
     return -int(v) - 1 if v < 0 else int(v)
 
 
+def _pmv_f64_degree(v: float) -> float:
+    """The degree -v - 1 or v >= 0 that xsf uses (DLMF 14.9.5), rounded as a double."""
+    return -v - 1 if v < 0 else v
+
+
 PMV_NEGATIVE_ORDER: Final = Rule(
-    lambda a: a[0] < 0 and (n := _pmv_degree(a[1])) is not None and n + a[0] + 1 <= 0,
+    lambda a: (
+        a[0] < 0 and (n := _pmv_f64_degree(a[1])).is_integer() and n + a[0] + 1 <= 0
+    ),
     math.nan,
     "xsf has no formula for a negative order -k and an integer degree n < k, where "
     "DLMF 14.9.3 does not help",
