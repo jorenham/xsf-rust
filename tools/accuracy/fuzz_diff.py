@@ -73,8 +73,6 @@ TINY: Final = math.ulp(0.0)
 SIDES: Final = tuple(mp.mpf(TINY) ** 2**k for k in range(3))
 # the reference where the function rejects the input (and is NaN)
 REJECTED: Final = "rejected"
-# the prefix of a reference that fails with an exception of `fuzz_diff.py` itself
-FAILED: Final = "failed: "
 # the exit code of a panic
 PANIC: Final = 101
 # the smallest part of a complex mpmath reference (relative to its absolute value) that is
@@ -175,8 +173,7 @@ def program(rev: str | None) -> Path:
         # built in this checkout (not in `CACHE`, which worktrees can share), and run from a
         # copy named by its hash, which no later build replaces
         exe = build(accuracy.ROOT, accuracy.HERE / "target")
-        with exe.open("rb") as f:
-            digest = hashlib.file_digest(f, "sha256").hexdigest()
+        digest = hashlib.sha256(exe.read_bytes()).hexdigest()
         return _install(exe, CACHE / f"xsf-accuracy-{digest[:16]}")
     git = ["git", "-C", str(accuracy.ROOT)]
     sha = subprocess.check_output(
@@ -195,40 +192,17 @@ def program(rev: str | None) -> Path:
 def run(exe: Path, lines: list[Line]) -> list[Value]:
     """The results of the lines (None where it panics), within the time of one run."""
     deadline = time.monotonic() + RUN_TIMEOUT + LINE_TIMEOUT * len(lines)
-    inp = [accuracy.dump_line(*line) for line in lines]
     out: list[Value] = []
-    # after the program dies without unwinding, the next run is of one line, to find that line
-    one = False
     while len(out) < len(lines):
-        todo = inp[len(out) : len(out) + (1 if one else len(lines))]
-        one = False
         try:
-            res = subprocess.run(
-                [str(exe), "xsf"],
-                input="".join(todo),
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=deadline - time.monotonic(),
-            )
-            done = accuracy.parse(res.stdout)
-            assert len(done) == len(todo), (exe, len(done), len(todo))
-            out += done
+            todo = lines[len(out) :]
+            out += accuracy.run([str(exe), "xsf"], todo, deadline - time.monotonic())
         except subprocess.CalledProcessError as e:
-            # (also if one line dies without unwinding, e.g. by a signal)
-            if "unknown function" in e.stderr or (
-                len(todo) == 1 and e.returncode != PANIC
-            ):
+            # (also if it dies without unwinding, e.g. by a signal)
+            if "unknown function" in e.stderr or e.returncode != PANIC:
                 raise
-            # (drops a partial last line)
-            done = accuracy.parse(e.stdout[: e.stdout.rfind("\n") + 1])
-            # a panic writes the results before it as it unwinds; else (e.g. an abort or a
-            # signal) the unwritten results are lost
-            panic = e.returncode == PANIC and len(done) < len(todo)
-            out += done[: len(todo) - 1]
-            if panic:
-                out.append(None)
-            one = not panic
+            # a panic writes the results before it as it unwinds
+            out = [*out, *accuracy.parse(e.stdout), None][: len(lines)]
     return out
 
 
@@ -301,23 +275,19 @@ class Mutator:
         return tuple(a)
 
 
-def _parts(z: complex) -> tuple[float, float]:
-    z = complex(z)
-    return z.real, z.imag
-
-
 def differ(x: Value, y: Value, rtol: float) -> bool:
     """Whether a part of two results differs by more than `rtol` (relative to the larger) or in
     the sign of a zero, or only one is a panic."""
     if x is None or y is None:
         return (x is None) != (y is None)
+    x, y = complex(x), complex(y)
     return not all(
         (
             math.isclose(u, v, rel_tol=rtol)
             and math.copysign(1, u) == math.copysign(1, v)
         )
         or (math.isnan(u) and math.isnan(v))
-        for u, v in zip(_parts(x), _parts(y))
+        for u, v in ((x.real, y.real), (x.imag, y.imag))
     )
 
 
@@ -325,10 +295,10 @@ def _arb_str(x: flint.arb) -> str:
     """A part of an Arb reference: exact if the ball is, within `F64_EXPS` (so that it rounds
     correctly to f64, e.g. at a midpoint), "0" (of an unknown sign) if it contains 0, else 30
     digits."""
-    if x.is_exact() and not x.is_finite():
-        return repr(float(x))
     if x.is_exact():
-        man, exp = (int(v) for v in x.man_exp())
+        if not x.is_finite():
+            return repr(float(x))
+        man, exp = map(int, x.man_exp())
         if exp + man.bit_length() in F64_EXPS:
             return str(man << exp) if exp >= 0 else f"{man * 5**-exp}e{exp}"
     return "0" if x.contains(0) else x.str(30, radius=False)
@@ -336,9 +306,9 @@ def _arb_str(x: flint.arb) -> str:
 
 def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
     """The reference at `args`, with Arb where `ARB` has the function, else as
-    `accuracy.ref_task`, or `REJECTED` (where Arb rejects it at the highest precision), or an
-    error string (e.g. for a NaN of mpmath where the function has a limit); the parts of a
-    complex reference are 0 where their sign is unknown."""
+    `accuracy.ref_task`, or `REJECTED` (where `ARB` rejects it), or an error string (e.g. for
+    a NaN of mpmath where the function has a limit); the parts of a complex reference are 0
+    where their sign is unknown."""
     spec = specs.BY_NAME[name]
     if (f := ARB.get(name)) is not None:
         best: flint.acb | None = None
@@ -346,9 +316,8 @@ def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
             with flint.ctx.workprec(prec):
                 v = f(*map(flint.arb, args))
             if v is None:
-                continue
-            y = flint.acb(v)
-            if y.rel_accuracy_bits() >= BITS:
+                return REJECTED
+            if (y := flint.acb(v)).rel_accuracy_bits() >= BITS:
                 best = y
                 if all(p.is_exact() or not p.contains(0) for p in (y.real, y.imag)):
                     break
@@ -357,8 +326,6 @@ def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
             if spec.complex:
                 return [[re, im], None]
             return [re, None] if best.imag.contains(0) else f"complex result {best}"
-        if v is None:
-            return REJECTED
     if name in ("entr", "xlogy") and not any(args):
         # 0 log 0 = 0, where mpmath is NaN
         return ["0", None]
@@ -372,8 +339,8 @@ def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
 
 
 def _sided(args: accuracy.Args, at: set[int], tiny: float) -> accuracy.Args:
-    """The arguments, with the zeros at `at` replaced by `tiny` times their sign; `tiny` can be
-    an mpf below the f64 range (as in `SIDES`), which `_value` takes exactly, as for a float."""
+    """The arguments, with the zeros at `at` replaced by `tiny` (or an mpf of `SIDES`) times
+    their sign."""
     return tuple(
         math.copysign(1, x) * tiny if i in at else x for i, x in enumerate(args)
     )
@@ -394,10 +361,14 @@ def ref(line: Line) -> accuracy.Ref | str:
     that on its side of a branch cut (see `_side`); and a part that is 0 gets a sign where that
     of the function changes with those of the real zero arguments, that of the limit from their
     side, as `TINY`."""
+    # (also in a worker process, which does not inherit it)
+    mp.mp.dps = specs.DPS
     try:
         return _ref(line)
     except Exception as e:  # noqa: BLE001
-        return f"{FAILED}{type(e).__name__}: {e}"
+        # (a bug, which would otherwise only show as "no ref")
+        accuracy.log(f"{line[0]}: reference failed: {e!r}")
+        return "failed"
 
 
 def _finite(r: accuracy.Ref | str) -> TypeGuard[accuracy.Ref]:
@@ -411,11 +382,11 @@ def _agree(x: accuracy.Ref, y: accuracy.Ref) -> bool:
     return abs(u - v) <= mp.ldexp(max(abs(u), DBL_MIN), -BITS)
 
 
-def _signs(r: accuracy.Ref, s: accuracy.Ref) -> accuracy.Ref:
-    """`r`, with each zero part replaced by `TINY` signed as the same part of `s`."""
+def _signs(r: accuracy.Ref, signs: list[mp.mpf]) -> accuracy.Ref:
+    """`r`, with each zero part replaced by `TINY` of the sign in `signs`, unless that is 0."""
     parts = [
-        repr(math.copysign(TINY, mp.sign(q))) if x == 0 and q else p
-        for p, x, q in zip(_values(r), _mpfs(r), _mpfs(s), strict=True)
+        repr(math.copysign(TINY, q)) if x == 0 and q else p
+        for p, x, q in zip(_values(r), _mpfs(r), signs, strict=True)
     ]
     return [parts if isinstance(r[0], list) else parts[0], r[1]]
 
@@ -438,7 +409,7 @@ def _side(
             if _finite(t) and _agree(last, t) and not _agree(last, r):
                 return r
             # (the signs of a tiny part, which Arb can tell at the larger offset)
-            return _signs(s, last)
+            return _signs(s, list(map(mp.sign, _mpfs(last))))
         if i and mp.mpc(*_mpfs(s)).imag and s == _value(name, _sided(args, imag, -d)):
             return last
         last = s
@@ -460,13 +431,9 @@ def _ref(line: Line) -> accuracy.Ref | str:
     s, t = (_value(name, _sided(near, real, d)) for d in (TINY, -TINY))
     if not isinstance(s, list) or not isinstance(t, list):
         return r
-    parts = [
-        repr(math.copysign(TINY, sign))
-        if x == 0 and (sign := mp.sign(q)) == -mp.sign(u) != 0
-        else p
-        for p, x, q, u in zip(_values(r), _mpfs(r), _mpfs(s), _mpfs(t), strict=True)
-    ]
-    return [parts if spec.complex else parts[0], r[1]]
+    q, u = ([mp.sign(p) for p in _mpfs(v)] for v in (s, t))
+    # (where the sign changes with those of the real zeros)
+    return _signs(r, [a if a == -b else 0 for a, b in zip(q, u, strict=True)])
 
 
 def verdict(eb: float, eh: float) -> str:
@@ -478,15 +445,15 @@ def verdict(eb: float, eh: float) -> str:
 
 
 def _zeros(z: complex, r: accuracy.Ref) -> bool:
-    """Whether the parts of `z` are 0 (below `DBL_MIN`, as in an underflow) where those of a
-    finite reference (rounded to f64) are, and then of the same sign; a reference part that is
-    exactly 0 has an unknown sign."""
-    fs = [float(p) for p in _values(r)]
-    return any(map(math.isinf, fs)) or all(
+    """Whether the parts of `z` are 0 (below `DBL_MIN`, as in an underflow) where those of the
+    reference (rounded to f64) are, and then of the same sign; a reference part that is exactly
+    0 has an unknown sign."""
+    z, fs = complex(z), [float(p) for p in _values(r)]
+    return all(
         p == 0
         or (abs(u) >= DBL_MIN and abs(f) >= DBL_MIN)
         or (abs(u) < DBL_MIN and abs(f) < DBL_MIN and math.copysign(1, u) == mp.sign(p))
-        for u, f, p in zip(_parts(z), fs, _mpfs(r))
+        for u, f, p in zip((z.real, z.imag), fs, _mpfs(r))
     )
 
 
@@ -494,22 +461,18 @@ def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float,
     """The kind (see `KINDS`) of the results of the base and the head, with their errors; a
     panic counts as a NaN, which is right only for `REJECTED`. If both are right, but only one
     has the zeros of the reference (see `_zeros`), the other is wrong."""
-    nan = [v is None or cmath.isnan(v) for v in (x, y)]
+    x, y = (math.nan if v is None else v for v in (x, y))
+    nan = [cmath.isnan(v) for v in (x, y)]
     if r == REJECTED:
         eb, eh = (0.0 if n else math.inf for n in nan)
         return verdict(eb, eh), eb, eh
     if not isinstance(r, list):
         return "unchecked" if r is None else "no ref", math.nan, math.nan
-    eb, eh = (accuracy.error(math.nan if v is None else v, r) for v in (x, y))
+    eb, eh = (accuracy.error(v, r) for v in (x, y))
     kind = verdict(eb, eh)
-    if nan == [True, False] and eh > NAN_ERR and y is not None and cmath.isfinite(y):
+    if nan == [True, False] and eh > NAN_ERR and cmath.isfinite(y):
         kind = "regressed"
-    if (
-        kind == "both right"
-        and x is not None
-        and y is not None
-        and (zx := _zeros(x, r)) != _zeros(y, r)
-    ):
+    if kind == "both right" and (zx := _zeros(x, r)) != _zeros(y, r):
         kind = "regressed" if zx else "improved"
     return kind, eb, eh
 
@@ -564,10 +527,6 @@ def fuzz(
     todo = todo[: opts.max_refs]
     tasks = [(spec.name, lines[i][1]) for i in todo]
     refs = dict(zip(todo, pool.map(ref, tasks, chunksize=1), strict=True))
-    # (a bug, which would otherwise only show as "no ref")
-    failed = (r for r in refs.values() if isinstance(r, str) and r.startswith(FAILED))
-    if (e := next(failed, None)) is not None:
-        accuracy.log(f"{spec.name}: reference {e}")
     count = Counter[str]()
     worse: list[tuple[float, str]] = []
     for i in flagged:
@@ -575,13 +534,10 @@ def fuzz(
         kind, eb, eh = judge(x, y, r)
         count[kind] += 1
         if kind == "regressed":
+            v = r[0] if isinstance(r, list) else r
+            v = " ".join(v) if isinstance(v, list) else v or ""
             show = ["panic" if u is None else repr(u) for u in (x, y)]
-            cols = [
-                spec.name,
-                " ".join(map(repr, lines[i][1])),
-                *show,
-                " ".join(_values(r)) if isinstance(r, list) else str(r),
-            ]
+            cols = [spec.name, " ".join(map(repr, lines[i][1])), *show, v]
             worse.append((eh, "\t".join([*cols, f"{eb:.1e}", f"{eh:.1e}"])))
     return [len(lines), len(flagged), *(count[k] for k in KINDS)], worse
 

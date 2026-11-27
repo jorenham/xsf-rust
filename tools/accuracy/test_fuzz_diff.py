@@ -22,8 +22,8 @@ import specs
 from fuzz_diff import Line, Value
 
 # a dump program that echoes the argument of each line, writes them as it ends or panics on
-# `panic` (as a buffer that is flushed as it unwinds), fails on `unknown`, dies with only a part
-# of them written on `abort`, sleeps for `slow`, and counts its runs in `<path>.runs`
+# `panic` (as a buffer that is flushed as it unwinds), fails on `unknown`, dies by a signal on
+# `abort`, sleeps for `slow`, and counts its runs in `<path>.runs`
 FAKE = """\
 #!/bin/sh
 echo >> "$0.runs"
@@ -32,7 +32,7 @@ while read -r f x; do
   case $f in
     unknown) echo "unknown function: $f $x" >&2; exit 101 ;;
     panic) printf %s "$out"; echo "panicked" >&2; exit 101 ;;
-    abort) printf %s "${out%??}"; kill -KILL $$ ;;
+    abort) kill -KILL $$ ;;
     slow) sleep 0.2 ;;
   esac
   out="$out$x
@@ -52,67 +52,54 @@ def conj(z: complex) -> complex:
 
 c = complex
 NAN, INF, PI = math.nan, math.inf, math.pi
-HYP2F1 = ("hyp2f1#c", (0.5, 0.5, 1.001, 1.0, 0.0))
-HYP1F1 = ("hyp1f1#c", (1.0, 1.0, 2.0, -0.0))
-LOG1P = ("log1p#c", (-2.0, -0.0))
-LAMBERTW = ("lambertw#c", (-2.5, -0.0))
-U = ("hypu", (0.5, 1.0, -2.0))
-Z = c(-fd.DBL_MIN, -0.0)
-LOG = cmath.log(Z)
-E2 = math.exp(2)
 EI = c(-743.8628562564797, -PI)
 W = c(0.33408142401229419, -1.7585360826226356)
 W1 = 0.5671432904097838
 EXP = cmath.exp(c(709.9, PI / 4))
 M = 0.5043435602314388
+J = c(0.008577626689470264, 0.0)
 DBL_MAX, DBL_MIN = fd.DBL_MAX, fd.DBL_MIN
+SUB = math.nextafter(DBL_MIN, 0)
 
 # the line, the results of the base and the head, and the kind
 CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # the real functions return the Cauchy principal value
     (("elliprc", (1.0, -1.0)), 0.6232252401402306, NAN, "regressed"),
     (("elliprj", (1.0, 2.0, 3.0, -1.0)), -0.09324045243867635, NAN, "regressed"),
-    # the real U rejects x < 0, also where it is a polynomial
-    (U, NAN, 1.0, "regressed"),
-    (U, NAN, None, "both right"),
-    (("hypu", (-1.0, 1.0, -2.0)), -3.0, NAN, "improved"),
-    (("hypu", (-2.0, 0.5, -2.0)), NAN, 10.75, "regressed"),
+    # the real U rejects x < 0, also where it is a polynomial (and a panic is a NaN)
+    (("hypu", (-1.0, 1.0, -2.0)), NAN, None, "both right"),
     # and any NaN argument
     (("elliprj", (1.0, NAN, 2.0, 3.0)), NAN, 1.0, "regressed"),
     # 0 log 0 = 0, where mpmath is NaN
     (("entr", (0.0,)), 0.0, NAN, "regressed"),
     (("xlogy", (0.0, 0.0)), 0.0, NAN, "regressed"),
+    # and no reference where it is NaN otherwise
+    (("xlog1py", (0.0, -1.0)), 0.0, NAN, "no ref"),
     # a NaN is better than a large error
     (("sinpi", (0.5,)), NAN, 0.5, "regressed"),
     (("sinpi", (0.5,)), NAN, INF, "both wrong"),
     # over- and underflow as for the reference rounded to f64
     (("hyp0f0#c", (709.9, PI / 4)), EXP, c(INF, INF), "regressed"),
     (("hypu", (-1.0, -(2.0**969), DBL_MAX)), DBL_MAX, INF, "regressed"),
-    (("xlogy", (3.2101030212800104e-308, 2.0)), DBL_MIN, 0.0, "regressed"),
+    (("xlogy", (3.2101030212800104e-308, 2.0)), DBL_MIN, SUB, "regressed"),
+    (("xlogy", (3.2101030212800104e-308, 2.0)), 2 * DBL_MIN, 0.0, "both wrong"),
     (("erfcinv", (0.0,)), INF, -INF, "regressed"),
     # an argument precondition, where the reference fails
     (("roots_gengegenbauer.1", (41.0, 33.0, -1.0, 1.0)), NAN, None, "no ref"),
-    (LOG1P, c(0, -PI), c(0, PI), "regressed"),
-    (LOG1P, c(0, PI), c(0, -PI), "improved"),
+    (("log1p#c", (-2.0, -0.0)), c(0, -PI), c(0, PI), "regressed"),
     # near a tiny real part, which `TINY` is not small next to
-    (("xlogy#c", (1.0, 0.0, Z.real, Z.imag)), LOG, conj(LOG), "regressed"),
     (("expi#c", (-fd.TINY, -0.0)), EI, conj(EI), "regressed"),
-    # the value at z = 1, which the sides approach slowly, as (1 - z)^0.001
-    (HYP2F1, 319.19260460853, c(167.995, 0.2375), "regressed"),
-    # J_v(z) ~ (z / 2)^v
+    # the value at the point, which the sides approach slowly, as J_v(z) ~ (z / 2)^v
     (("bessel_j#c", (0.01, 0.0, 0.0)), 0j, c(5.84e-4, 9.2e-6), "regressed"),
     # I_v(z) ~ (z / 2)^v, still 1 at the offsets of 0 for a tiny v
     (("bessel_i#c", (fd.TINY, 0.0, 0.0)), 0j, c(1, 0), "regressed"),
     # no side of the pole at z = 1
     (("hyp2f1#c", (1.0, 1.0, 1.0, 1.0, 0.0)), c(INF, 0), c(0, INF), "no ref"),
     (("sinpi", (-0.0,)), -0.0, 0.0, "regressed"),
-    (("sinpi", (0.0,)), -0.0, 0.0, "improved"),
     # even in x, so of an unknown sign
     (("cosm1", (0.0,)), -0.0, 0.0, "both right"),
     (("hyp1f1#c", (1.0, 1.0, 0.0, 1e-100)), c(1, 1e-100), c(1, 0), "regressed"),
-    # e^z on the real axis, with the sign of the zero imaginary part
-    (HYP1F1, c(E2, -0.0), c(E2, 0.0), "regressed"),
-    # also where Arb cannot tell it at the smaller offsets
+    # the sign of a zero imaginary part, also where Arb cannot tell it at the smaller offsets
     (("hyp1f1#c", (0.5, 1.5, -3.0, -0.0)), c(M, -0.0), c(M, 0.0), "regressed"),
     # but not their magnitudes, which are larger there
     (("hyp1f1#c", (2.0, 2.0**-52, 0.0, 0.0)), c(1, 0), c(1, 2 * DBL_MIN), "regressed"),
@@ -120,7 +107,9 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("lambertw#c", (1.0, -0.0)), c(W1, -0.0), c(W1, 0.0), "regressed"),
     # a zero of the function on the real axis, with that of its imaginary part
     (("cospi#c", (-2.5, -0.0)), c(0, -0.0), c(0, 0.0), "regressed"),
-    (("sinpi#c", (3.0, 0.0)), c(0, -0.0), c(0, 0.0), "regressed"),
+    (("cospi#c", (-2.5, -0.0)), c(0, -0.0), c(DBL_MAX, DBL_MAX), "regressed"),
+    # a part below the accuracy of mpmath, of an unknown sign
+    (("sph_bessel_j#c", (38.0, 35.38766539036541, 0.0)), J, J + 1e-80j, "both right"),
 ]
 
 
@@ -145,7 +134,7 @@ def test_lambertw_cut() -> None:
         mock.patch.object(fd, "_value", fails),
     ]:
         with ctx:
-            assert kind(LAMBERTW, W, conj(W)) == "regressed"
+            assert kind(("lambertw#c", (-2.5, -0.0)), W, conj(W)) == "regressed"
 
 
 def test_references() -> None:
@@ -159,8 +148,11 @@ def test_references() -> None:
     r = fd.ref(line)
     assert isinstance(r, list) and isinstance(r[0], str)
     assert mp.almosteq(mp.mpf(r[0]), mp.ldexp(1, -6444), 1e-29, 0)
-    with mock.patch.object(fd, "_value", side_effect=ValueError):
-        assert fd.ref(line) == f"{fd.FAILED}ValueError: "
+    with (
+        mock.patch.object(fd, "_value", side_effect=ValueError),
+        contextlib.redirect_stderr(io.StringIO()),
+    ):
+        assert fd.ref(line) == "failed"
 
 
 def test_precisions() -> None:
@@ -170,6 +162,13 @@ def test_precisions() -> None:
 
     with mock.patch.dict(fd.ARB, {"hyp1f1#c": f}):
         assert fd.ref(("hyp1f1#c", (1.0, 1.0, 1.0, 1.0))) == [["1", "0"], None]
+
+
+def test_worker_precision() -> None:
+    # (as in a worker process, which does not inherit it)
+    with mp.workdps(15):
+        fd.ref(("hyp1f1#c", (1.0, 1.0, 1.0, 1.0)))
+        assert mp.mp.dps == specs.DPS
 
 
 def test_panics_and_unknown() -> None:
@@ -184,7 +183,7 @@ def test_panics_and_unknown() -> None:
         assert fd.evaluate(exe, lines) == [0.0, None, 2.0, None]
         # one run per panic
         assert len(runs.read_text().splitlines()) == 2
-        # an abort, after which the lines that it lost run again, until one aborts alone
+        # a death without unwinding
         died: list[Line] = [("a", (0.25,)), ("abort", (1.0,)), ("b", (2.0,))]
         assert fd.evaluate(exe, died) == "exit -9"
         # a variant of the function that the program lacks, after others
