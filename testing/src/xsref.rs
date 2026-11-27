@@ -216,7 +216,7 @@ impl Check {
     /// The error of an output if it fails, for the smallest relative tolerance `rtol_min`
     fn failure<T: TestOutputValue>(&self, actual: T, expected: T, rtol_min: f64) -> Option<f64> {
         // the error can't tell +inf from `f64::MAX`, or -0 from +0
-        let zeros = self.status == Status::Convention;
+        let zeros = matches!(self.status, Status::Convention | Status::Gap);
         if self.status != Status::Legacy && !same_class(actual, expected, zeros) {
             return Some(f64::INFINITY);
         }
@@ -523,8 +523,9 @@ where
         ))
     } else if let Some(row) = closed_gaps.first() {
         Err(format!(
-            "{name}: gap closed at row {row} ({} outputs in all): remove `gap=True` from the \
-            rule in tools/tables/mapping.py and regenerate the table",
+            "{name}: gap closed at row {row} ({} outputs in all): replace the rule in \
+            tools/tables/mapping.py by a computed reference (add an `Override` where xsf still \
+            differs) and regenerate the table",
             closed_gaps.len(),
         ))
     } else {
@@ -753,13 +754,23 @@ mod tests {
         };
         let run = |actual: f64| {
             let row = [1.0, 2.0, gap.tol, gap.scale];
-            let table = file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
+            let table =
+                file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
             let cases = Table::parse(&table).unwrap().test_cases::<f64>();
             check("f", &cases, |_| actual)
         };
         // the gap is open if the class or the value is wrong, and closed if it is right
         assert_eq!(run(f64::NAN), Ok(1));
         assert_eq!(run(2.0 + 1e-10), Ok(1));
+        // a zero against a nonzero reference is a class mismatch, however small the reference
+        let tiny = |actual: f64| {
+            let row = [1.0, 5e-324, gap.tol, gap.scale];
+            let table =
+                file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
+            check("f", &Table::parse(&table).unwrap().test_cases::<f64>(), |_| actual)
+        };
+        assert_eq!(tiny(0.0), Ok(1));
+        assert!(tiny(5e-324).unwrap_err().contains("gap closed"));
         assert!(run(2.0).unwrap_err().contains("gap closed at row 0"));
     }
 

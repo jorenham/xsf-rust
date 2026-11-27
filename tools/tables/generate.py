@@ -599,7 +599,7 @@ def generate(
                     require(
                         same_class(rust[r, i], rule.value),
                         f"xsf-rust has {rust[r, i]}, the gap rule {rule.value} "
-                        f"({rule.why}): remove `gap=True`",
+                        f"({rule.why}): replace the rule by a computed reference",
                     )
                     notes[i][f"gap: {rule.why}"] += 1
                 else:
@@ -646,6 +646,16 @@ def generate(
             # xsf-rust is wrong here, so only the test of a fix matters, which needs half the
             # digits, as for xsf
             tol = max(XSF_WRONG_F32 if f32[i] else XSF_WRONG, low)
+            # the test must fail on what xsf-rust returns, which is the rule's value
+            rule = rules[r, i]
+            if same_class(rule.value, c.ref) and (
+                table_error(rule.value, c.ref, c.scale) <= 4 * max(EPS, tol)
+            ):
+                problems.append(
+                    f"[{i}] at {inputs[r]}: the gap rule {rule.value} ({rule.why}) "
+                    f"passes the test for the reference {c.ref}"
+                )
+                continue
             new[r, i] = Cell(GAP, ref, struct.pack("<d", tol), c.scale)
             continue
         try:
