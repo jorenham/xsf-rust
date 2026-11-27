@@ -35,11 +35,14 @@ type RealArb = (
 
 @dataclass(frozen=True)
 class Rule:
-    """A convention: the result is `value`, with its class and sign, where `when` holds."""
+    """A convention: the result is `value`, with its class and sign, where `when` holds.
+    With `gap`, `value` is what xsf-rust returns although the true value is finite, so the
+    table keeps the reference, and the test must fail there until the gap closes."""
 
     when: Pred
     value: complex
     why: str
+    gap: bool = False
 
 
 @dataclass(frozen=True)
@@ -2769,7 +2772,10 @@ def _ellipkm1_arb(p: flint.arb) -> flint.arb:
 def _beyond_real(a: tuple[float, ...]) -> bool:
     """|phi| > asin(m^(-1/2)) for m > 1, where the incomplete integrals are not real."""
     phi, m = a
-    return m > 1 and abs(phi) > math.asin(1 / math.sqrt(m))
+    if not m > 1:
+        return False
+    with mp.workdps(CANCEL_DIGITS):  # exact for the f64 inputs near the boundary
+        return mp.mpf(abs(phi)) > mp.asin(1 / mp.sqrt(m))
 
 
 def _incomplete(
@@ -2807,6 +2813,7 @@ def _incomplete(
                 lambda a: a[1] > 1,
                 math.nan,
                 f"{f} is real for m > 1, |phi| <= asin(m^(-1/2)), but NaN like in xsf",
+                gap=True,
             ),
             *rules,
             Rule(lambda a: a[0] == math.inf, math.inf, "the limit for phi -> +inf"),

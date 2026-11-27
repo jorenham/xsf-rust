@@ -174,6 +174,8 @@ enum Status {
     Computed,
     /// Fixed by a convention, e.g. NaN outside of the domain
     Convention,
+    /// Computed like `Computed`, but xsf-rust is known to get it wrong, so the check must fail
+    Gap,
 }
 
 impl TryFrom<u8> for Status {
@@ -185,6 +187,7 @@ impl TryFrom<u8> for Status {
             0 => Ok(Self::Legacy),
             1 => Ok(Self::Computed),
             2 => Ok(Self::Convention),
+            3 => Ok(Self::Gap),
             _ => Err(TestError::DataFormat),
         }
     }
@@ -213,7 +216,7 @@ impl Check {
     /// The error of an output if it fails, for the smallest relative tolerance `rtol_min`
     fn failure<T: TestOutputValue>(&self, actual: T, expected: T, rtol_min: f64) -> Option<f64> {
         // the error can't tell +inf from `f64::MAX`, or -0 from +0
-        let zeros = self.status == Status::Convention;
+        let zeros = matches!(self.status, Status::Convention | Status::Gap);
         if self.status != Status::Legacy && !same_class(actual, expected, zeros) {
             return Some(f64::INFINITY);
         }
@@ -449,24 +452,29 @@ where
     F: Fn(&[f64]) -> T,
 {
     let cases = load_testcases::<T>(name, signature).unwrap();
-    if let Err(message) = check(name, &cases, test_fn) {
-        panic!("{message}");
+    match check(name, &cases, test_fn) {
+        Ok(0) => {},
+        Ok(known_gaps) => println!("{name} {signature}: {known_gaps} known gaps"),
+        Err(message) => panic!("{message}"),
     }
 }
 
-/// Whether `test_fn` passes the test cases of the table `name`, or else the worst failure
-fn check<T, F>(name: &str, cases: &[TestCase<T>], test_fn: F) -> Result<(), String>
+/// The number of known gaps if `test_fn` passes the test cases of the table `name`, or else the
+/// worst failure, or the first gap that closed
+fn check<T, F>(name: &str, cases: &[TestCase<T>], test_fn: F) -> Result<usize, String>
 where
     T: TestOutput,
     F: Fn(&[f64]) -> T,
 {
     let mut failed = 0;
+    let mut known_gaps = 0;
+    let mut closed_gaps = Vec::new();
     let mut worst_err = -1.0;
     let mut worst_in = Vec::new();
     let mut worst_actual = String::new();
     let mut worst_expect = String::new();
 
-    for case in cases {
+    for (row, case) in cases.iter().enumerate() {
         let actual = test_fn(&case.r#in);
         let values = actual.values();
         assert_eq!(values.len(), case.checks.len(), "{name}: a tolerance per output");
@@ -482,7 +490,17 @@ where
             if check.status == Status::Legacy {
                 rtol = rtol.max(rtol_min(name, &case.r#in, i));
             }
-            check.failure(actual, expected, rtol)
+            let failure = check.failure(actual, expected, rtol);
+            if check.status == Status::Gap {
+                // a gap must fail, and then it is not a failure of the test
+                if failure.is_some() {
+                    known_gaps += 1;
+                } else {
+                    closed_gaps.push(row);
+                }
+                return None;
+            }
+            failure
         })
         .reduce(f64::max);
 
@@ -498,13 +516,20 @@ where
     }
     let total = cases.len();
     assert!(total > 0, "{name}: no test cases");
-    if failed == 0 {
-        Ok(())
-    } else {
+    if failed > 0 {
         Err(format!(
             "{name}: {failed}/{total} tests failed, worst case for {worst_in:?} \
             (actual={worst_actual}; desired={worst_expect}; error={worst_err:.2e})",
         ))
+    } else if let Some(row) = closed_gaps.first() {
+        Err(format!(
+            "{name}: gap closed at row {row} ({} outputs in all): replace the rule in \
+            tools/tables/mapping.py by a computed reference (add an `Override` where xsf still \
+            differs) and regenerate the table",
+            closed_gaps.len(),
+        ))
+    } else {
+        Ok(known_gaps)
     }
 }
 
@@ -641,8 +666,9 @@ mod tests {
         };
         assert!(valid([1.0, 2.0, 1e-15, 0.0], 1));
         assert!(valid([1.0, 2.0, 0.0, 5.0], 2));
+        assert!(valid([1.0, 2.0, 1e-15, 0.0], 3));
         // an unknown status
-        assert!(!valid([1.0, 2.0, 1e-15, 0.0], 3));
+        assert!(!valid([1.0, 2.0, 1e-15, 0.0], 4));
         // a scale that is negative, infinite, or NaN, or that a legacy output has
         assert!(!valid([1.0, 2.0, 1e-15, -1.0], 1));
         assert!(!valid([1.0, 2.0, 1e-15, f64::INFINITY], 1));
@@ -717,6 +743,35 @@ mod tests {
         assert!(passes("f", &[1.0], convention, 1.0 + 2e-15));
         assert!(!passes("f", &[1.0], convention, 1.0 + 8e-15));
         assert!(!passes("f", &[1.0], convention, 0.0));
+    }
+
+    #[test]
+    fn test_gap() {
+        let gap = Check {
+            tol: 1e-15,
+            scale: 0.0,
+            status: Status::Gap,
+        };
+        let run = |actual: f64| {
+            let row = [1.0, 2.0, gap.tol, gap.scale];
+            let table =
+                file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
+            let cases = Table::parse(&table).unwrap().test_cases::<f64>();
+            check("f", &cases, |_| actual)
+        };
+        // the gap is open if the class or the value is wrong, and closed if it is right
+        assert_eq!(run(f64::NAN), Ok(1));
+        assert_eq!(run(2.0 + 1e-10), Ok(1));
+        // a zero against a nonzero reference is a class mismatch, however small the reference
+        let tiny = |actual: f64| {
+            let row = [1.0, 5e-324, gap.tol, f64::MIN_POSITIVE];
+            let table =
+                file([1, 1, 1], Table::STATUS | Table::SCALES, &[(&row, 0, &[gap.status as u8])]);
+            check("f", &Table::parse(&table).unwrap().test_cases::<f64>(), |_| actual)
+        };
+        assert_eq!(tiny(0.0), Ok(1));
+        assert!(tiny(5e-324).unwrap_err().contains("gap closed"));
+        assert!(run(2.0).unwrap_err().contains("gap closed at row 0"));
     }
 
     #[test]

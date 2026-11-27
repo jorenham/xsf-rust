@@ -59,6 +59,11 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
   For an `f32` output, it is at least the `f32` epsilon.
 - convention: a rule of the mapping, which xsf-rust must follow already, and which must pass
   xsref's test, unless the mapping marks xsf as wrong there.
+- gap: a rule of the mapping with `gap`, where xsf-rust returns something else than the finite
+  true value (e.g. NaN where `ellipkinc` is real). The reference is computed as above, but
+  neither xsf-rust nor xsf need be near it. The tolerance is `max(2^-26, floor)` for `f64` and
+  `max(2^-12, floor)` for `f32`, and the test must fail there, so that it notices when the gap
+  closes. The generator errors if xsf-rust's output already passes.
 - legacy: where our reference timed out.
 
 ## Statuses and scales
@@ -70,6 +75,13 @@ Each logical output of each row has a status:
 | 0 legacy     | xsref's, with xsref's tolerance                |                                    |
 | 1 computed   | the `f64` (or `f32`) nearest to the true value | NaN and the infinities             |
 | 2 convention | a rule, e.g. NaN outside of the domain         | NaN, the infinities, and the zeros |
+| 3 gap        | the `f64` (or `f32`) nearest to the true value | NaN, the infinities, and the zeros |
+
+A gap is checked like a computed output, but must fail: the test counts it as a known gap, and
+fails if it passes (the gap is closed, so replace the rule by a computed reference, with an
+`Override` where xsf still differs, and regenerate). Keep gaps to classes (e.g. NaN for a finite
+value, or zero for a nonzero one), which do not flip on a rounding error. The zeros are a class
+of their own, as for a convention.
 
 An output passes if its error is at most `4 max(eps, tol)`, with `eps` the `f64::EPSILON`. The error
 is xsf's `extended_relative_error`. When one component is infinite and the other is finite,

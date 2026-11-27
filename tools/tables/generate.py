@@ -9,6 +9,9 @@ For each entry of `mapping.ENTRIES`, every logical output of every row gets a st
 
 - convention (2): the inputs match a `mapping.Rule`, which xsf-rust must follow, and which must
   pass xsref's test (so xsref may differ where its tolerance allows it).
+- gap (3): the inputs match a `mapping.Rule` with `gap`, which xsf-rust must follow. The
+  reference is computed as for computed (1), but xsf-rust and xsf need not be near it. The
+  tolerance is `XSF_WRONG` (or the floor, if larger), and the test must fail.
 - computed (1): the mpmath reference at both `DPS`, which must agree to `AGREE`, round to the
   same f64 (or f32, for an f32 output), and be confirmed by Arb where its Arb version applies
   (or by an identity, without one). xsf-rust must be NaN or an infinity exactly where the
@@ -57,7 +60,7 @@ VERSION: Final = 1
 HEADER: Final = struct.Struct("<4sIIHHHH")
 STATUS: Final = 1  # header flag: a status byte per logical output
 SCALES: Final = 2  # header flag: an error scale per logical output
-LEGACY, COMPUTED, CONVENTION = range(3)
+LEGACY, COMPUTED, CONVENTION, GAP = range(4)
 
 DPS: Final = (50, 100)  # the digits of the two evaluations of a reference
 AGREE: Final = 1e-30  # their largest difference, relative to max(|f|, scale)
@@ -127,6 +130,14 @@ def table_error(y: complex, f: complex, scale: float = 0.0) -> float:
             if math.isfinite(ref):
                 e = max(e, error / abs(mag))
     return min(e, d / scale) if scale else e
+
+
+def rtol_ill_conditioned(name: str, x: Args) -> float:
+    """The smallest relative tolerance of the reader where the function is ill-conditioned, like
+    `rtol_ill_conditioned` in `testing/src/xsref.rs`."""
+    if name == "cyl_bessel_i" and x[0] < -100 and x[0] % 1 != 0:
+        return 5e-15 * abs(x[0])
+    return 0.0
 
 
 def same_class(y: complex, f: complex, zeros: bool = True) -> bool:
@@ -200,7 +211,7 @@ def computed_inputs(
     require(
         len(data)
         == HEADER.size + n_rows * (width + 1 + (n_tol if flags & STATUS else 0))
-        and set(statuses) <= {LEGACY, COMPUTED, CONVENTION},
+        and set(statuses) <= {LEGACY, COMPUTED, CONVENTION, GAP},
         invalid,
     )
     if not flags & STATUS:
@@ -511,14 +522,14 @@ def generate(
         for r, i in cells
         if (rule := next((x for x in entry.outs[i].rules if x.when(inputs[r])), None))
     }
-    # each part of each other output at both `DPS`
+    # each part of each other output (and each gap) at both `DPS`
     tasks = {
         (r, i): [
             [(table, sig, i, part, inputs[r], dps) for dps in DPS]
             for part in range(widths[i])
         ]
         for r, i in cells
-        if (r, i) not in rules
+        if (r, i) not in rules or rules[r, i].gap
     }
     todo = [t for ts in tasks.values() for lo_hi in ts for t in lo_hi]
     refs = references(todo, use_cache, pool) if todo else {}
@@ -549,7 +560,8 @@ def generate(
         out, a, tol = entry.outs[i], starts[i], old.n_in + old.n_out + i
         old_ref = value(rows[r][a : a + widths[i]])
         try:
-            if rule := rules.get((r, i)):
+            rule = rules.get((r, i))
+            if rule and not rule.gap:
                 # a convention must pass xsref's test, unless an override marks xsf (and so
                 # xsref) wrong there, and xsf-rust must follow it already
                 over = next((o for o in out.overrides if o.when(inputs[r])), None)
@@ -572,6 +584,10 @@ def generate(
                 new[r, i] = Cell(CONVENTION, ref, struct.pack("<d", 0.0))
             elif (r, i) in timed_out:
                 require(
+                    rule is None,
+                    "the reference of a gap timed out, so it is a convention",
+                )
+                require(
                     (old.rows[r][: 8 * old.n_in], i) not in previous,
                     "reference timed out for an existing computed output",
                 )
@@ -586,9 +602,18 @@ def generate(
                     for (lo, hi), arb in zip(tasks[r, i], arbs, strict=True)
                 ]
                 f = value(tuple(f for f, _, _ in checked))
-                # no tolerance covers NaN or an infinity
-                ok = same_class(rust[r, i], f, zeros=False)
-                require(ok, f"xsf-rust has {rust[r, i]}, the reference {f}")
+                if rule:
+                    # xsf-rust must still follow the rule, or else the gap is closed
+                    require(
+                        same_class(rust[r, i], rule.value),
+                        f"xsf-rust has {rust[r, i]}, the gap rule {rule.value} "
+                        f"({rule.why}): replace the rule by a computed reference",
+                    )
+                    notes[i][f"gap: {rule.why}"] += 1
+                else:
+                    # no tolerance covers NaN or an infinity
+                    ok = same_class(rust[r, i], f, zeros=False)
+                    require(ok, f"xsf-rust has {rust[r, i]}, the reference {f}")
                 scale = checked[0][1] if widths[i] == 1 else 0.0
                 if out.scale_at is not None:
                     scale = out.scale_at(inputs[r], f)
@@ -608,6 +633,7 @@ def generate(
     overrides = {
         (r, i): next((o for o in entry.outs[i].overrides if o.when(inputs[r])), None)
         for r, i in computed
+        if (r, i) not in rules  # xsf is not compared on a gap
     }
     floors = {
         (r, i): next((f for f in entry.outs[i].floors if f.when(inputs[r])), None)
@@ -615,18 +641,38 @@ def generate(
     }
     budgets: dict[tuple[int, mapping.Override | None], float] = {}
     for (r, i), c in computed.items():
+        if (r, i) in rules:
+            continue
         key = (i, overrides[r, i])
         budgets[key] = max(budgets.get(key, 0.0), c.e_rust)
     described: list[dict[Args, tuple[Computed, float]]] = [{} for _ in range(n)]
     for (r, i), c in computed.items():
-        override, floor = overrides[r, i], floors[r, i]
+        override, floor = overrides.get((r, i)), floors[r, i]
         low = floor.at(inputs[r]) if floor else 0.0
+        ref = struct.pack(f"<{widths[i]}d", *parts(c.ref))
+        if (r, i) in rules:
+            # xsf-rust is wrong here, so only the test of a fix matters, which needs half the
+            # digits, as for xsf
+            tol = max(XSF_WRONG_F32 if f32[i] else XSF_WRONG, low)
+            # the test must fail on what xsf-rust returns, like the reader of the table
+            out_rust = rust[r, i]
+            rtol = max(4 * max(EPS, tol), rtol_ill_conditioned(table, inputs[r]))
+            if same_class(out_rust, c.ref) and (
+                table_error(out_rust, c.ref, c.scale) <= rtol
+            ):
+                problems.append(
+                    f"[{i}] at {inputs[r]}: the gap rule {rules[r, i].value} "
+                    f"({rules[r, i].why}) passes the test for the reference {c.ref} "
+                    f"with the xsf-rust output {out_rust}: the gap is closed"
+                )
+                continue
+            new[r, i] = Cell(GAP, ref, struct.pack("<d", tol), c.scale)
+            continue
         try:
             tol = tolerance(c, override, budgets[i, override], low, f32[i])
         except Problem as e:
             problems.append(f"[{i}] at {inputs[r]}: {e}")
             continue
-        ref = struct.pack(f"<{widths[i]}d", *parts(c.ref))
         new[r, i] = Cell(COMPUTED, ref, struct.pack("<d", tol), c.scale)
         if override:
             notes[i][f"override: {override.why}"] += c.e_xsf > budgets[i, override]
@@ -650,11 +696,11 @@ def generate(
             problems.append(f"the identity fails at {args}: {res}")
 
     status = Counter(cell.status for cell in new.values())
-    counts = [status[code] for code in (COMPUTED, CONVENTION, LEGACY)]
+    counts = [status[code] for code in (COMPUTED, CONVENTION, GAP, LEGACY)]
     largest = max(filter(None, residuals), default=0.0)
     report = [
         f"# {table} {sig}",
-        "{} computed, {} convention, {} legacy".format(*counts),
+        "{} computed, {} convention, {} gap, {} legacy".format(*counts),
         *(
             [f"identity: {len(picks)} inputs, residuals up to {largest:.1e}"]
             * bool(picks)
