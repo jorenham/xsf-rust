@@ -48,6 +48,16 @@ CAPPED: Final = "cyl_bessel_i"
 CAP_NAN: Final = 2_000
 CAP_INF: Final = 2_000
 CAP: Final = 20_000
+# the orders of the complex `cyl_bessel_i` rows where xsf overflows and the reference is not
+# finite
+BESSEL_I_OVERFLOWS: Final = {
+    -3_924.611_809_854_627_6,
+    -3_335.494_571_461_091,
+    -2_788.048_924_847_581_5,
+    -2_668.868_419_500_347_5,
+    -1_132.109_773_438_097_1,
+    1_490.491_370_199_187_7,
+}
 
 # of the real `airy` rows with x inside of `THIN_RANGE` (near the zeros of Ai, Ai', Bi, and Bi'),
 # every `THIN_STEP`th is kept
@@ -73,14 +83,6 @@ def consumers() -> list[tuple[str, str]]:
             # the entries end at the first unindented `}`
             pairs += entry.findall(block.split("\n}", 1)[0])
     return pairs
-
-
-def bessel_i_overflows() -> set[float]:
-    """The orders `v` of `BESSEL_I_OVERFLOWS` in `testing/src/xsref.rs`."""
-    source = (ROOT / "testing/src/xsref.rs").read_text()
-    match = re.search(r"const BESSEL_I_OVERFLOWS: \[f64; \d+\] = \[([^\]]*)\];", source)
-    assert match, "BESSEL_I_OVERFLOWS not found"
-    return {float(v.replace("_", "")) for v in match[1].split(",") if v.strip()}
 
 
 def read_columns(path: Path) -> list[pl.Series]:
@@ -114,9 +116,10 @@ def cap_rows(inputs: list[pl.Series], outputs: list[pl.Series]) -> pl.Series:
         *rng.sample(with_nan, n_nan),
         *rng.sample(with_inf, n_inf),
     }
-    overflows = bessel_i_overflows()
     orders = inputs[0].to_list()
-    keep.update(i for i, v in enumerate(orders) if v % 1 == 0.5 or v in overflows)
+    keep.update(
+        i for i, v in enumerate(orders) if v % 1 == 0.5 or v in BESSEL_I_OVERFLOWS
+    )
     return pl.Series([i in keep for i in range(len(nan))])
 
 
