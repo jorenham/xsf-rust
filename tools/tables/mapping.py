@@ -2229,7 +2229,7 @@ J_MLRI_FLOOR: Final = Floor(
 def _j_scale(a: tuple[float, ...], f: complex) -> float:
     """The smallest normal f64 for a subnormal reference, whose modulus has only that absolute
     precision, and for real x in the oscillatory region |x| > |v|, the Bessel modulus (DLMF
-    10.18.6) like `specs.r_jv`."""
+    10.18(i)) like `specs.r_jv`."""
     v, x, y = a
     if 0 < abs(f) < sys.float_info.min:
         return sys.float_info.min
