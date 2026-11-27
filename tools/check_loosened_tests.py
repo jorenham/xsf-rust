@@ -313,6 +313,10 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
     # without statuses, the outputs are legacy ones
     statuses = data[20 + 8 * n_rows * width + n_rows :] or bytes(n_rows * n_tol)
     size = n_out // n_tol
+
+    def pack(x: tuple[float, ...], i: int) -> bytes:
+        return struct.pack(f"<{size}d", *x[i * size : (i + 1) * size])
+
     rows: dict[bytes, list[Output]] = {}
     for r in range(n_rows):
         row = values[r * width : (r + 1) * width]
@@ -322,20 +326,16 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
         # without scales there are none (0)
         scales = rest[: n_tol * scaled] or (0.0,) * n_tol
         rules = rest[n_tol * scaled :]
-
-        def pack(x: tuple[float, ...], i: int) -> bytes:
-            return struct.pack(f"<{size}d", *x[i * size : (i + 1) * size])
-
+        status = statuses[r * n_tol : (r + 1) * n_tol]
         rows[struct.pack(f"<{n_in}d", *row[:n_in])] = [
             Output(
-                status,
+                status[i],
                 tols[i],
                 scales[i],
                 pack(refs, i),
-                pack(rules, i) if status == GAP and rules else None,
+                pack(rules, i) if status[i] == GAP and rules else None,
             )
             for i in range(n_tol)
-            for status in [statuses[r * n_tol + i]]
         ]
     return rows
 
