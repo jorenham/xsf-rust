@@ -8,7 +8,7 @@ use proptest::prelude::*;
 use proptest::sample::Index;
 
 use super::strategies::{arg, balanced, imag, moderate, near_threshold_z, small, unit};
-use super::{NEAR_POLE, almost_int, config, int_distance, is_pole, pole_distance};
+use super::{NEAR_POLE, almost_int, config, int_distance, is_linear, is_pole, pole_distance};
 
 /// Relative steps `2^-k` from half the digits, `2^-MIN_K`, down to an ulp, `2^-MAX_K`
 const MIN_K: u32 = f64::MANTISSA_DIGITS / 2;
@@ -115,11 +115,11 @@ proptest! {
     fn hyp2f1_balanced(
         [a, b, c] in balanced(), x in arg(), i in any::<Index>(), k in MIN_K..=MAX_K - CONFIRM_K
     ) {
-        if known_hyp2f1_balanced_x(a, b, c, x) {
-            return Ok(());
-        }
         let p = [a, b, c, x];
         let i = i.index(p.len());
+        if known_hyp2f1_balanced_x(a, b, c, x, i) {
+            return Ok(());
+        }
         continuous(neighbours(p, i, p[i].abs(), k, |[a, b, c, x]| xsf::hyp2f1(a, b, c, x)))?;
     }
 
@@ -174,18 +174,18 @@ fn known_hyp2f1(a: f64, b: f64, c: f64, x: f64) -> bool {
 }
 
 /// The known failures of `hyp2f1` for real arguments and a nearly integer `c - a - b`
-fn known_hyp2f1_balanced_x(a: f64, b: f64, c: f64, x: f64) -> bool {
+fn known_hyp2f1_balanced_x(a: f64, b: f64, c: f64, x: f64, i: usize) -> bool {
     // a terminating `p` with `c - q` next to an integer in `(p, 0]`, for x > 0.9 (#2330)
     let terminating = |p: f64, q: f64| {
         is_pole(p) && int_distance(c - q) <= NEAR_POLE && (p + 1.0..=0.0).contains(&(c - q).round())
     };
     known_hyp2f1(a, b, c, x)
         // not a bug: for 0 < c - a - b <= sqrt(eps), (1 - x)^(c - a - b) is 0 at x = 1 but about 1
-        // at its neighbours
-        || (x == 1.0 && c - a - b <= f64::EPSILON.sqrt())
+        // at its neighbours, so only for the neighbours of x (i = 3)
+        || (i == 3 && x == 1.0 && c - a - b <= f64::EPSILON.sqrt())
         || (x > 0.9 && (terminating(a, b) || terminating(b, a)))
         // c < 0 at a subnormal x (#2255, #2332)
-        || (x.is_subnormal() && c < 0.0)
+        || (x.is_subnormal() && c < 0.0 && !(is_linear(a) || is_linear(b)))
 }
 
 // singular at the poles of c, and at x = 1 for c <= a + b; known: polynomials at x = 1 (#2198,
@@ -211,6 +211,9 @@ fn known_hyp2f1_complex(a: f64, b: f64, c: f64, re: f64, im: f64) -> bool {
 /// e.g. 1e-5
 const NEAR_POLE_COMPLEX: f64 = 1e-4;
 
+/// Above the `int_distance` of `c - a - b` in the known failures #2339 (up to 2.7e-15)
+const NEAR_INT_LARGE: f64 = 1e-14;
+
 /// The known failures of the complex `hyp2f1` for a nearly integer `c - a - b`
 fn known_hyp2f1_complex_balanced(a: f64, b: f64, c: f64, re: f64, im: f64) -> bool {
     let near_pole = |t: f64| pole_distance(t) <= NEAR_POLE_COMPLEX;
@@ -218,14 +221,17 @@ fn known_hyp2f1_complex_balanced(a: f64, b: f64, c: f64, re: f64, im: f64) -> bo
     let gap = c - a - b;
     known_hyp2f1_complex(a, b, c, re, im)
         // wrong or NaN for a or b next to a pole at 0.9 <= |z| <= 1.1 (#2334)
-        || ((near_pole(a) || near_pole(b)) && almost_int(gap) && (0.9..=1.1).contains(&r))
+        || ((near_pole(a) || near_pole(b))
+            && almost_int(gap)
+            && (0.9..=1.1).contains(&r)
+            && re != 0.0)
         // wrong for negative a and b with c = a + b (#2335)
-        || (gap == 0.0 && a.max(b) < 0.0 && c < -32.0)
+        || (gap == 0.0 && a.max(b) < 0.0 && c < -32.0 && re > 0.0)
         // wrong for a or b above 64 and c - a - b next to a negative integer, near |z| = 1 and
         // |1 - z| < 0.9 (#2339)
         || (a.min(b) > 0.0
             && a.max(b) > 64.0
-            && int_distance(gap) <= NEAR_POLE
+            && int_distance(gap) <= NEAR_INT_LARGE
             && gap.round() < 0.0
             && (0.9..1.1).contains(&r)
             && (1.0 - re).hypot(im) < 0.9)

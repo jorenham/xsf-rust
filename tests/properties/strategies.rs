@@ -123,9 +123,14 @@ pub(super) fn balanced() -> impl Strategy<Value = [f64; 3]> {
         [a, b, a + b + n]
     });
     let inexact = (moderate(), moderate(), -4..=4_i32, offset()).prop_map(|(a, b, n, d)| {
-        // at least an ulp of `c`, so that it differs from `a + b + n`
+        // at least an ulp of `c`, so that it differs from `a + b + n`, and doubled while the
+        // rounding of `c - a - b` still gives an integer in both orders
         let c = a + b + f64::from(n);
-        [a, b, c + d.signum() * d.abs().max(f64::EPSILON * c.abs())]
+        let mut d = d.signum() * d.abs().max(f64::EPSILON * c.abs());
+        while (c + d - a - b).fract() == 0.0 && (c + d - b - a).fract() == 0.0 {
+            d *= 2.0;
+        }
+        [a, b, c + d]
     });
     prop_oneof![exact, inexact]
 }
