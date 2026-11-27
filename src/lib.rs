@@ -419,7 +419,6 @@
 //! | [`assoc_legendre_p_all`]      | All associated Legendre polynomials of the 1st kind               |
 //! | [`assoc_legendre_p_norm`]     | Normalized associated Legendre polynomial                         |
 //! | [`assoc_legendre_p_norm_all`] | All normalized associated Legendre polynomials                    |
-//! | [`pmv`]                       | Associated Legendre function of real degree for $\abs x \le 1$    |
 //! | [`sph_legendre_p`]            | Spherical Legendre polynomial of the first kind                   |
 //! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind              |
 //! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                         |

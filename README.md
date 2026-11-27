@@ -257,7 +257,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`loggamma`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.loggamma.html)                         | `loggamma`                                          |
 | [`logit`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logit.html)                               | `logit`                                             |
 | [`logsumexp`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logsumexp.html)                       | `log1mexp`, `logaddexp`, `logsumexp`                |
-| [`lpmv`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html)                                 | `pmv`                                               |
+| [`lpmv`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html)                                 | `assoc_legendre_p`                                  |
 | [`lqmn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lqmn.html)                                 | `assoc_legendre_q_all`                              |
 | [`lqn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lqn.html)                                   | `legendre_q_all`                                    |
 | [`mathieu_a`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_a.html)                       | `mathieu_a`                                         |

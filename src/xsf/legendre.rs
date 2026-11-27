@@ -1816,6 +1816,7 @@ pub fn sph_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<
 /// # See also
 /// - [`assoc_legendre_p_norm`]
 /// - [`assoc_legendre_p_all`]
+#[doc(alias = "lpmv")]
 #[inline]
 pub fn assoc_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p(n as c_int, m as c_int, 2, false)
