@@ -717,11 +717,12 @@ def _zero_signs(
     when: Callable[[tuple[float, ...], float], bool],
     value: Callable[[float], complex],
     why: str,
+    gap: bool = False,
 ) -> tuple[Rule, Rule]:
     """The `Rule`s for both signs s = +-1 of a zero part of the result."""
     return (
-        Rule(lambda a: when(a, 1.0), value(1.0), why),
-        Rule(lambda a: when(a, -1.0), value(-1.0), why),
+        Rule(lambda a: when(a, 1.0), value(1.0), why, gap),
+        Rule(lambda a: when(a, -1.0), value(-1.0), why, gap),
     )
 
 
@@ -4749,6 +4750,47 @@ def _mathieu_radial2(odd: int) -> Entry:
     )
 
 
+GAMMA_HUGE: Final = 8.98846567431105e307  # an xsref input, about 2^1023
+RGAMMA_BIG_IM: Final = 2.99807699606115e154  # an xsref input, |Im z| of rgamma
+RGAMMA_SMALL_IM: Final = 10.0  # the largest |Im z| of xsref's rgamma rows at huge x
+# the rows where xsf-rust has the true sign of Im z already, at small Re z
+RGAMMA_SIGN_OK: Final = (5.0, 5 / 3, -20 / 3)
+
+
+RGAMMA_HUGE_GAPS: Final = (
+    Rule(
+        lambda a: abs(a[1]) == GAMMA_HUGE and a[0] < GAMMA_HUGE,
+        complex(math.inf, math.nan),
+        "xsf-rust has NaN where Im ln Gamma overflows (#2358)",
+        gap=True,
+    ),
+    Rule(
+        lambda a: abs(a[1]) == RGAMMA_BIG_IM and a[0] == -GAMMA_HUGE,
+        complex(math.inf, math.nan),
+        "xsf-rust has NaN where Im ln Gamma overflows (#2358)",
+        gap=True,
+    ),
+    *_zero_signs(
+        lambda a, s: (
+            abs(a[1]) == RGAMMA_BIG_IM and a[0] == -RGAMMA_BIG_IM and a[1] * s > 0
+        ),
+        lambda s: complex(-math.inf, -s * math.inf),
+        "xsf-rust has the wrong sign where Im ln Gamma is unresolved (#2358)",
+        gap=True,
+    ),
+    *_zero_signs(
+        lambda a, s: (
+            abs(a[1]) == RGAMMA_BIG_IM
+            and abs(a[0]) <= RGAMMA_SMALL_IM
+            and a[0] not in RGAMMA_SIGN_OK
+            and a[1] * s > 0
+        ),
+        lambda s: complex(-math.inf, s * math.inf),
+        "xsf-rust has the wrong sign where Im ln Gamma is unresolved (#2358)",
+        gap=True,
+    ),
+)
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -4803,6 +4845,54 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     ("rgamma", "d-d"): Entry(
         (Out("rgamma", (specs.r_rgamma,), (specs.ARB["rgamma"],), (NAN,)),)
+    ),
+    ("gamma", "cd-cd"): _complex(
+        "gamma",
+        specs._c(mp.gamma),
+        flint.acb.gamma,
+        (
+            COMPLEX_NAN,
+            COMPLEX_POLE,
+            Rule(
+                lambda a: a[0] == -math.inf and a[1] == 0,
+                complex(math.nan, math.nan),
+                "no limit for z -> -inf",
+            ),
+            *_zero_signs(
+                lambda a, s: (
+                    a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == s
+                ),
+                lambda s: complex(math.inf, s * 0.0),
+                "the limit for z -> +inf along Im z = +-0",
+            ),
+            Rule(
+                lambda a: a[0] == GAMMA_HUGE and abs(a[1]) == GAMMA_HUGE,
+                complex(math.inf, math.nan),
+                "xsf-rust lacks the huge-argument guards of xsf (#2315), and has NaN"
+                " where both parts overflow",
+                gap=True,
+            ),
+        ),
+        (
+            Override(
+                lambda a: abs(a[1]) == GAMMA_HUGE and a[0] < GAMMA_HUGE,
+                "the xsf huge-argument guards (scipy/xsf#179) return inf where the value"
+                " underflows (#2315)",
+            ),
+        ),
+    ),
+    ("rgamma", "cd-cd"): _complex(
+        "rgamma",
+        specs._c(mp.rgamma),
+        flint.acb.rgamma,
+        RGAMMA_HUGE_GAPS,
+        (
+            Override(
+                lambda a: a[0] <= -(2.0**53) and abs(a[1]) <= RGAMMA_SMALL_IM,
+                "the xsf huge-argument guards (scipy/xsf#179) return inf where the value"
+                " underflows (#2315)",
+            ),
+        ),
     ),
     ("gammasgn", "d-d"): Entry(
         (
