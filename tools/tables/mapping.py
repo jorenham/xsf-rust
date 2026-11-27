@@ -35,11 +35,14 @@ type RealArb = (
 
 @dataclass(frozen=True)
 class Rule:
-    """A convention: the result is `value`, with its class and sign, where `when` holds."""
+    """A convention: the result is `value`, with its class and sign, where `when` holds.
+    With `gap`, `value` is what xsf-rust returns although the true value is finite, so the
+    table keeps the reference, and the test must fail there until the gap closes."""
 
     when: Pred
     value: complex
     why: str
+    gap: bool = False
 
 
 @dataclass(frozen=True)
