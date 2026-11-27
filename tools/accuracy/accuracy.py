@@ -373,9 +373,8 @@ def error(y: complex, ref: Ref) -> float:
     else:
         assert isinstance(y, float)
         r = mp.mpf(value)
-        if math.isnan(y) or mp.isnan(r):
-            # (a NaN reference, where the function rejects the input)
-            return 0.0 if math.isnan(y) and mp.isnan(r) else math.inf
+        if math.isnan(y):
+            return math.inf
         if mp.isinf(r) or abs(r) > DBL_MAX:
             return 0.0 if math.isinf(y) and (y > 0) == (r > 0) else math.inf
     if abs(r) < DBL_MIN:  # underflow

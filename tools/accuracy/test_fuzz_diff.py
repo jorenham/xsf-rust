@@ -13,23 +13,30 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
+import flint
 import fuzz_diff as fd
 import mpmath as mp
 import specs
 from fuzz_diff import Line, Value
 
-# a dump program that echoes the argument of each line, and panics on `panic`, fails on
-# `unknown`, and sleeps for `slow`
+# a dump program that echoes the argument of each line, writes them as it ends or panics on
+# `panic` (as a buffer that is flushed as it unwinds), fails on `unknown`, dies with only a part
+# of them written on `abort`, sleeps for `slow`, and counts its runs in `<path>.runs`
 FAKE = """\
 #!/bin/sh
+echo >> "$0.runs"
+out=
 while read -r f x; do
   case $f in
     unknown) echo "unknown function: $f $x" >&2; exit 101 ;;
-    panic) echo "panicked" >&2; exit 101 ;;
+    panic) printf %s "$out"; echo "panicked" >&2; exit 101 ;;
+    abort) printf %s "${out%??}"; kill -KILL $$ ;;
     slow) sleep 0.2 ;;
   esac
-  echo "$x"
+  out="$out$x
+"
 done
+printf %s "$out"
 """
 
 
@@ -45,15 +52,29 @@ def test_principal_values() -> None:
 
 
 def test_rejected_input() -> None:
-    # the real function is NaN for x < 0, even where U is a polynomial
-    assert kind(("hypu", (-1.0, 1.0, -2.0)), math.nan, -3.0) == "regressed"
-    assert kind(("hypu", (-1.0, 1.0, -2.0)), math.nan, None) == "both right"
+    # U is not real for x < 0, unless it is a polynomial
+    assert kind(("hypu", (0.5, 1.0, -2.0)), math.nan, 1.0) == "regressed"
+    assert kind(("hypu", (0.5, 1.0, -2.0)), math.nan, None) == "both right"
+    assert kind(("hypu", (-1.0, 1.0, -2.0)), -3.0, math.nan) == "regressed"
+    assert kind(("hypu", (-2.0, 0.5, -2.0)), math.nan, 10.75) == "improved"
+    # a NaN of mpmath, where the function has a limit
+    assert kind(("entr", (0.0,)), 0.0, math.nan) == "no ref"
+    assert kind(("xlogy", (0.0, 0.0)), 0.0, math.nan) == "no ref"
 
 
 def test_branch_cut() -> None:
     line = ("log1p#c", (-2.0, -0.0))
     assert kind(line, complex(0, -math.pi), complex(0, math.pi)) == "regressed"
     assert kind(line, complex(0, math.pi), complex(0, -math.pi)) == "improved"
+
+
+def test_branch_point() -> None:
+    # the value at z = 1, which the sides approach slowly, as (1 - z)^0.001
+    line = ("hyp2f1#c", (0.5, 0.5, 1.001, 1.0, 0.0))
+    assert kind(line, 319.19260460853, complex(167.995, 0.2375)) == "regressed"
+    # J_v(z) ~ (z / 2)^v
+    line = ("bessel_j#c", (0.01, 0.0, 0.0))
+    assert kind(line, 0j, complex(5.84e-4, 9.2e-6)) == "regressed"
 
 
 def test_pole() -> None:
@@ -69,6 +90,8 @@ def test_zero_signs() -> None:
     assert fd.differ(-0.0, 0.0, fd.RTOL)
     assert kind(("sinpi", (-0.0,)), -0.0, 0.0) == "regressed"
     assert kind(("sinpi", (0.0,)), -0.0, 0.0) == "improved"
+    # even in x, so of an unknown sign
+    assert kind(("cosm1", (0.0,)), -0.0, 0.0) == "both right"
     line = ("hyp1f1#c", (1.0, 1.0, 0.0, 1e-100))
     assert kind(line, complex(1, 1e-100), complex(1, 0)) == "regressed"
     # e^z on the real axis, with the sign of the zero imaginary part
@@ -82,6 +105,24 @@ def test_midpoint() -> None:
     r = fd.ref(("hyp1f1", (-1.0, 1.0, 2.0**-54)))
     assert isinstance(r, list) and isinstance(r[0], str)
     assert float(r[0]) == 1.0
+
+
+def test_large_exact() -> None:
+    # exactly 2^-6444, of more digits than Python writes an int with (as 30 digits)
+    r = fd.ref(("hypu", (-6.0, -5.0, 0.0)))
+    assert isinstance(r, list) and isinstance(r[0], str)
+    assert mp.almosteq(mp.mpf(r[0]), mp.ldexp(1, -6444), 1e-29)
+    with mock.patch.object(fd, "_value", side_effect=ValueError):
+        assert isinstance(fd.ref(("hypu", (-6.0, -5.0, 0.0))), str)
+
+
+def test_precision() -> None:
+    # the last accurate one, if a higher precision is less accurate
+    def f(*_: flint.arb) -> flint.acb:
+        return flint.acb(1, flint.arb(0, 1e-30 if flint.ctx.prec < 512 else 1))
+
+    with mock.patch.dict(fd.ARB, {"hyp1f1#c": f}):
+        assert fd.ref(("hyp1f1#c", (1.0, 1.0, 1.0, 1.0))) == [["1", "0"], None]
 
 
 def test_documented_panic() -> None:
@@ -98,7 +139,13 @@ def test_panics_and_unknown() -> None:
         lines: list[Line] = [
             (f, (float(i),)) for i, f in enumerate(["a", "panic", "b", "panic"])
         ]
+        runs = Path(f"{exe}.runs")
         assert fd.evaluate(exe, lines) == [0.0, None, 2.0, None]
+        # one run per panic
+        assert len(runs.read_text().splitlines()) == 2
+        # an abort, after which the lines that it lost run again
+        died: list[Line] = [("a", (0.25,)), ("abort", (1.0,)), ("b", (2.0,))]
+        assert fd.evaluate(exe, died) == [0.25, None, 2.0]
         # a variant of the function that the program lacks, after others
         assert fd.evaluate(exe, [*lines, ("unknown", (4.0,))]) == "unsupported"
         # the time of one run for all lines, also after panics
