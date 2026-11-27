@@ -175,6 +175,15 @@ fn test_eval_real_degree_complex_recurrence() {
     let actual = eval_gegenbauer(48.667_347_090_349_05, 8.732_038_334_824_946, z);
     let expected = c64(-299_902_782_426_589.1, -406_539_069_152_327.44);
     assert!((actual - expected).norm() <= 3e-13 * expected.norm());
+    // (where the analytic continuation of `hyp2f1` is estimated to be less accurate)
+    for (n, z, expected) in [
+        (49.75, c64(-0.88, 1e-5), c64(13.104_388_245_584_778, -0.048_773_730_146_430_13)),
+        (49.75, c64(-0.877, 1e-6), c64(-1.113_842_157_112_287_4, -0.004_523_610_141_019_966)),
+        (85.25, c64(-0.88, 1e-12), c64(4.422_461_265_284_219, -6.428_446_324_290_854e-9)),
+    ] {
+        let actual = eval_jacobi(n, 1.0, 4.0, z);
+        assert!((actual - expected).norm() <= 1e-13 * expected.norm());
+    }
 }
 
 #[test]

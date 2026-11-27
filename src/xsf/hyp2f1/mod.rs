@@ -47,6 +47,7 @@ mod polynomial;
 mod power;
 
 use core::f64::consts::{FRAC_1_PI, PI, TAU};
+use num_complex::Complex64;
 
 use crate::ext::{HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_poly_dd, ln_dd, mul_gamma_ratio};
 use crate::utils::{is_nonpos_int, neg_one_pow, next_down_nonneg, next_up_nonneg, pow2};
@@ -1655,23 +1656,11 @@ fn hyp2f1_taylor_step<const N: usize>(
 
 /// F(a, b; c; z) for c > 0, a or b > 0 and |1 - z| < 1 by analytic continuation of the Maclaurin
 /// series at x0 = min(1/2, 1 - |1 - z|), and for a b < 0 at most c / (4 |a b|), along the real
-/// axis to 1 - |1 - z| and then along the circle about 1 through z, if its error estimate is below
-/// half its distance from `result`, which is then less accurate, or below the estimated error of
-/// `result`. For |1 - z| > 1 and Re z < 1, the same for its Pfaff transform. For Re z > 1, where a
-/// small component may stem from the cut, a `result` within sqrt(eps) relative to it is also kept
-/// if the estimate exceeds a component, or only that component if the error of `result` is larger.
+/// axis to 1 - |1 - z| and then along the circle about 1 through z, with its estimated error. For
+/// |1 - z| > 1 and Re z < 1, the same for its Pfaff transform.
 //
 // On that path, the nearest singular point is 1, or 0 near x0 if x0 < 1/2.
-fn hyp2f1_continuation(
-    a: f64,
-    b: f64,
-    c: f64,
-    z: C64,
-    Estimate {
-        value: result,
-        error: result_error,
-    }: Estimate,
-) -> Option<C64> {
+fn hyp2f1_continued(a: f64, b: f64, c: f64, z: C64) -> Option<Estimate> {
     // Unlike in xsf, also continue the Pfaff transform: F(a, b; c; z) = (1 - z)^(-a)
     // F(a, c - b; c; z / (z - 1)) (DLMF 15.8.1), whose argument is within the unit circle about 1
     // if z is not, and off the cut for Re z < 1.
@@ -1690,8 +1679,9 @@ fn hyp2f1_continuation(
     if !(a.max(b) > 0.0 && c > 0.0 && r < 1.0 && end < 1.0 && ab.is_normal()) {
         return None;
     }
-    // For a b < 0, the Maclaurin terms alternate in sign up to the index -min(a, b), and cancel:
-    // start where the first term ratio |a b| x0 / c is at most `TAYLOR_STEP_RATIO`.
+    // Unlike in xsf, also continue for a b < 0. The Maclaurin terms then alternate in sign up to
+    // the index -min(a, b), and cancel: start where the first term ratio |a b| x0 / c is at most
+    // `TAYLOR_STEP_RATIO`.
     let x0 = end.min(if ab < 0.0 {
         (TAYLOR_STEP_RATIO * c / -ab).min(0.5)
     } else {
@@ -1767,10 +1757,38 @@ fn hyp2f1_continuation(
         row = transfer.map(|t| row[0] * t[0] + row[1] * t[1]);
     }
     // (for the Pfaff transform, also the rounding of its argument z / (z - 1), times |F'| there)
-    let (f, error) = power.map_or((x[0], error), |power| {
+    let (value, error) = power.map_or((x[0], error), |power| {
         let argument = x[1].norm() * z.norm() * f64::EPSILON;
         (power * x[0], power.norm() * (error + argument))
     });
+    Some(Estimate { value, error })
+}
+
+/// `hyp2f1_continued` as `(F, error)`
+pub(crate) fn hyp2f1_continued_c64(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: Complex64,
+) -> Option<(Complex64, f64)> {
+    hyp2f1_continued(a, b, c, z.into()).map(|f| (f.value.into(), f.error))
+}
+
+/// `hyp2f1_continued` if its error estimate is below half its distance from `result`, which is
+/// then less accurate, or below the estimated error of `result`. For Re z > 1, where a small
+/// component may stem from the cut, a `result` within sqrt(eps) relative to it is also kept if the
+/// estimate exceeds a component, or only that component if the error of `result` is larger.
+fn hyp2f1_continuation(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: C64,
+    Estimate {
+        value: result,
+        error: result_error,
+    }: Estimate,
+) -> Option<C64> {
+    let Estimate { value: f, error } = hyp2f1_continued(a, b, c, z)?;
     // (a first-order estimate, so only if well below one; NaN `result` is less accurate)
     let (tolerance, distance) = (f64::EPSILON.sqrt() * f.norm(), (result - f).norm());
     let less_accurate = result_error > error;

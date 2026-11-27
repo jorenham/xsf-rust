@@ -145,7 +145,7 @@ pub use zeta::{riemann_zeta, zeta, zetac};
 pub(crate) use airy::airy_ai_zeros_vec;
 pub(crate) use cdflib::find_positive_root;
 pub(crate) use exp::cexpm1;
-pub(crate) use hyp2f1::Hyp2F1Arg;
+pub(crate) use hyp2f1::{Hyp2F1Arg, hyp2f1_continued_c64};
 pub(crate) use loggamma::zlog1_c64;
 pub(crate) use specfun::{Hyp1F1Arg, chgm_neg_x_asymptotic, xsf_hypu_digits};
 pub(crate) use stirling2::stirling2 as stirling2_float;
