@@ -180,8 +180,8 @@ fn test_eval_real_degree_complex_recurrence() {
 #[test]
 fn test_eval_real_degree_recurrence_rounding() {
     // Arb. `hyp2f1` is kept where the rounding in the steps of the recurrence can exceed their
-    // difference, near x = -1, or where an error shared by the starting values can, as near
-    // integer degrees.
+    // difference, near x = -1, or where errors of the starting values that their residual
+    // doesn't show can: shared ones near integer degrees, or ones the recurrence amplifies by 2e4.
     let actual = eval_chebyshev_u(35.000_000_01, c64(-0.9961, 1e-10));
     let expected = c64(0.440_496_638_670_150_8, 4.564_544_621_096_426_7e-7);
     assert!((actual - expected).norm() <= 2e-15 * expected.norm());
@@ -202,6 +202,10 @@ fn test_eval_real_degree_recurrence_rounding() {
         eval_jacobi(10.907_373_335_216_924, 6.550_796_638_174_826, 3.020_948_381_953_233_7, z);
     let expected = c64(1_341.268_177_726_766_7, -3_113.457_727_292_226);
     assert!((actual - expected).norm() <= 5.8e-15 * expected.norm());
+    let z = c64(-0.948_812_747_375_217_9, 0.047_480_210_807_144_36);
+    let actual = eval_jacobi(5.364_764_422_583_145, 48.351_394_010_299_245, 25.0, z);
+    let expected = c64(-249_015_323_724_302.7, 773_690_601_962_958.2);
+    assert!((actual - expected).norm() <= 4.7e-14 * expected.norm());
 }
 
 #[test]

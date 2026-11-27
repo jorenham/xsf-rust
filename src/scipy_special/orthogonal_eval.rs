@@ -258,6 +258,11 @@ fn series_loss<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64) -> f64 {
 /// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
 const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 
+/// A relative error of the starting values of `jacobi_hyp2f1_recurrence` that its residual can't
+/// show, as it solves the recurrence (the least power of two times `EPSILON` that keeps `hyp2f1`
+/// where the recurrence amplifies it by 2e4 to 2e6)
+const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
+
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
 /// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
 ///
@@ -281,7 +286,8 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 ///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
 /// - Off `-1 < x < 1`, if `tol < 1`, the threshold `tol * growth` is lowered to twice the
 ///   estimated error of the recurrence if smaller: that of errors of twice that residual in the
-///   starting values, plus that of a rounding error in each step
+///   starting values, and of twice `HIDDEN_START_ERROR` beyond a shared one (by `growth - |G_n|`),
+///   plus that of a rounding error in each step
 ///   `G_k = (p G_{k-1} - q G_{k-2}) / r` of `EPSILON` times `(|p G_{k-1}| + |q G_{k-2}|) / |r|` (by
 ///   the derivatives of `G_n` in the intermediate values, which can exceed those in the starting
 ///   values). Within `HYP2F1_EPS` of an integer degree, it adds `HYP2F1_ETHRESH |G_n|`, as the
@@ -362,8 +368,8 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
         }
         let near_int = (n - n.round()).abs() < HYP2F1_EPS;
         let shared = if near_int { HYP2F1_ETHRESH } else { 0.0 };
-        let estimate =
-            2.0 * (2.0 * residual * growth + f64::EPSILON * step_error) + shared * rec.norm();
+        let start_error = residual * growth + HIDDEN_START_ERROR * (growth - rec.norm());
+        let estimate = 2.0 * (2.0 * start_error + f64::EPSILON * step_error) + shared * rec.norm();
         estimate.min(tol * growth)
     } else {
         tol * growth
