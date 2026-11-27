@@ -8,22 +8,22 @@
 
 ## Tools
 
-| `just` recipe | does                                                                                                     |
-| ------------- | -------------------------------------------------------------------------------------------------------- |
-| `accuracy`    | regenerates [`accuracy.md`](accuracy.md)                                                                 |
-| `pfq-map`     | regenerates the maps of [`hyppfq.md`](hyppfq.md)                                                         |
-| `fuzz-diff`   | finds random inputs where the working tree (or `--head`) is less accurate than `--base` (Arb checks)     |
-| `domain-diff` | counts per domain the better and worse inputs, and the time ratio, of the working tree vs `--base`       |
+| `just` recipe | does                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `accuracy`    | regenerates [`accuracy.md`](accuracy.md)                                                             |
+| `pfq-map`     | regenerates the maps of [`hyppfq.md`](hyppfq.md)                                                     |
+| `fuzz-diff`   | finds random inputs where the working tree (or `--head`) is less accurate than `--base` (Arb checks) |
+| `domain-diff` | counts per domain the better and worse inputs, and the time ratio, of the working tree vs `--base`   |
 
 Usage: `just fuzz-diff [--base REV] [--head REV] [--only NAME ...] [--cases N]` and
 `just domain-diff [--base REV] [--head REV] [--only NAME ...] [--points N]`; see
 [`fuzz_diff.py`](../tools/accuracy/fuzz_diff.py) and [`domain_diff.py`](../tools/accuracy/domain_diff.py).
 
-| `domain-diff` exit | meaning (checked in this order)                                                       |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| 1 `FAIL`           | a regression                                                                          |
-| 3 `SLOW`           | a time ratio above 1.25 (`-`: unmeasured, see [`domain_diff.py`](../tools/accuracy/domain_diff.py)) |
-| 2 `INCONCLUSIVE`   | a comparison or reference is missing                                                  |
+| `domain-diff` exit | meaning (checked in this order)                                                     |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| 1 `FAIL`           | a regression                                                                        |
+| 3 `SLOW`           | a time ratio above 1.25 (`-`: base too fast, a panic, too few runs, or an old base) |
+| 2 `INCONCLUSIVE`   | a comparison or reference is missing                                                |
 
 CI fails on `SLOW` unless the PR has the label `allow-slowdown`; re-run the job after adding or
 removing it.
