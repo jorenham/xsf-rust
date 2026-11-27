@@ -1055,7 +1055,7 @@ fn test_hypu_int_b_overflow() {
 
 xsref::tests! {
     test_hyp1f1: "hyp1f1", "d_d_cd-cd", |x| xsf::hyp1f1(x[0], x[1], c64(x[2], x[3]));
-    test_pmv: "pmv", "d_d_d-d", |x| xsref::with_int(x[0], |m| xsf::pmv(m, x[1], x[2]));
+    test_pmv: "pmv", "d_d_d-d", |x| xsref::with_int(x[0], |m| xsf::assoc_legendre_p(x[1], m, x[2]));
 }
 
 #[test]
@@ -1068,27 +1068,30 @@ fn test_pmv_integer_degree_near_parity_zero() {
         (1, 2.0, 1e-20, -3e-20),
         (5, -11.0, 1e-6, -0.253_378_124_996_494_9),
     ] {
-        let values = [xsf::pmv(m, v, x), xsf::pmv(m, v, -x)];
+        let values = [xsf::assoc_legendre_p(v, m, x), xsf::assoc_legendre_p(v, m, -x)];
         xsref::np_assert_allclose!(values, [expected, -expected], rtol = 1e-14);
     }
 
     for x in [0.0_f64, -0.0, DENORM_MIN, -DENORM_MIN] {
-        assert_eq!(xsf::pmv(0, 1.0, x).to_bits(), x.to_bits());
+        assert_eq!(xsf::assoc_legendre_p(1.0, 0, x).to_bits(), x.to_bits());
     }
-    assert_eq!(xsf::pmv(1, 2.0, 0.0).to_bits(), (-0.0_f64).to_bits());
-    assert_eq!(xsf::pmv(1, 2.0, -0.0).to_bits(), 0.0_f64.to_bits());
+    assert_eq!(xsf::assoc_legendre_p(2.0, 1, 0.0).to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(xsf::assoc_legendre_p(2.0, 1, -0.0).to_bits(), 0.0_f64.to_bits());
 
     // At these exact midpoints, the higher powers of x decrease the magnitude.
     for (m, v, input, expected) in [(0, 3.0, 1, 1), (0, 3.0, 3, 4), (2, 5.0, 1, 52)] {
         let x = f64::from_bits(input);
         let value = f64::from_bits(expected);
-        assert_eq!(xsf::pmv(m, v, x).to_bits(), (-value).to_bits());
-        assert_eq!(xsf::pmv(m, v, -x).to_bits(), value.to_bits());
+        assert_eq!(xsf::assoc_legendre_p(v, m, x).to_bits(), (-value).to_bits());
+        assert_eq!(xsf::assoc_legendre_p(v, m, -x).to_bits(), value.to_bits());
     }
 
     // Control a negative-order subnormal and a point beside a nonzero root.
-    assert_eq!(xsf::pmv(-1, 4.0, f64::from_bits(4)).to_bits(), (-DENORM_MIN).to_bits());
-    assert!(xsf::pmv(0, 8.0, 0.183_434_642_495_649_8) < 0.0);
+    assert_eq!(
+        xsf::assoc_legendre_p(4.0, -1, f64::from_bits(4)).to_bits(),
+        (-DENORM_MIN).to_bits()
+    );
+    assert!(xsf::assoc_legendre_p(8.0, 0, 0.183_434_642_495_649_8) < 0.0);
 }
 
 #[test]
@@ -1100,7 +1103,7 @@ fn test_pmv_near_quadratic_roots() {
         (2, 4.0, 0.377_964_473_009_227_2, -1.007_856_759_034_359_7e-15),
         (2, 4.0, 0.377_964_473_009_227_25, 8.804_551_128_788_495e-16),
     ] {
-        let values = [xsf::pmv(m, v, x), xsf::pmv(m, v, -x)];
+        let values = [xsf::assoc_legendre_p(v, m, x), xsf::assoc_legendre_p(v, m, -x)];
         xsref::np_assert_allclose!(values, [expected; 2], rtol = 4e-15, atol = 0.0);
     }
 }
@@ -1114,7 +1117,7 @@ fn test_pmv_near_cubic_roots() {
         (2, 5.0, 0.577_350_269_189_625_7, -2.341_519_651_754_944e-15),
         (2, 5.0, 0.577_350_269_189_625_8, 5.430_041_520_621_152e-15),
     ] {
-        let values = [xsf::pmv(m, v, x), xsf::pmv(m, -v - 1.0, -x)];
+        let values = [xsf::assoc_legendre_p(v, m, x), xsf::assoc_legendre_p(-v - 1.0, m, -x)];
         xsref::np_assert_allclose!(values, [expected, -expected], rtol = 4e-15, atol = 0.0);
     }
 }
@@ -1128,21 +1131,21 @@ fn test_pmv_recovers_large_integer_order() {
         (85, 88.0, -0.011_235_955_056_179_775, -1.092_725_758_066_391_4e155),
         (300, 302.0, 0.999, 4.852_603_868_143_226e303),
     ] {
-        let values = [xsf::pmv(m, n, x), xsf::pmv(m, -n - 1.0, x)];
+        let values = [xsf::assoc_legendre_p(n, m, x), xsf::assoc_legendre_p(-n - 1.0, m, x)];
         xsref::np_assert_allclose!(values, [expected; 2], rtol = 2e-15);
     }
-    assert_eq!(xsf::pmv(149, 151.0, 0.470_356_464_439_710_46), -1e300);
-    assert_eq!(xsf::pmv(85, 88.0, -0.0).to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(xsf::assoc_legendre_p(151.0, 149, 0.470_356_464_439_710_46), -1e300);
+    assert_eq!(xsf::assoc_legendre_p(88.0, 85, -0.0).to_bits(), (-0.0_f64).to_bits());
 }
 
 #[test]
 fn test_pmv_recovers_large_integer_diagonal() {
     // Arb at the exact binary64 inputs.
     let expected = 1.133_856_296_761_002_7e155;
-    assert_eq!(xsf::pmv(86, 86.0, 0.01), expected);
-    assert_eq!(xsf::pmv(86, -87.0, -0.01), expected);
+    assert_eq!(xsf::assoc_legendre_p(86.0, 86, 0.01), expected);
+    assert_eq!(xsf::assoc_legendre_p(-87.0, 86, -0.01), expected);
     let x = f64::from_bits(1.0_f64.to_bits() - 1);
-    assert_eq!(xsf::pmv(87, 87.0, x).to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(xsf::assoc_legendre_p(87.0, 87, x).to_bits(), (-0.0_f64).to_bits());
 }
 
 #[test]
@@ -1152,17 +1155,17 @@ fn test_pmv_diagonal_with_underflowing_normalization() {
         (0.9999, -4.133_152_049_875_893_6e-5),
         (1.0 - 2.0_f64.powi(-30), -6.367_365_808_470_012e-219),
     ] {
-        assert_eq!(xsf::pmv(85, 85.0, x), expected);
-        assert_eq!(xsf::pmv(85, -86.0, -x), expected);
+        assert_eq!(xsf::assoc_legendre_p(85.0, 85, x), expected);
+        assert_eq!(xsf::assoc_legendre_p(-86.0, 85, -x), expected);
     }
 }
 
 #[test]
 fn test_pmv_large_m() {
     // NaN in xsf, which overflows `-m`
-    assert!(xsf::pmv(i32::MIN, 0.5, 0.5).is_nan());
+    assert!(xsf::assoc_legendre_p(0.5, i32::MIN, 0.5).is_nan());
     // no `int` overflow of `j * j` in `lpmv0`
-    let _ = xsf::pmv(50_000, 0.5, 0.5);
+    let _ = xsf::assoc_legendre_p(0.5, 50_000, 0.5);
 }
 
 #[test]
