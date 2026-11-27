@@ -167,7 +167,6 @@ class Synthetic(unittest.TestCase):
         # a new test in the same file excuses a removed one (a rename), also an unrelated one
         two = "#[test]\nfn a() {}\n\n#[test]\nfn b() {}\n"
         self.one(two, two.replace("fn b", "fn c"), [])
-        self.one(BEFORE, BEFORE.replace("test_g", "test_h"), [])
         # but not a test that only lost its attribute, even with a new test
         orphan = two.replace("#[test]\nfn b() {}", "fn b() {}\n\n#[test]\nfn c() {}")
         self.one(two, orphan, [f"{F}: removed test `b`"])
@@ -176,6 +175,26 @@ class Synthetic(unittest.TestCase):
         # a move to another file
         moved: Files = {F: no_g, "tests/y.rs": "#[test]\nfn test_g() {}\n"}
         self.assertEqual(self.check({F: BEFORE}, moved), [])
+        # a test of that name in another file that already had it is no move
+        smoke = "#[test]\nfn smoke() {}\n"
+        a, b = "tests/a.rs", "tests/b.rs"
+        self.assertEqual(
+            self.check({a: smoke, b: smoke}, {a: "", b: smoke}),
+            [f"{a}: removed test `smoke`"],
+        )
+        # equal names in two modules of one file
+        mods = "mod m {\n#[test]\nfn t() {}\n}\nmod n {\n#[test]\nfn t() {}\n}\n"
+        one = mods.replace("#[test]\nfn t() {}\n", "", 1)
+        self.one(mods, one, [f"{F}: removed test `t`"])
+        # a deleted file
+        self.assertEqual(
+            self.check({F: BEFORE}, {F: None, "tests/y.rs": ""}),
+            [
+                f"{F}: removed test `test_f`",
+                f"{F}: removed test `test_g`",
+                f"{F}: removed 2 rows of a test table",
+            ],
+        )
         # an entry of `xsref::tests!`, keyed by its name: a changed body is no removal
         self.one('a: "x",\nb: "y",\n', 'a: "x",\n', [f"{F}: removed test `b`"])
         self.one('a: "x", f(1)\n', 'a: "x", f(2)\n', [])

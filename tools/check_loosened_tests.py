@@ -14,8 +14,8 @@ reports with file and line:
 - a new property-test exclusion (`prop_assume!`, `prop_filter`, `if` or `unless` clause of a
   property, `// known:` comment) in `tests/properties`
 - a new `#[ignore]`
-- a removed test (a `#[test]` function or an entry of `xsref::tests!`) that is a test in no changed
-  file anymore, by name, unless the file has a new test (a rename) and the function remains no more
+- a removed test (`#[test]` fn or `xsref::tests!` entry), unless a changed file gains a test of that
+  name (a move), or a new test replaces it in the same file (a rename)
 - removed rows of a test table, whose inputs no added row has
 - a removed xsref table, or a removed row or a larger tolerance or scale of one
   (`tests/data/xsref`)
@@ -30,6 +30,7 @@ import re
 import struct
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from functools import cache
@@ -88,8 +89,11 @@ class Hunk:
 
 
 def git(*args: str) -> bytes:
-    # unquoted paths
-    cmd = ["git", "-c", "core.quotePath=false", *args]
+    top = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True
+    ).stdout.strip()
+    # from the repository root, with unquoted paths
+    cmd = ["git", "-C", top.decode(), "-c", "core.quotePath=false", *args]
     return subprocess.run(cmd, check=True, capture_output=True).stdout
 
 
@@ -119,9 +123,10 @@ def hunks(diff: str) -> list[Hunk]:
 
 def blob(rev: str, path: str) -> str:
     """The text of a file at a revision, which is empty if there is none"""
-    cmd = ["git", "show", f"{rev}:{path}"]
-    out = subprocess.run(cmd, check=False, capture_output=True).stdout
-    return out.decode(errors="replace")
+    try:
+        return git("show", f"{rev}:{path}").decode(errors="replace")
+    except subprocess.CalledProcessError:
+        return ""
 
 
 @cache
@@ -135,23 +140,28 @@ def test_start(rev: str, path: str) -> int:
     return sys.maxsize
 
 
-def test_names(rev: str, path: str) -> dict[str, int]:
-    """The line of each test of a file: a `#[test]` function by name, or an `xsref::tests!` entry"""
+def test_names(rev: str, path: str) -> dict[str, list[int]]:
+    """The lines of the tests of a file by name: `#[test]` functions and `xsref::tests!` entries
+
+    Tests of a `macro_rules` body (`#[test] fn $name` in `tests/properties/macros.rs`) are not
+    keyed by name, so removing a `property!(...)` call is not flagged.
+    """
     lines = blob(rev, path).split("\n")
-    names: dict[str, int] = {}
+    start = test_start(rev, path)
+    names: dict[str, list[int]] = {}
     for i, text in enumerate(lines, 1):
-        if i < test_start(rev, path):
+        if i < start:
             continue
         if text.strip() == "#[test]":
             # the function follows, possibly after other attributes and doc comments
             for after in lines[i:]:
                 if m := FN.match(after):
-                    names.setdefault(m[1], i)
+                    names.setdefault(m[1], []).append(i)
                     break
                 if not after.strip().startswith(("#[", "//")):
                     break
         elif m := TEST_ENTRY.match(text):
-            names.setdefault(m[1], i)
+            names.setdefault(m[1], []).append(i)
     return names
 
 
@@ -230,19 +240,29 @@ def check_code(diff: str, base: str, head: str) -> list[Finding]:
         gone_rows += [(h.path, ln) for ln in removed if is_row(ln.text)]
         added_rows |= {inputs(ln.text) for ln in added if is_row(ln.text)}
 
-    # a test that is moved to another file is not removed
-    kept = {name for path in paths for name in test_names(head, path)}
-    for path in paths:
-        old, new = test_names(base, path), test_names(head, path)
-        text = blob(head, path)
-        gone = [(n, ln) for n, ln in old.items() if n not in kept]
-        # a removed test is renamed if the file has a new test, unless its function remains
-        renames = sum(n not in old for n in new)
-        for name, line in gone:
-            if re.search(rf"\bfn\s+{name}\b", text) or renames <= 0:
-                out.append(Finding(path, line, f"removed test `{name}`"))
+    names = {p: (test_names(base, p), test_names(head, p)) for p in paths}
+    gone: dict[str, list[tuple[str, int]]] = {}
+    new: dict[str, Counter[str]] = {}
+    for path, (old, cur) in names.items():
+        before = Counter({n: len(v) for n, v in old.items()})
+        after = Counter({n: len(v) for n, v in cur.items()})
+        left, new[path] = before - after, after - before
+        gone[path] = [(n, ln) for n, k in left.items() for ln in old[n][-k:]]
+    for path, lost in gone.items():
+        text = blob(head, path) if lost else ""
+        for name, line in lost:
+            # a move gives the name to another changed file
+            if mover := next(
+                (p for p in paths if p != path and new[p][name] > 0), None
+            ):
+                new[mover][name] -= 1
+            # a rename gives a new name to the file, unless the function remains
+            elif not re.search(rf"\bfn\s+{name}\b", text) and (
+                fresh := next(iter(+new[path]), None)
+            ):
+                new[path][fresh] -= 1
             else:
-                renames -= 1
+                out.append(Finding(path, line, f"removed test `{name}`"))
     if missing := [(p, ln) for p, ln in gone_rows if inputs(ln.text) not in added_rows]:
         path, ln = missing[0]
         out.append(
