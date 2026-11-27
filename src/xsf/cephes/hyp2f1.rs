@@ -36,6 +36,9 @@ const HYP2F1_RECIP_MAX_ERR: f64 = 1.0e-13;
 /// if a sum is only rounding error, then its estimate is about 1/2 to 1.
 pub(crate) const HYP2F1_LOST: f64 = 0.5;
 const HYP2F1_MAXITER: u64 = 10000;
+/// The largest distance of `c` to a negative integer for which the Euler transformation retries
+/// `hyp2f1_recur` (above 1.1e-7, that of the known failures it fixes)
+const HYP2F1_EULER_NEAR_POLE: f64 = 1e-6;
 /// About `sqrt(f64::MAX)`, to rescale tiny terms exactly, far from overflow and underflow
 const HYP2F1_SCALE: f64 = pow2(512);
 
@@ -1209,15 +1212,36 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // to a negative integer, where `y` is a polynomial) loses a part of the result that
         // isn't proportional to `1 / c`.
         let tiny_c = c.abs() < HYP2F1_EPS;
+        let c_dd = Dd::new(c);
+        // `s^d y` if accurate (in double-double, as a large `d` amplifies the rounding of `d` and
+        // `s`)
+        let times_p = |y: Scaled| {
+            let ln_p = (c_dd - a - b) * ln_dd(Dd::ONE - x);
+            Some(y.mul_exp(ln_p).to_f64()).filter(accurate)
+        };
         let rescale = |y: Scaled| {
-            // (in double-double, as a large `d` amplifies the rounding of `d` and `s`)
-            let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::ONE - x);
-            let scaled = Some(y.mul_exp(ln_p).to_f64());
             let large = |&(y, _): &(f64, f64)| y.abs() * HYP2F1_ETHRESH >= 1.0;
-            scaled.filter(accurate).filter(large).map(|(y, _)| y)
+            times_p(y).filter(large).map(|(y, _)| y)
         };
         if tiny_c && y.is_infinite() {
             if let Some(y) = recur_first(c - a, c - b, c).and_then(rescale) {
+                return y;
+            }
+        }
+        // Unlike in xsf, if `hyp2f1_recur` was inaccurate above, also try `s^d y` by `hyp2f1_recur`
+        // with `c - a` and `c - b` in double-double for x < -1 and `c` within
+        // `HYP2F1_EULER_NEAR_POLE` of a pole of `1 / (c)_k`, and so close that the rounding of `c`
+        // over its distance to it exceeds `HYP2F1_ETHRESH`:
+        // if either rounds, which can then dominate the error of `y`, or if `y` isn't finite (as
+        // above for a tiny `c`). Its steps aren't symmetric under this transformation, so they
+        // can be accurate where those for `F(a, b; c; x)` aren't.
+        let dist = (c - ic).abs();
+        let sensitive = c < 0.0
+            && dist <= HYP2F1_EULER_NEAR_POLE
+            && dist * HYP2F1_ETHRESH < c.abs() * f64::EPSILON;
+        let rounds = [a, b].into_iter().any(|t| two_sum(c, -t).1 != 0.0);
+        if inexact.is_some() && x < -1.0 && sensitive && (rounds || !y.is_finite()) {
+            if let Some((y, _)) = hyp2f1_recur(c_dd - a, c_dd - b, c_dd, x).and_then(times_p) {
                 return y;
             }
         }

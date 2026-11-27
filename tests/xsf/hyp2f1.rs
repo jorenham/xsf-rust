@@ -3243,6 +3243,23 @@ fn test_hyp2f1_f64_c_near_pole() {
         -3.855_317_161_553_812e-40,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
+    // within 2e-7 of -n for x < -1, where c - a rounds in f64 or the inner value of its Euler
+    // transformation overflows
+    let actual = [
+        xsf::hyp2f1(53.0, 100.0, -85.999_999_973_862_9, -34.218_450_427_661_224),
+        xsf::hyp2f1(94.0, 153.0, -162.000_000_000_010_03, -80.0),
+        xsf::hyp2f1(141.0, 76.0, -17.999_999_999_995_52, -19.635_009_106_856_785),
+        xsf::hyp2f1(36.0, 169.0, -178.999_999_999_999_9, -8.041_696_905_017_71),
+        xsf::hyp2f1(196.0, 14.0, -250.000_000_108_347_34, -4.612_970_704_621_195),
+    ];
+    let desired = [
+        -1.546_486_110_681_982_4e-66,
+        -5.597_410_506_524_096e-147,
+        4.303_649_573_665_783_5e-113,
+        3.616_623_065_214_236e-22,
+        1.063_885_666_340_481_9e-5,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 2e-14);
     // where the Pfaff power factor underflows, or a is near (not at) an integer that would
     // terminate the series
     let c = -1.0 + 2f64.powi(-45);
