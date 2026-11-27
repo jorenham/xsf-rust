@@ -2354,11 +2354,11 @@ pub(super) fn hypu_neg_x(x: f64, a: f64, b: f64) -> f64 {
         return f64::NAN;
     }
     let sign = (-1.0_f64).powf(m);
-    // the leading term
+    // |x|^m dominates
     if x == f64::NEG_INFINITY {
         return x.powf(m);
     }
-    // (up to 1/MACHEP = 2^53, a + j is exact)
+    // the terms after t_0 (a + j is exact up to m = 1/MACHEP = 2^53)
     let n = if b.fract() == 0.0 && m <= 1.0 / MACHEP && (1.0 - m..=0.0).contains(&b) {
         m + b - 1.0
     } else {
