@@ -1,10 +1,10 @@
 name: domain-diff
 permissions: {}
 
+# (no path filter: GitHub filters the files of the PR, not those of the merge commit, and
+# domain_diff.py exits at once if no function is affected)
 on:
   pull_request:
-    paths:
-      - "src/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -33,13 +33,18 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           cache-workspaces: tools/accuracy
+          # (the lint job checks the warnings)
+          build-warnings: warn
 
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
 
+      - run: uv sync --project tools
+
       # the references are keyed by their input and sources, so a stale file is only unused
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - id: restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tools/accuracy/.cache/domain-diff
           key: domain-diff-${{ github.run_id }}
@@ -48,6 +53,7 @@ jobs:
       # Compares the merge commit with the base tip for the functions that depend on the changed
       # files of src/. Exit code 1 is a regression. Exit code 2 is a comparison that could not be
       # made (e.g. a new function, which the base lacks, or a missing reference), which only warns.
+      # Its last line tells these from a failure of the script itself (e.g. a build error).
       - name: domain-diff
         run: |
           code=0
@@ -58,14 +64,33 @@ jobs:
             echo "## Accuracy over whole domains"
             cat "$RUNNER_TEMP/table.md"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$code" = 1 ]; then
-            echo "::error::A function got less accurate over a domain (see the job summary and the artifact domain-diff)"
-          elif [ "$code" = 2 ]; then
-            echo "::warning::The comparison is incomplete (see the job summary)"
-          elif [ "$code" != 0 ]; then
-            echo "::error::domain_diff.py failed with exit code $code"
-          fi
+          case "$code:$(tail -n 1 "$RUNNER_TEMP/table.md")" in
+            0:*) ;;
+            1:*FAIL)
+              echo "::error::A function got less accurate over a domain (see the job summary and the artifact domain-diff)"
+              ;;
+            2:*INCONCLUSIVE) echo "::warning::The comparison is incomplete (see the job summary)" ;;
+            *)
+              echo "::error::domain_diff.py failed with exit code $code"
+              code=1
+              ;;
+          esac
           [ "$code" = 0 ] || [ "$code" = 2 ]
+
+      # (only with new references; the cache of a PR is not read by other PRs)
+      - id: key
+        if: always()
+        run: |
+          if [ -d tools/accuracy/.cache/domain-diff ]; then
+            hash=$(find tools/accuracy/.cache/domain-diff -type f | sort | sha256sum | cut -c1-16)
+            echo "key=domain-diff-$hash" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: always() && steps.key.outputs.key && steps.key.outputs.key != steps.restore.outputs.cache-matched-key
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/accuracy/.cache/domain-diff
+          key: ${{ steps.key.outputs.key }}
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

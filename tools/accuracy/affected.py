@@ -1,13 +1,17 @@
 """The specs of `specs.py` whose Rust sources depend on changed files of `src/`.
 
 A coarse, conservative approximation: the file of a function depends on the files whose
-top-level public items it uses by name (a call that is not a method call, or a capitalized
-name), and a spec is affected if its function is defined in a changed file or in a file that
-it depends on (transitively). A spec whose function is not defined by name (e.g. `pmv`) depends
-on every file. Files of only `mod`/`pub use` lines (re-exports) are skipped.
+top-level public items it names (other than as a method or field after a `.`), and a spec is
+affected if its function is defined or re-exported in a changed file or in a file that it
+depends on (transitively). A spec whose function is not defined by name (e.g. `pmv`), and a
+changed file of `src/` that is not a Rust source of the revision (e.g. a deleted one), affect
+every spec.
 """
 
+import io
 import re
+import subprocess
+import tarfile
 from pathlib import Path
 
 import specs
@@ -16,40 +20,61 @@ import accuracy
 
 SRC = accuracy.ROOT / "src"
 ITEM = r"(?:const\s+|unsafe\s+)*(?:fn|const|static|struct|enum|trait|type)\s+(\w+)"
-# a call (also of a generic function) that is not a method call, or a type or constant
-USE = re.compile(r"(?<![.\w])(\w+)\b(?=\s*(?:::<[^>]*>)?\()|\b([A-Z]\w*)\b")
+PUB = r"\bpub(?:\([^)]*\))?\s+"
+REEXPORT = re.compile(rf"{PUB}use\b[^;]*;")
+MOD = re.compile(rf"(?:{PUB})?mod\s+\w+\s*;")
+# a name, also of a function passed as a value, that is not a method or field
+USE = re.compile(r"(?<![.\w'])([A-Za-z_]\w*)")
 
 
-def graph() -> tuple[dict[str, set[Path]], dict[Path, set[Path]]]:
-    """The files that define each function name, and the files that each file depends on."""
-    texts = {p: p.read_text() for p in sorted(SRC.rglob("*.rs"))}
-    # (a re-export hub has no function)
-    texts = {
-        p: t
-        for p, t in texts.items()
-        if re.search(r"\bfn\b", t) or p.name not in {"mod.rs", "lib.rs"}
-    }
+def sources(rev: str | None) -> dict[Path, str]:
+    """The Rust sources of `src/` in the working tree (`rev` None), or in a commit."""
+    if rev is None:
+        return {p: p.read_text() for p in sorted(SRC.rglob("*.rs"))}
+    tar = subprocess.check_output(
+        ["git", "-C", str(accuracy.ROOT), "archive", rev, "--", "src"]
+    )
+    texts = {}
+    with tarfile.open(fileobj=io.BytesIO(tar)) as t:
+        for m in t.getmembers():
+            # (None if not a file)
+            if (f := t.extractfile(m)) and m.name.endswith(".rs"):
+                texts[accuracy.ROOT / m.name] = f.read().decode()
+    return texts
+
+
+def graph(rev: str | None) -> tuple[dict[str, set[Path]], dict[Path, set[Path]]]:
+    """The files that define or re-export each name, and the files that each file depends on."""
+    texts = {p: re.sub(r"//.*", "", t) for p, t in sources(rev).items()}
     defs: dict[str, set[Path]] = {}
     exports: dict[str, set[Path]] = {}
     for p, t in texts.items():
         # (`#[doc(alias = "...")]` names the functions that have no Rust name, like `pmv`)
         for m in re.finditer(r'\bfn\s+(\w+)|\balias\s*=\s*"(\w+)"', t):
             defs.setdefault(m[1] or m[2], set()).add(p)
-        for m in re.finditer(rf"^pub(?:\(\w+\))?\s+{ITEM}", t, re.MULTILINE):
+        for m in REEXPORT.finditer(t):
+            for name in re.findall(r"\w+", m[0]):
+                defs.setdefault(name, set()).add(p)
+        for m in re.finditer(rf"^{PUB}{ITEM}", t, re.MULTILINE):
             exports.setdefault(m[1], set()).add(p)
     deps = {}
     for p, t in texts.items():
-        used = {a or b for a, b in USE.findall(re.sub(r"//.*", "", t))}
+        # (a module or its re-exports don't use what they name, or a module would depend on all
+        # its items)
+        used = set(USE.findall(MOD.sub("", REEXPORT.sub("", t))))
         deps[p] = {q for n in used for q in exports.get(n, ())} - {p}
     return defs, deps
 
 
-def affected(changed: list[Path]) -> list[str]:
-    """The names of the functions of the specs that the changed files can affect."""
-    defs, deps = graph()
+def affected(changed: list[Path], rev: str | None = None) -> list[str]:
+    """The names of the functions of the specs that the changed files of `rev` can affect."""
+    defs, deps = graph(rev)
+    funcs = list(dict.fromkeys(s.func for s in specs.SPECS))
     changed_set = set(changed)
+    if changed_set - set(deps):
+        return funcs
     names: list[str] = []
-    for name in dict.fromkeys(s.func for s in specs.SPECS):
+    for name in funcs:
         roots = defs.get(re.split(r"[.\[]", name)[0], set(deps))
         seen, todo = set(roots), list(roots)
         while todo:

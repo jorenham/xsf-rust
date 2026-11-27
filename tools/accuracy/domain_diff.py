@@ -334,8 +334,8 @@ def main() -> None:
     ap.add_argument(
         "--max-inputs",
         type=positive,
-        help="lower --points to a power of 2 (at least MIN_POINTS) so that all domains have"
-        " at most this many inputs",
+        help="lower --points to a power of 2 so that all domains have at most this many"
+        " inputs (at least MIN_POINTS per domain)",
     )
     ap.add_argument(
         "--max-refs",
@@ -349,23 +349,29 @@ def main() -> None:
     )
     opts = ap.parse_args()
     only = set(opts.only)
+    if unknown := only - {n for s in specs.SPECS for n in (s.name, s.func)}:
+        ap.error(f"unknown spec or function: {', '.join(sorted(unknown))}")
+    chosen = [s for s in specs.SPECS if not only or only & {s.name, s.func}]
     if opts.affected:
+        # (both sides of a rename, and with no --head also the untracked files)
+        git = ["git", "-C", str(accuracy.ROOT)]
         revs = [opts.base, *([opts.head] if opts.head else [])]
-        diff = ["git", "-C", str(accuracy.ROOT), "diff", "--name-only", "-z", *revs]
-        out = subprocess.check_output([*diff, "--", "src"], text=True)
+        diff = [*git, "diff", "--name-only", "--no-renames", "-z", *revs, "--", "src"]
+        out = subprocess.check_output(diff, text=True)
+        if not opts.head:
+            new = [*git, "ls-files", "-oz", "--exclude-standard", "--", "src"]
+            out += subprocess.check_output(new, text=True)
         files = [accuracy.ROOT / f for f in out.split("\0") if f]
-        only |= set(affected.affected(files))
-        if not only:
+        names = set(affected.affected(files, opts.head))
+        chosen = [s for s in chosen if names & {s.name, s.func}]
+        if not chosen:
             print("no function is affected")
             sys.exit(0)
-    chosen = [s for s in specs.SPECS if not only or only & {s.name, s.func}]
-    if unknown := only - {n for s in chosen for n in (s.name, s.func)}:
-        ap.error(f"unknown spec or function: {', '.join(sorted(unknown))}")
     if opts.max_inputs:
         each = opts.max_inputs // sum(len(s.domains) for s in chosen)
-        opts.points = min(
-            opts.points, max(MIN_POINTS, 1 << max(each.bit_length() - 1, 0))
-        )
+        if each < MIN_POINTS:
+            ap.error(f"--max-inputs is below {MIN_POINTS} inputs per domain")
+        opts.points = min(opts.points, 1 << (each.bit_length() - 1))
     fuzz_diff.CACHE.mkdir(parents=True, exist_ok=True)
     exes = [fuzz_diff.program(opts.base), fuzz_diff.program(opts.head)]
     mp.mp.dps = specs.DPS
