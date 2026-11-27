@@ -38,15 +38,16 @@ fn sqrt_scaled(radicand: u64, fractional_bits: usize) -> [u64; AIRY_ROOT_WORDS] 
 // Reduce (2/3) x^(3/2) + pi/4 in the Airy asymptotic expansion.
 #[cold]
 pub(in crate::xsf) fn reduce_airy_phase(x: f64) -> Option<(Quadrant, f64)> {
-    let (m, exponent) = decompose(x);
-    if exponent < 0 || !x.is_finite() || x.is_sign_negative() {
+    // (x >= 1 keeps d + 53 + 195 > 0 below)
+    if !(1.0..=f64::MAX).contains(&x) {
         return None;
     }
-    let e = exponent as usize;
-    let d = e + e / 2;
+    let (m, e) = decompose(x);
+    // x^(3/2) = m sqrt(m 2^(e mod 2)) 2^d
+    let d = e + e.div_euclid(2);
     // The 53-bit mantissa times the square root error costs < 2^-195 quadrants.
-    let frac_bits = (d + 53 + 195).next_multiple_of(64);
-    let mut root = sqrt_scaled(m << (e % 2), frac_bits);
+    let frac_bits = ((d + 53 + 195) as usize).next_multiple_of(64);
+    let mut root = sqrt_scaled(m << e.rem_euclid(2), frac_bits);
     // Reserve 27 integer bits for the root and 54 for twice the significand.
     let digits = &mut root[..(frac_bits + 81).div_ceil(64)];
 
@@ -75,7 +76,7 @@ pub(in crate::xsf) fn reduce_airy_phase(x: f64) -> Option<(Quadrant, f64)> {
         product[i + reciprocal.len()] = carry as u64;
     }
 
-    let shift = RECIPROCAL_BITS as usize + frac_bits - d;
+    let shift = (RECIPROCAL_BITS - d) as usize + frac_bits;
     let (word, bit) = (shift / 64, shift % 64);
     let words = product.get(word - 3..)?.first_chunk()?;
     let window = read_quadrant_window(words, bit);
