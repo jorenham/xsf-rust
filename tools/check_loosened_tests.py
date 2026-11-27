@@ -14,7 +14,8 @@ reports with file and line:
 - a new property-test exclusion (`prop_assume!`, `prop_filter`, `if` or `unless` clause of a
   property, `// known:` comment) in `tests/properties`
 - a new `#[ignore]`
-- fewer tests (`#[test]` or an entry of `xsref::tests!`) than before
+- a removed test (a `#[test]` function or an entry of `xsref::tests!`) that is a test in no changed
+  file anymore, by name
 - removed rows of a test table, whose inputs no added row has
 - a removed xsref table, or a removed row or a larger tolerance or scale of one
   (`tests/data/xsref`)
@@ -29,14 +30,13 @@ import re
 import struct
 import subprocess
 import sys
-from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
 EPSILON = 2.0**-52
-# the largest tolerance that a comparison `.abs() < NUM` is taken to be
+# numbers below this are tolerances
 SMALL = 0.1
 XSREF = "tests/data/xsref/"
 PROPERTIES = "tests/properties/"
@@ -59,6 +59,7 @@ EXCLUSION = re.compile(
 TEST_ENTRY = re.compile(r"^\s*(\w+):\s*\"")
 # the words of a table row that are numbers
 ROW_WORD = re.compile(r"f64::[A-Z_]+|_f64|inf|nan|NAN|INFINITY")
+FN = re.compile(r"\s*(?:(?:pub(?:\([^)]*\))?|async|unsafe|const)\s+)*fn\s+(\w+)")
 ROW = re.compile(r"\s*[(\[][\d\s.,_+\-eE()\[\]]*\d[\d\s.,_+\-eE()\[\]]*[)\]],?\s*")
 TOKEN = re.compile(NUM)
 
@@ -116,16 +117,42 @@ def hunks(diff: str) -> list[Hunk]:
     return out
 
 
+def blob(rev: str, path: str) -> str:
+    """The text of a file at a revision, which is empty if there is none"""
+    cmd = ["git", "show", f"{rev}:{path}"]
+    out = subprocess.run(cmd, check=False, capture_output=True).stdout
+    return out.decode(errors="replace")
+
+
 @cache
 def test_start(rev: str, path: str) -> int:
     """The first line of the test code of a file, which is the whole file in a test directory"""
     if path.startswith(("tests/", "testing/")):
         return 0
-    text = git("show", f"{rev}:{path}").decode(errors="replace")
-    for i, line in enumerate(text.split("\n"), 1):
+    for i, line in enumerate(blob(rev, path).split("\n"), 1):
         if line.strip() == "#[cfg(test)]":
             return i
     return sys.maxsize
+
+
+def test_names(rev: str, path: str) -> dict[str, int]:
+    """The line of each test of a file: a `#[test]` function by name, or an `xsref::tests!` entry"""
+    lines = blob(rev, path).split("\n")
+    names: dict[str, int] = {}
+    for i, text in enumerate(lines, 1):
+        if i < test_start(rev, path):
+            continue
+        if text.strip() == "#[test]":
+            # the function follows, possibly after other attributes and doc comments
+            for after in lines[i:]:
+                if m := FN.match(after):
+                    names.setdefault(m[1], i)
+                    break
+                if not after.strip().startswith(("#[", "//")):
+                    break
+        elif TEST_ENTRY.match(text):
+            names.setdefault(text.strip(), i)
+    return names
 
 
 def test_lines(rev: str, path: str, lines: list[Line]) -> list[Line]:
@@ -137,10 +164,6 @@ def is_row(text: str) -> bool:
     return ROW.fullmatch(ROW_WORD.sub("", text.split("//")[0])) is not None
 
 
-def is_test(text: str) -> bool:
-    return text.strip() == "#[test]" or TEST_ENTRY.match(text) is not None
-
-
 def numbers(text: str) -> tuple[float, ...]:
     """The number literals of a line, where a multiple of `EPSILON` is its value"""
 
@@ -149,6 +172,15 @@ def numbers(text: str) -> tuple[float, ...]:
 
     text = EPSILON_MULTIPLE.sub(multiple, text.split("//")[0])
     return tuple(float(t.replace("_", "")) for t in TOKEN.findall(text))
+
+
+def inputs(text: str) -> tuple[float, ...]:
+    """The inputs of a table row: all its numbers but the last"""
+    return numbers(text)[:-1]
+
+
+def plural(n: int, noun: str) -> str:
+    return f"{n} {noun}" + "s" * (n != 1)
 
 
 def shape(text: str) -> str:
@@ -176,12 +208,12 @@ def loosened(path: str, removed: list[Line], added: list[Line]) -> Iterator[Find
 
 def check_code(diff: str, base: str, head: str) -> list[Finding]:
     out: list[Finding] = []
-    gone_tests: list[tuple[str, Line]] = []
-    n_added_tests: Counter[str] = Counter()  # by file
     gone_rows: list[tuple[str, Line]] = []
     # a row with the same inputs as a removed one only gets other outputs
     added_rows: set[tuple[float, ...]] = set()
-    for h in hunks(diff):
+    all_hunks = hunks(diff)
+    paths = dict.fromkeys(h.path for h in all_hunks)
+    for h in all_hunks:
         removed = test_lines(base, h.path, h.removed)
         added = test_lines(head, h.path, h.added)
         out.extend(loosened(h.path, removed, added))
@@ -195,23 +227,22 @@ def check_code(diff: str, base: str, head: str) -> list[Finding]:
                 and EXCLUSION.search(ln.text)
             ):
                 out.append(Finding(h.path, ln.no, "property-test exclusion"))
-        gone_tests += [(h.path, ln) for ln in removed if is_test(ln.text)]
-        n_added_tests[h.path] += sum(is_test(ln.text) for ln in added)
         gone_rows += [(h.path, ln) for ln in removed if is_row(ln.text)]
-        added_rows |= {numbers(ln.text)[:-1] for ln in added if is_row(ln.text)}
+        added_rows |= {inputs(ln.text) for ln in added if is_row(ln.text)}
 
-    # a test that is renamed in its file is not removed; one that is moved is
-    for path in dict.fromkeys(p for p, _ in gone_tests):
-        gone = [ln for p, ln in gone_tests if p == path][n_added_tests[path] :]
-        if gone:
-            out.append(
-                Finding(path, gone[0].no, f"removed {plural(len(gone), 'test')}")
-            )
-    if gone_r := [r for r in gone_rows if numbers(r[1].text)[:-1] not in added_rows]:
-        path, ln = gone_r[0]
+    # a test that is moved to another file is not removed; one that is renamed is
+    kept = {name for path in paths for name in test_names(head, path)}
+    for path in paths:
+        out.extend(
+            Finding(path, line, f"removed test `{name}`")
+            for name, line in test_names(base, path).items()
+            if name not in kept
+        )
+    if missing := [(p, ln) for p, ln in gone_rows if inputs(ln.text) not in added_rows]:
+        path, ln = missing[0]
         out.append(
             Finding(
-                path, ln.no, f"removed {plural(len(gone_r), 'row')} of a test table"
+                path, ln.no, f"removed {plural(len(missing), 'row')} of a test table"
             )
         )
     return out
@@ -273,10 +304,6 @@ def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[F
                 )
             )
     return out
-
-
-def plural(n: int, noun: str) -> str:
-    return f"{n} {noun}" + "s" * (n != 1)
 
 
 def find(base: str, head: str) -> list[Finding]:

@@ -36,6 +36,8 @@ F = "tests/x.rs"
 BEFORE = TEST.format(rtol="1e-14", tol="1e-13")
 BIN = "tests/data/xsref/f/d-d.bin"
 ROWS: list[tuple[float, ...]] = [(1.0, 2.0, 1e-15, 0.0), (2.0, 3.0, 1e-15, 0.0)]
+# a line over 120 characters, with U+2028 (which is not a line break) above `#[cfg(test)]`
+LONG_LINE = 'const S: &str = "\u2028\u2028";' + " " * 100 + "\n"
 
 # file contents by path, where `None` deletes the file
 type Files = dict[str, str | bytes | None]
@@ -98,7 +100,7 @@ class Synthetic(unittest.TestCase):
     def one(self, before: str, after: str, expected: list[str], path: str = F) -> None:
         self.assertEqual(self.check({path: before}, {path: after}), expected)
 
-    def test_numbers(self) -> None:
+    def test_numbers_with_epsilon_multiples(self) -> None:
         self.assertEqual(
             c.numbers("let tol = 4.0 * f64::EPSILON; // 1e-3"), (4.0 * c.EPSILON,)
         )
@@ -112,10 +114,11 @@ class Synthetic(unittest.TestCase):
             ("e <= 2.0 * f64::EPSILON * y", "e <= 4.0 * f64::EPSILON * y"),
         ]:
             with self.subTest(old):
-                self.assertEqual(len(self.check({F: old + "\n"}, {F: new + "\n"})), 1)
+                (found,) = self.check({F: old + "\n"}, {F: new + "\n"})
+                self.assertRegex(found, rf"^{F}: tolerance [\d.e-]+ > [\d.e-]+$")
                 self.one(new + "\n", old + "\n", [])
 
-    def test_not_loosened(self) -> None:
+    def test_tolerances_that_are_not_loosened(self) -> None:
         self.one(BEFORE, BEFORE + "\n// c\n", [])
         self.one(BEFORE, TEST.format(rtol="1e-15", tol="1e-14"), [])
         # the output of a row is not a tolerance
@@ -129,8 +132,10 @@ class Synthetic(unittest.TestCase):
         )
 
     def test_src_tests_only(self) -> None:
-        # also with U+2028 above `#[cfg(test)]`, which is not a line break
-        code = 'const S: &str = "  ";\nfn f() {{ let rtol = {}; }}\n#[cfg(test)]\nmod t {{ fn t() {{ let rtol = {}; }} }}\n'
+        code = (
+            LONG_LINE
+            + "fn f() {{ let rtol = {}; }}\n#[cfg(test)]\nmod t {{ fn t() {{ let rtol = {}; }} }}\n"
+        )
         self.one(
             code.format("1e-14", "1e-14"),
             code.format("1e-3", "1e-13"),
@@ -147,22 +152,30 @@ class Synthetic(unittest.TestCase):
             path,
         )
 
-    def test_tests(self) -> None:
+    def test_removed_tests(self) -> None:
         no_g = BEFORE.replace("\n#[test]\nfn test_g() {}\n", "")
-        self.one(BEFORE, no_g, [f"{F}: removed 1 test"])
+        self.one(BEFORE, no_g, [f"{F}: removed test `test_g`"])
         # only the attribute
         self.one(
             BEFORE,
             BEFORE.replace("#[test]\nfn test_g", "fn test_g"),
-            [f"{F}: removed 1 test"],
+            [f"{F}: removed test `test_g`"],
         )
-        # a rename, a reordering of attributes, and a move to another file
-        self.one(BEFORE, BEFORE.replace("test_g", "test_h"), [])
+        # a reordering of attributes and doc comments
         doc = "#[test]\n#[should_panic]\nfn t() {}\n"
         self.one(doc, "#[should_panic]\n/// doc\n#[test]\nfn t() {}\n", [])
-        # a removal in one file is not replaced by an addition in another
+        # an added test does not replace a removed one
+        masked = "#[test]\nfn a() {}\n\n#[test]\nfn b() {}\n"
+        renamed = masked.replace("fn b", "fn c")
+        self.one(masked, renamed, [f"{F}: removed test `b`"])
+        # a rename is a removal, but a move to another file is not
+        self.one(
+            BEFORE, BEFORE.replace("test_g", "test_h"), [f"{F}: removed test `test_g`"]
+        )
         moved: Files = {F: no_g, "tests/y.rs": "#[test]\nfn test_g() {}\n"}
-        self.assertEqual(self.check({F: BEFORE}, moved), [f"{F}: removed 1 test"])
+        self.assertEqual(self.check({F: BEFORE}, moved), [])
+        # an entry of `xsref::tests!`
+        self.one('a: "x",\nb: "y",\n', 'a: "x",\n', [f'{F}: removed test `b: "y",`'])
 
     def test_ignored(self) -> None:
         self.one(
@@ -174,10 +187,10 @@ class Synthetic(unittest.TestCase):
         ignored: Files = {F: "", "tests/new.rs": "#[test]\n#[ignore]\nfn t() {}\n"}
         self.assertEqual(
             self.check({F: "#[test]\nfn t() {}\n"}, ignored),
-            ["tests/new.rs: ignored test", f"{F}: removed 1 test"],
+            ["tests/new.rs: ignored test"],
         )
 
-    def test_rows(self) -> None:
+    def test_removed_rows(self) -> None:
         self.one(
             BEFORE,
             BEFORE.replace("        (3.0, 4.0),\n", ""),
@@ -189,6 +202,11 @@ class Synthetic(unittest.TestCase):
             BEFORE.replace("(3.0, 4.0)", "(5.0, 4.0)"),
             [f"{F}: removed 1 row of a test table"],
         )
+        # a rewritten input is flagged, which is accepted
+        row = "(0.6, 1.0, 3.0),\n"
+        self.one(
+            row, row.replace("0.6", "0.65"), [f"{F}: removed 1 row of a test table"]
+        )
         # a new output for the same input
         self.one(BEFORE, BEFORE.replace("(3.0, 4.0)", "(3.0, 5.0)"), [])
 
@@ -196,16 +214,17 @@ class Synthetic(unittest.TestCase):
         f = "tests/properties/x.rs"
         base = "property!(no_panic, f(a in positive()));\n"
         found = [f"{f}: property-test exclusion"]
-        for new in [
+        guards = [
             "property!(no_panic, f(a in positive()) if a < 1e300);\n",
             "property!(checks::no_panic, f(x in positive()) if x > 1.0);\n",
             "property!(no_panic, f(x) if x > 0.0);\n",
-        ]:
-            with self.subTest(new):
-                self.one(base, base + new, found, f)
+        ]
+        for guard in guards:
+            with self.subTest(guard):
+                self.one(base, base + guard, found, f)
         # a match arm is not a guard, and a new file is a new test
         self.one(base, base + "    Some(w) if w > 0 => 1,\n", [], f)
-        self.assertEqual(self.check({"x": ""}, {f: base + new}), [])
+        self.assertEqual(self.check({"README.md": ""}, {f: base + guard}), [])
 
     def test_xsref(self) -> None:
         loose = [(1.0, 2.0, 1e-14, 0.0), ROWS[1]]
