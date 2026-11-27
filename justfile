@@ -28,6 +28,9 @@ pfq-map *args:
 fuzz-diff *args:
     uv run --project tools tools/accuracy/fuzz_diff.py {{ args }}
 
+domain-diff *args:
+    uv run --project tools tools/accuracy/domain_diff.py {{ args }}
+
 [working-directory("tools")]
 lint-py:
     uv run ruff check
