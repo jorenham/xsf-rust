@@ -247,6 +247,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`legendre`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre.html)                         |                                                     |
 | [`legendre_p`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre_p.html)                     | `legendre_p`                                        |
 | [`legendre_p_all`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre_p_all.html)             | `legendre_p_all`                                    |
+|                                                                                                                        | `lgam1p`                                            |
 | [`lmbda`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lmbda.html)                               | `jahnke_emden_lambda`                               |
 | [`log1p`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log1p.html)                               | `log1p`                                             |
 |                                                                                                                        | `log1pmx`                                           |
