@@ -89,11 +89,10 @@ class Hunk:
 
 
 def git(*args: str) -> bytes:
-    top = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True
-    ).stdout.strip()
+    cmd = ["git", "rev-parse", "--show-toplevel"]
+    top = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
     # from the repository root, with unquoted paths
-    cmd = ["git", "-C", top.decode(), "-c", "core.quotePath=false", *args]
+    cmd = ["git", "-C", top, "-c", "core.quotePath=false", *args]
     return subprocess.run(cmd, check=True, capture_output=True).stdout
 
 
@@ -140,15 +139,15 @@ def test_start(rev: str, path: str) -> int:
     return sys.maxsize
 
 
-def test_names(rev: str, path: str) -> dict[str, list[int]]:
-    """The lines of the tests of a file by name: `#[test]` functions and `xsref::tests!` entries
+def test_names(rev: str, path: str) -> list[tuple[str, int]]:
+    """The names and lines of the tests of a file: `#[test]` functions and `xsref::tests!` entries
 
     Tests of a `macro_rules` body (`#[test] fn $name` in `tests/properties/macros.rs`) are not
     keyed by name, so removing a `property!(...)` call is not flagged.
     """
     lines = blob(rev, path).split("\n")
     start = test_start(rev, path)
-    names: dict[str, list[int]] = {}
+    names: list[tuple[str, int]] = []
     for i, text in enumerate(lines, 1):
         if i < start:
             continue
@@ -156,12 +155,12 @@ def test_names(rev: str, path: str) -> dict[str, list[int]]:
             # the function follows, possibly after other attributes and doc comments
             for after in lines[i:]:
                 if m := FN.match(after):
-                    names.setdefault(m[1], []).append(i)
+                    names.append((m[1], i))
                     break
                 if not after.strip().startswith(("#[", "//")):
                     break
         elif m := TEST_ENTRY.match(text):
-            names.setdefault(m[1], []).append(i)
+            names.append((m[1], i))
     return names
 
 
@@ -240,29 +239,30 @@ def check_code(diff: str, base: str, head: str) -> list[Finding]:
         gone_rows += [(h.path, ln) for ln in removed if is_row(ln.text)]
         added_rows |= {inputs(ln.text) for ln in added if is_row(ln.text)}
 
-    names = {p: (test_names(base, p), test_names(head, p)) for p in paths}
-    gone: dict[str, list[tuple[str, int]]] = {}
+    gone: list[tuple[str, str, int]] = []
     new: dict[str, Counter[str]] = {}
-    for path, (old, cur) in names.items():
-        before = Counter({n: len(v) for n, v in old.items()})
-        after = Counter({n: len(v) for n, v in cur.items()})
-        left, new[path] = before - after, after - before
-        gone[path] = [(n, ln) for n, k in left.items() for ln in old[n][-k:]]
-    for path, lost in gone.items():
-        text = blob(head, path) if lost else ""
-        for name, line in lost:
-            # a move gives the name to another changed file
-            if mover := next(
-                (p for p in paths if p != path and new[p][name] > 0), None
-            ):
-                new[mover][name] -= 1
-            # a rename gives a new name to the file, unless the function remains
-            elif not re.search(rf"\bfn\s+{name}\b", text) and (
-                fresh := next(iter(+new[path]), None)
-            ):
-                new[path][fresh] -= 1
+    for path in paths:
+        old, cur = test_names(base, path), test_names(head, path)
+        before, after = Counter(n for n, _ in old), Counter(n for n, _ in cur)
+        new[path] = after - before
+        # of equal names, the last ones are the removed ones
+        keep = after.copy()
+        for name, line in old:
+            if keep[name] > 0:
+                keep[name] -= 1
             else:
-                out.append(Finding(path, line, f"removed test `{name}`"))
+                gone.append((path, name, line))
+    for path, name, line in gone:
+        # a move gives the name to another changed file
+        if mover := next((p for p in paths if p != path and new[p][name] > 0), None):
+            new[mover][name] -= 1
+        # a rename gives a new name to the file, unless the function remains
+        elif not re.search(rf"\bfn\s+{name}\b", blob(head, path)) and (
+            fresh := next(iter(+new[path]), None)
+        ):
+            new[path][fresh] -= 1
+        else:
+            out.append(Finding(path, line, f"removed test `{name}`"))
     if missing := [(p, ln) for p, ln in gone_rows if inputs(ln.text) not in added_rows]:
         path, ln = missing[0]
         out.append(
