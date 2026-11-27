@@ -1963,6 +1963,30 @@ AMOS_RANGE: Final = Rule(
     complex(math.nan, math.nan),
     "AMOS returns NaN for |v| or |z| above 2^51 (`ierr = 4`)",
 )
+# the magnitudes from which a real number rounds to inf, and up to which it rounds to 0
+F64_INF: Final = flint.arb((2**54 - 1, 970))
+F64_ZERO: Final = flint.arb((1, -1075))
+
+
+def _amos_range_gap(
+    arb: Callable[[flint.arb, flint.acb], flint.acb | None],
+    no_reference: Pred = lambda a: False,
+) -> Rule:
+    """`AMOS_RANGE` as a gap, where each part of the value (`arb`, as in `_cbessel`) is
+    certainly a finite f64, except where `no_reference` holds."""
+
+    def when(a: tuple[float, ...]) -> bool:
+        if not _amos_range(a) or no_reference(a):
+            return False
+        # with the bits that a periodic reduction of z loses, as in `_complex_out`
+        with flint.ctx.workprec(ARB_BITS + max(math.frexp(x)[1] for x in (*a, 1))):
+            y = arb(flint.arb(a[0]), flint.acb(a[1], a[2]))
+        return y is not None and all(abs(p) < F64_INF for p in (y.real, y.imag))
+
+    why = f"{AMOS_RANGE.why}, where the value is finite"
+    return Rule(when, AMOS_RANGE.value, why, gap=True)
+
+
 CBESSEL_AT_0: Final = Rule(
     lambda a: a[1] == a[2] == 0,
     complex(math.nan, math.nan),
@@ -2066,6 +2090,12 @@ def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
     with flint.ctx.workprec(128):
         k = flint.acb(x, y).bessel_k(flint.arb(-v))
     return float(abs(k).log().mid()) > LOG_MAX
+
+
+def _i_nonzero(a: tuple[float, ...]) -> bool:
+    """Whether a part of I_v(z) rounds to a nonzero f64."""
+    y = _i_ball(a)
+    return any(abs(p) > F64_ZERO for p in (y.real, y.imag))
 
 
 def _i_positive_axis_overflows(a: tuple[float, ...]) -> bool:
@@ -2387,6 +2417,14 @@ _Y_MILLER_NORM_LIMITS: Final = {
 }
 
 
+def _y_huge_integer_on_cut(a: tuple[float, ...]) -> bool:
+    """Whether x < 0 and the order is an integer above 2^51, where the `mp.bessely(n, -x)` of
+    `_y_ref` has no reference: from about 2^180 on (the tables have no order between), its
+    perturbation of n rounds away, so that it divides by sin(pi n) = 0."""
+    v, x, y = a
+    return y == 0 and x < 0 and abs(v) > AMOS_ORDERS and v.is_integer()
+
+
 def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
     rules = tuple(
         Rule(
@@ -2401,6 +2439,7 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
             complex(-math.inf, 0.0),
             "positive-axis overflow at huge order by the existing Y asymptotic bound",
         ),
+        _amos_range_gap(_y_arb, _y_huge_integer_on_cut),
         AMOS_RANGE,
         Rule(
             _overflows("y"),
@@ -2515,12 +2554,20 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
             ),
             entry(
                 "i",
+                _amos_range_gap(_cbessel("i")[1]),
                 AMOS_RANGE,
                 Rule(
                     lambda a: a[1] == a[2] == 0 and a[0] < 0 and not a[0].is_integer(),
                     complex(math.nan, math.nan),
                     "a singularity at z = 0 for v < 0 not an integer, whose limit depends on"
                     " the direction (DLMF 10.30.1)",
+                ),
+                Rule(
+                    lambda a: _i_log(a) < -AMOS_ELIM and _i_nonzero(a),
+                    complex(0, 0),
+                    "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
+                    " I_v(z) is a nonzero f64",
+                    gap=True,
                 ),
                 Rule(
                     lambda a: _i_log(a) < -AMOS_ELIM,
@@ -2545,6 +2592,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
             entry(
                 "1",
                 CBESSEL_AT_0,
+                _amos_range_gap(_cbessel("1")[1]),
                 AMOS_RANGE,
                 overrides=(HANKEL_AMOS_OVERFLOW,),
                 floors=(HANKEL_MILLER_NORM_FLOOR,),
@@ -2557,6 +2605,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     "H2_0 at zero keeps the xsf wrapper convention",
                 ),
                 CBESSEL_AT_0,
+                _amos_range_gap(_cbessel("2")[1]),
                 AMOS_RANGE,
                 overrides=(HANKEL_AMOS_OVERFLOW,),
                 floors=(HANKEL_MILLER_NORM_FLOOR,),
