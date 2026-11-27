@@ -1,0 +1,49 @@
+name: loosened-tests
+permissions: {}
+
+# labeled and unlabeled: re-checks the label `allow-loosened-tests`, without the rest of CI
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  loosened-tests:
+    runs-on: ubuntu-latest
+    name: Loosened tests
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # the labels of the PR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # the merge commit and its first parent, the base tip
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: self-test
+        run: python3 -m unittest discover -s tools -p 'test_check*.py'
+
+      # warns about tolerances that got larger, new property-test exclusions, ignored and removed
+      # tests, and removed rows of test tables
+      - name: check
+        id: check
+        run: python3 tools/check_loosened_tests.py HEAD^1 HEAD
+
+      - name: allow-loosened-tests
+        if: steps.check.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # not from the event, whose labels are those from when the run started
+          labels=$(gh pr view "$PR" --json labels --jq '.labels[].name')
+          if ! grep -qx allow-loosened-tests <<< "$labels"; then
+            echo "::error::The PR loosens tests (see the warnings); add the label allow-loosened-tests if that is intended"
+            exit 1
+          fi
