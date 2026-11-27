@@ -367,7 +367,6 @@
 //! | ----------------- | ----------------------------------------------------------------- |
 //! | [`gamma`]         | Gamma function, $\Gamma(z)$                                       |
 //! | [`gammaln`]       | Log-gamma function, $\ln\abs{\Gamma(z)}$                          |
-//! | [`lgam1p`]        | $\ln\abs{\Gamma(1+x)}$, accurate near $x = 0$ and $x = 1$          |
 //! | [`loggamma`]      | Principal branch of $\ln \Gamma(z)$                               |
 //! | [`gammasgn`]      | Sign of [`gamma`], $\sgn(\Gamma(z))$                              |
 //! | [`gammainc`]      | Regularized lower incomplete gamma function $P(a,x) = 1 - Q(a,x)$ |
@@ -412,21 +411,21 @@
 //!
 //! # Legendre functions
 //!
-//! | Function                      | Description                                                  |
-//! | ----------------------------- | ------------------------------------------------------------ |
-//! | [`legendre_p`]                | Legendre polynomial of the first kind, $P_n(z)$              |
-//! | [`legendre_p_all`]            | All Legendre polynomials of the first kind                   |
-//! | [`assoc_legendre_p`]          | Associated Legendre polynomial of the 1st kind, $P_n^m(z)$   |
-//! | [`assoc_legendre_p_all`]      | All associated Legendre polynomials of the 1st kind          |
-//! | [`assoc_legendre_p_norm`]     | Normalized associated Legendre polynomial                    |
-//! | [`assoc_legendre_p_norm_all`] | All normalized associated Legendre polynomials               |
-//! | [`pmv`]                       | Associated Legendre function of real degree for $\abs x \le 1$ |
-//! | [`sph_legendre_p`]            | Spherical Legendre polynomial of the first kind              |
-//! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind         |
-//! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                    |
-//! | [`sph_harm_y_all`]            | All spherical harmonics                                      |
-//! | [`legendre_q_all`]       | All Legendre functions of the 2nd kind and derivatives            |
-//! | [`assoc_legendre_q_all`] | All associated Legendre functions of the 2nd kind and derivatives |
+//! | Function                      | Description                                                       |
+//! | ----------------------------- | ----------------------------------------------------------------- |
+//! | [`legendre_p`]                | Legendre polynomial of the first kind, $P_n(z)$                   |
+//! | [`legendre_p_all`]            | All Legendre polynomials of the first kind                        |
+//! | [`assoc_legendre_p`]          | Associated Legendre polynomial of the 1st kind, $P_n^m(z)$        |
+//! | [`assoc_legendre_p_all`]      | All associated Legendre polynomials of the 1st kind               |
+//! | [`assoc_legendre_p_norm`]     | Normalized associated Legendre polynomial                         |
+//! | [`assoc_legendre_p_norm_all`] | All normalized associated Legendre polynomials                    |
+//! | [`pmv`]                       | Associated Legendre function of real degree for $\abs x \le 1$    |
+//! | [`sph_legendre_p`]            | Spherical Legendre polynomial of the first kind                   |
+//! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind              |
+//! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                         |
+//! | [`sph_harm_y_all`]            | All spherical harmonics                                           |
+//! | [`legendre_q_all`]            | All Legendre functions of the 2nd kind and derivatives            |
+//! | [`assoc_legendre_q_all`]      | All associated Legendre functions of the 2nd kind and derivatives |
 //!
 //! # Orthogonal polynomials
 //!
@@ -650,14 +649,6 @@
 //! | [`logsumexp`]  | $\ln \sum e^{x_i}$                                  |
 //! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$       |
 //! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$ |
-//! | [`cevalpoly`]  | Polynomial with real coefficients at a complex point |
-//!
-//! # Error metrics
-//!
-//! | Function                    | Description                                         |
-//! | --------------------------- | --------------------------------------------------- |
-//! | [`extended_absolute_error`] | Absolute error that also handles infinities and NaN |
-//! | [`extended_relative_error`] | Relative error that also handles infinities and NaN |
 //!
 
 #![forbid(unsafe_code)]

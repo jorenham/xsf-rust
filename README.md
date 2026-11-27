@@ -61,7 +61,6 @@ lists the functions that SciPy computes with another library than xsf.
 | [`cbrt`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.cbrt.html)                                 | `cbrt`                                              |
 |                                                                                                                        | `cdf_cvm`                                           |
 |                                                                                                                        | `cdf_cvm_inf`                                       |
-|                                                                                                                        | `cevalpoly`                                         |
 | [`chdtr`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtr.html)                               | `chdtr`                                             |
 | [`chdtrc`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtrc.html)                             | `chdtrc`                                            |
 | [`chdtri`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtri.html)                             | `chdtri`                                            |
@@ -133,8 +132,6 @@ lists the functions that SciPy computes with another library than xsf.
 | [`expm1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expm1.html)                               | `expm1`                                             |
 | [`expn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expn.html)                                 | `expn`                                              |
 | [`exprel`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exprel.html)                             | `exprel`                                            |
-|                                                                                                                        | `extended_absolute_error`                           |
-|                                                                                                                        | `extended_relative_error`                           |
 | [`factorial`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorial.html)                       | `factorial`, `factorial_checked`                    |
 | [`factorial2`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorial2.html)                     | `multifactorial`, `multifactorial_checked`          |
 | [`factorialk`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorialk.html)                     | `multifactorial`, `multifactorial_checked`          |
@@ -247,7 +244,6 @@ lists the functions that SciPy computes with another library than xsf.
 | [`legendre`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre.html)                         |                                                     |
 | [`legendre_p`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre_p.html)                     | `legendre_p`                                        |
 | [`legendre_p_all`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre_p_all.html)             | `legendre_p_all`                                    |
-|                                                                                                                        | `lgam1p`                                            |
 | [`lmbda`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lmbda.html)                               | `jahnke_emden_lambda`                               |
 | [`log1p`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log1p.html)                               | `log1p`                                             |
 |                                                                                                                        | `log1pmx`                                           |

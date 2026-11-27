@@ -47,7 +47,7 @@ fn xsf_cevalpoly(coeffs: &[f64], z: C64) -> C64 {
 ///
 /// # Returns
 /// - `p(z)`: Value of the polynomial evaluated at `z`
-#[doc(alias = "evalpoly", alias = "polynomial")]
+#[doc(hidden)]
 #[must_use]
 #[inline]
 pub fn cevalpoly(coeffs: impl AsRef<[f64]>, z: Complex<f64>) -> Complex<f64> {
