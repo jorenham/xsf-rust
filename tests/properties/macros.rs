@@ -10,11 +10,11 @@ macro_rules! strategy {
 
 /// A test `$name` that passes `$call` to `$check`, unless `$assume` is false, e.g.
 /// `property!(no_panic, beta(a, b in positive()))` checks `no_panic(xsf::beta(a, b))` with `a` from
-/// `arg()`
+/// `arg()`. With a `$call`, the arguments can be patterns, e.g. `[a, b, c] in balanced()`.
 macro_rules! property {
     (
         $check:path,
-        $name:ident($($arg:ident $(in $strategy:expr)?),+) $(if $assume:expr)? => $call:expr
+        $name:ident($($arg:pat $(in $strategy:expr)?),+) $(if $assume:expr)? => $call:expr
     ) => {
         proptest::proptest! {
             #![proptest_config($crate::properties::config())]

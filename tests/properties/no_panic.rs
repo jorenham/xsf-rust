@@ -3,6 +3,8 @@
 use num_complex::c64;
 use proptest::prelude::*;
 
+use super::strategies::{balanced, imag, near_threshold_z};
+
 #[allow(clippy::unnecessary_wraps)] // a `property!` check
 fn no_panic<T>(value: T) -> Result<(), TestCaseError> {
     std::hint::black_box(value);
@@ -10,7 +12,14 @@ fn no_panic<T>(value: T) -> Result<(), TestCaseError> {
 }
 
 property!(no_panic, hyp2f1(a, b, c, x));
-property!(no_panic, hyp2f1_complex(a, b, c, re, im) => xsf::hyp2f1(a, b, c, c64(re, im)));
+property!(no_panic, hyp2f1_complex(a, b, c, re, im in imag()) => xsf::hyp2f1(a, b, c, c64(re, im)));
+// a nearly integer c - a - b, and z next to the switches between the transformations
+property!(no_panic, hyp2f1_balanced([a, b, c] in balanced(), x) => xsf::hyp2f1(a, b, c, x));
+property!(
+    no_panic,
+    hyp2f1_complex_balanced([a, b, c] in balanced(), (re, im) in near_threshold_z())
+        => xsf::hyp2f1(a, b, c, c64(re, im))
+);
 property!(no_panic, hyp1f1(a, b, x));
 property!(no_panic, hypu(a, b, x));
 property!(no_panic, hyp0f1(b, x));
@@ -48,8 +57,8 @@ property!(no_panic, bessel_j(v, x));
 property!(no_panic, bessel_y(v, x));
 property!(no_panic, bessel_i(v, x));
 property!(no_panic, bessel_k(v, x));
-property!(no_panic, bessel_j_complex(v, re, im) => xsf::bessel_j(v, c64(re, im)));
-property!(no_panic, bessel_k_complex(v, re, im) => xsf::bessel_k(v, c64(re, im)));
+property!(no_panic, bessel_j_complex(v, re, im in imag()) => xsf::bessel_j(v, c64(re, im)));
+property!(no_panic, bessel_k_complex(v, re, im in imag()) => xsf::bessel_k(v, c64(re, im)));
 property!(no_panic, struve_h(v, x));
 property!(no_panic, struve_l(v, x));
 
