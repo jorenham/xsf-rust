@@ -278,7 +278,7 @@ class Synthetic(unittest.TestCase):
         cwd = Path.cwd()
         os.chdir(repo.root)
         try:
-            names = [["M", "tests/data/xsref/f/d-d.bin"]]
+            names = [("M", "tests/data/xsref/f/d-d.bin")]
             with self.assertRaises(RuntimeError):
                 c.check_tables("HEAD~", "no-such-rev", names)
         finally:
@@ -295,7 +295,10 @@ class Synthetic(unittest.TestCase):
 
     def test_unicode_line_separator_in_src(self) -> None:
         f = "src/x.rs"
-        before = 'const S: &str = "\u2028";\n#[cfg(test)]\nmod t {\n    const RTOL: f64 = 1e-5;\n}\n'
+        # `splitlines` would put `#[cfg(test)]` on line 4, after the tolerance
+        before = (
+            'const S: &str = "\u2028\u2028";\n#[cfg(test)]\nconst RTOL: f64 = 1e-5;\n'
+        )
         found = self.check({f: before}, {f: before.replace("1e-5", "1e-4")})
         self.assertEqual(found, [f"{f}: tolerance 0.0001 > 1e-05"])
 

@@ -323,11 +323,15 @@ def blob(rev: str, name: str) -> bytes:
     return data
 
 
-def check_tables(base: str, head: str, changed: list[list[str]]) -> list[Finding]:
-    """The findings of the changed xsref tables, as `[git status, path]`"""
+def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[Finding]:
+    """The findings of the changed xsref tables, as `(git status, path)`"""
     out: list[Finding] = []
-    # a table that is replaced by a renamed `.bin` of its function is not removed
-    added = {blob(head, n) for s, n in changed if s == "A" and n.endswith(".bin")}
+    # a table whose bytes reappear in an added `.bin` was moved, not removed
+    added = {
+        blob(head, name)
+        for status, name in changed
+        if status == "A" and name.endswith(".bin")
+    }
     for status, name in changed:
         if status == "A" or not name.endswith(".bin"):
             continue
@@ -377,11 +381,12 @@ def find(base: str, head: str) -> list[Finding]:
         "diff", "--no-color", "--no-renames", "-U3", rng, "--", ":(top)*.rs"
     )
     changed = [
-        line.split("\t")
+        (status, path)
         for line in git_text(
             "diff", "--name-status", "--no-renames", rng, "--", f":(top){XSREF}"
         ).split("\n")
         if line
+        for status, path in [line.split("\t")]
     ]
     findings = check_hunks(diff, merge_base, head)
     return findings + check_tables(merge_base, head, changed)
