@@ -1322,11 +1322,12 @@ mod tests {
 
     #[test]
     fn test_add_exp_subnormal_with_zero_err() {
+        use crate::utils::MIN_SUBNORMAL_EXP;
         use crate::xsf::cephes::dd_real::LOG2;
         // value 1 represented with subnormal mantissa 2^-1074 and exp(1074 * ln 2), plus 0 +- 0.5
         let sub = Scaled::new(DENORM_MIN, 0, 0.0)
             .unwrap()
-            .with_l(LOG2 * 1074.0);
+            .with_l(LOG2 * -f64::from(MIN_SUBNORMAL_EXP));
         let zero_err = Scaled::new(0.5, 0, 0.0).unwrap().into_zero_err();
         let (y, err) = add_exp([sub, zero_err]).unwrap().to_f64();
         assert!((y - 1.0).abs() <= 1e-14 && (err - 0.5).abs() <= 1e-13, "{y} (err {err})");

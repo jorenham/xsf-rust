@@ -1,7 +1,7 @@
 use super::power::{ldexp_sat, one_minus_z_pow};
 use super::{Estimate, HYP2F1_MAX_FIXED_TERMS, hypergeometric_series_generator};
 use crate::ext::{Scaled, fold_exp, hyp2f1_poly_dd};
-use crate::utils::{DENORM_MIN, pow2};
+use crate::utils::{DENORM_MIN, MIN_SUBNORMAL_EXP, pow2};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::hyp2f1::HYP2F1_ETHRESH;
@@ -177,7 +177,8 @@ fn positive_beta_real(n: u64, b: f64, c: f64, x: f64) -> Option<Estimate> {
     let [lower, upper] = [quotient - radius, quotient + radius].map(|v| {
         let value = ldexp_f64(v.hi, exponent);
         if value <= f64::MIN_POSITIVE {
-            v.ldexp(exponent + 1074).round_subnormal_units()
+            v.ldexp(exponent - MIN_SUBNORMAL_EXP)
+                .round_subnormal_units()
         } else {
             value
         }
@@ -461,7 +462,7 @@ fn centered(n: u64, b: f64, c: f64, z: C64) -> Estimate {
         let v = v * leading;
         let x = ldexp_f64(v.hi, scale);
         if x.abs() < f64::MIN_POSITIVE {
-            v.ldexp(scale + 1074).round_subnormal_units()
+            v.ldexp(scale - MIN_SUBNORMAL_EXP).round_subnormal_units()
         } else {
             x
         }
