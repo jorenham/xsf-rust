@@ -215,17 +215,23 @@ fn cloggamma_public(z: C64) -> C64 {
     w
 }
 
-/// `exp(w)` for `w = +-loggamma(z)`, with only the magnitude where `Im(w)` overflows
-pub(crate) fn exp_loggamma(w: C64) -> C64 {
-    if w.im.is_finite() {
+/// `exp(w)` for `w = +-loggamma(z)`, with only the magnitude where the computed `Im(w)` is
+/// non-finite
+pub(crate) fn exp_loggamma(w: C64, z: C64) -> C64 {
+    if !w.re.is_finite() || w.im.is_finite() {
         return w.exp();
     }
-    // Like C's cexp(-inf + i inf) and cexp(inf + i inf), also for a finite Re(w).
-    let r = w.re.exp();
-    if r == 0.0 {
+    // Rounding in (z - 1/2)*ln(z) - z (DLMF 5.11.1) moves Re(w) by less than
+    // 4*eps*(|x|*(ln|z| + 1) + |y|*|arg z|). Im(w) overflows only for |z| > 1e305, where this
+    // bound is far beyond the range of exp, so a larger |Re(w)| means 0, or inf + NaN i like
+    // C's cexp(inf + i inf).
+    let ln_z = z.ln();
+    let scaled = 4.0 * f64::EPSILON * z;
+    let tol = scaled.re.abs() * (ln_z.re + 1.0) + scaled.im.abs() * ln_z.im.abs();
+    if w.re < -tol {
         C64::ZERO
-    } else if r == f64::INFINITY {
-        c64(r, f64::NAN)
+    } else if w.re > tol {
+        c64(f64::INFINITY, f64::NAN)
     } else {
         C64::NAN
     }
@@ -282,8 +288,8 @@ fn crgamma(z: C64) -> C64 {
             return c64(re, im);
         }
     }
-    // Unlike in xsf, keep only the magnitude where Im(log Gamma) overflows.
-    exp_loggamma(-cloggamma(z))
+    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite.
+    exp_loggamma(-cloggamma(z), z)
 }
 
 pub trait LogGammaArg: crate::sealed::Sealed {

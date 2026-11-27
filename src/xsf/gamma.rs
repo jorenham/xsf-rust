@@ -42,8 +42,8 @@ pub(crate) fn cgamma(z: C64) -> C64 {
             return c64(re, if derivative_negative { -z.im } else { z.im });
         }
     }
-    // Unlike in xsf, keep only the magnitude where Im(log Gamma) overflows.
-    exp_loggamma(cloggamma(z))
+    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite.
+    exp_loggamma(cloggamma(z), z)
 }
 
 /// Gamma function $\Gamma(z)$ for real or complex argument.
