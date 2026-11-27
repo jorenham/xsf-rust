@@ -172,21 +172,16 @@ fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
 /// The first kind `Y1` is even (`kf = 1`) or odd (`kf = 2`) (DLMF 28.22.1-2), so
 /// `Y2(-x) = alpha Y1(x) - s Y2(x)`, with `s = 1` or `-1` from the Wronskian
 /// `W{Y1, Y2} = 2/pi` (DLMF 28.20.21), which at `x = 0` also gives `alpha = pi Y2(0) Y2'(0)`.
-/// `None` before the turning point `2 q cosh(2x) = a`, where `Y1` is too inaccurate for this, or
-/// where the result is not finite. NaN past it where the Bessel functions of `u = sqrt(q) e^x`
-/// keep less than half their digits (their phase has an error of about `u EPSILON`).
+/// `None` where this is inaccurate: before the turning point `2 q cosh(2x) = a` (as `Y1` is there)
+/// and where the Bessel functions of `u = sqrt(q) e^x` keep less than half their digits (their
+/// phase has an error of about `u EPSILON`). Also `None` where the result is not finite.
 fn mathieu_mod2_reflected(kf: i32, m: i32, q: f64, x: f64) -> Option<(f64, f64)> {
     let u = q.sqrt() * x.exp();
     let uu = u * u;
     let cva = if kf == 1 { cem_cva } else { sem_cva };
     // `2 q cosh(2x) = u^2 + (q / u)^2`, which does not overflow for such `u`
-    if !(uu + (q / u).powi(2) > cva(f64::from(m), q)) {
+    if !(uu + (q / u).powi(2) > cva(f64::from(m), q) && uu * f64::EPSILON < 1.0) {
         return None;
-    }
-    // Unlike in xsf, NaN where the series of `Y_n(u)` has no accurate digits left either (the
-    // phase of the Bessel functions keeps less than half of its digits for `u EPSILON >= 1/u`)
-    if uu * f64::EPSILON >= 1.0 {
-        return Some((f64::NAN, f64::NAN));
     }
     // `mtu12` sets all outputs to NaN on failure
     let at = |kc, x| {

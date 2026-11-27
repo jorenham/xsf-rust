@@ -298,13 +298,12 @@ fn test_mathieu_mod_second_kind_negative_x() {
     // where the reflection is not finite
     let (_, dy) = xsf::mathieu_modcem2(1, 1e-40, -47.643_326);
     xsref::np_assert_allclose!(&[dy], &[-8.857_097_072_760_86e39], rtol = 1e-5);
-    // past the turning point where the phase of the Bessel functions is lost (`u >= 2^26`)
-    for (m, q, x) in [(0, 1e-100, -200.0), (0, 1.0, -20.0), (2, 1.0, -20.0)] {
-        let (y, dy) = xsf::mathieu_modcem2(m, q, x);
-        assert!(y.is_nan() && dy.is_nan(), "{m} {q} {x}: {y} {dy}");
-    }
-    let (y, dy) = xsf::mathieu_modsem2(1, 1.0, -20.0);
-    assert!(y.is_nan() && dy.is_nan(), "{y} {dy}");
+    // either side of `u = sqrt(q) e^|x| = 2^26`, past which the series is kept
+    let (y, dy) = xsf::mathieu_modcem2(0, 1.0, -18.0);
+    let expected = [4.346_370_755_358_008e-5, -6_076.754_062_981_643];
+    xsref::np_assert_allclose!(&[y, dy], &expected, rtol = 1e-8);
+    let (y, _) = xsf::mathieu_modcem2(1, 1.175_269_074_738_025_8e-300, -364.021_989_263_647);
+    xsref::np_assert_allclose!(&[y], &[7.435_397_957_285_476e295], rtol = 1e-7);
 }
 
 #[test]
