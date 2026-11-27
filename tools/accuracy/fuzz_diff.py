@@ -64,13 +64,15 @@ BITS: Final = 64
 F64_EXPS: Final = range(
     sys.float_info.min_exp - sys.float_info.mant_dig, sys.float_info.max_exp + 1
 )
-# replaces a signed zero argument, for the side of a branch cut, or the sign of a zero result;
-# a side is the limit to the cut only if it agrees at `TINIER` (unlike near a branch point of a
-# small power, e.g. (1 - z)^0.01)
+# replaces a signed zero argument, for the side of a branch cut, or the sign of a zero result
 TINY: Final = math.ulp(0.0)
-TINIER: Final = mp.mpf(TINY) ** 2
+# the offsets of a signed zero imaginary argument, for the side of a branch cut: each the square
+# of the last, so that one is also small next to a tiny real argument
+SIDES: Final = tuple(mp.mpf(TINY) ** 2**k for k in range(3))
 # the reference where the function rejects the input (and is NaN)
 REJECTED: Final = "rejected"
+# the prefix of a reference that fails with an exception of `fuzz_diff.py` itself
+FAILED: Final = "failed: "
 # the exit code of a panic
 PANIC: Final = 101
 # the smallest part of a complex mpmath reference (relative to its absolute value) that is
@@ -118,19 +120,25 @@ def _elliprj(
     return flint.acb.elliptic_rj(x, y, z, p).real if min(x, y, z) >= 0 else None
 
 
+def _lambertw_c(re: flint.arb, im: flint.arb) -> flint.acb:
+    return flint.acb(re, im).lambertw()
+
+
 def _hypu(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb | None:
     u = x.hypgeom_u(a, b)
     return u if x >= 0 or u.is_finite() else None
 
 
-# with the complex functions that `specs.ARB` lacks, since their specs use mpmath, and the real
-# functions outside the domains of their specs: None where they reject the input (and are NaN,
-# e.g. U where it is not real), and the Cauchy principal value (the mean of both sides of the
-# cut, i.e. the real part) for Carlson's integrals with a negative last argument
+# with the complex functions that `specs.ARB` lacks, since their specs use mpmath (whose
+# `lambertw` ignores an imaginary part of e.g. 2^-1100, and so the side of its cut), and the
+# real functions outside the domains of their specs: None where they reject the input (and are
+# NaN, e.g. U where it is not real), and the Cauchy principal value (the mean of both sides of
+# the cut, i.e. the real part) for Carlson's integrals with a negative last argument
 ARB: Final[dict[str, Callable[..., flint.arb | flint.acb | None]]] = {
     **specs.ARB,
     "hyp1f1#c": _hyp1f1_c,
     "hyp2f1#c": _hyp2f1_c,
+    "lambertw#c": _lambertw_c,
     "elliprc": _elliprc,
     "elliprj": _elliprj,
     "hypu": _hypu,
@@ -203,7 +211,7 @@ def run(exe: Path, lines: list[Line]) -> list[Value]:
         except subprocess.CalledProcessError as e:
             if "unknown function" in e.stderr:
                 raise
-            # (the complete lines)
+            # drop a partial last line
             done = accuracy.parse(e.stdout[: e.stdout.rfind("\n") + 1])
             if len(todo) == 1:
                 out.append(None)
@@ -353,7 +361,8 @@ def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
 
 
 def _sided(args: accuracy.Args, at: set[int], tiny: float) -> accuracy.Args:
-    """The arguments, with the zeros at `at` replaced by `tiny` times their sign."""
+    """The arguments, with the zeros at `at` replaced by `tiny` times their sign; `tiny` can be
+    an mpf below the f64 range (as in `SIDES`), which `_value` takes exactly, as for a float."""
     return tuple(
         math.copysign(1, x) * tiny if i in at else x for i, x in enumerate(args)
     )
@@ -371,13 +380,42 @@ def _mpc(r: accuracy.Ref) -> mp.mpc:
 
 def ref(line: Line) -> accuracy.Ref | str:
     """The reference (see `_value`), or an error string. For a signed zero imaginary argument,
-    that on its side of a branch cut (see `TINIER`), unless the function is singular there; and
-    a part that is 0 gets a sign where that of the function changes with those of the real zero
-    arguments, that of the limit from their side, as `TINY`."""
+    that on its side of a branch cut (see `_side`); and a part that is 0 gets a sign where that
+    of the function changes with those of the real zero arguments, that of the limit from their
+    side, as `TINY`."""
     try:
         return _ref(line)
     except Exception as e:  # noqa: BLE001
-        return f"{type(e).__name__}: {e}"
+        return f"{FAILED}{type(e).__name__}: {e}"
+
+
+def _finite(r: accuracy.Ref | str) -> bool:
+    return isinstance(r, list) and all(mp.isfinite(mp.mpf(p)) for p in _values(r))
+
+
+def _side(
+    name: str, args: accuracy.Args, imag: set[int], r: accuracy.Ref
+) -> accuracy.Ref:
+    """The limit from the side of the signed zeros at `imag`: the value at the first offset of
+    `SIDES` that agrees with that at the previous one (to `BITS` bits of the larger of its
+    absolute value and `DBL_MIN`), else `r`, that at the point (as near a branch point of a
+    small power, e.g. (1 - z)^0.01). Where the reference fails, or cannot tell the sides apart
+    (with the same non-real value on both, which f(conj(z)) = conj(f(z)) rules out for most
+    functions), that at the previous offset (or `r`)."""
+    last = r
+    for i, d in enumerate(SIDES):
+        s = _value(name, _sided(args, imag, d))
+        if not _finite(s):
+            return last
+        assert isinstance(s, list)
+        if i:
+            u, v = _mpc(last), _mpc(s)
+            if abs(u - v) <= mp.ldexp(max(abs(u), DBL_MIN), -BITS):
+                return s
+            if v.imag and s == _value(name, _sided(args, imag, -d)):
+                return last
+        last = s
+    return r
 
 
 def _ref(line: Line) -> accuracy.Ref | str:
@@ -387,14 +425,9 @@ def _ref(line: Line) -> accuracy.Ref | str:
     imag = {i for i in zeros if spec.args[i] in IMAG}
     real = zeros - imag
     r = _value(name, args)
-    if imag and isinstance(r, list) and all(mp.isfinite(mp.mpf(p)) for p in _values(r)):
-        s, t = (_value(name, _sided(args, imag, d)) for d in (TINY, TINIER))
-        if (
-            isinstance(s, list)
-            and isinstance(t, list)
-            and abs(_mpc(s) - _mpc(t)) <= mp.ldexp(abs(_mpc(s)), -BITS)
-        ):
-            r = s
+    if imag and _finite(r):
+        assert isinstance(r, list)
+        r = _side(name, args, imag, r)
     if not real or not isinstance(r, list) or all(mp.mpf(p) for p in _values(r)):
         return r
     near = _sided(args, imag, TINY)
@@ -502,6 +535,10 @@ def fuzz(
     todo = todo[: opts.max_refs]
     tasks = [(spec.name, lines[i][1]) for i in todo]
     refs = dict(zip(todo, pool.map(ref, tasks, chunksize=1), strict=True))
+    # (a bug, which would otherwise only show as "no ref")
+    failed = (r for r in refs.values() if isinstance(r, str) and r.startswith(FAILED))
+    if (e := next(failed, None)) is not None:
+        accuracy.log(f"{spec.name}: reference {e}")
     count = Counter[str]()
     worse: list[tuple[float, str]] = []
     for i in flagged:

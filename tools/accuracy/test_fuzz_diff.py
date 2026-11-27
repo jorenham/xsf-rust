@@ -6,6 +6,7 @@ Usage (from the repository root):
     uv run --project tools tools/accuracy/test_fuzz_diff.py
 """
 
+import cmath
 import contextlib
 import io
 import math
@@ -66,6 +67,27 @@ def test_branch_cut() -> None:
     line = ("log1p#c", (-2.0, -0.0))
     assert kind(line, complex(0, -math.pi), complex(0, math.pi)) == "regressed"
     assert kind(line, complex(0, math.pi), complex(0, -math.pi)) == "improved"
+    # W_0 below -1/e, also where a reference is the same on both sides of 2^-2148 (as mpmath),
+    # or fails there
+    line = ("lambertw#c", (-2.5, -0.0))
+    w = complex(0.33408142401229419, -1.7585360826226356)
+    assert kind(line, w, w.conjugate()) == "regressed"
+    with mock.patch.dict(fd.ARB, clear=True):
+        assert kind(line, w, w.conjugate()) == "regressed"
+    value = fd._value
+
+    def fails(name: str, args: tuple[float, ...]) -> object:
+        return "timeout" if 0 < abs(args[-1]) < fd.TINY else value(name, args)
+
+    with mock.patch.object(fd, "_value", fails):
+        assert kind(line, w, w.conjugate()) == "regressed"
+    # near a tiny real part, which `TINY` is not small next to
+    z = complex(-fd.DBL_MIN, -0.0)
+    line = ("xlogy#c", (1.0, 0.0, z.real, z.imag))
+    assert kind(line, cmath.log(z), cmath.log(z).conjugate()) == "regressed"
+    line = ("expi#c", (-math.ulp(0), -0.0))
+    ei = complex(-743.8628562564797, -math.pi)
+    assert kind(line, ei, ei.conjugate()) == "regressed"
 
 
 def test_branch_point() -> None:
@@ -98,6 +120,9 @@ def test_zero_signs() -> None:
     line = ("hyp1f1#c", (1.0, 1.0, 2.0, -0.0))
     e2 = math.exp(2)
     assert kind(line, complex(e2, -0.0), complex(e2, 0.0)) == "regressed"
+    # a zero of the function on the real axis, with that of its imaginary part
+    for line in [("cospi#c", (-2.5, -0.0)), ("sinpi#c", (3.0, 0.0))]:
+        assert kind(line, complex(0, -0.0), complex(0, 0.0)) == "regressed"
 
 
 def test_midpoint() -> None:
@@ -108,12 +133,14 @@ def test_midpoint() -> None:
 
 
 def test_large_exact() -> None:
-    # exactly 2^-6444, of more digits than Python writes an int with (as 30 digits)
-    r = fd.ref(("hypu", (-6.0, -5.0, 0.0)))
+    # U(a, a + 1, x) = x^-a, exactly 2^-6444, of more digits than Python writes an int with
+    # (as 30 digits)
+    line = ("hypu", (-6.0, -5.0, math.ulp(0)))
+    r = fd.ref(line)
     assert isinstance(r, list) and isinstance(r[0], str)
-    assert mp.almosteq(mp.mpf(r[0]), mp.ldexp(1, -6444), 1e-29)
+    assert mp.almosteq(mp.mpf(r[0]), mp.ldexp(1, -6444), 1e-29, 0)
     with mock.patch.object(fd, "_value", side_effect=ValueError):
-        assert isinstance(fd.ref(("hypu", (-6.0, -5.0, 0.0))), str)
+        assert fd.ref(line) == f"{fd.FAILED}ValueError: "
 
 
 def test_precision() -> None:
