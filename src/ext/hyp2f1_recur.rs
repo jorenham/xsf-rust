@@ -707,32 +707,37 @@ pub(crate) fn ln_gamma(g: impl Into<Dd>) -> Option<(Dd, f64, f64)> {
 }
 
 /// `ln|sin(pi g)|`, its sign, and a bound of its absolute error, for `g` at a distance `d` from
-/// the integers (`None` if within `|g.lo|` of one):
+/// the integers (`None` if within `|g.lo|` of one), by whichever of these has the smaller bound:
 ///
-/// - to first order in `g.lo`, with the second-order term bounded by `|f''| < (pi / 2d)^2` for
-///   `f = ln|sin(pi g)|` (since `|sin(pi g)| >= 2d`)
-/// - else for `g = k + e`, by `ln|sin(pi e)| = ln(pi |e|) - x^2/6 - x^4/180 - ...` with `x = pi e`,
-///   whose tail is below `x^4/100` for `|x| <= pi/1000`; `None` if `e = 0`, or if `|e| > 1/1000`
-///   (only for `|g| > 2^42`)
+/// - if `d` is known, to first order in `g.lo`, with the second-order term bounded by
+///   `|f''| < (pi / 2d)^2` for `f = ln|sin(pi g)|` (since `|sin(pi g)| >= 2d`)
+/// - for `g = k + e` with `0 < |e| <= 1/1000`, by `ln|sin(pi e)| = ln(pi |e|) - x^2/6 - x^4/180 -
+///   ...` with `x = pi e`, whose tail is below `x^4/100` for `|x| <= pi/1000`
+///
+/// `None` if neither applies, i.e. if `d` is unknown and `e = 0` or `|e| > 1/1000` (only for
+/// `|g| > 2^42`).
 fn ln_sinpi(g: Dd, d: Option<f64>) -> Option<(Dd, f64, f64)> {
-    if let Some(d) = d {
+    let first_order = d.map(|d| {
         let s = sinpi(g.hi);
         // d/dg ln|sin(pi g)| = pi cot(pi g)
         let dsin = PI * cospi(g.hi) / s * g.lo;
         let ln_sin = s.abs().ln();
         let err = F64_ROUNDING * (1.0 + ln_sin.abs() + dsin.abs())
             + (PI / (2.0 * d) * g.lo).powi(2) / 2.0;
-        return Some((Dd::new(ln_sin + dsin), s.signum(), err));
-    }
+        (Dd::new(ln_sin + dsin), s.signum(), err)
+    });
     let k = g.hi.round();
     let e = g - k;
-    if e.hi == 0.0 || e.hi.abs() > 1e-3 {
-        return None;
-    }
-    let ln_e = ln_dd(if e.hi < 0.0 { -e } else { e });
-    let x2 = (PI * e.hi).powi(2);
-    let err = DD_ROUNDING * (ln_e.hi.abs() + 2.0) + F64_ROUNDING * x2 + x2 * x2 / 100.0;
-    Some((LN_PI_DD + ln_e - x2 / 6.0, cospi(k) * e.hi.signum(), err))
+    let near_int = (e.hi != 0.0 && e.hi.abs() <= 1e-3).then(|| {
+        let ln_e = ln_dd(if e.hi < 0.0 { -e } else { e });
+        let x2 = (PI * e.hi).powi(2);
+        let err = DD_ROUNDING * (ln_e.hi.abs() + 2.0) + F64_ROUNDING * x2 + x2 * x2 / 100.0;
+        (LN_PI_DD + ln_e - x2 / 6.0, cospi(k) * e.hi.signum(), err)
+    });
+    first_order
+        .into_iter()
+        .chain(near_int)
+        .min_by(|u, v| u.2.total_cmp(&v.2))
 }
 
 /// `|g.lo|` times the bound of `(ln Gamma)''` in `ln_gamma` (0 if `g.lo = 0`, even if it overflows)
@@ -749,13 +754,21 @@ pub(crate) fn trigamma_lo(g: Dd, d: f64) -> f64 {
 }
 
 /// `psi(v)` at `v.hi`, and a bound of its absolute error, or `None` at (or too close to) a pole.
-/// For `v < 0`, `psi` uses `psi(v) = psi(1 - v) - pi cot(pi v)`, with `|pi cot(pi v)| <= 1/d`
-/// (`d` as in `pole_distance`), and its error is relative to both terms.
+/// For `v < 0`, `psi` uses `psi(v) = psi(1 - v) - pi cot(pi v)` (DLMF 5.5.4), with
+/// `|pi cot(pi v)| <= 1/d` (`d` as in `pole_distance`), and its error is relative to both terms.
+/// If also `v.lo != 0`, that is at `1 - v.hi` and with the cotangent at `v - k` in double-double,
+/// for the nearest integer `k`, as `v.lo` matters near a pole.
 fn psi_dd(v: Dd) -> Option<(f64, f64)> {
     let d = pole_distance(v)?;
-    let y = psi(v.hi);
+    let (y, lo_err) = if v.hi < 0.0 && v.lo != 0.0 {
+        let e = (v - v.hi.round()).hi;
+        let y = psi(1.0 - v.hi) - PI * cospi(e) / sinpi(e);
+        (y, trigamma_lo(-v + 1.0, d))
+    } else {
+        (psi(v.hi), trigamma_lo(v, d))
+    };
     let cot = if v.hi < 0.0 { 1.0 / d } else { 0.0 };
-    let err = 8.0 * MACHEP * (y.abs() + 2.0 * cot + 1.0) + trigamma_lo(v, d);
+    let err = 8.0 * MACHEP * (y.abs() + 2.0 * cot + 1.0) + lo_err;
     Some((y, err))
 }
 
