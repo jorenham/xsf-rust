@@ -277,6 +277,27 @@ fn test_mathieu_modcem1_large_x() {
 }
 
 #[test]
+fn test_mathieu_mod_second_kind_negative_x() {
+    // jorenham/xsf-rust#1742; references at 30 digits from
+    // `Mc2(-x) = alpha Mc1(x) - Mc2(x)` and `Ms2(-x) = alpha Ms1(x) + Ms2(x)`
+    let actual = [
+        xsf::mathieu_modcem2(1, 1.0, -10.0),
+        xsf::mathieu_modsem2(1, 1.0, -10.0),
+        xsf::mathieu_modcem2(0, 1.0, -3.0),
+        xsf::mathieu_modsem2(2, 2.5, -2.0),
+    ];
+    let expected = [
+        (-0.005_646_433_527_589_703, -230.472_210_931_004_6),
+        (0.005_321_367_628_178_647, -48.410_714_622_616_76),
+        (-0.119_858_638_583_023_6, 2.767_474_503_178_423_3),
+        (0.243_986_439_849_328_76, -2.467_690_969_727_742_1),
+    ];
+    for ((y, dy), (f, df)) in actual.into_iter().zip(expected) {
+        xsref::np_assert_allclose!(&[y, dy], &[f, df], rtol = 1e-11);
+    }
+}
+
+#[test]
 fn test_mathieu_coef() {
     // q = 0: ce_0 = 1 / sqrt(2) and se_1 = sin(z) (DLMF 28.4.13 and 28.4.15)
     for (coefs, first) in
