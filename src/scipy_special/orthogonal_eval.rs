@@ -258,6 +258,11 @@ fn series_loss<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64) -> f64 {
 /// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
 const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 
+/// A relative error of the starting values of `jacobi_hyp2f1_recurrence` that nearly solves the
+/// recurrence, so that their residual can't show it. Fitted, not derived: the least power of two
+/// times `EPSILON` that keeps `hyp2f1` at three inputs the recurrence amplifies by 2e4 to 2e6.
+const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
+
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
 /// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
 ///
@@ -279,6 +284,15 @@ const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 ///   accuracy for nearly degenerate parameters, plus `floor(n) EPSILON` for the rounding in the
 ///   steps. It is 1 if that residual exceeds `SQRT_EPSILON`, or if the recurrence is unstable
 ///   (`growth * SQRT_EPSILON > |G_n|`, an amplification beyond `1 / SQRT_EPSILON`).
+/// - Off `-1 < x < 1`, if `tol < 1`, the threshold `tol * growth` is lowered to twice the
+///   estimated error of the recurrence if smaller: that of errors of twice that residual in the
+///   starting values, and of twice `HIDDEN_START_ERROR` beyond a shared one (by `growth - |G_n|`),
+///   plus that of a rounding error in each step
+///   `G_k = (p G_{k-1} - q G_{k-2}) / r` of `EPSILON` times `(|p G_{k-1}| + |q G_{k-2}|) / |r|` (by
+///   the derivatives of `G_n` in the intermediate values, which can exceed those in the starting
+///   values). Within `HYP2F1_EPS` of an integer degree, it adds `HYP2F1_ETHRESH |G_n|`, as the
+///   starting values, with `a` near a nonpositive integer, can share a relative error of up to
+///   about `HYP2F1_ETHRESH` that the residual doesn't show.
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -326,18 +340,40 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     // the solution from (g0, g1), and those with starting values (1, 0) and (0, 1)
     let (one, zero) = (Z::ZERO + 1.0, Z::ZERO);
     let start = [(g0, g1), (one, zero), (zero, one)];
+    // `G_{n - m}, ..., G_n`
+    let mut gs = vec![g0, g1];
     let [(_, rec), (_, rec10), (_, rec01)] = (0..m as u32 - 1).rev().fold(start, |sols, j| {
         let (p, q, r) = pqr(n - f64::from(j));
-        sols.map(|(g0, g1)| (g1, (p * g1 - g0 * q) / r))
+        let sols = sols.map(|(a, b)| (b, (p * b - a * q) / r));
+        gs.push(sols[0].1);
+        sols
     });
     let growth = (rec10 * g0).norm() + (rec01 * g1).norm();
     let stable = growth * SQRT_EPSILON <= rec.norm();
-    let tol = if stable && residual <= SQRT_EPSILON {
+    let trusted = stable && residual <= SQRT_EPSILON;
+    let tol = if trusted {
         (2.0 * residual).max(HYP2F1_ETHRESH) + rounding
     } else {
         1.0
     };
-    let better = !series.is_finite() || (rec - series).norm() > tol * growth;
+    let estimate = if trusted && !segment {
+        // the derivatives `(dG_n / dG_{k-1}, dG_n / dG_k)` from `k = n` down to `n - m + 1`, and
+        // the effect on `G_n` of the rounding error in each step, `EPSILON` times the sum of its
+        // two term magnitudes divided by `|r|`
+        let (mut d0, mut d1, mut step_error) = (zero, one, 0.0);
+        for (j, w) in (0..m as u32 - 1).zip(gs.windows(3).rev()) {
+            let (p, q, r) = pqr(n - f64::from(j));
+            step_error += d1.norm() * ((p * w[1]).norm() + (w[0] * q).norm()) / r.abs();
+            (d0, d1) = (d1 * (-q / r), d0 + d1 * (p / r));
+        }
+        let near_int = (n - n.round()).abs() < HYP2F1_EPS;
+        let shared = if near_int { HYP2F1_ETHRESH } else { 0.0 };
+        let start_error = residual * growth + HIDDEN_START_ERROR * (growth - rec.norm());
+        2.0 * (2.0 * start_error + f64::EPSILON * step_error) + shared * rec.norm()
+    } else {
+        f64::INFINITY
+    };
+    let better = !series.is_finite() || (rec - series).norm() > estimate.min(tol * growth);
     (better && (segment || rec.is_finite())).then_some(rec)
 }
 
