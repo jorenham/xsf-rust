@@ -927,18 +927,20 @@ def _airy_out(i: int, scaled: bool = False) -> Out:
     return Out(f"airy_scaled[{i}]", (ref,), (arb,), rules)
 
 
-# AMOS's `ierr = 4` for |z| > (0.5 / eps)^(2/3), where |zeta| = 2/3 |z|^(3/2) exceeds
-# 0.5 / eps and the argument reduction loses all significance
+# AMOS's `ierr = 4` for |z| > (0.5 / eps)^(2/3), where |z|^(3/2) = 3/2 |zeta| exceeds 0.5 / eps
+# and the argument reduction loses all significance
 AMOS_AIRY_RANGE: Final = (0.5 / 2.0**-52) ** (2 / 3)
 AIRY_AMOS_NAN: Final = Rule(
+    # by Python's `hypot`, which may differ by an ulp from Rust's norm at the cutoff (no row is
+    # near it)
     lambda a: a[1] != 0 and math.hypot(a[0], a[1]) > AMOS_AIRY_RANGE,
     complex(math.nan, math.nan),
     "AMOS returns NaN for |z| > (0.5 / eps)^(2/3), about 1.7e10 (`ierr = 4`)",
 )
 AIRY_REAL_AXIS_OVERRIDE: Final = Override(
-    lambda a: a[1] == 0 and abs(a[0]) > AMOS_AIRY_RANGE,
+    lambda a: a[1] == 0 and abs(a[0]) in {2.99807699606115e154, 8.98846567431105e307},
     "xsf returns NaN on the real axis where AMOS gives up (`ierr = 4`), which the real Airy"
-    " limits and the wide phase reduction of xsf-rust avoid",
+    " limits (x >= 108) and the wide phase reduction (x < -1e16) of xsf-rust avoid",
 )
 
 
