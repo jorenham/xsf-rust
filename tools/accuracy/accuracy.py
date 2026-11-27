@@ -137,15 +137,21 @@ def build_rust() -> list[str]:
     return ["cargo", "run", *opts, "--"]
 
 
+def dump(
+    cmd: list[str], lines: list[tuple[str, Args]], timeout: float | None = None
+) -> str:
+    """Feed `<name> <args>...` lines to a dump program; return its output."""
+    inp = "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
+    return subprocess.run(
+        cmd, input=inp, capture_output=True, text=True, check=True, timeout=timeout
+    ).stdout
+
+
 def run(
     cmd: list[str], lines: list[tuple[str, Args]], timeout: float | None = None
 ) -> list[complex]:
-    """Feed `<name> <args>...` lines to a dump program; return the f64 (or complex) results."""
-    inp = "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
-    out = subprocess.run(
-        cmd, input=inp, capture_output=True, text=True, check=True, timeout=timeout
-    ).stdout
-    res = parse(out)
+    """Feed lines to a dump program; return the f64 (or complex) results."""
+    res = parse(dump(cmd, lines, timeout))
     assert len(res) == len(lines), (cmd, len(res), len(lines))
     return res
 

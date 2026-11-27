@@ -32,6 +32,13 @@ succeeded), the reference of an input of (a) or (b) failed or is NaN (marked "?"
 or the sampled inputs without a reference would make (c) a net loss if they all got worse
 (marked with their count). (c) fails only if it holds when they all got better. Each bound
 counts only the inputs that can vote that way.
+
+The "time" column is the head/base ratio of the time of the calls (not of the startup or the
+parsing), as the dump programs measure with the option `time`: the least of at least `REPEATS`
+interleaved runs per revision, and of up to `ROUNDS` while the ratio exceeds `SLOWDOWN`, but of
+no more once the runs took `BUDGET` seconds. It is "-" if the base time is below `MIN_SECONDS`,
+or the base lacks the option. Exit with 3 if there is no failure, but a ratio above `SLOWDOWN`
+(marked "SLOW"), even if a comparison is inconclusive.
 """
 
 import argparse
@@ -68,6 +75,16 @@ NAN_HEAD: Final = 1e-2
 SIGMAS: Final = 3
 ACCURATE: Final = 1e-13
 MIN_POINTS: Final = 2**10
+# Timing, calibrated by running master against itself over all domains (16384 inputs each) on
+# a machine with a load of 8 to 13: the ratios of domains of at least `MIN_SECONDS` stayed in
+# 0.9 to 1.15, those of at least 0.1 s in 0.98 to 1.1, and those below `MIN_SECONDS` went up to
+# 1.6. A function made twice as slow shows as 2.1 to 2.3 (hyp2f2), and #1812 and #1813 together
+# as 1.10 to 1.27 over the domains of hyp2f2, hyp3f2 and hyppfq.
+REPEATS: Final = 3
+BUDGET: Final = 10
+ROUNDS: Final = 8
+MIN_SECONDS: Final = 0.03
+SLOWDOWN: Final = 1.25
 CACHE: Final = accuracy.CACHE / "domain-diff"
 TSV: Final = accuracy.CACHE / "domain-diff.tsv"
 COLUMNS: Final = (
@@ -81,6 +98,7 @@ COLUMNS: Final = (
     "NaN -> value",
     "panics",
     "fails",
+    "time",
 )
 
 
@@ -194,11 +212,34 @@ def fmt(x: float | None) -> str:
     return "-" if x is None else f"{x:.1e}"
 
 
+def seconds(exes: list[Path], lines: list[fuzz_diff.Line]) -> list[float] | None:
+    """The least time of the calls of `lines` of each program over interleaved runs, or None
+    if one cannot tell (e.g. a base without the option `time`). A run is repeated up to
+    `ROUNDS` times, at least `REPEATS` times unless the runs took `BUDGET` seconds already, and
+    while the head is slower than `SLOWDOWN` times the base, as the load of the machine can
+    look like a slowdown, but not a lasting one."""
+    best = [math.inf] * len(exes)
+    spent = 0.0
+    limit = fuzz_diff.RUN_TIMEOUT + fuzz_diff.LINE_TIMEOUT * len(lines)
+    try:
+        for i in range(ROUNDS):
+            # (alternating the order, as the first of two runs may be slower)
+            for j in ((0, 1), (1, 0))[i % 2]:
+                t = float(accuracy.dump([str(exes[j]), "xsf", "time"], lines, limit))
+                best[j] = min(best[j], t)
+                spent += t
+            if spent >= BUDGET or (i + 1 >= REPEATS and best[1] <= SLOWDOWN * best[0]):
+                break
+    except ValueError, subprocess.SubprocessError:
+        return None
+    return best
+
+
 def compare(
     spec: specs.Spec, exes: list[Path], pool: Pool, opts: argparse.Namespace
-) -> tuple[list[list[str]], list[tuple[float, str]], bool, bool]:
+) -> tuple[list[list[str]], list[tuple[float, str]], bool, bool, bool]:
     """The rows of the domains of `spec`, its flagged inputs (as TSV lines, with their head
-    errors), whether it fails, and whether it is inconclusive."""
+    errors), whether it fails, whether it is inconclusive, and whether it got slower."""
     lines: list[fuzz_diff.Line] = []
     spans: list[range] = []
     seeds: list[int] = []
@@ -224,11 +265,11 @@ def compare(
         note = f"skipped: base {status[0]}, head {status[1]}"
         # The reason takes the place of the counts.
         row = [spec.name, "-", note, *["-"] * (len(COLUMNS) - 3)]
-        return [row], [], False, True
+        return [row], [], False, True, False
 
     rows: list[list[str]] = []
     flagged: list[tuple[float, str]] = []
-    failed = inconclusive = False
+    failed = inconclusive = slow = False
     for desc, span, seed in zip(descs, spans, seeds, strict=True):
         # the differing inputs, the candidates of (a) and (b), and a sample of the others
         diff = [i for i in span if fuzz_diff.differ(b[i], h[i], 0.0)]
@@ -284,6 +325,11 @@ def compare(
         )
         failed |= bool(fails)
         inconclusive |= unknown or hidden
+        times = seconds(exes, lines[span.start : span.stop])
+        ratio = (
+            None if times is None or min(times) < MIN_SECONDS else times[1] / times[0]
+        )
+        slow |= ratio is not None and ratio > SLOWDOWN
         rows.append(
             [
                 spec.name,
@@ -296,6 +342,9 @@ def compare(
                 str(len(cand_b)),
                 str(len(panics)),
                 fails + "?" * unknown + f" ({len(noref_rest)} no ref)" * hidden,
+                "-"
+                if ratio is None
+                else f"{ratio:.2f}x" + " SLOW" * (ratio > SLOWDOWN),
             ]
         )
 
@@ -322,7 +371,7 @@ def compare(
                 note,
             ]
             flagged.append((eh, "\t".join(cols)))
-    return rows, flagged, failed, inconclusive
+    return rows, flagged, failed, inconclusive, slow
 
 
 def positive(s: str) -> int:
@@ -398,24 +447,26 @@ def main() -> None:
     print("|", " | ".join(COLUMNS), "|")
     print("|", " | ".join("---" for _ in COLUMNS), "|")
     flagged: list[tuple[float, str]] = []
-    failed = inconclusive = False
+    failed = inconclusive = slow = False
     with multiprocessing.Pool(opts.jobs, maxtasksperchild=500) as pool:
         for spec in chosen:
-            rows, f, bad, unsure = compare(spec, exes, pool, opts)
+            rows, f, bad, unsure, slower = compare(spec, exes, pool, opts)
             for row in rows:
                 print("|", " | ".join(row), "|", flush=True)
             flagged += f
             failed |= bad
             inconclusive |= unsure
+            slow |= slower
 
     head = (
         "function\tdomain\tinput\tbase\thead\treference\tbase error\thead error\tnote"
     )
     lines = [line for _, line in sorted(flagged, reverse=True)]
     TSV.write_text("".join(f"{line}\n" for line in [head, *lines]))
-    code = 1 if failed else 2 if inconclusive else 0
+    code = 1 if failed else 3 if slow else 2 if inconclusive else 0
     print(
-        f"\n{len(lines)} inputs flagged, in {TSV}; {('ok', 'FAIL', 'INCONCLUSIVE')[code]}"
+        f"\n{len(lines)} inputs flagged, in {TSV}; "
+        f"{('ok', 'FAIL', 'INCONCLUSIVE', 'SLOW')[code]}"
     )
     sys.exit(code)
 

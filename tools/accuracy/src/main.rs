@@ -1,13 +1,16 @@
 //! Evaluates xsf-rust or Rust std functions for the accuracy table and the test tables (see
 //! `accuracy.py` and `tools/tables/generate.py`).
 //!
-//! Usage: `xsf-accuracy {xsf|std} < INPUT > OUTPUT`
+//! Usage: `xsf-accuracy {xsf|std} [time] < INPUT > OUTPUT`
 //!
 //! Each input line is `<function> <arg>...`; each output line is the f64 result (or the real
 //! and imaginary parts of a complex result), printed in the shortest form that round-trips. The
-//! function names are those of `specs.py`, and must match the C++ harness `harness.cpp`.
+//! function names are those of `specs.py`, and must match the C++ harness `harness.cpp`. With
+//! `time`, it reads all lines, and prints only the seconds that the calls took.
 
+use std::hint::black_box;
 use std::io::{self, BufRead, BufWriter, Write};
+use std::time::Instant;
 
 use num_complex::Complex;
 
@@ -819,26 +822,48 @@ fn eval_std(f: &str, a: &[f64]) -> Option<f64> {
 type Eval = fn(&str, &[f64]) -> Option<f64>;
 type EvalComplex = fn(&str, &[f64]) -> Option<Complex<f64>>;
 
+/// The result of `f(args)`: a real number, or the real and imaginary parts of a complex one
+fn call(
+    (eval, complex): (Eval, Option<EvalComplex>),
+    f: &str,
+    args: &[f64],
+) -> Option<(f64, Option<f64>)> {
+    eval(f, args)
+        .map(|y| (y, None))
+        .or_else(|| complex.and_then(|g| g(f, args)).map(|z| (z.re, Some(z.im))))
+}
+
 fn main() {
-    let (eval, complex): (Eval, Option<EvalComplex>) = match std::env::args().nth(1).as_deref() {
-        Some("xsf") => (eval_xsf, Some(eval_xsf_complex)),
-        Some("std") => (eval_std, None),
-        _ => panic!("usage: xsf-accuracy {{xsf|std}} < INPUT > OUTPUT"),
+    let mut argv = std::env::args().skip(1);
+    let evals = match argv.next().as_deref() {
+        Some("xsf") => (eval_xsf as Eval, Some(eval_xsf_complex as EvalComplex)),
+        Some("std") => (eval_std as Eval, None),
+        _ => panic!("usage: xsf-accuracy {{xsf|std}} [time] < INPUT > OUTPUT"),
     };
+    let time = argv.next().as_deref() == Some("time");
     let mut out = BufWriter::new(io::stdout().lock());
-    let mut args = Vec::new();
+    let mut calls = Vec::new();
     for line in io::stdin().lock().lines() {
         let line = line.unwrap();
         let mut it = line.split_whitespace();
-        let f = it.next().unwrap();
-        args.clear();
-        args.extend(it.map(|s| s.parse::<f64>().unwrap()));
-        if let Some(y) = eval(f, &args) {
-            writeln!(out, "{y:?}").unwrap();
-        } else if let Some(z) = complex.and_then(|g| g(f, &args)) {
-            writeln!(out, "{:?} {:?}", z.re, z.im).unwrap();
+        let f = it.next().unwrap().to_owned();
+        let args: Vec<f64> = it.map(|s| s.parse().unwrap()).collect();
+        if time {
+            calls.push((f, args));
+        } else if let Some((re, im)) = call(evals, &f, &args) {
+            match im {
+                Some(im) => writeln!(out, "{re:?} {im:?}").unwrap(),
+                None => writeln!(out, "{re:?}").unwrap(),
+            }
         } else {
             panic!("unknown function: {line}");
         }
+    }
+    if time {
+        let start = Instant::now();
+        for (f, args) in &calls {
+            black_box(call(evals, f, args).expect("unknown function"));
+        }
+        writeln!(out, "{}", start.elapsed().as_secs_f64()).unwrap();
     }
 }

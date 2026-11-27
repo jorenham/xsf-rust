@@ -2,8 +2,10 @@ name: domain-diff
 permissions: {}
 
 # (no path filter: GitHub filters the files of the PR, not those of the merge commit)
+# labeled and unlabeled: re-checks the label `allow-slowdown` (only that label, see the job)
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -17,8 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Accuracy over whole domains
     timeout-minutes: 45
+    if: >-
+      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action)
+      || github.event.label.name == 'allow-slowdown'
     permissions:
       contents: read
+      pull-requests: read # the labels of the PR
     env:
       # the versions are locked in tools/uv.lock, which dependabot updates
       UV_LOCKED: 1
@@ -59,9 +65,15 @@ jobs:
       # Compares the merge commit with the base tip for the functions that depend on the changed
       # files of src/. Exit code 1 is a regression. Exit code 2 is a comparison that could not be
       # made (e.g. a new function, which the base lacks, or a missing reference), which only warns.
+      # Exit code 3 is a function that got slower, which fails unless the PR has the label
+      # `allow-slowdown`.
       # Its last line tells these from a failure of the script itself (e.g. a build error).
       - if: steps.src.outputs.changed
         name: domain-diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           code=0
           uv run --project tools tools/accuracy/domain_diff.py \
@@ -77,12 +89,21 @@ jobs:
               echo "::error::A function got less accurate over a domain (see the job summary and the artifact domain-diff)"
               ;;
             2:*INCONCLUSIVE) echo "::warning::The comparison is incomplete (see the job summary)" ;;
+            3:*SLOW)
+              # not from the event, whose labels are those from when the run started
+              if gh pr view "$PR" --json labels --jq '.labels[].name' | grep -qx allow-slowdown; then
+                echo "::warning::A function got slower (see the job summary); allowed by the label allow-slowdown"
+              else
+                echo "::error::A function got slower (see the job summary); add the label allow-slowdown if that is intended"
+                code=1
+              fi
+              ;;
             *)
               echo "::error::domain_diff.py failed with exit code $code"
               code=1
               ;;
           esac
-          [ "$code" = 0 ] || [ "$code" = 2 ]
+          [ "$code" = 0 ] || [ "$code" = 2 ] || [ "$code" = 3 ]
 
       # (only with new references; the cache of a PR is not read by other PRs)
       - id: key
