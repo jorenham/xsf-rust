@@ -2165,6 +2165,80 @@ def _y_integer_axis(v: float | mp.mpf, x: float | mp.mpf, y: float | mp.mpf) -> 
     return v == int(v) and ((y == 0 and x < 0) or (x == 0 and y != 0))
 
 
+_j_raw_ref, _j_raw_arb = _cbessel("j")
+
+
+def _j_ref(v: mp.mpf, x: mp.mpf, y: mp.mpf) -> mp.mpc:
+    """J_v(z), but on the real axis from the real J_v(|x|) (DLMF 10.11.1: J_v(x e^(pi i)) =
+    e^(pi i v) J_v(x)), where mpmath's complex J_v has a spurious imaginary part."""
+    if y != 0:
+        return _j_raw_ref(v, x, y)
+    with specs.wdps(specs.xd(v, x)):
+        j = BESSEL_J(v, abs(x))
+        return mp.mpc(j) * (mp.expjpi(v) if x < 0 else 1)
+
+
+def _j_arb(v: flint.arb, z: flint.acb) -> flint.acb | None:
+    if z.imag != 0:
+        return _j_raw_arb(v, z)
+    j = flint.acb(abs(z.real).bessel_j(v))
+    return j * flint.acb(v).exp_pi_i() if z.real < 0 else j
+
+
+def _j_huge_order(a: tuple[float, ...]) -> bool:
+    """Whether J_v(x) underflows for real x and |v| above AMOS's range, by the bound
+    |J_v(x)| <= e^-t of DLMF 10.14.5 with t >= |v| w^3 / 3 for w = sqrt(1 - (x / v)^2). For
+    v < 0 not an integer, Y_|v| dominates and overflows instead."""
+    v, x, y = abs(a[0]), abs(a[1]), a[2]
+    if y != 0 or not AMOS_ORDERS < v < math.inf or not x < v:
+        return False
+    if a[0] < 0 and not v.is_integer():
+        return False
+    w2 = (1 - x / v) * (1 + x / v)
+    return v * w2 * math.sqrt(w2) / 3 > 2 * LOG_MAX
+
+
+@functools.cache
+def _j_log(a: tuple[float, ...]) -> float:
+    """log |J_v(z)| of v, Re z, Im z = `a`, to some 30 digits (-inf for 0)."""
+    with flint.ctx.workprec(128):
+        return float(abs(flint.acb(a[1], a[2]).bessel_j(flint.acb(a[0]))).log().mid())
+
+
+def _j_mlri(a: tuple[float, ...]) -> bool:
+    """Whether the result of `cyl_bessel_j_c64` depends on `mlri` with a non-integer order
+    (else its binomial coefficient is exactly 1): through `besj` (`binu`) unless v < 0 is a
+    half-integer, where `rotate_jy` drops J, or through `besy` (`besh`, `acon`, `binu`) for
+    v < 0 unless z > 0, where `besh` doesn't continue to the left half plane."""
+    v, x, y = a
+    order = abs(v)
+    if order.is_integer() or not _amos_mlri(order, math.hypot(x, y)):
+        return False
+    return v > 0 or not (2 * order).is_integer() or y != 0 or x < 0
+
+
+J_MLRI_FLOOR: Final = Floor(
+    _j_mlri,
+    J_MILLER_FLOOR.tol,
+    "AMOS's Miller algorithm (`mlri`) takes its binomial coefficient from `poch`, unlike xsf,"
+    " and so rounds differently (1.94e-15 at J_v(-3.33i) with v = -1.58e-15, where xsf has"
+    " 1.4e-16)",
+)
+
+
+def _j_scale(a: tuple[float, ...], f: complex) -> float:
+    """The smallest normal f64 for a subnormal reference, whose modulus has only that absolute
+    precision, and for real x in the oscillatory region |x| > |v|, the Bessel modulus (DLMF
+    10.18(i)) like `specs.r_jv`."""
+    v, x, y = a
+    if 0 < abs(f) < sys.float_info.min:
+        return sys.float_info.min
+    if y == 0 and abs(x) > abs(v):
+        with specs.wdps(specs.xd(v, x)):
+            return float(specs._envelope(v, abs(x)))
+    return 0.0
+
+
 def _y_ref(v: mp.mpf, x: mp.mpf, y: mp.mpf) -> mp.mpc:
     if x > 0 and y == 0:
         # Y is real here. Evaluate on the real axis to avoid spurious mpmath imaginary parts.
@@ -2349,13 +2423,41 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
         floors: tuple[Floor, ...] = (),
     ) -> tuple[tuple[str, str], Entry]:
         func = f"bessel_{f}" if f[0] in "jyik" else f"hankel_{f}"
-        ref, arb = _cbessel(f)
-        out = _complex_out(func, ref, arb, rules, overrides, floors, reals=1)
+        ref, arb = (_j_ref, _j_arb) if f == "j" else _cbessel(f)
+        scale_at = _j_scale if f == "j" else None
+        out = _complex_out(
+            func, ref, arb, rules, overrides, floors, reals=1, scale_at=scale_at
+        )
         return (f"cyl_{func}", "d_cd-cd"), Entry((out,))
 
     return dict(
         [
             _bessel_y_c_entry(),
+            entry(
+                "j",
+                Rule(
+                    _j_huge_order,
+                    complex(0, 0),
+                    "J_v(x) underflows for a huge |v| and |x| < |v|, where xsf returns NaN",
+                ),
+                Rule(
+                    lambda a: _amos_range(a) and not _j_huge_order(a),
+                    complex(math.nan, math.nan),
+                    AMOS_RANGE.why,
+                ),
+                Rule(
+                    lambda a: a[1] == a[2] == 0 and a[0] < 0 and not a[0].is_integer(),
+                    complex(math.nan, math.nan),
+                    "a singularity at z = 0 for v < 0 not an integer, whose limit depends on"
+                    " the direction (DLMF 10.8.1)",
+                ),
+                Rule(
+                    lambda a: (a[1] != 0 or a[2] != 0) and _j_log(a) < -AMOS_ELIM,
+                    complex(0, 0),
+                    "AMOS underflows to 0 below e^-elim (about 4e-305)",
+                ),
+                floors=(J_MLRI_FLOOR,),
+            ),
             entry(
                 "k",
                 Rule(
