@@ -63,7 +63,7 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
   true value (e.g. NaN where `ellipkinc` is real). The reference is computed as above, but
   neither xsf-rust nor xsf need be near it. The tolerance is `max(2^-26, floor)` for `f64` and
   `max(2^-12, floor)` for `f32`, and the test must fail there, so that it notices when the gap
-  closes. The generator errors if the rule's value would pass.
+  closes. The generator errors if xsf-rust's output already passes.
 - legacy: where our reference timed out.
 
 ## Statuses and scales
