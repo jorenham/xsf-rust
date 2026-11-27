@@ -215,6 +215,30 @@ fn cloggamma_public(z: C64) -> C64 {
     w
 }
 
+/// `exp(w)` for `w = +-loggamma(z)`, with only the magnitude where the computed `Im(w)` is
+/// non-finite
+pub(crate) fn exp_loggamma(w: C64, z: C64) -> C64 {
+    if !w.re.is_finite() || w.im.is_finite() {
+        return w.exp();
+    }
+    // Rounding in (z - 1/2)*ln(z) - z (DLMF 5.11.1) moves Re(w) by less than
+    // 4*eps*(|x|*(ln|z| + 1) + |y|*|arg z|). Im(w) overflows only for |z| > 1e305, where this
+    // bound is far beyond the range of exp, so a larger |Re(w)| means 0, or inf + NaN i like
+    // C's cexp(inf + i inf). This assumes round-to-nearest and errors of about one ulp in
+    // hypot, ln and atan2, which leave an error below 3.5*eps times the same scale.
+    let ln_z = z.ln();
+    let scaled = 4.0 * f64::EPSILON * z;
+    let tol = scaled.re.abs() * (ln_z.re + 1.0) + scaled.im.abs() * ln_z.im.abs();
+    if w.re < -tol {
+        // (with the sign of conj(Gamma(z)) = Gamma(conj(z)))
+        c64(0.0, 0.0f64.copysign(z.im))
+    } else if w.re > tol {
+        c64(f64::INFINITY, f64::NAN)
+    } else {
+        C64::NAN
+    }
+}
+
 /// `xsf::rgamma` for complex `z`
 fn crgamma(z: C64) -> C64 {
     // Compute 1/Gamma(z) using loggamma.
@@ -234,9 +258,9 @@ fn crgamma(z: C64) -> C64 {
     }
     // Unlike in xsf, recover the signs from the reflected phase (DLMF 5.5.3).
     // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
-    // For z = -N + iy, the conservative bound |y| <= 10 keeps the error from
-    // replacing Im(log Gamma(N + 1 - iy)) with -y*ln(N) below 2*|y|/N.
-    if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= 10.0 {
+    // For z = -N + iy with |y| <= sqrt(eps)*N, replacing Im(log Gamma(N + 1 - iy)) with
+    // -y*ln(N) errs by about |y|/(2N) + |y|^3/(6N^2) (DLMF 5.11.1), at most eps*|y|.
+    if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= -z.re * f64::EPSILON.sqrt() {
         let phase = -z.im * (-z.re).ln();
         let sign = z.im.signum();
         // The reflected magnitude forces overflow in both components, even for subnormal y.
@@ -245,8 +269,9 @@ fn crgamma(z: C64) -> C64 {
             return c64(f64::INFINITY, f64::INFINITY.copysign(sign));
         }
         let (sin, cos) = phase.sin_cos();
-        // Leave room for the O(Im(z)/Re(z)) phase correction and rounding.
-        if sin.abs().min(cos.abs()) > 16.0 * f64::EPSILON * phase.abs() {
+        // The rounding of ln(N) and of the product, and the omitted terms above, shift the
+        // phase by less than 2*eps*|phase|, so the signs hold beyond that.
+        if sin.abs().min(cos.abs()) > 2.0 * f64::EPSILON * phase.abs() {
             return c64(f64::INFINITY.copysign(-sign * sin), f64::INFINITY.copysign(sign * cos));
         }
     }
@@ -265,7 +290,8 @@ fn crgamma(z: C64) -> C64 {
             return c64(re, im);
         }
     }
-    (-cloggamma(z)).exp()
+    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite.
+    exp_loggamma(-cloggamma(z), z)
 }
 
 pub trait LogGammaArg: crate::sealed::Sealed {

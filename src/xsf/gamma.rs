@@ -3,7 +3,7 @@ use num_complex::Complex;
 use crate::utils::is_nonpos_int;
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::digamma::negative_real_psi_sign;
-use crate::xsf::loggamma::cloggamma;
+use crate::xsf::loggamma::{cloggamma, exp_loggamma};
 
 pub trait GammaArg: crate::sealed::Sealed {
     fn xsf_gamma(self) -> Self;
@@ -42,7 +42,8 @@ pub(crate) fn cgamma(z: C64) -> C64 {
             return c64(re, if derivative_negative { -z.im } else { z.im });
         }
     }
-    cloggamma(z).exp()
+    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite.
+    exp_loggamma(cloggamma(z), z)
 }
 
 /// Gamma function $\Gamma(z)$ for real or complex argument.

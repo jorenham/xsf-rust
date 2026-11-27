@@ -35,6 +35,23 @@ fn test_gamma_c64_real_axis() {
     }
 }
 
+#[test]
+fn test_gamma_c64_log_overflow() {
+    // Gamma underflows or overflows, and the imaginary part of its logarithm overflows.
+    let y = 8.988_465_674_311_05e307;
+    for x in [10.0, 1e-30, -6.666_666_666_666_667] {
+        for (y, zero) in [(y, 0.0_f64), (-y, -0.0)] {
+            let w = xsf::gamma(c64(x, y));
+            assert_eq!((w.re.to_bits(), w.im.to_bits()), (0, zero.to_bits()));
+        }
+    }
+    let w = xsf::gamma(c64(y, y));
+    assert!(w.re == f64::INFINITY && w.im.is_nan());
+    // The sign of the real part of the logarithm is lost to cancellation.
+    let w = xsf::gamma(c64(2.229_373_124_571_598e303, 1e306));
+    assert!(w.re.is_nan() && w.im.is_nan());
+}
+
 xsref::tests! {
     test_gammainc: "gammainc", "d_d-d", |x| xsf::gammainc(x[0], x[1]);
     test_gammaincc: "gammaincc", "d_d-d", |x| xsf::gammaincc(x[0], x[1]);
