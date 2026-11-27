@@ -492,6 +492,15 @@ fn test_hypu_poly_neg_x() {
     assert!(xsf::hypu(-40.0, -40.0 * 2_f64.powi(-58), -2_f64.powi(-58)).is_nan());
     assert!(xsf::hypu(-100_002.0, -100_003.0, -1.0).is_nan());
     assert!(xsf::hypu(-2_147_483_647.0, -1.0, -4.0).is_nan());
+    // Arb: -inf and 5e-324 after rounding, which the error bound can't decide
+    assert!(xsf::hypu(-1.0, 9.979_201_547_673_601e291, -f64::MAX).is_nan());
+    assert!(xsf::hypu(-12.0, -11.0, -1.078_275_047_102_112_5e-27).is_nan());
+
+    // the polynomials of degree 0, also for an infinite `b`, and with the terms `j >= 1` zero
+    assert_eq!(xsf::hypu(0.0, f64::INFINITY, f64::NEG_INFINITY), 1.0);
+    assert_eq!(xsf::hypu(-9_007_199_254_740_992.0, -9_007_199_254_740_991.0, -1.0), 1.0);
+    // infinite `b` otherwise
+    assert!(xsf::hypu(-100_001.0, f64::INFINITY, -1.0).is_nan());
 
     // not real
     assert!(xsf::hypu(0.5, 1.0, -2.0).is_nan());

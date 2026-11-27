@@ -2347,13 +2347,19 @@ pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
 /// relative to `2^e` of the largest term so far, so that nothing over- or underflows before `x^m`.
 pub(super) fn hypu_neg_x(x: f64, a: f64, b: f64) -> f64 {
     let m = -a;
+    if m == 0.0 {
+        return 1.0;
+    }
+    if !b.is_finite() {
+        return f64::NAN;
+    }
     let sign = (-1.0_f64).powf(m);
     // the leading term
-    if x == f64::NEG_INFINITY && b.is_finite() {
+    if x == f64::NEG_INFINITY {
         return x.powf(m);
     }
-    // (below 1/MACHEP = 2^53, a + j is exact)
-    let n = if b.fract() == 0.0 && m < 1.0 / MACHEP && (1.0 - m..=0.0).contains(&b) {
+    // (up to 1/MACHEP = 2^53, a + j is exact)
+    let n = if b.fract() == 0.0 && m <= 1.0 / MACHEP && (1.0 - m..=0.0).contains(&b) {
         m + b - 1.0
     } else {
         m
@@ -2392,9 +2398,13 @@ pub(super) fn hypu_neg_x(x: f64, a: f64, b: f64) -> f64 {
     };
     let u = u.with_l(ln_dd(-x) * m);
     let (value, err) = u.to_f64();
-    // an infinity only if the lower bound of |U| overflows too (by 2 err, as it is rounded)
-    let lower = u.mul_exp(DoubleDouble::new(-2.0 * err)).to_f64().0;
-    if err <= 10_f64.powi(-ID_ACCEPT) && value.is_infinite() == lower.is_infinite() {
+    // an infinity or zero only if both bounds of |U| (by 2 err, as it is rounded) are one too
+    let class = |v: f64| (v.is_infinite(), v == 0.0);
+    let bound = |k: f64| u.mul_exp(DoubleDouble::new(k * err)).to_f64().0;
+    if err <= 10_f64.powi(-ID_ACCEPT)
+        && class(bound(-2.0)) == class(value)
+        && class(bound(2.0)) == class(value)
+    {
         value
     } else {
         f64::NAN
