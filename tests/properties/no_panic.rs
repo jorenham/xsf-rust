@@ -3,8 +3,7 @@
 use num_complex::c64;
 use proptest::prelude::*;
 
-use super::config;
-use super::strategies::{arg, balanced, imag, near_threshold_z};
+use super::strategies::{balanced, imag, near_threshold_z};
 
 #[allow(clippy::unnecessary_wraps)] // a `property!` check
 fn no_panic<T>(value: T) -> Result<(), TestCaseError> {
@@ -14,22 +13,13 @@ fn no_panic<T>(value: T) -> Result<(), TestCaseError> {
 
 property!(no_panic, hyp2f1(a, b, c, x));
 property!(no_panic, hyp2f1_complex(a, b, c, re, im in imag()) => xsf::hyp2f1(a, b, c, c64(re, im)));
-
-proptest! {
-    #![proptest_config(config())]
-
-    // a nearly integer c - a - b, and z next to the switches between the transformations
-    #[test]
-    fn hyp2f1_balanced([a, b, c] in balanced(), x in arg()) {
-        no_panic(xsf::hyp2f1(a, b, c, x))?;
-    }
-
-    #[test]
-    fn hyp2f1_complex_balanced([a, b, c] in balanced(), (re, im) in near_threshold_z()) {
-        no_panic(xsf::hyp2f1(a, b, c, c64(re, im)))?;
-    }
-}
-
+// a nearly integer c - a - b, and z next to the switches between the transformations
+property!(no_panic, hyp2f1_balanced([a, b, c] in balanced(), x) => xsf::hyp2f1(a, b, c, x));
+property!(
+    no_panic,
+    hyp2f1_complex_balanced([a, b, c] in balanced(), (re, im) in near_threshold_z())
+        => xsf::hyp2f1(a, b, c, c64(re, im))
+);
 property!(no_panic, hyp1f1(a, b, x));
 property!(no_panic, hypu(a, b, x));
 property!(no_panic, hyp0f1(b, x));

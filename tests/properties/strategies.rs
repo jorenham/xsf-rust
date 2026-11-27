@@ -15,15 +15,12 @@ fn near_int(range: Range<i32>) -> impl Strategy<Value = f64> {
     (range, delta).prop_map(|(n, d)| f64::from(n) + d)
 }
 
-/// The largest `|offset()|`
-pub(super) const MAX_OFFSET: f64 = 1.0 / 256.0;
-
-/// Small offsets from `-MAX_OFFSET` to `MAX_OFFSET`, down to `2^-60`, e.g. 3e-9 or -1e-15
+/// Small offsets from `-2^-8` to `2^-8`, down to `2^-53`, e.g. 3e-9 or -1e-15
 fn offset() -> impl Strategy<Value = f64> {
-    log_uniform(-60.0..MAX_OFFSET.log2())
+    log_uniform(-f64::from(f64::MANTISSA_DIGITS)..-8.0)
 }
 
-/// Within `MAX_OFFSET` of `-n` for `n` in `poles`, e.g. -3 + 1e-9 or 4e-17
+/// `-n` plus an `offset()` for `n` in `poles`, e.g. -3 + 1e-9, or a tiny 4e-17 for `n = 0`
 fn near_pole(poles: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
     (poles, offset()).prop_map(|(n, d)| -f64::from(n) + d)
 }
@@ -36,11 +33,15 @@ fn extreme() -> impl Strategy<Value = f64> {
     prop_oneof![subnormal, log_uniform(max_exp / 2.0..max_exp)]
 }
 
-/// The radii of the switches between the transformations of `hyp2f1`, 1/2, 1 and 2, perturbed
-/// by up to `2^-4` down to an ulp, e.g. 1 - 2^-30 or -0.5000001
+/// One of `points`, relatively perturbed by up to `2^-4`, down to `2^-53`, e.g. 1 - 2^-30
+fn near(points: Vec<f64>) -> impl Strategy<Value = f64> {
+    let delta = log_uniform(-f64::from(f64::MANTISSA_DIGITS)..-4.0);
+    (prop::sample::select(points), delta).prop_map(|(p, d)| p * (1.0 + d))
+}
+
+/// Next to the switches between the transformations of the real `hyp2f1`, e.g. -0.5000001
 fn near_threshold() -> impl Strategy<Value = f64> {
-    let radii = prop::sample::select(vec![0.5, 1.0, 2.0, -0.5, -1.0, -2.0]);
-    (radii, log_uniform(-f64::from(f64::MANTISSA_DIGITS)..-4.0)).prop_map(|(r, d)| r * (1.0 + d))
+    near(vec![-9.0, -2.0, -1.0, -0.5, 0.5, 0.9, 1.0, 2.0])
 }
 
 /// Boundaries and branch points, e.g. -0.0, 1 - 2^-30 or f64::MAX
@@ -70,6 +71,8 @@ fn special() -> impl Strategy<Value = f64> {
 
 /// Any `f64`, but mostly the interesting ones
 pub(super) fn arg() -> impl Strategy<Value = f64> {
+    // a quarter of the weight for each of the last three, so that together they get a sixth of the
+    // cases
     prop_oneof![
         4 => ANY,
         4 => log_uniform(-64.0..64.0),
@@ -86,17 +89,23 @@ pub(super) fn imag() -> impl Strategy<Value = f64> {
     prop_oneof![8 => arg(), 1 => Just(0.0), 1 => Just(-0.0)]
 }
 
-/// `(re, im)` next to the circles `|z| = 1/2, 1, 2` and the rays of angle 0, pi/3, pi/2 and pi,
-/// e.g. (0.5, 0.8660254) for `exp(i pi/3)`
+/// `(re, im)` next to the switches between the transformations of the complex `hyp2f1`, the
+/// circles `|z| = 0.9, 1, 1.1` and `|1 - z| = 0.9`, on the rays of angle 0, pi/3, pi/2 (where
+/// `Re z = 0`) and pi, or of a small angle, e.g. (0.5, 0.8660254) for `exp(i pi/3)`
 pub(super) fn near_threshold_z() -> impl Strategy<Value = (f64, f64)> {
     let angle = prop_oneof![
         prop::sample::select(vec![0.0, FRAC_PI_3, FRAC_PI_2, PI]),
         log_uniform(-64.0..1.5),
     ];
-    (near_threshold(), angle).prop_map(|(r, t)| (r * t.cos(), r * t.sin()))
+    // (centre, radius), with a random sign of the radius for the opposite side
+    let circle = prop_oneof![(Just(0.0), near(vec![0.9, 1.0, 1.1])), (Just(1.0), near(vec![0.9]))];
+    (circle, any::<bool>(), angle).prop_map(|((z0, r), neg, t)| {
+        let r = if neg { -r } else { r };
+        (z0 + r * t.cos(), r * t.sin())
+    })
 }
 
-/// `[a, b, c]` with `c - a - b` an integer in [-4, 4], or within `MAX_OFFSET` of it, e.g.
+/// `[a, b, c]` with `c - a - b` an integer in [-4, 4], or next to one by an `offset()`, e.g.
 /// [0.3, 1.2, 2.5 + 1e-9]
 pub(super) fn balanced() -> impl Strategy<Value = [f64; 3]> {
     let delta = prop_oneof![Just(0.0), offset()];
@@ -106,6 +115,7 @@ pub(super) fn balanced() -> impl Strategy<Value = [f64; 3]> {
 
 /// Magnitudes up to 2^8, or near an integer
 pub(super) fn moderate() -> impl Strategy<Value = f64> {
+    // half the weight for `near_pole`, so that it gets a fifth of the cases
     prop_oneof![
         4 => log_uniform(-64.0..8.0),
         4 => near_int(-200..200),
@@ -115,6 +125,7 @@ pub(super) fn moderate() -> impl Strategy<Value = f64> {
 
 /// Magnitudes up to 2^4, or near an integer
 pub(super) fn small() -> impl Strategy<Value = f64> {
+    // as in `moderate`
     prop_oneof![4 => log_uniform(-64.0..4.0), 4 => near_int(-16..16), 2 => near_pole(0..=16)]
 }
 

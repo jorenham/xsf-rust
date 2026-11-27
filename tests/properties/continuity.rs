@@ -7,9 +7,8 @@ use num_complex::{Complex64, c64};
 use proptest::prelude::*;
 use proptest::sample::Index;
 
-use super::config;
-use super::strategies::{MAX_OFFSET, arg, balanced, imag, moderate, near_threshold_z, small, unit};
-use super::{int_distance, is_pole};
+use super::strategies::{arg, balanced, imag, moderate, near_threshold_z, small, unit};
+use super::{NEAR_POLE, almost_int, config, int_distance, is_pole, pole_distance};
 
 /// Relative steps `2^-k` from half the digits, `2^-MIN_K`, down to an ulp, `2^-MAX_K`
 const MIN_K: u32 = f64::MANTISSA_DIGITS / 2;
@@ -18,20 +17,6 @@ const MAX_K: u32 = f64::MANTISSA_DIGITS - 1;
 /// A jump must persist at a `2^-16` times smaller step, where the curvature of a smooth function
 /// changes the middle value `2^-32` times less
 const CONFIRM_K: u32 = 16;
-
-/// Within `sqrt(eps)` of an integer, e.g. 3 + 1e-12, where terms with opposite poles at the
-/// integers cancel more than half the digits
-fn almost_int(x: f64) -> bool {
-    int_distance(x) <= f64::EPSILON.sqrt()
-}
-
-/// The distance to the nearest pole of Gamma, e.g. 1e-13 for -3 + 1e-13, or 0.75 for 0.75
-fn pole_distance(x: f64) -> f64 {
-    (x - x.round().min(0.0)).abs()
-}
-
-/// The largest `pole_distance` of the inputs next to a pole, e.g. -3 + 1e-13 or -1e-15
-const NEAR_POLE: f64 = 1e-12;
 
 /// `f` at `x - h`, `x` and `x + h`
 type Bracket = [Complex64; 3];
@@ -142,11 +127,7 @@ proptest! {
         i in any::<Index>(),
         k in MIN_K..=MAX_K - CONFIRM_K
     ) {
-        // known: NaN for a or b, and c, next to poles (#2327), and for a or b next to a pole for a
-        // near-integer c - a - b (#2256)
-        let poles = pole_distance(a).min(pole_distance(b)) <= MAX_OFFSET
-            && (pole_distance(c) <= MAX_OFFSET || almost_int(c - a - b));
-        if known_hyp2f1_complex(a, b, c, re, im) || poles {
+        if known_hyp2f1_complex_balanced(a, b, c, re, im) {
             return Ok(());
         }
         let p = [a, b, c, re, im];
@@ -177,22 +158,29 @@ fn hyp2f1_double_zero() {
     assert_unconfirmed(neighbours(x, 2, 30, |[a, b, c, x]| xsf::hyp2f1(a, b, c, x)));
 }
 
+/// The largest distance to an integer of the `c < 0` in the known failures #2255 of the real
+/// `hyp2f1` at a subnormal `x`, e.g. 2.7e-8
+const NEAR_INT_SUBNORMAL: f64 = 1e-7;
+
 /// The known failures of `hyp2f1` for real arguments
 fn known_hyp2f1(a: f64, b: f64, c: f64, x: f64) -> bool {
     pole_distance(c) <= NEAR_POLE
-        || (x == 1.0 && (c - a - b <= 0.0 || is_pole(a) || is_pole(b)))
-        || (a.abs().min(b.abs()) < f64::EPSILON.sqrt() && x < -1.0)
-        || (x > 1.0 && almost_int(c - a - b))
-        || (is_pole(b) && int_distance(a - c) <= MAX_OFFSET)
-        || (is_pole(a) && int_distance(b - c) <= MAX_OFFSET)
+        || (x == 1.0 && (c - a - b <= 0.0 || is_pole(a) || is_pole(b) || a == c || b == c))
+        || (a.abs().min(b.abs()) < f64::EPSILON && x < -1.0)
+        || (x > 1.0 && int_distance(c - a - b) <= NEAR_POLE)
+        || (is_pole(b) && int_distance(a - c) <= NEAR_POLE)
+        || (is_pole(a) && int_distance(b - c) <= NEAR_POLE)
         || ((a == c || b == c) && x < -1.0)
+        || (x.is_subnormal() && c < 0.0 && int_distance(c) <= NEAR_INT_SUBNORMAL)
 }
 
-// singular at the poles of c, and at x = 1 for c <= a + b; known: polynomials at x = 1 (#2198,
-// fixed by #2214), next to the poles of c (#2241), a tiny c near x = 1 (#2242) and at x << 0
-// (#2243), a tiny a or b at x << 0 (#2253), c = a or b at x < -1 (#2254), and NaN for x > 1 next
-// to an integer c - a - b, where (1 - x)^(c - a - b) is complex (#1687); and
-// a terminating a or b with c next to the other plus an integer (#2330)
+// singular at the poles of c, and at x = 1 for c <= a + b; 0 at x = 1 for c = a and b < 0, where
+// (1 - x)^-b is about 1 at the neighbours if b is tiny; usually NaN for x > 1, but not where a
+// c - a - b within about 1e-13 of an integer counts as one (see its docs); known:
+// polynomials at x = 1 (#2198, fixed by #2214), next to the poles of c (#2241), a tiny c near
+// x = 1 (#2242) and at x << 0 (#2243), a tiny a or b at x << 0 (#2253), c = a or b at x < -1
+// (#2254), c next to a negative integer at a subnormal x (#2255), and a terminating a or b with c
+// next to the other plus an integer (#2330)
 continuous!(
     hyp2f1(a in moderate(), b in moderate(), c in moderate(), x) unless known_hyp2f1(a, b, c, x)
 );
@@ -207,6 +195,22 @@ fn known_hyp2f1_complex(a: f64, b: f64, c: f64, re: f64, im: f64) -> bool {
         || (pole_distance(a).min(pole_distance(b)) <= NEAR_POLE && almost_int(c - a - b))
         || (re == 1.0 && im.abs() < f64::EPSILON.sqrt() && c - a - b <= 0.0)
         || (almost_int(a - b) && re.hypot(im) >= 1.1)
+}
+
+/// The largest `pole_distance` of the parameters in the known failures #2327 and #2334 of the
+/// complex `hyp2f1`, e.g. 7e-10
+const NEAR_POLE_COMPLEX: f64 = 1e-9;
+
+/// The known failures of the complex `hyp2f1` for a nearly integer `c - a - b`
+fn known_hyp2f1_complex_balanced(a: f64, b: f64, c: f64, re: f64, im: f64) -> bool {
+    // known: NaN for a or b, and c, next to negative integers (#2327), wrong or NaN for a or b
+    // next to a pole and a near-integer c - a - b (#2334), and wrong for a negative a and b with
+    // c = a + b right of |z| = 1.1 (#2335)
+    let near_pole = |t: f64| pole_distance(t) <= NEAR_POLE_COMPLEX;
+    known_hyp2f1_complex(a, b, c, re, im)
+        || ((near_pole(a) || near_pole(b))
+            && (near_pole(c) || int_distance(c - a - b) <= NEAR_POLE))
+        || (c - a - b == 0.0 && a.max(b) < 0.0 && re > 1.0 && re.hypot(im) >= 1.1)
 }
 
 // singular at the poles of c, and at z = 1 for c <= a + b; known: polynomials (#2130), Euler
