@@ -293,6 +293,8 @@ const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
 ///   values). Within `HYP2F1_EPS` of an integer degree, it adds `HYP2F1_ETHRESH |G_n|`, as the
 ///   starting values, with `a` near a nonpositive integer, can share a relative error of up to
 ///   about `HYP2F1_ETHRESH` that the residual doesn't show.
+/// - The recurrence also replaces `series` if that lowered threshold is at most
+///   `HYP2F1_ETHRESH |G_n|`, as `hyp2f1` can then be less accurate.
 fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     x: Z,
     n: f64,
@@ -373,7 +375,9 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     } else {
         f64::INFINITY
     };
-    let better = !series.is_finite() || (rec - series).norm() > estimate.min(tol * growth);
+    let accurate = estimate <= HYP2F1_ETHRESH * rec.norm();
+    let better =
+        !series.is_finite() || accurate || (rec - series).norm() > estimate.min(tol * growth);
     (better && (segment || rec.is_finite())).then_some(rec)
 }
 
