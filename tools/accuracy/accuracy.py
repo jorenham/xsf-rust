@@ -140,15 +140,26 @@ def run(
     cmd: list[str], lines: list[tuple[str, Args]], timeout: float | None = None
 ) -> list[complex]:
     """Feed `<name> <args>...` lines to a dump program; return the f64 (or complex) results."""
-    inp = "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
+    inp = "".join(dump_line(name, args) for name, args in lines)
     out = subprocess.run(
         cmd, input=inp, capture_output=True, text=True, check=True, timeout=timeout
     ).stdout
+    res = parse(out)
+    assert len(res) == len(lines), (cmd, len(res), len(lines))
+    return res
+
+
+def dump_line(name: str, args: Args) -> str:
+    """A line of input of a dump program."""
+    return f"{name} {' '.join(map(repr, args))}\n"
+
+
+def parse(out: str) -> list[complex]:
+    """The f64 (or complex) results in the output of a dump program, one per line."""
     res: list[complex] = []
     for line in out.splitlines():
         re_im = [float(s) for s in line.split()]
         res.append(re_im[0] if len(re_im) == 1 else complex(*re_im))
-    assert len(res) == len(lines), (cmd, len(res), len(lines))
     return res
 
 
@@ -362,8 +373,9 @@ def error(y: complex, ref: Ref) -> float:
     else:
         assert isinstance(y, float)
         r = mp.mpf(value)
-        if math.isnan(y):
-            return math.inf
+        if math.isnan(y) or mp.isnan(r):
+            # (a NaN reference, where the function rejects the input)
+            return 0.0 if math.isnan(y) and mp.isnan(r) else math.inf
         if mp.isinf(r) or abs(r) > DBL_MAX:
             return 0.0 if math.isinf(y) and (y > 0) == (r > 0) else math.inf
     if abs(r) < DBL_MIN:  # underflow
