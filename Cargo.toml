@@ -1,6 +1,6 @@
 [package]
 name = "xsf"
-version = "0.7.0-dev"
+version = "0.7.0"
 authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
 categories = ["mathematics", "science"]
 edition = "2024"

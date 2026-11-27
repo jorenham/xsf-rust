@@ -445,7 +445,7 @@ dependencies = [
 
 [[package]]
 name = "xsf"
-version = "0.7.0-dev"
+version = "0.7.0"
 dependencies = [
  "num-complex",
  "num-traits",
