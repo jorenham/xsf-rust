@@ -1,4 +1,3 @@
-use std::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI};
 use std::ops::{Range, RangeInclusive};
 
 use proptest::num::f64::ANY;
@@ -20,7 +19,7 @@ fn offset() -> impl Strategy<Value = f64> {
     log_uniform(-f64::from(f64::MANTISSA_DIGITS)..-8.0)
 }
 
-/// `-n` plus an `offset()` for `n` in `poles`, e.g. -3 + 1e-9, or a tiny 4e-17 for `n = 0`
+/// `-n` plus an `offset()` for `n` in `poles`, e.g. -3 + 1e-9, or a tiny 2^-52 for `n = 0`
 fn near_pole(poles: RangeInclusive<i32>) -> impl Strategy<Value = f64> {
     (poles, offset()).prop_map(|(n, d)| -f64::from(n) + d)
 }
@@ -71,7 +70,7 @@ fn special() -> impl Strategy<Value = f64> {
 
 /// Any `f64`, but mostly the interesting ones
 pub(super) fn arg() -> impl Strategy<Value = f64> {
-    // a quarter of the weight for each of the last three, so that together they get a sixth of the
+    // a quarter of the weight for each of the last three, so that together they get 3/19 of the
     // cases
     prop_oneof![
         4 => ANY,
@@ -90,27 +89,45 @@ pub(super) fn imag() -> impl Strategy<Value = f64> {
 }
 
 /// `(re, im)` next to the switches between the transformations of the complex `hyp2f1`, the
-/// circles `|z| = 0.9, 1, 1.1` and `|1 - z| = 0.9`, on the rays of angle 0, pi/3, pi/2 (where
-/// `Re z = 0`) and pi, or of a small angle, e.g. (0.5, 0.8660254) for `exp(i pi/3)`
+/// circles `|z| = 0.9, 1, 1.1` and `|1 - z| = 0.9`, on the rays of angle 0, pi/3, pi/2 and pi (with
+/// an exact `Re z = 0` for the circles around 0), or of a log-uniform angle up to `2^1.5`, e.g.
+/// (0.5, 0.8660254) for `exp(i pi/3)`
 pub(super) fn near_threshold_z() -> impl Strategy<Value = (f64, f64)> {
-    let angle = prop_oneof![
-        prop::sample::select(vec![0.0, FRAC_PI_3, FRAC_PI_2, PI]),
-        log_uniform(-64.0..1.5),
+    // (cos, sin) of the angle
+    let rays = vec![(1.0, 0.0), (0.5, 3.0_f64.sqrt() / 2.0), (0.0, 1.0), (-1.0, 0.0)];
+    let direction = prop_oneof![
+        prop::sample::select(rays),
+        log_uniform(-64.0..1.5).prop_map(|t| {
+            let (sin, cos) = t.sin_cos();
+            (cos, sin)
+        }),
     ];
     // (centre, radius), with a random sign of the radius for the opposite side
     let circle = prop_oneof![(Just(0.0), near(vec![0.9, 1.0, 1.1])), (Just(1.0), near(vec![0.9]))];
-    (circle, any::<bool>(), angle).prop_map(|((z0, r), neg, t)| {
+    (circle, any::<bool>(), direction).prop_map(|((z0, r), neg, (cos, sin))| {
         let r = if neg { -r } else { r };
-        (z0 + r * t.cos(), r * t.sin())
+        (z0 + r * cos, r * sin)
     })
 }
 
-/// `[a, b, c]` with `c - a - b` an integer in [-4, 4], or next to one by an `offset()`, e.g.
+/// `[a, b, c]` with `c - a - b` an integer `n` in [-4, 4], or next to one by an `offset()`, e.g.
 /// [0.3, 1.2, 2.5 + 1e-9]
 pub(super) fn balanced() -> impl Strategy<Value = [f64; 3]> {
-    let delta = prop_oneof![Just(0.0), offset()];
-    (moderate(), moderate(), -4..=4_i32, delta)
-        .prop_map(|(a, b, n, d)| [a, b, a + b + f64::from(n) + d])
+    let exact = (moderate(), moderate(), -4..=4_i32).prop_map(|(a, b, n)| {
+        // a and b rounded to multiples of a power of two `q`, at which the partial sums, at most
+        // `|a| + |b| + |n|`, are exact, so that `c - a - b = c - b - a = n`
+        let n = f64::from(n);
+        let max = (a.abs() + b.abs() + n.abs()).max(f64::MIN_POSITIVE);
+        let q = (max.log2().ceil() + 1.0 - f64::from(f64::MANTISSA_DIGITS)).exp2();
+        let (a, b) = ((a / q).round() * q, (b / q).round() * q);
+        [a, b, a + b + n]
+    });
+    let near = (moderate(), moderate(), -4..=4_i32, offset()).prop_map(|(a, b, n, d)| {
+        // at least an ulp of `c`, so that it differs from `a + b + n`
+        let c = a + b + f64::from(n);
+        [a, b, c + d.signum() * d.abs().max(f64::EPSILON * c.abs())]
+    });
+    prop_oneof![exact, near]
 }
 
 /// Magnitudes up to 2^8, or near an integer

@@ -50,5 +50,6 @@ fn pole_distance(x: f64) -> f64 {
     (x - x.round().min(0.0)).abs()
 }
 
-/// The largest `pole_distance` of the inputs next to a pole, e.g. -3 + 1e-13 or -1e-15
+/// The largest `pole_distance` of the inputs next to a pole, e.g. -3 + 1e-13 or -1e-15, and the
+/// largest `int_distance` of those next to an integer
 const NEAR_POLE: f64 = 1e-12;
