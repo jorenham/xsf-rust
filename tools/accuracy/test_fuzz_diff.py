@@ -84,6 +84,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("xlogy", (0.0, 0.0)), 0.0, NAN, "regressed"),
     # a NaN is better than a large error
     (("sinpi", (0.5,)), NAN, 0.5, "regressed"),
+    (("sinpi", (0.5,)), NAN, INF, "both wrong"),
     # over- and underflow as for the reference rounded to f64
     (("hyp0f0#c", (709.9, PI / 4)), EXP, c(INF, INF), "regressed"),
     (("hypu", (-1.0, -(2.0**969), DBL_MAX)), DBL_MAX, INF, "regressed"),
@@ -113,6 +114,8 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (HYP1F1, c(E2, -0.0), c(E2, 0.0), "regressed"),
     # also where Arb cannot tell it at the smaller offsets
     (("hyp1f1#c", (0.5, 1.5, -3.0, -0.0)), c(M, -0.0), c(M, 0.0), "regressed"),
+    # but not their magnitudes, which are larger there
+    (("hyp1f1#c", (2.0, 2.0**-52, 0.0, 0.0)), c(1, 0), c(1, 2 * DBL_MIN), "regressed"),
     # and where mpmath cannot
     (("lambertw#c", (1.0, -0.0)), c(W1, -0.0), c(W1, 0.0), "regressed"),
     # a zero of the function on the real axis, with that of its imaginary part

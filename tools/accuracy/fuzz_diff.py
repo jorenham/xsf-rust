@@ -411,11 +411,20 @@ def _agree(x: accuracy.Ref, y: accuracy.Ref) -> bool:
     return abs(u - v) <= mp.ldexp(max(abs(u), DBL_MIN), -BITS)
 
 
+def _signs(r: accuracy.Ref, s: accuracy.Ref) -> accuracy.Ref:
+    """`r`, with a part that is 0 given the sign of that of `s`, as `TINY`."""
+    parts = [
+        repr(math.copysign(TINY, mp.sign(q))) if x == 0 and q else p
+        for p, x, q in zip(_values(r), _mpfs(r), _mpfs(s), strict=True)
+    ]
+    return [parts if isinstance(r[0], list) else parts[0], r[1]]
+
+
 def _side(
     name: str, args: accuracy.Args, imag: set[int], r: accuracy.Ref
 ) -> accuracy.Ref:
-    """The limit from the side of the signed zeros at `imag`: the value at the first of two
-    offsets of `SIDES` that agree, unless the other side agrees but `r`, the value at the point,
+    """The limit from the side of the signed zeros at `imag`: the value at the second of two
+    offsets of `SIDES` that agree (with the signs of its zero parts from the first), unless the other side agrees but `r`, the value at the point,
     does not (as at a branch point of z^TINY); else `r` (as near one of (1 - z)^0.01). Where the
     reference fails, or is the same non-real value on both sides, that at the last offset."""
     last = r
@@ -424,9 +433,11 @@ def _side(
         if not _finite(s):
             return last
         if i and _agree(last, s):
-            # (at the larger offset, at which Arb can tell the sign of a tiny imaginary part)
             t = _value(name, _sided(args, imag, -SIDES[i - 1]))
-            return r if _finite(t) and _agree(last, t) and not _agree(last, r) else last
+            if _finite(t) and _agree(last, t) and not _agree(last, r):
+                return r
+            # (the signs of a tiny part, which Arb can tell at the larger offset)
+            return _signs(s, last)
         if i and mp.mpc(*_mpfs(s)).imag and s == _value(name, _sided(args, imag, -d)):
             return last
         last = s
@@ -490,7 +501,7 @@ def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float,
         return "unchecked" if r is None else "no ref", math.nan, math.nan
     eb, eh = (accuracy.error(math.nan if v is None else v, r) for v in (x, y))
     kind = verdict(eb, eh)
-    if nan == [True, False] and eh > NAN_ERR:
+    if nan == [True, False] and eh > NAN_ERR and cmath.isfinite(y or 0):
         kind = "regressed"
     if (
         kind == "both right"
