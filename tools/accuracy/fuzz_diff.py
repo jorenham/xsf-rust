@@ -13,17 +13,22 @@ Steps:
    spec or function name): samples of its domains, with arguments moved to (near) integers,
    half-integers, domain bounds or special values, one set to (near) an integer plus a signed
    sum of others, and imaginary parts set to signed zeros or tiny values. Skip a spec if a
-   revision lacks its function or times out on it.
-3. Flag the inputs whose results differ by more than `RTOL`, or where one revision panics.
-   Repeat 2 and 3 for `NEAR_ROUNDS` rounds of `--cases` mutants of the flagged inputs (else of
-   those whose results differ at all, else of new samples).
-4. Compute the references of at most `--max-refs` flagged inputs per spec, with Arb where `ARB`
-   has the function, else as `accuracy.py` does, and compare the errors of both revisions.
-5. Print the counts, write the regressions to `.cache/fuzz-diff.tsv`, and exit with 1 if there
-   are any (including a timeout of the head alone).
+   revision lacks its function, or times out or crashes (other than by a panic) on it.
+3. Flag the inputs whose results differ by more than `RTOL` or in the sign of a zero, or where
+   one revision panics. Repeat 2 and 3 for `NEAR_ROUNDS` rounds of `--cases` mutants of the
+   flagged inputs (else of those whose results differ at all, else of new samples).
+4. Compute the references of at most `--max-refs` flagged inputs per spec (those with a panic
+   first), with Arb where `ARB` has the function, else as `accuracy.py` does, and compare the
+   errors of both revisions (see `judge`).
+5. Print the counts, write the regressions to a new `.cache/fuzz-diff-*.tsv`, and exit with 1 if
+   there are any (including a timeout or crash of the head alone).
+
+`test_fuzz_diff.py` checks the references and verdicts of known hard cases.
 """
 
 import argparse
+import cmath
+import hashlib
 import math
 import multiprocessing
 import os
@@ -32,11 +37,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Final
+from typing import Final, TypeGuard
 
 import flint
 import mpmath as mp
@@ -50,16 +57,33 @@ RTOL: Final = 1e-12
 # of roundoff)
 WORSE: Final = 2
 FLOOR: Final = 2.0**-51
+# a NaN is better than a result with a larger error
+NAN_ERR: Final = 1e-2
 ARB_PRECS: Final = (128, 512, 2048)
-# a signed zero imaginary argument for Arb, for the side of a branch cut
-ARB_ZERO: Final = flint.arb(2) ** (-2 * ARB_PRECS[-1])
+# the relative accuracy of an Arb reference
+BITS: Final = 64
+# the exponents of 2 of the numbers that round to a nonzero finite f64, or to 0 from a midpoint
+F64_EXPS: Final = range(
+    sys.float_info.min_exp - sys.float_info.mant_dig, sys.float_info.max_exp + 1
+)
+# replaces a zero argument, for the side of a branch cut or the sign of a zero result
+TINY: Final = math.ulp(0.0)
+# the offsets of a zero imaginary argument: each the square of the last, so that one is also
+# small next to a tiny real argument
+SIDES: Final = tuple(mp.mpf(TINY) ** 2**k for k in range(3))
+# the reference where the function rejects the input (and is NaN)
+REJECTED: Final = "rejected"
+# the exit code of a panic
+PANIC: Final = 101
+# the smallest part of a complex mpmath reference (relative to its absolute value) that is
+# accurate, as for a real reference in `accuracy.ref_task`
+MP_TOL: Final = mp.mpf(10) ** -40
 # seconds per run of a dump program, and per line in it
 RUN_TIMEOUT: Final = 10
 LINE_TIMEOUT: Final = 0.02
 # rounds of mutants of the flagged inputs
 NEAR_ROUNDS: Final = 3
 CACHE: Final = accuracy.CACHE / "fuzz-diff"
-TSV: Final = accuracy.CACHE / "fuzz-diff.tsv"
 IMAG: Final = {"im", "xi", "yi", "zi", "pi"}
 # (of a random sign)
 SPECIAL: Final = (0.0, math.ulp(0), DBL_MIN, DBL_MAX, math.inf, math.nan)
@@ -86,8 +110,44 @@ def _hyp2f1_c(
     return flint.acb(re, im).hypgeom_2f1(a, b, c)
 
 
-# with the complex functions that `specs.ARB` lacks, since their specs use mpmath
-ARB: Final = specs.ARB | {"hyp1f1#c": _hyp1f1_c, "hyp2f1#c": _hyp2f1_c}
+def _nan(*xs: flint.arb) -> bool:
+    return any(x.is_nan() for x in xs)
+
+
+def _elliprc(x: flint.arb, y: flint.arb) -> flint.arb | None:
+    return None if _nan(x, y) or x < 0 else flint.acb.elliptic_rc(x, y).real
+
+
+def _elliprj(
+    x: flint.arb, y: flint.arb, z: flint.arb, p: flint.arb
+) -> flint.arb | None:
+    if _nan(x, y, z, p) or min(x, y, z) < 0:
+        return None
+    return flint.acb.elliptic_rj(x, y, z, p).real
+
+
+def _hypu(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb | None:
+    return None if _nan(a, b, x) or x < 0 else x.hypgeom_u(a, b)
+
+
+def _lambertw_c(re: flint.arb, im: flint.arb) -> flint.acb:
+    return flint.acb(re, im).lambertw()
+
+
+# with the complex functions that `specs.ARB` lacks, since their specs use mpmath (whose
+# `lambertw` ignores an imaginary part of e.g. 2^-1100, and so the side of its cut), and the
+# real functions outside the domains of their specs: None where they reject the input (and are
+# NaN, e.g. U for x < 0, or a NaN argument), and the Cauchy principal value (the real part, the
+# mean of both sides of the cut) for Carlson's integrals with a negative last argument
+ARB: Final[dict[str, Callable[..., flint.arb | flint.acb | None]]] = {
+    **specs.ARB,
+    "hyp1f1#c": _hyp1f1_c,
+    "hyp2f1#c": _hyp2f1_c,
+    "lambertw#c": _lambertw_c,
+    "elliprc": _elliprc,
+    "elliprj": _elliprj,
+    "hypu": _hypu,
+}
 
 
 def build(root: Path, target: Path) -> Path:
@@ -98,10 +158,23 @@ def build(root: Path, target: Path) -> Path:
     return target / "release" / "xsf-accuracy"
 
 
+def _install(exe: Path, dst: Path) -> Path:
+    """Copy `exe` to `dst`, unless it exists (renamed into place, for concurrent runs)."""
+    if not dst.exists():
+        part = dst.with_suffix(f".{os.getpid()}")
+        shutil.copy2(exe, part)
+        part.replace(dst)
+    return dst
+
+
 def program(rev: str | None) -> Path:
     """The dump program of the working tree (`rev` None), or of a commit."""
     if rev is None:
-        return build(accuracy.ROOT, CACHE / "target")
+        # built in this checkout (not in `CACHE`, which worktrees can share), and run from a
+        # copy named by its hash, which no later build replaces
+        exe = build(accuracy.ROOT, accuracy.HERE / "target")
+        digest = hashlib.sha256(exe.read_bytes()).hexdigest()
+        return _install(exe, CACHE / f"xsf-accuracy-{digest[:16]}")
     git = ["git", "-C", str(accuracy.ROOT)]
     sha = subprocess.check_output(
         [*git, "rev-parse", "--verify", f"{rev}^{{commit}}"], text=True
@@ -112,33 +185,34 @@ def program(rev: str | None) -> Path:
         with tempfile.TemporaryDirectory() as tmp:
             tar = subprocess.check_output([*git, "archive", sha])
             subprocess.run(["tar", "-x", "-C", tmp], input=tar, check=True)
-            # (renamed into place, for concurrent runs)
-            part = exe.with_suffix(f".{os.getpid()}")
-            shutil.copy2(build(Path(tmp), Path(tmp) / "target"), part)
-            part.replace(exe)
+            _install(build(Path(tmp), Path(tmp) / "target"), exe)
     return exe
 
 
 def run(exe: Path, lines: list[Line]) -> list[Value]:
-    """The results of the lines, bisecting to find those that panic."""
-    timeout = RUN_TIMEOUT + LINE_TIMEOUT * len(lines)
-    try:
-        return list[Value](accuracy.run([str(exe), "xsf"], lines, timeout))
-    except subprocess.CalledProcessError as e:
-        if "unknown function" in e.stderr:
-            raise
-        if len(lines) == 1:
-            return [None]
-    mid = len(lines) // 2
-    return run(exe, lines[:mid]) + run(exe, lines[mid:])
+    """The results of the lines (None where it panics), within the time of one run."""
+    deadline = time.monotonic() + RUN_TIMEOUT + LINE_TIMEOUT * len(lines)
+    out: list[Value] = []
+    while len(out) < len(lines):
+        try:
+            todo = lines[len(out) :]
+            out += accuracy.run([str(exe), "xsf"], todo, deadline - time.monotonic())
+        except subprocess.CalledProcessError as e:
+            # (also if it dies without unwinding, e.g. by a signal)
+            if "unknown function" in e.stderr or e.returncode != PANIC:
+                raise
+            # a panic writes the results before it as it unwinds
+            out = [*out, *accuracy.parse(e.stdout), None][: len(lines)]
+    return out
 
 
 def evaluate(exe: Path, lines: list[Line]) -> list[Value] | str:
-    """The results of the lines, or "unsupported" or "timeout"."""
+    """The results of the lines, or "unsupported", "exit <code>" or "timeout"."""
     try:
         return run(exe, lines)
-    except subprocess.CalledProcessError:
-        return "unsupported"
+    except subprocess.CalledProcessError as e:
+        missing = "unknown function" in e.stderr
+        return "unsupported" if missing else f"exit {e.returncode}"
     except subprocess.TimeoutExpired:
         return "timeout"
 
@@ -202,35 +276,164 @@ class Mutator:
 
 
 def differ(x: Value, y: Value, rtol: float) -> bool:
-    """Whether a part of two results differs by more than `rtol` (relative to the larger), or
-    only one is a panic."""
+    """Whether a part of two results differs by more than `rtol` (relative to the larger) or in
+    the sign of a zero, or only one is a panic."""
     if x is None or y is None:
         return (x is None) != (y is None)
     x, y = complex(x), complex(y)
     return not all(
-        math.isclose(u, v, rel_tol=rtol) or (math.isnan(u) and math.isnan(v))
+        (
+            math.isclose(u, v, rel_tol=rtol)
+            and math.copysign(1, u) == math.copysign(1, v)
+        )
+        or (math.isnan(u) and math.isnan(v))
         for u, v in ((x.real, y.real), (x.imag, y.imag))
     )
 
 
-def ref(line: Line) -> accuracy.Ref | str:
-    """The reference, with Arb where `ARB` has the function, else as `accuracy.ref_task`."""
-    name, args = line
+def _arb_str(x: flint.arb) -> str:
+    """A part of an Arb reference: exact if the ball is, within `F64_EXPS` (so that it rounds
+    correctly to f64, e.g. at a midpoint), "0" (of an unknown sign) if it contains 0, else 30
+    digits."""
+    if x.is_exact():
+        if not x.is_finite():
+            return repr(float(x))
+        man, exp = map(int, x.man_exp())
+        if exp + man.bit_length() in F64_EXPS:
+            return str(man << exp) if exp >= 0 else f"{man * 5**-exp}e{exp}"
+    return "0" if x.contains(0) else x.str(30, radius=False)
+
+
+def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
+    """The reference at `args`, with Arb where `ARB` has the function, else as
+    `accuracy.ref_task`, or `REJECTED` (where `ARB` rejects it), or an error string (e.g. for
+    a NaN of mpmath where the function has a limit); the parts of a complex reference are 0
+    where their sign is unknown."""
     spec = specs.BY_NAME[name]
     if (f := ARB.get(name)) is not None:
-        xs = [
-            math.copysign(1, x) * ARB_ZERO if x == 0 and a in IMAG else flint.arb(x)
-            for x, a in zip(args, spec.args, strict=True)
-        ]
+        best: flint.acb | None = None
         for prec in ARB_PRECS:
             with flint.ctx.workprec(prec):
-                y = flint.acb(f(*xs))
-            if y.rel_accuracy_bits() >= 64:
-                re, im = (p.str(30, radius=False) for p in (y.real, y.imag))
-                if spec.complex:
-                    return [[re, im], None]
-                return [re, None] if y.imag.contains(0) else f"complex result {y}"
-    return accuracy.ref_task(line)
+                v = f(*map(flint.arb, args))
+            if v is None:
+                return REJECTED
+            if (y := flint.acb(v)).rel_accuracy_bits() >= BITS:
+                best = y
+                if all(p.is_exact() or not p.contains(0) for p in (y.real, y.imag)):
+                    break
+        if best is not None:
+            re, im = map(_arb_str, (best.real, best.imag))
+            if spec.complex:
+                return [[re, im], None]
+            return [re, None] if best.imag.contains(0) else f"complex result {best}"
+    if name in ("entr", "xlogy") and not any(args):
+        # 0 log 0 = 0, where mpmath is NaN
+        return ["0", None]
+    r = accuracy.ref_task((name, args))
+    if isinstance(r, list) and any(mp.isnan(p) for p in _mpfs(r)):
+        return "NaN reference"
+    if spec.complex and isinstance(r, list) and isinstance(r[0], list):
+        tol = abs(mp.mpc(*r[0])) * MP_TOL
+        r[0] = ["0" if abs(mp.mpf(p)) < tol else p for p in r[0]]
+    return r
+
+
+def _sided(args: accuracy.Args, at: set[int], tiny: float) -> accuracy.Args:
+    """The arguments, with the zeros at `at` replaced by `tiny` (or an mpf of `SIDES`) times
+    their sign."""
+    return tuple(
+        math.copysign(1, x) * tiny if i in at else x for i, x in enumerate(args)
+    )
+
+
+def _values(r: accuracy.Ref) -> list[str]:
+    """The value of a reference, as a list of its parts."""
+    v = r[0]
+    return [v] if isinstance(v, str) else v or []
+
+
+def _mpfs(r: accuracy.Ref) -> list[mp.mpf]:
+    return [mp.mpf(p) for p in _values(r)]
+
+
+def ref(line: Line) -> accuracy.Ref | str:
+    """The reference (see `_value`), or an error string. For a signed zero imaginary argument,
+    that on its side of a branch cut (see `_side`); and a part that is 0 gets a sign where that
+    of the function changes with those of the real zero arguments, that of the limit from their
+    side, as `TINY`."""
+    # (also in a worker process, which does not inherit it)
+    mp.mp.dps = specs.DPS
+    try:
+        return _ref(line)
+    except Exception as e:  # noqa: BLE001
+        # (a bug, which would otherwise only show as "no ref")
+        accuracy.log(f"{line[0]}: reference failed: {e!r}")
+        return "failed"
+
+
+def _finite(r: accuracy.Ref | str) -> TypeGuard[accuracy.Ref]:
+    return isinstance(r, list) and all(map(mp.isfinite, _mpfs(r)))
+
+
+def _agree(x: accuracy.Ref, y: accuracy.Ref) -> bool:
+    """Whether two finite references agree to `BITS` bits of the larger of the absolute value of
+    the first and `DBL_MIN`."""
+    u, v = (mp.mpc(*_mpfs(p)) for p in (x, y))
+    return abs(u - v) <= mp.ldexp(max(abs(u), DBL_MIN), -BITS)
+
+
+def _signs(r: accuracy.Ref, signs: list[mp.mpf]) -> accuracy.Ref:
+    """`r`, with each zero part replaced by `TINY` of the sign in `signs`, unless that is 0."""
+    parts = [
+        repr(math.copysign(TINY, q)) if x == 0 and q else p
+        for p, x, q in zip(_values(r), _mpfs(r), signs, strict=True)
+    ]
+    return [parts if isinstance(r[0], list) else parts[0], r[1]]
+
+
+def _side(
+    name: str, args: accuracy.Args, imag: set[int], r: accuracy.Ref
+) -> accuracy.Ref:
+    """The limit from the side of the signed zeros at `imag`: the value at the smaller of two
+    offsets of `SIDES` that agree (with the zero parts signed as at the larger), unless the other
+    side agrees but `r`, the value at the point, does not (as at a branch point of z^TINY); else
+    `r` (as near one of (1 - z)^0.01). Where the reference fails, or is the same non-real value on
+    both sides, that at the last offset."""
+    last = r
+    for i, d in enumerate(SIDES):
+        s = _value(name, _sided(args, imag, d))
+        if not _finite(s):
+            return last
+        if i and _agree(last, s):
+            t = _value(name, _sided(args, imag, -SIDES[i - 1]))
+            if _finite(t) and _agree(last, t) and not _agree(last, r):
+                return r
+            # (the signs of a tiny part, which Arb can tell at the larger offset)
+            return _signs(s, list(map(mp.sign, _mpfs(last))))
+        if i and mp.mpc(*_mpfs(s)).imag and s == _value(name, _sided(args, imag, -d)):
+            return last
+        last = s
+    return r
+
+
+def _ref(line: Line) -> accuracy.Ref | str:
+    name, args = line
+    spec = specs.BY_NAME[name]
+    zeros = {i for i, x in enumerate(args) if x == 0}
+    imag = {i for i in zeros if spec.args[i] in IMAG}
+    real = zeros - imag
+    r = _value(name, args)
+    if imag and _finite(r):
+        r = _side(name, args, imag, r)
+    if not real or not isinstance(r, list) or all(_mpfs(r)):
+        return r
+    near = _sided(args, imag, TINY)
+    s, t = (_value(name, _sided(near, real, d)) for d in (TINY, -TINY))
+    if not isinstance(s, list) or not isinstance(t, list):
+        return r
+    q, u = ([mp.sign(p) for p in _mpfs(v)] for v in (s, t))
+    # (where the sign changes with those of the real zeros)
+    return _signs(r, [a if a == -b else 0 for a, b in zip(q, u, strict=True)])
 
 
 def verdict(eb: float, eh: float) -> str:
@@ -239,6 +442,39 @@ def verdict(eb: float, eh: float) -> str:
     if eb > max(WORSE * eh, FLOOR):
         return "improved"
     return "both wrong" if min(eb, eh) > FLOOR else "both right"
+
+
+def _zeros(z: complex, r: accuracy.Ref) -> bool:
+    """Whether the parts of `z` are 0 (below `DBL_MIN`, as in an underflow) where those of the
+    reference (rounded to f64) are, and then of the same sign; a reference part that is exactly
+    0 has an unknown sign."""
+    z, fs = complex(z), [float(p) for p in _values(r)]
+    return all(
+        p == 0
+        or (abs(u) >= DBL_MIN and abs(f) >= DBL_MIN)
+        or (abs(u) < DBL_MIN and abs(f) < DBL_MIN and math.copysign(1, u) == mp.sign(p))
+        for u, f, p in zip((z.real, z.imag), fs, _mpfs(r))
+    )
+
+
+def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float, float]:
+    """The kind (see `KINDS`) of the results of the base and the head, with their errors; a
+    panic counts as a NaN, which is right only for `REJECTED`. If both are right, but only one
+    has the zeros of the reference (see `_zeros`), the other is wrong."""
+    x, y = (math.nan if v is None else v for v in (x, y))
+    nan = [cmath.isnan(v) for v in (x, y)]
+    if r == REJECTED:
+        eb, eh = (0.0 if n else math.inf for n in nan)
+        return verdict(eb, eh), eb, eh
+    if not isinstance(r, list):
+        return "unchecked" if r is None else "no ref", math.nan, math.nan
+    eb, eh = (accuracy.error(v, r) for v in (x, y))
+    kind = verdict(eb, eh)
+    if nan == [True, False] and eh > NAN_ERR and cmath.isfinite(y):
+        kind = "regressed"
+    if kind == "both right" and (zx := _zeros(x, r)) != _zeros(y, r):
+        kind = "regressed" if zx else "improved"
+    return kind, eb, eh
 
 
 def fuzz(
@@ -273,8 +509,8 @@ def fuzz(
         if isinstance(b, str) or isinstance(h, str):
             status = [y if isinstance(y, str) else "ok" for y in (b, h)]
             accuracy.log(f"{spec.name}: skipped, base {status[0]}, head {status[1]}")
-            hung = [(math.inf, f"{spec.name}\t\t\ttimeout")]
-            return [], hung if status == ["ok", "timeout"] else []
+            hung = [(math.inf, f"{spec.name}\t\t\t{status[1]}")]
+            return [], hung if status[0] == "ok" and status[1] != "unsupported" else []
         lines += fresh
         base += b
         head += h
@@ -285,29 +521,42 @@ def fuzz(
         new = (
             rng.choices([lines[i] for i in seeds], k=opts.cases) if seeds else samples()
         )
-    todo = [i for i in flagged if None not in (base[i], head[i])]
-    todo = rng.sample(todo, min(len(todo), opts.max_refs))
+    # those with a panic first: it is a regression only where the function has a value (not
+    # where it rejects the input)
+    todo = sorted(flagged, key=lambda i: (None not in (base[i], head[i]), rng.random()))
+    todo = todo[: opts.max_refs]
     tasks = [(spec.name, lines[i][1]) for i in todo]
     refs = dict(zip(todo, pool.map(ref, tasks, chunksize=1), strict=True))
     count = Counter[str]()
     worse: list[tuple[float, str]] = []
     for i in flagged:
         x, y, r = base[i], head[i], refs.get(i)
-        if x is None or y is None:
-            eb, eh = (math.inf, 0.0) if x is None else (0.0, math.inf)
-        elif isinstance(r, list):
-            eb, eh = accuracy.error(x, r), accuracy.error(y, r)
-        else:
-            count["unchecked" if r is None else "no ref"] += 1
-            continue
-        count[kind := verdict(eb, eh)] += 1
+        kind, eb, eh = judge(x, y, r)
+        count[kind] += 1
         if kind == "regressed":
-            v = r[0] if isinstance(r, list) else ""
+            v = r[0] if isinstance(r, list) else r
             v = " ".join(v) if isinstance(v, list) else v or ""
             show = ["panic" if u is None else repr(u) for u in (x, y)]
             cols = [spec.name, " ".join(map(repr, lines[i][1])), *show, v]
             worse.append((eh, "\t".join([*cols, f"{eb:.1e}", f"{eh:.1e}"])))
     return [len(lines), len(flagged), *(count[k] for k in KINDS)], worse
+
+
+def report(regressions: list[str]) -> Path | None:
+    """Print the regressions, and write them to a new TSV file (for concurrent runs) in
+    `accuracy.CACHE`, if there are any; returns its path."""
+    if not regressions:
+        print("\nno regressions")
+        return None
+    head = "function\tinput\tbase\thead\treference\tbase error\thead error"
+    with tempfile.NamedTemporaryFile(
+        "w", prefix="fuzz-diff-", suffix=".tsv", dir=accuracy.CACHE, delete=False
+    ) as f:
+        f.writelines(f"{line}\n" for line in [head, *regressions])
+    print(f"\n{len(regressions)} regressions, in {f.name}")
+    for line in [head, *regressions[:10]]:
+        print(line.replace("\t", "  "))
+    return Path(f.name)
 
 
 def main() -> None:
@@ -342,12 +591,7 @@ def main() -> None:
                 print(f"{spec.name:<{w}}", *(f"{c:>10}" for c in row), flush=True)
             regressions += [line for _, line in sorted(worse, reverse=True)]
 
-    head = "function\tinput\tbase\thead\treference\tbase error\thead error"
-    TSV.write_text("".join(f"{line}\n" for line in [head, *regressions]))
-    print(f"\n{len(regressions)} regressions, in {TSV}")
-    for line in [head, *regressions[:10]] if regressions else []:
-        print(line.replace("\t", "  "))
-    sys.exit(1 if regressions else 0)
+    sys.exit(1 if report(regressions) else 0)
 
 
 if __name__ == "__main__":

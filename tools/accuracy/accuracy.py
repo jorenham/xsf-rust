@@ -23,6 +23,7 @@ Steps:
 
 import argparse
 import ast
+import cmath
 import functools
 import hashlib
 import inspect
@@ -144,11 +145,17 @@ def run(
     out = subprocess.run(
         cmd, input=inp, capture_output=True, text=True, check=True, timeout=timeout
     ).stdout
+    res = parse(out)
+    assert len(res) == len(lines), (cmd, len(res), len(lines))
+    return res
+
+
+def parse(out: str) -> list[complex]:
+    """The f64 (or complex) results in the output of a dump program, one per line."""
     res: list[complex] = []
     for line in out.splitlines():
         re_im = [float(s) for s in line.split()]
         res.append(re_im[0] if len(re_im) == 1 else complex(*re_im))
-    assert len(res) == len(lines), (cmd, len(res), len(lines))
     return res
 
 
@@ -351,23 +358,25 @@ def error(y: complex, ref: Ref) -> float:
     """Relative error of `y` w.r.t. the reference (see the header of docs/accuracy.md)."""
     value, scale = ref
     assert not isinstance(scale, list)
+    # the reference rounded to f64 tells an overflow or underflow; the absolute values are of
+    # mpmath, since that of a complex f64 can overflow
     if isinstance(value, list):
-        y, r = complex(y), mp.mpc(*value)
+        y, r, f = complex(y), mp.mpc(*value), complex(*map(float, value))
         if math.isnan(y.real) or math.isnan(y.imag):
             return math.inf
-        if abs(r) > DBL_MAX:
-            return 0.0 if math.isinf(abs(y)) else math.inf
-        if math.isinf(abs(y)):
+        if cmath.isinf(f):
+            return 0.0 if cmath.isinf(y) else math.inf
+        if cmath.isinf(y):
             return math.inf
     else:
-        assert isinstance(y, float)
-        r = mp.mpf(value)
+        assert isinstance(y, float) and isinstance(value, str)
+        r, f = mp.mpf(value), float(value)
         if math.isnan(y):
             return math.inf
-        if mp.isinf(r) or abs(r) > DBL_MAX:
+        if math.isinf(f):
             return 0.0 if math.isinf(y) and (y > 0) == (r > 0) else math.inf
-    if abs(r) < DBL_MIN:  # underflow
-        return 0.0 if abs(y) < DBL_MIN else float(abs(y - r) / DBL_MIN)
+    if abs(mp.mpmathify(f)) < DBL_MIN:  # underflow
+        return 0.0 if abs(mp.mpmathify(y)) < DBL_MIN else float(abs(y - r) / DBL_MIN)
     d = abs(y - r)
     e = d / abs(r)
     if scale is not None:
