@@ -614,6 +614,9 @@ fn digits_left(id: f64, p: f64, q: f64) -> f64 {
 /// Corresponds to [`scipy.special.lpmv`][scipy] in SciPy.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html
+///
+/// # See also
+/// - [`assoc_legendre_p`](crate::assoc_legendre_p), which this forwards to
 #[deprecated(
     since = "0.7.0",
     note = "use `assoc_legendre_p(v, m, x)` with an `f64` degree `v`"

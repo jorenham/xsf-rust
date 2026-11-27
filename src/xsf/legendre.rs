@@ -1829,8 +1829,9 @@ impl AssocLegendrePDegree<f64> for f64 {
 
 /// Associated Legendre function of the 1st kind, $P_n^m(z)$
 ///
-/// The degree `n` is an `i32`, or an `f64` for real `z`. For an `f64` degree, the result is NaN
-/// if $\abs z > 1$.
+/// The degree `n` is an `i32`, or an `f64` for real `z`. For $n < 0$, an `f64` degree gives
+/// $P_{-n-1}^m(z)$, and an `i32` degree gives 0. For $m < -n$, an `f64` degree gives NaN, and an
+/// `i32` degree gives 0.
 ///
 /// With an `i32` degree, this corresponds to [`scipy.special.assoc_legendre_p`][scipy], and with
 /// an `f64` degree, to [`scipy.special.lpmv`][lpmv].
