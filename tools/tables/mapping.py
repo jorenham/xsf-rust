@@ -4546,15 +4546,34 @@ def _mathieu_floor(tol: float, why: str) -> Floor:
     )
 
 
-def _mathieu_long_cvf(odd: int, derivative: bool) -> Pred:
-    """The inputs where `refine` (src/xsf/specfun/mathieu.rs) continues the continued fraction of
-    `cvf` past m + 10 terms, unlike xsf, and where the errors of xsf's less accurate
+def _mathieu_long_cvf(odd: int, kind: int, derivative: bool) -> Floor:
+    """A floor at the inputs where `refine` (src/xsf/specfun/mathieu.rs) continues the continued
+    fraction of `cvf` past m + 10 terms, unlike xsf, and where the errors of xsf's less accurate
     characteristic value happen to cancel others."""
     inputs = {
-        (0, False): {(2.0, 1000.9, 0.0), (7.0, 1000.9, 1.0)},
-        (1, True): {(8.0, 1000.9, 0.0)},
-    }.get((odd, derivative), set())
-    return lambda a: a in inputs
+        (0, 1, False): {(2.0, 1000.9, 0.0), (7.0, 1000.9, 1.0)},
+        (1, 1, True): {(8.0, 1000.9, 0.0)},
+        (0, 2, True): {
+            (5.0, 1000.9, 1e-05),
+            (5.0, 1000.9, 0.00100000000001),
+            (6.0, 1000.9, 1.0),
+            (7.0, 1000.9, 1.0),
+        },
+        (1, 2, False): {
+            (3.0, 1000.9, 5e-08),
+            (3.0, 1000.9, 1e-05),
+            (7.0, 1000.9, 0.0),
+            (7.0, 1000.9, 0.00100000000001),
+            (8.0, 1000.9, 1e-09),
+        },
+        (1, 2, True): {(8.0, 1000.9, 1.0)},
+    }.get((odd, kind, derivative), set())
+    return Floor(
+        lambda a: a in inputs,
+        2e-15,
+        "unlike xsf, `refine` continues `cvf` further, so the characteristic value rounds "
+        "differently",
+    )
 
 
 def _mathieu_radial1(odd: int) -> Entry:
@@ -4596,14 +4615,7 @@ def _mathieu_radial1(odd: int) -> Entry:
                         else ()
                     ),
                 ),
-                floors=(
-                    Floor(
-                        _mathieu_long_cvf(odd, derivative),
-                        2e-15,
-                        "unlike xsf, `refine` continues `cvf` further, so the characteristic "
-                        "value rounds differently",
-                    ),
-                ),
+                floors=(_mathieu_long_cvf(odd, 1, derivative),),
             )
             for derivative in (False, True)
         ),
@@ -4612,24 +4624,6 @@ def _mathieu_radial1(odd: int) -> Entry:
             mathieu.radial1_residual(odd),
         ),
     )
-
-
-def _mathieu_extended_cvf(odd: int) -> Pred:
-    """The inputs where `refine` (src/xsf/specfun/mathieu.rs) continues the continued fraction of
-    `cvf` past m + 10 terms (`extended_depth`), unlike xsf, for m <= 12."""
-
-    def when(a: tuple[float, ...]) -> bool:
-        m, q = a[0], abs(a[1])
-        base = 4 * (m + 10) ** 2
-        # a_m(q) <= m^2 + 2 q
-        return (
-            m <= 12
-            and q > 0
-            and m * m + 6 * q > base
-            and mathieu.characteristic(odd)(mp.mpf(m), mp.mpf(q)) + 4 * q > base
-        )
-
-    return when
 
 
 def _mathieu_radial2(odd: int) -> Entry:
@@ -4654,14 +4648,7 @@ def _mathieu_radial2(odd: int) -> Entry:
                         "the xsf series in Y_n(sqrt(q) exp(x)) cancels catastrophically (#1742)",
                     ),
                 ),
-                floors=(
-                    Floor(
-                        _mathieu_extended_cvf(odd),
-                        3e-15,
-                        "unlike xsf, `refine` continues `cvf` further, so the characteristic "
-                        "value rounds differently",
-                    ),
-                ),
+                floors=(_mathieu_long_cvf(odd, 2, derivative),),
             )
             for derivative in (False, True)
         ),
