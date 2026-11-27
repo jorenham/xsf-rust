@@ -51,7 +51,7 @@ TOLERANCE_NAME = r"\b\w*tol\w*\b(?:\s*:\s*\w+)?\s*=\s*"
 TOLERANCE_LITERAL = re.compile(TOLERANCE_NAME + NUM, re.IGNORECASE)
 TOLERANCE_VARIABLE = re.compile(TOLERANCE_NAME + "[a-z_]", re.IGNORECASE)
 # the `if` guard of `property!(check, name(args) if guard)` or `name(args) if guard`
-PROPERTY_GUARD = r"^\s*(?:property!\(\w+,\s*)?[a-z_]\w*\(.*\)\s+if\b"
+PROPERTY_GUARD = r"^\s*(?:property!\([\w:]+,\s*)?[a-z_]\w*\(.*\)\s+if\b"
 EXCLUSION = re.compile(
     rf"prop_assume!|prop_filter|\bunless\b|{PROPERTY_GUARD}|//\s*known:"
 )
@@ -160,7 +160,8 @@ def test_start(rev: str, path: str) -> int:
     if path.startswith(("tests/", "testing/")):
         return 0
     text = (git("show", f"{rev}:{path}") or b"").decode(errors="replace")
-    for i, line in enumerate(text.splitlines(), 1):
+    # like the lines of a hunk, not `splitlines`
+    for i, line in enumerate(text.split("\n"), 1):
         if line.strip() == "#[cfg(test)]":
             return i
     return sys.maxsize
@@ -313,18 +314,32 @@ def parse_table(data: bytes) -> dict[bytes, tuple[float, ...]] | None:
     return rows
 
 
-def check_tables(base: str, head: str, names: list[str]) -> list[Finding]:
+def blob(rev: str, name: str) -> bytes:
+    """The content of a file that exists in `rev`"""
+    data = git("show", f"{rev}:{name}")
+    if data is None:
+        msg = f"{name} is not in {rev}"
+        raise RuntimeError(msg)
+    return data
+
+
+def check_tables(base: str, head: str, changed: list[list[str]]) -> list[Finding]:
+    """The findings of the changed xsref tables, as `[git status, path]`"""
     out: list[Finding] = []
-    for name in names:
-        old_data = git("show", f"{base}:{name}")
-        if old_data is None:
-            msg = f"{name} is not in {base}"
-            raise RuntimeError(msg)
-        new_data = git("show", f"{head}:{name}")
+    # a table that is replaced by a renamed `.bin` of its function is not removed
+    added = {blob(head, n) for s, n in changed if s == "A" and n.endswith(".bin")}
+    for status, name in changed:
+        if status == "A" or not name.endswith(".bin"):
+            continue
+        old_data = blob(base, name)
         old = parse_table(old_data)
-        new = parse_table(new_data) if new_data else None
         if old is None:
             continue
+        if status == "D":
+            if old_data not in added:
+                out.append(Finding(name, 1, "removed xsref table"))
+            continue
+        new = parse_table(blob(head, name))
         if new is None:
             out.append(Finding(name, 1, "removed xsref table"))
             continue
@@ -368,15 +383,8 @@ def find(base: str, head: str) -> list[Finding]:
         ).split("\n")
         if line
     ]
-    # a table that is replaced by another `.bin` of its function is not removed
-    added = {Path(n).parent for s, n in changed if s == "A" and n.endswith(".bin")}
-    tables = [
-        n
-        for s, n in changed
-        if n.endswith(".bin") and s != "A" and (s != "D" or Path(n).parent not in added)
-    ]
     findings = check_hunks(diff, merge_base, head)
-    return findings + check_tables(merge_base, head, tables)
+    return findings + check_tables(merge_base, head, changed)
 
 
 def escape(text: str) -> str:

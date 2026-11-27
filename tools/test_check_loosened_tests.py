@@ -263,6 +263,41 @@ class Synthetic(unittest.TestCase):
         )
         replaced = {"tests/data/xsref/f/d-d_d.bin": table(rows)}
         self.assertEqual(self.check({f: table(rows)}, {f: None, **replaced}), [])
+        # not another, different table
+        different = {"tests/data/xsref/f/d-d_d.bin": table(rows[:1])}
+        self.assertEqual(
+            self.check({f: table(rows)}, {f: None, **different}),
+            [f"{f}: removed xsref table"],
+        )
+
+    def test_unreadable_head_table(self) -> None:
+        # a changed table whose blob can't be read is an error, not a removal
+        repo = Repo({"tests/data/xsref/f/d-d.bin": table([(1.0, 2.0, 1e-15, 0.0)])})
+        self.addCleanup(repo.tmp.cleanup)
+        repo.commit({"tests/data/xsref/f/d-d.bin": table([(1.0, 2.0, 1e-14, 0.0)])})
+        cwd = Path.cwd()
+        os.chdir(repo.root)
+        try:
+            names = [["M", "tests/data/xsref/f/d-d.bin"]]
+            with self.assertRaises(RuntimeError):
+                c.check_tables("HEAD~", "no-such-rev", names)
+        finally:
+            os.chdir(cwd)
+
+    def test_qualified_property_check(self) -> None:
+        f = "tests/properties/x.rs"
+        before = "property!(checks::no_panic, f(x in positive()));\n"
+        guard = "property!(checks::no_panic, f(x in positive()) if x > 1.0);\n"
+        self.assertEqual(
+            self.check({f: before}, {f: before + guard}),
+            [f"{f}: property-test exclusion"],
+        )
+
+    def test_unicode_line_separator_in_src(self) -> None:
+        f = "src/x.rs"
+        before = 'const S: &str = "\u2028";\n#[cfg(test)]\nmod t {\n    const RTOL: f64 = 1e-5;\n}\n'
+        found = self.check({f: before}, {f: before.replace("1e-5", "1e-4")})
+        self.assertEqual(found, [f"{f}: tolerance 0.0001 > 1e-05"])
 
 
 class History(unittest.TestCase):
