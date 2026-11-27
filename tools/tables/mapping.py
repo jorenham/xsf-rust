@@ -1963,6 +1963,28 @@ AMOS_RANGE: Final = Rule(
     complex(math.nan, math.nan),
     "AMOS returns NaN for |v| or |z| above 2^51 (`ierr = 4`)",
 )
+# the f64 rounding ties at inf (the largest f64 plus half its ulp) and at 0 (half the
+# smallest subnormal), from which a real number rounds to inf, and up to which to 0
+F64_INF_TIE: Final = flint.arb((2**54 - 1, 970))
+F64_ZERO_TIE: Final = flint.arb((1, -1075))
+
+
+def _amos_range_gap(arb: Callable[[flint.arb, flint.acb], flint.acb | None]) -> Rule:
+    """`AMOS_RANGE` as a gap, where each part of the value (`arb`, as in `_cbessel`) is
+    certainly a finite f64."""
+
+    def when(a: tuple[float, ...]) -> bool:
+        if not _amos_range(a):
+            return False
+        # with the bits that a periodic reduction of z loses, as in `_complex_out`
+        with flint.ctx.workprec(ARB_BITS + max(math.frexp(x)[1] for x in (*a, 1))):
+            y = arb(flint.arb(a[0]), flint.acb(a[1], a[2]))
+        return y is not None and all(abs(p) < F64_INF_TIE for p in (y.real, y.imag))
+
+    why = f"{AMOS_RANGE.why}, where the value is finite"
+    return Rule(when, AMOS_RANGE.value, why, gap=True)
+
+
 CBESSEL_AT_0: Final = Rule(
     lambda a: a[1] == a[2] == 0,
     complex(math.nan, math.nan),
@@ -2068,6 +2090,12 @@ def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
     return float(abs(k).log().mid()) > LOG_MAX
 
 
+def _i_nonzero(a: tuple[float, ...]) -> bool:
+    """Whether a part of I_v(z) rounds to a nonzero f64."""
+    y = _i_ball(a)
+    return any(abs(p) > F64_ZERO_TIE for p in (y.real, y.imag))
+
+
 def _i_positive_axis_overflows(a: tuple[float, ...]) -> bool:
     return a[2] == 0 and a[1] > 0 and _i_overflows(a)
 
@@ -2153,8 +2181,11 @@ def _seri_floor(a: tuple[float, ...]) -> float:
     return sys.float_info.epsilon * max(abs(v * ln), math.lgamma(v + 1))
 
 
+# not outside of AMOS's range, where it returns NaN before `seri`
 I_SERI_FLOOR: Final = Floor(
-    lambda a: any(a[1:]) and _amos_seri(abs(a[0]), math.hypot(*a[1:])),
+    lambda a: (
+        any(a[1:]) and not _amos_range(a) and _amos_seri(abs(a[0]), math.hypot(*a[1:]))
+    ),
     _seri_floor,
     "AMOS's power series (`seri`) scales by e^(v ln(z / 2) - ln Gamma(v + 1)), whose terms"
     " depend on the platform's libm, so the exponent can differ in its last bit (2.8e-14 = 128"
@@ -2202,7 +2233,10 @@ def _j_ref(v: mp.mpf, x: mp.mpf, y: mp.mpf) -> mp.mpc:
     """J_v(z), but on the real axis from the real J_v(|x|) (DLMF 10.11.1: J_v(x e^(pi i)) =
     e^(pi i v) J_v(x)), where mpmath's complex J_v has a spurious imaginary part."""
     if y != 0:
-        return _j_raw_ref(v, x, y)
+        # above AMOS's range, with the digits of v once more: where v arg(z) is a multiple of
+        # pi / 2, a part is only about |z|^2 / (4 |v|) of the other (DLMF 10.2.2)
+        with specs.wdps(specs.xd(v) if abs(v) > AMOS_ORDERS else 0):
+            return _j_raw_ref(v, x, y)
     with specs.wdps(specs.xd(v, x)):
         j = BESSEL_J(v, abs(x))
         return mp.mpc(j) * (mp.expjpi(v) if x < 0 else 1)
@@ -2279,7 +2313,10 @@ def _y_ref(v: mp.mpf, x: mp.mpf, y: mp.mpf) -> mp.mpc:
     n = abs(int(v))
     order_sign = (-1) ** n if v < 0 else 1
     if y == 0:
-        return order_sign * (-1) ** n * mp.mpc(mp.bessely(n, -x), 2 * mp.besselj(n, -x))
+        # with digits for n, which `mp.bessely` perturbs at an integer order
+        with specs.wdps(specs.xd(v, x)):
+            y_n, j_n = mp.bessely(n, -x), mp.besselj(n, -x)
+        return order_sign * (-1) ** n * mp.mpc(y_n, 2 * j_n)
     r = abs(y)
     result = mp.mpc(-2 / mp.pi * mp.besselk(n, r), (-1) ** n * mp.besseli(n, r)) * (
         -1j
@@ -2401,6 +2438,7 @@ def _bessel_y_c_entry() -> tuple[tuple[str, str], Entry]:
             complex(-math.inf, 0.0),
             "positive-axis overflow at huge order by the existing Y asymptotic bound",
         ),
+        _amos_range_gap(_y_arb),
         AMOS_RANGE,
         Rule(
             _overflows("y"),
@@ -2470,6 +2508,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     complex(0, 0),
                     "J_v(x) underflows for a huge |v| and |x| < |v|, where xsf returns NaN",
                 ),
+                _amos_range_gap(_j_arb),
                 Rule(
                     lambda a: _amos_range(a) and not _j_huge_order(a),
                     complex(math.nan, math.nan),
@@ -2515,12 +2554,20 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
             ),
             entry(
                 "i",
+                _amos_range_gap(_cbessel("i")[1]),
                 AMOS_RANGE,
                 Rule(
                     lambda a: a[1] == a[2] == 0 and a[0] < 0 and not a[0].is_integer(),
                     complex(math.nan, math.nan),
                     "a singularity at z = 0 for v < 0 not an integer, whose limit depends on"
                     " the direction (DLMF 10.30.1)",
+                ),
+                Rule(
+                    lambda a: _i_log(a) < -AMOS_ELIM and _i_nonzero(a),
+                    complex(0, 0),
+                    "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
+                    " I_v(z) is a nonzero f64",
+                    gap=True,
                 ),
                 Rule(
                     lambda a: _i_log(a) < -AMOS_ELIM,
@@ -2545,6 +2592,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
             entry(
                 "1",
                 CBESSEL_AT_0,
+                _amos_range_gap(_cbessel("1")[1]),
                 AMOS_RANGE,
                 overrides=(HANKEL_AMOS_OVERFLOW,),
                 floors=(HANKEL_MILLER_NORM_FLOOR,),
@@ -2557,6 +2605,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     "H2_0 at zero keeps the xsf wrapper convention",
                 ),
                 CBESSEL_AT_0,
+                _amos_range_gap(_cbessel("2")[1]),
                 AMOS_RANGE,
                 overrides=(HANKEL_AMOS_OVERFLOW,),
                 floors=(HANKEL_MILLER_NORM_FLOOR,),
