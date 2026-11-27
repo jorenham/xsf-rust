@@ -1998,6 +1998,29 @@ def _amos_range_gap(arb: Callable[[flint.arb, flint.acb], flint.acb | None]) -> 
     return Rule(when, AMOS_RANGE.value, why, gap=True)
 
 
+def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
+    """`rule` as a gap, where the real value (`arb` of the inputs) is certainly a finite f64,
+    with `why` added to its reason."""
+
+    def when(a: tuple[float, ...]) -> bool:
+        if not rule.when(a):
+            return False
+        # cancellation can leave the ball too wide to decide at first
+        for k in range(4):
+            with flint.ctx.workprec(ARB_BITS << k):
+                y = arb(*map(flint.arb, a))
+                if y is None:
+                    return False
+                y = abs(y)
+                if F64_ZERO_TIE < y < F64_INF_TIE:
+                    return True
+                if y <= F64_ZERO_TIE or y >= F64_INF_TIE:
+                    return False
+        return False
+
+    return Rule(when, rule.value, f"{rule.why}, {why}", gap=True)
+
+
 CBESSEL_AT_0: Final = Rule(
     lambda a: a[1] == a[2] == 0,
     complex(math.nan, math.nan),
@@ -2103,9 +2126,8 @@ def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
     return float(abs(k).log().mid()) > LOG_MAX
 
 
-def _i_nonzero(a: tuple[float, ...]) -> bool:
-    """Whether a part of I_v(z) rounds to a nonzero f64."""
-    y = _i_ball(a)
+def _nonzero(y: flint.acb) -> bool:
+    """Whether a part of `y` certainly rounds to a nonzero f64."""
     return any(abs(p) > F64_ZERO_TIE for p in (y.real, y.imag))
 
 
@@ -2276,10 +2298,21 @@ def _j_huge_order(a: tuple[float, ...]) -> bool:
 
 
 @functools.cache
-def _j_log(a: tuple[float, ...]) -> float:
-    """log |J_v(z)| of v, Re z, Im z = `a`, to some 30 digits (-inf for 0)."""
+def _j_ball(a: tuple[float, ...]) -> flint.acb:
+    """J_v(z) of v, Re z, Im z = `a`, to some 30 digits."""
     with flint.ctx.workprec(128):
-        return float(abs(flint.acb(a[1], a[2]).bessel_j(flint.acb(a[0]))).log().mid())
+        return flint.acb(a[1], a[2]).bessel_j(flint.acb(a[0]))
+
+
+def _j_log(a: tuple[float, ...]) -> float:
+    """log |J_v(z)| (-inf for 0)."""
+    with flint.ctx.workprec(128):
+        return float(abs(_j_ball(a)).log().mid())
+
+
+def _j_underflows(a: tuple[float, ...]) -> bool:
+    """Whether AMOS underflows J_v(z) to 0 for z != 0, below e^-elim."""
+    return (a[1] != 0 or a[2] != 0) and _j_log(a) < -AMOS_ELIM
 
 
 def _j_mlri(a: tuple[float, ...]) -> bool:
@@ -2534,7 +2567,14 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " the direction (DLMF 10.8.1)",
                 ),
                 Rule(
-                    lambda a: (a[1] != 0 or a[2] != 0) and _j_log(a) < -AMOS_ELIM,
+                    lambda a: _j_underflows(a) and _nonzero(_j_ball(a)),
+                    complex(0, 0),
+                    "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
+                    " J_v(z) is a nonzero f64 (#2365)",
+                    gap=True,
+                ),
+                Rule(
+                    _j_underflows,
                     complex(0, 0),
                     "AMOS underflows to 0 below e^-elim (about 4e-305)",
                 ),
@@ -2576,7 +2616,7 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " the direction (DLMF 10.30.1)",
                 ),
                 Rule(
-                    lambda a: _i_log(a) < -AMOS_ELIM and _i_nonzero(a),
+                    lambda a: _i_log(a) < -AMOS_ELIM and _nonzero(_i_ball(a)),
                     complex(0, 0),
                     "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
                     " I_v(z) is a nonzero f64",
@@ -4244,11 +4284,12 @@ def _pmv(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> mp.mpf:
     """The Ferrers function P_v^m(x) for an integer m (DLMF 14.3.1), as the product of
     ((1 + x) / (1 - x))^(m / 2) and the regularized 2F1(v + 1, -v; 1 - m; (1 - x) / 2), which
     for m > 0 is (v + 1)_m (-v)_m / m! z^m 2F1(v + m + 1, m - v; m + 1; z); for an integer v
-    and x < 0 with P_n^m(-x) = (-1)^(n + m) P_n^m(x) for its degree n (DLMF 14.9.10)."""
+    and x < 0 with P_n^m(-x) = (-1)^(n + m) P_n^m(x) for its degree n (DLMF 14.9.10), unless
+    n + m < 0, where the Q_n^m(x) of that formula has a pole."""
     with specs.wdps(specs.xd(v) + 20):
-        if x < 0 and v == int(v):
-            n = int(v) if v >= 0 else int(-v) - 1
-            return (-1) ** (n + int(m)) * _pmv(m, v, -x)
+        n = _pmv_degree(v)
+        if x < 0 and n is not None and n + m >= 0:
+            return (-1) ** int(n + m) * _pmv(m, v, -x)
         z = (1 - x) / 2
         if m >= 0:
             c = mp.rf(v + 1, m) * mp.rf(-v, m) / mp.factorial(m)
@@ -4267,8 +4308,8 @@ def _pmv_scaled(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> Value:
     within that of theta = pi / 2. P_theta = -sin(theta) P' with DLMF 14.10.4."""
     with specs.wdps(specs.xd(v) + 20):
         p = _pmv(m, v, x)
-        n = _pmv_degree(float(v))
-        zero = n.is_integer() and n + m > 0 and (n + m) % 2 == 1
+        n = _pmv_degree(v)
+        zero = n is not None and n + m > 0 and (n + m) % 2 == 1
         if not zero or abs(x) >= 1 or abs(mp.asin(x)) >= mp.pi / (n + mp.mpf(1) / 2):
             return p
         dp = -((m - v - 1) * _pmv(m, v + 1, x) + (v + 1) * x * p) / mp.sqrt(1 - x * x)
@@ -4284,11 +4325,27 @@ def _pmv_arb(m: flint.arb, v: flint.arb, x: flint.arb) -> flint.arb | None:
     return ((1 + x) / (1 - x)) ** (m / 2) * f
 
 
-def _pmv_degree(v: float) -> float:
-    """The degree n of P_v = P_(-v-1) (DLMF 14.9.5) that xsf uses, v for v >= 0."""
+def _pmv_degree(v: float | mp.mpf) -> int | None:
+    """The integer degree n of P_v = P_(-v-1) (DLMF 14.9.5) that xsf uses, v for v >= 0, or
+    None for a non-integer v (checked and negated exactly)."""
+    if not math.isfinite(v) or v != int(v):
+        return None
+    return -int(v) - 1 if v < 0 else int(v)
+
+
+def _pmv_f64_degree(v: float) -> float:
+    """The degree of P_v as xsf computes it in f64: -v - 1 for v < 0 (DLMF 14.9.5), else v."""
     return -v - 1 if v < 0 else v
 
 
+PMV_NEGATIVE_ORDER: Final = Rule(
+    lambda a: (
+        a[0] < 0 and (n := _pmv_f64_degree(a[1])).is_integer() and n + a[0] + 1 <= 0
+    ),
+    math.nan,
+    "xsf has no formula for a negative order -k and an integer degree n < k, where "
+    "DLMF 14.9.3 does not help",
+)
 PMV_RULES: Final = (
     NAN,
     Rule(
@@ -4301,16 +4358,8 @@ PMV_RULES: Final = (
         math.nan,
         "xsf has NaN for |x| > 1 and m != 0, where the Ferrers function has its sqrt(1 - x^2)",
     ),
-    Rule(
-        lambda a: (
-            a[0] < 0
-            and _pmv_degree(a[1]).is_integer()
-            and _pmv_degree(a[1]) + a[0] + 1 <= 0
-        ),
-        math.nan,
-        "xsf has no formula for a negative order -k and an integer degree n < k, where "
-        "DLMF 14.9.3 does not help",
-    ),
+    _finite_gap(PMV_NEGATIVE_ORDER, _pmv_arb, "but P_n^-k(x) is finite (#2363)"),
+    PMV_NEGATIVE_ORDER,
 )
 
 
@@ -5934,7 +5983,13 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 f"pbwa.{i}",
                 (_pair_ref(specs.r_pbwa, i),),
                 (_pbwa_arb(i),),
-                (NAN, PBWA_NAN),
+                (
+                    NAN,
+                    _finite_gap(
+                        PBWA_NAN, _pbwa_arb(i), "where the value is finite (#2364)"
+                    ),
+                    PBWA_NAN,
+                ),
             )
             for i in range(2)
         )
