@@ -713,13 +713,13 @@ def _dawsn_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return flint.arb.pi().sqrt() / 2 * (-x * x).exp() * x.erfi()
 
 
-def _zero_signs(
+def _signed_rules(
     when: Callable[[tuple[float, ...], float], bool],
     value: Callable[[float], complex],
     why: str,
     gap: bool = False,
 ) -> tuple[Rule, Rule]:
-    """The `Rule`s for both signs s = +-1 of a zero part of the result."""
+    """The pair of `Rule`s for s = +-1, e.g. for the sign of a zero or infinite part."""
     return (
         Rule(lambda a: when(a, 1.0), value(1.0), why, gap),
         Rule(lambda a: when(a, -1.0), value(-1.0), why, gap),
@@ -743,7 +743,7 @@ WOFZ_AT_INF: Final = (
         complex(0, -0.0),
         "w(z) -> 0 - 0i for z -> -inf along Im z = +-0",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: a[0] == 0 and math.copysign(1, a[0]) == s and math.isnan(a[1]),
         lambda s: complex(math.nan, s * 0.0),
         "w(z) = NaN + 0i for z = 0 + NaN i, with the sign of Re z, as w(iy) = erfcx(y) is real",
@@ -1255,13 +1255,13 @@ EXPM1_AT_INF: Final = (
         complex(-1, 0),
         "e^z - 1 -> -1 + 0i for Re z -> -inf, with an infinite or NaN Im z, like C's cexp",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: a[0] == -math.inf and math.copysign(1, math.sin(a[1])) == s,
         lambda s: complex(-1, s * 0.0),
         "e^z - 1 -> -1 + 0i for Re z -> -inf, with a finite Im z and the sign of sin(Im z),"
         " like C's cexp",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: math.isnan(a[0]) and a[1] == 0 and math.copysign(1, a[1]) == s,
         lambda s: complex(math.nan, s * 0.0),
         "e^z - 1 = NaN + 0i for z = NaN + 0i, with the sign of Im z, like C's cexp",
@@ -1272,7 +1272,7 @@ EXPM1_AT_INF: Final = (
         COMPLEX_NAN.value,
         "e^z - 1 has no limit for Im z -> +-inf, with a finite Re z",
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == s,
         lambda s: complex(math.inf, s * 0.0),
         "e^z - 1 -> inf + 0i for z -> +inf along Im z = 0, with its sign, like C's cexp",
@@ -4751,10 +4751,14 @@ def _mathieu_radial2(odd: int) -> Entry:
 
 
 GAMMA_HUGE: Final = 8.98846567431105e307  # an xsref input, about 2^1023
-RGAMMA_BIG_IM: Final = 2.99807699606115e154  # an xsref input, |Im z| of rgamma
-RGAMMA_SMALL_IM: Final = 10.0  # the largest |Im z| of xsref's rgamma rows at huge x
-# the rows where xsf-rust has the true sign of Im z already, at small Re z
+RGAMMA_BIG: Final = 2.99807699606115e154  # an xsref input, |Re z| or |Im z| of rgamma
+RGAMMA_SMALL: Final = (
+    10.0  # the largest |Re z| or |Im z| of xsref's rgamma rows at huge x
+)
+# the rows where both output signs of xsf-rust already agree with Arb, by Re z
 RGAMMA_SIGN_OK: Final = (5.0, 5 / 3, -20 / 3)
+# the Im z at Re z = -RGAMMA_BIG where xsf already matches Arb
+RGAMMA_XSF_OK: Final = (-20 / 7, -30 / 7, 10 / 3)
 
 
 RGAMMA_HUGE_GAPS: Final = (
@@ -4765,23 +4769,21 @@ RGAMMA_HUGE_GAPS: Final = (
         gap=True,
     ),
     Rule(
-        lambda a: abs(a[1]) == RGAMMA_BIG_IM and a[0] == -GAMMA_HUGE,
+        lambda a: abs(a[1]) == RGAMMA_BIG and a[0] == -GAMMA_HUGE,
         complex(math.inf, math.nan),
         "xsf-rust has NaN where Im ln Gamma overflows (#2358)",
         gap=True,
     ),
-    *_zero_signs(
-        lambda a, s: (
-            abs(a[1]) == RGAMMA_BIG_IM and a[0] == -RGAMMA_BIG_IM and a[1] * s > 0
-        ),
+    *_signed_rules(
+        lambda a, s: abs(a[1]) == RGAMMA_BIG and a[0] == -RGAMMA_BIG and a[1] * s > 0,
         lambda s: complex(-math.inf, -s * math.inf),
         "xsf-rust has the wrong sign where Im ln Gamma is unresolved (#2358)",
         gap=True,
     ),
-    *_zero_signs(
+    *_signed_rules(
         lambda a, s: (
-            abs(a[1]) == RGAMMA_BIG_IM
-            and abs(a[0]) <= RGAMMA_SMALL_IM
+            abs(a[1]) == RGAMMA_BIG
+            and abs(a[0]) <= RGAMMA_SMALL
             and a[0] not in RGAMMA_SIGN_OK
             and a[1] * s > 0
         ),
@@ -4858,12 +4860,12 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 complex(math.nan, math.nan),
                 "no limit for z -> -inf",
             ),
-            *_zero_signs(
-                lambda a, s: (
-                    a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == s
+            Rule(
+                lambda a: (
+                    a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == 1
                 ),
-                lambda s: complex(math.inf, s * 0.0),
-                "the limit for z -> +inf along Im z = +-0",
+                complex(math.inf, 0.0),
+                "the limit for z -> +inf along the positive real axis",
             ),
             Rule(
                 lambda a: a[0] == GAMMA_HUGE and abs(a[1]) == GAMMA_HUGE,
@@ -4875,9 +4877,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         ),
         (
             Override(
-                lambda a: abs(a[1]) == GAMMA_HUGE and a[0] < GAMMA_HUGE,
-                "the xsf huge-argument guards (scipy/xsf#179) return inf where the value"
-                " underflows (#2315)",
+                lambda a: abs(a[1]) == GAMMA_HUGE and -(2.0**53) < a[0] < GAMMA_HUGE,
+                "xsf has NaN + NaN i where Gamma underflows to 0 (#2315)",
             ),
         ),
     ),
@@ -4888,9 +4889,13 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         RGAMMA_HUGE_GAPS,
         (
             Override(
-                lambda a: a[0] <= -(2.0**53) and abs(a[1]) <= RGAMMA_SMALL_IM,
-                "the xsf huge-argument guards (scipy/xsf#179) return inf where the value"
-                " underflows (#2315)",
+                lambda a: (
+                    a[0] <= -(2.0**53)
+                    and 0 < abs(a[1]) <= RGAMMA_SMALL
+                    and not (a[0] == -RGAMMA_BIG and a[1] in RGAMMA_XSF_OK)
+                ),
+                "xsf has the wrong overflow signs or a NaN part where 1/Gamma"
+                " overflows (#2315)",
             ),
         ),
     ),
