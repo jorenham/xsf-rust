@@ -258,9 +258,9 @@ fn series_loss<Z: sealed::OrthoPolyArg + Copy>(x: Z, n: f64) -> f64 {
 /// The degree that bounds the cost of `jacobi_hyp2f1_recurrence`
 const MAX_RECURRENCE_DEGREE: f64 = 1e5;
 
-/// A relative error of the starting values of `jacobi_hyp2f1_recurrence` that its residual can't
-/// show, as it solves the recurrence (the least power of two times `EPSILON` that keeps `hyp2f1`
-/// where the recurrence amplifies it by 2e4 to 2e6)
+/// A relative error of the starting values of `jacobi_hyp2f1_recurrence` that solves the
+/// recurrence, so that their residual can't show it (the least power of two times `EPSILON` that
+/// keeps `hyp2f1` where the recurrence amplifies it by 2e4 to 2e6)
 const HIDDEN_START_ERROR: f64 = 8.0 * f64::EPSILON;
 
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
@@ -356,7 +356,7 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
     } else {
         1.0
     };
-    let error = if trusted && !segment {
+    let estimate = if trusted && !segment {
         // the derivatives `(dG_n / dG_{k-1}, dG_n / dG_k)` from `k = n` down to `n - m + 1`, and
         // the effect on `G_n` of the rounding error in each step, `EPSILON` times the sum of its
         // two term magnitudes divided by `|r|`
@@ -369,12 +369,11 @@ fn jacobi_hyp2f1_recurrence<Z: sealed::OrthoPolyArg + Copy>(
         let near_int = (n - n.round()).abs() < HYP2F1_EPS;
         let shared = if near_int { HYP2F1_ETHRESH } else { 0.0 };
         let start_error = residual * growth + HIDDEN_START_ERROR * (growth - rec.norm());
-        let estimate = 2.0 * (2.0 * start_error + f64::EPSILON * step_error) + shared * rec.norm();
-        estimate.min(tol * growth)
+        2.0 * (2.0 * start_error + f64::EPSILON * step_error) + shared * rec.norm()
     } else {
-        tol * growth
+        f64::INFINITY
     };
-    let better = !series.is_finite() || (rec - series).norm() > error;
+    let better = !series.is_finite() || (rec - series).norm() > estimate.min(tol * growth);
     (better && (segment || rec.is_finite())).then_some(rec)
 }
 
