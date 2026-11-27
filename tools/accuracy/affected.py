@@ -3,9 +3,9 @@
 A coarse, conservative approximation: the file of a function depends on the files whose
 top-level public items it names (other than as a method or field after a `.`), and a spec is
 affected if its function is defined or re-exported in a changed file or in a file that it
-depends on (transitively). A spec whose function is not defined by name (e.g. `pmv`), and a
-changed file of `src/` that is not a Rust source of the revision (e.g. a deleted one), affect
-every spec.
+depends on (transitively). A spec whose function is not defined by name (e.g. `pmv`) depends
+on every file, and a changed file of `src/` that is not a Rust source of the revision (e.g. a
+deleted one), or a changed module declaration or re-export, affects every spec.
 """
 
 import io
@@ -28,24 +28,39 @@ USE = re.compile(r"(?<![.\w'])([A-Za-z_]\w*)")
 
 
 def sources(rev: str | None) -> dict[Path, str]:
-    """The Rust sources of `src/` in the working tree (`rev` None), or in a commit."""
+    """The Rust sources of `src/` in the working tree (`rev` None), or in a commit, without
+    comments."""
     if rev is None:
-        return {p: p.read_text() for p in sorted(SRC.rglob("*.rs"))}
-    tar = subprocess.check_output(
-        ["git", "-C", str(accuracy.ROOT), "archive", rev, "--", "src"]
-    )
+        return {
+            p: re.sub(r"//.*", "", p.read_text()) for p in sorted(SRC.rglob("*.rs"))
+        }
+    archive = ["git", "-C", str(accuracy.ROOT), "archive", rev, "--", "src"]
+    try:
+        tar = subprocess.check_output(archive, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        # (a revision without `src/`)
+        return {}
     texts = {}
     with tarfile.open(fileobj=io.BytesIO(tar)) as t:
         for m in t.getmembers():
             # (None if not a file)
             if (f := t.extractfile(m)) and m.name.endswith(".rs"):
-                texts[accuracy.ROOT / m.name] = f.read().decode()
+                texts[accuracy.ROOT / m.name] = re.sub(r"//.*", "", f.read().decode())
     return texts
 
 
-def graph(rev: str | None) -> tuple[dict[str, set[Path]], dict[Path, set[Path]]]:
+def bindings(text: str) -> list[str]:
+    """The module declarations and re-exports, without whitespace."""
+    return [
+        re.sub(r"\s", "", m[0])
+        for m in re.finditer(f"{MOD.pattern}|{REEXPORT.pattern}", text)
+    ]
+
+
+def graph(
+    texts: dict[Path, str],
+) -> tuple[dict[str, set[Path]], dict[Path, set[Path]]]:
     """The files that define or re-export each name, and the files that each file depends on."""
-    texts = {p: re.sub(r"//.*", "", t) for p, t in sources(rev).items()}
     defs: dict[str, set[Path]] = {}
     exports: dict[str, set[Path]] = {}
     for p, t in texts.items():
@@ -66,12 +81,17 @@ def graph(rev: str | None) -> tuple[dict[str, set[Path]], dict[Path, set[Path]]]
     return defs, deps
 
 
-def affected(changed: list[Path], rev: str | None = None) -> list[str]:
-    """The names of the functions of the specs that the changed files of `rev` can affect."""
-    defs, deps = graph(rev)
+def affected(changed: list[Path], base: str, head: str | None = None) -> list[str]:
+    """The names of the functions of the specs that the changed files of `head` can affect."""
+    texts = sources(head)
+    defs, deps = graph(texts)
     funcs = list(dict.fromkeys(s.func for s in specs.SPECS))
     changed_set = set(changed)
     if changed_set - set(deps):
+        return funcs
+    # (the graph has no edges from the users of a name to its re-exports)
+    old = sources(base)
+    if any(bindings(old.get(p, "")) != bindings(texts[p]) for p in changed_set):
         return funcs
     names: list[str] = []
     for name in funcs:

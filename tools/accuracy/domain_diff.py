@@ -362,7 +362,7 @@ def main() -> None:
             new = [*git, "ls-files", "-oz", "--exclude-standard", "--", "src"]
             out += subprocess.check_output(new, text=True)
         files = [accuracy.ROOT / f for f in out.split("\0") if f]
-        names = set(affected.affected(files, opts.head))
+        names = set(affected.affected(files, opts.base, opts.head))
         chosen = [s for s in chosen if names & {s.name, s.func}]
         if not chosen:
             print("no function is affected")
