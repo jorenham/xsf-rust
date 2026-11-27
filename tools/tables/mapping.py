@@ -927,16 +927,43 @@ def _airy_out(i: int, scaled: bool = False) -> Out:
     return Out(f"airy_scaled[{i}]", (ref,), (arb,), rules)
 
 
-def _complex_airye_out(i: int) -> Out:
+# AMOS's `ierr = 4` for |z| > (0.5 / eps)^(2/3), where |z|^(3/2) = 3/2 |zeta| exceeds 0.5 / eps
+# and the argument reduction loses all significance
+AMOS_AIRY_RANGE: Final = (0.5 / 2.0**-52) ** (2 / 3)
+AIRY_AMOS_NAN: Final = Rule(
+    # by Python's `hypot`, which may differ by an ulp from Rust's norm at the cutoff (no row is
+    # near it)
+    lambda a: a[1] != 0 and math.hypot(a[0], a[1]) > AMOS_AIRY_RANGE,
+    complex(math.nan, math.nan),
+    "AMOS returns NaN for |z| > (0.5 / eps)^(2/3), about 1.7e10 (`ierr = 4`)",
+)
+AIRY_REAL_AXIS_OVERRIDE: Final = Override(
+    lambda a: a[1] == 0 and abs(a[0]) in {2.99807699606115e154, 8.98846567431105e307},
+    "xsf returns NaN on the real axis where AMOS gives up (`ierr = 4`), which the real Airy"
+    " limits (x >= 108) and the wide phase reduction (x < -1e16) of xsf-rust avoid",
+)
+
+
+def _complex_airy_out(i: int, scaled: bool) -> Out:
     def ref(re: mp.mpf, im: mp.mpf) -> mp.mpc:
-        return specs.c_airy(re, im, scaled=True)[i]
+        # the odd Taylor terms (DLMF 9.4.1-4) of a part of w(z) near the imaginary axis are
+        # O(|z|^3) relative to |w|, so that a nearest f64 of it needs 3 log10(1/|z|) more digits
+        tiny = max(abs(re), abs(im))
+        with specs.wdps(3 * max(0, -math.ceil(math.log10(tiny))) if tiny else 0):
+            return specs.c_airy(re, im, scaled=scaled)[i]
 
     def arb(z: flint.acb) -> flint.acb:
         y = (z.airy_ai, z.airy_bi)[i // 2](derivative=bool(i % 2))
+        if not scaled:
+            return y
         zeta = 2 * z * z.sqrt() / 3
         return y * (zeta if i < 2 else -abs(zeta.real)).exp()
 
-    return _complex_out(f"airy_scaled[{i}]", ref, arb)
+    if scaled:
+        return _complex_out(f"airy_scaled[{i}]", ref, arb)
+    return _complex_out(
+        f"airy[{i}]", ref, arb, (AIRY_AMOS_NAN,), (AIRY_REAL_AXIS_OVERRIDE,)
+    )
 
 
 def _real(
@@ -5639,7 +5666,12 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             for func in ("spence", "spence_real_axis")
         )
     ),
-    ("airye", "cd-cd_cd_cd_cd"): Entry(tuple(_complex_airye_out(i) for i in range(4))),
+    ("airy", "cd-cd_cd_cd_cd"): Entry(
+        tuple(_complex_airy_out(i, scaled=False) for i in range(4))
+    ),
+    ("airye", "cd-cd_cd_cd_cd"): Entry(
+        tuple(_complex_airy_out(i, scaled=True) for i in range(4))
+    ),
     ("hyp1f1", "d_d_cd-cd"): Entry(
         (
             _complex_out(
