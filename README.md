@@ -172,6 +172,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`hermite`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hermite.html)                           |                                                     |
 | [`hermitenorm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hermitenorm.html)                   |                                                     |
 | [`huber`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.huber.html)                               | `huber`                                             |
+|                                                                                                                        | `hyp!`                                              |
 |                                                                                                                        | `hyp0f0`                                            |
 | [`hyp0f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html)                             | `hyp0f1`                                            |
 |                                                                                                                        | `hyp0f2`                                            |

@@ -115,12 +115,14 @@ impl ExtendedErrorArg for Complex<f64> {
 }
 
 /// Extended absolute error metric between two `f64` or `Complex<f64>` values
+#[doc(hidden)]
 #[inline]
 pub fn extended_absolute_error<T: ExtendedErrorArg>(actual: T, expected: T) -> f64 {
     actual.xsf_extended_absolute_error(expected)
 }
 
 /// Extended relative error metric between two `f64` or `Complex<f64>` values
+#[doc(hidden)]
 #[inline]
 pub fn extended_relative_error<T: ExtendedErrorArg>(actual: T, expected: T) -> f64 {
     actual.xsf_extended_relative_error(expected)
