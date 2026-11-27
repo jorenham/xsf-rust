@@ -5797,7 +5797,13 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 f"pbwa.{i}",
                 (_pair_ref(specs.r_pbwa, i),),
                 (_pbwa_arb(i),),
-                (NAN, PBWA_NAN),
+                (
+                    NAN,
+                    _finite_gap(
+                        PBWA_NAN, _pbwa_arb(i), "where the value is finite (#TBD)"
+                    ),
+                    PBWA_NAN,
+                ),
             )
             for i in range(2)
         )
