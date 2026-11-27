@@ -1992,9 +1992,17 @@ def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
     def when(a: tuple[float, ...]) -> bool:
         if not rule.when(a):
             return False
-        with flint.ctx.workprec(ARB_BITS):
-            y = arb(*map(flint.arb, a))
-        return y is not None and F64_ZERO_TIE < abs(y) < F64_INF_TIE
+        # cancellation can leave the ball too wide to decide at first
+        for k in range(4):
+            with flint.ctx.workprec(ARB_BITS << k):
+                y = arb(*map(flint.arb, a))
+            if y is None:
+                return False
+            if F64_ZERO_TIE < abs(y) < F64_INF_TIE:
+                return True
+            if abs(y) <= F64_ZERO_TIE or abs(y) >= F64_INF_TIE:
+                return False
+        return False
 
     return Rule(when, rule.value, f"{rule.why}, {why}", gap=True)
 
