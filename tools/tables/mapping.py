@@ -2810,6 +2810,7 @@ def _incomplete(
                 lambda a: a[1] > 1,
                 math.nan,
                 f"{f} is real for m > 1, |phi| <= asin(m^(-1/2)), but NaN like in xsf",
+                gap=True,
             ),
             *rules,
             Rule(lambda a: a[0] == math.inf, math.inf, "the limit for phi -> +inf"),
