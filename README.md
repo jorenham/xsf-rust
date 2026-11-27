@@ -61,6 +61,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`cbrt`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.cbrt.html)                                 | `cbrt`                                              |
 |                                                                                                                        | `cdf_cvm`                                           |
 |                                                                                                                        | `cdf_cvm_inf`                                       |
+|                                                                                                                        | `cevalpoly`                                         |
 | [`chdtr`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtr.html)                               | `chdtr`                                             |
 | [`chdtrc`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtrc.html)                             | `chdtrc`                                            |
 | [`chdtri`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtri.html)                             | `chdtri`                                            |
@@ -132,6 +133,8 @@ lists the functions that SciPy computes with another library than xsf.
 | [`expm1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expm1.html)                               | `expm1`                                             |
 | [`expn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expn.html)                                 | `expn`                                              |
 | [`exprel`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exprel.html)                             | `exprel`                                            |
+|                                                                                                                        | `extended_absolute_error`                           |
+|                                                                                                                        | `extended_relative_error`                           |
 | [`factorial`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorial.html)                       | `factorial`, `factorial_checked`                    |
 | [`factorial2`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorial2.html)                     | `multifactorial`, `multifactorial_checked`          |
 | [`factorialk`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorialk.html)                     | `multifactorial`, `multifactorial_checked`          |
@@ -172,6 +175,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`hermite`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hermite.html)                           |                                                     |
 | [`hermitenorm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hermitenorm.html)                   |                                                     |
 | [`huber`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.huber.html)                               | `huber`                                             |
+|                                                                                                                        | `hyp!`                                              |
 |                                                                                                                        | `hyp0f0`                                            |
 | [`hyp0f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html)                             | `hyp0f1`                                            |
 |                                                                                                                        | `hyp0f2`                                            |
@@ -256,7 +260,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`loggamma`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.loggamma.html)                         | `loggamma`                                          |
 | [`logit`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logit.html)                               | `logit`                                             |
 | [`logsumexp`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logsumexp.html)                       | `log1mexp`, `logaddexp`, `logsumexp`                |
-| [`lpmv`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html)                                 | `assoc_legendre_p`                                  |
+| [`lpmv`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html)                                 | `pmv`                                               |
 | [`lqmn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lqmn.html)                                 | `assoc_legendre_q_all`                              |
 | [`lqn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lqn.html)                                   | `legendre_q_all`                                    |
 | [`mathieu_a`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_a.html)                       | `mathieu_a`                                         |

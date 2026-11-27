@@ -423,6 +423,7 @@
 //! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind         |
 //! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                    |
 //! | [`sph_harm_y_all`]            | All spherical harmonics                                      |
+//! | [`pmv`]                       | Associated Legendre function of real degree, $P_v^m(x)$      |
 //! | [`legendre_q_all`]       | All Legendre functions of the 2nd kind and derivatives            |
 //! | [`assoc_legendre_q_all`] | All associated Legendre functions of the 2nd kind and derivatives |
 //!
@@ -648,6 +649,14 @@
 //! | [`logsumexp`]  | $\ln \sum e^{x_i}$                                  |
 //! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$       |
 //! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$ |
+//! | [`cevalpoly`]  | Real polynomial at a complex point                  |
+//!
+//! # Error metrics
+//!
+//! | Function                    | Description                                         |
+//! | --------------------------- | --------------------------------------------------- |
+//! | [`extended_absolute_error`] | Absolute error that also handles infinities and NaN |
+//! | [`extended_relative_error`] | Relative error that also handles infinities and NaN |
 //!
 
 #![forbid(unsafe_code)]
