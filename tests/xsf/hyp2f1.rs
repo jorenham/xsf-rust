@@ -1732,6 +1732,46 @@ fn test_hyp2f1_c64_pfaff_polynomial_arb() {
 }
 
 #[test]
+fn test_hyp2f1_c64_centered_polynomial_arb() {
+    // Both the origin and Pfaff sums cancel (#2310). Arb at the exact binary64 inputs, for both
+    // orders of (a, b), also at conj(z).
+    for (a, b, c, z, expected) in [
+        (
+            -482.0,
+            -4.56,
+            -16.91,
+            c64(0.3973, -0.9202),
+            c64(2.248_612_467_390_046_5e40, -2.915_717_315_212_302e39),
+        ),
+        (
+            -405.0,
+            8.445,
+            -5.303,
+            c64(0.0136, 1.0314),
+            c64(-7.981_009_357_816_551e89, 4.581_579_155_703_376e90),
+        ),
+        (
+            7.73,
+            -394.0,
+            -3.092,
+            c64(0.0272, -1.0566),
+            c64(1.495_937_704_424_21e85, 1.729_828_692_801_060_7e85),
+        ),
+    ] {
+        for (a, b) in [(a, b), (b, a)] {
+            for (z, expected) in [(z, expected), (z.conj(), expected.conj())] {
+                let actual = xsf::hyp2f1(a, b, c, z);
+                np_assert_allclose!(
+                    [actual.re, actual.im],
+                    [expected.re, expected.im],
+                    rtol = 1e-15
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_pfaff_polynomial_exact() {
     let bits = |z: num_complex::Complex64| [z.re.to_bits(), z.im.to_bits()];
 
@@ -1764,9 +1804,14 @@ fn test_hyp2f1_c64_pfaff_polynomial_exact() {
 
 #[test]
 fn test_hyp2f1_c64_pfaff_polynomial_limits() {
-    // Rational arithmetic gives -0.008 + 0.0192i at the binary64 inputs, but 2(c + 1)
-    // overflows: NaN.
-    assert!(xsf::hyp2f1(-2.0, 1.2e308, 1e308, c64(0.9, 0.1)).is_nan());
+    // 2(c + 1) overflows in the origin and Pfaff sums, but not in the centered one (Arb at the
+    // binary64 inputs).
+    let actual = xsf::hyp2f1(-2.0, 1.2e308, 1e308, c64(0.9, 0.1));
+    np_assert_allclose!(
+        [actual.re, actual.im],
+        [-0.008_000_000_000_000_007, 0.019_199_999_999_999_988],
+        rtol = 1e-15
+    );
 
     // Both components overflow.
     let z = c64(9.324_507_004_751_248e30, -1.997_223_793_753_443_4e31);
