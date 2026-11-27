@@ -36,8 +36,8 @@ proptest! {
         hyp2f1_symmetric(a, b, c, x)?;
     }
 
-    // a nearly integer c - a - b; known: 0 or NaN at x = -inf and inf at -f64::MAX (#2325), and a wrong value for c
-    // next to a negative integer (#2326)
+    // a nearly integer c - a - b; known: 0 or NaN at x = -inf and inf at -f64::MAX (#2325), and a
+    // wrong value for c next to a negative integer (#2326)
     #[test]
     fn hyp2f1_balanced([a, b, c] in balanced(), x in arg()) {
         if x > -f64::MAX && !(c < 0.0 && int_distance(c) <= MAX_OFFSET) {

@@ -192,7 +192,7 @@ fn known_hyp2f1(a: f64, b: f64, c: f64, x: f64) -> bool {
 // fixed by #2214), next to the poles of c (#2241), a tiny c near x = 1 (#2242) and at x << 0
 // (#2243), a tiny a or b at x << 0 (#2253), c = a or b at x < -1 (#2254), and NaN for x > 1 next
 // to an integer c - a - b, where (1 - x)^(c - a - b) is complex (#1687); and
-// a terminating a or b with c next to the other plus an integer, (#2330)
+// a terminating a or b with c next to the other plus an integer (#2330)
 continuous!(
     hyp2f1(a in moderate(), b in moderate(), c in moderate(), x) unless known_hyp2f1(a, b, c, x)
 );
