@@ -6,7 +6,6 @@ Usage (from the repository root):
     uv run --project tools tools/accuracy/test_fuzz_diff.py
 """
 
-import cmath
 import contextlib
 import io
 import math
@@ -18,8 +17,6 @@ import fuzz_diff as fd
 import mpmath as mp
 import specs
 from fuzz_diff import Line, Value
-
-NAN, INF, PI = math.nan, math.inf, math.pi
 
 # a dump program that echoes the argument of each line, and panics on `panic`, fails on
 # `unknown`, and sleeps for `slow`
@@ -42,27 +39,30 @@ def kind(line: Line, base: Value, head: Value) -> str:
 
 def test_principal_values() -> None:
     # the real functions return the Cauchy principal value
-    assert kind(("elliprc", (1.0, -1.0)), 0.6232252401402306, NAN) == "regressed"
+    assert kind(("elliprc", (1.0, -1.0)), 0.6232252401402306, math.nan) == "regressed"
     line = ("elliprj", (1.0, 2.0, 3.0, -1.0))
-    assert kind(line, -0.09324045243867635, NAN) == "regressed"
+    assert kind(line, -0.09324045243867635, math.nan) == "regressed"
 
 
 def test_rejected_input() -> None:
     # the real function is NaN for x < 0, even where U is a polynomial
-    assert kind(("hypu", (-1.0, 1.0, -2.0)), NAN, -3.0) == "regressed"
-    assert kind(("hypu", (-1.0, 1.0, -2.0)), NAN, None) == "both right"
+    assert kind(("hypu", (-1.0, 1.0, -2.0)), math.nan, -3.0) == "regressed"
+    assert kind(("hypu", (-1.0, 1.0, -2.0)), math.nan, None) == "both right"
 
 
 def test_branch_cut() -> None:
     line = ("log1p#c", (-2.0, -0.0))
-    assert kind(line, complex(0, -PI), complex(0, PI)) == "regressed"
-    assert kind(line, complex(0, PI), complex(0, -PI)) == "improved"
+    assert kind(line, complex(0, -math.pi), complex(0, math.pi)) == "regressed"
+    assert kind(line, complex(0, math.pi), complex(0, -math.pi)) == "improved"
 
 
 def test_pole() -> None:
     # no side of the pole at z = 1
     line = ("hyp2f1#c", (1.0, 1.0, 1.0, 1.0, 0.0))
-    assert kind(line, complex(INF, 0), complex(0, INF)) not in {"improved", "regressed"}
+    assert kind(line, complex(math.inf, 0), complex(0, math.inf)) not in {
+        "improved",
+        "regressed",
+    }
 
 
 def test_zero_signs() -> None:
@@ -75,7 +75,6 @@ def test_zero_signs() -> None:
     line = ("hyp1f1#c", (1.0, 1.0, 2.0, -0.0))
     e2 = math.exp(2)
     assert kind(line, complex(e2, -0.0), complex(e2, 0.0)) == "regressed"
-    assert cmath.isclose(complex(e2, -0.0), complex(e2, 0.0))
 
 
 def test_midpoint() -> None:
@@ -88,7 +87,7 @@ def test_midpoint() -> None:
 def test_documented_panic() -> None:
     # an argument precondition, where the reference fails
     line = ("roots_gengegenbauer.1", (41.0, 33.0, -1.0, 1.0))
-    assert kind(line, NAN, None) == "no ref"
+    assert kind(line, math.nan, None) == "no ref"
 
 
 def test_panics_and_unknown() -> None:
