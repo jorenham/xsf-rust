@@ -1999,8 +1999,8 @@ def _amos_range_gap(arb: Callable[[flint.arb, flint.acb], flint.acb | None]) -> 
 
 
 def _finite_gap(rule: Rule, arb: Arb, why: str, zero: bool = False) -> Rule:
-    """`rule` as a gap, where the real value (`arb` of the inputs) is certainly a finite f64
-    (or exactly 0, with `zero`), with `why` added to its reason."""
+    """`rule` as a gap, where the real value (`arb` of the inputs) certainly rounds to a nonzero
+    finite f64 (or is exactly 0, with `zero`), with `why` added to its reason."""
 
     def when(a: tuple[float, ...]) -> bool:
         if not rule.when(a):

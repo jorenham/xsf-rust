@@ -3663,9 +3663,9 @@ def _wright_series(a, b, x):
 
 
 def _wright_bessel(a, b, x):
-    """Phi(a, b; x) for a >= 0: exp(x) / Gamma(b) for a = 0, else the power series, with the
-    digits that cancellation loses (for x < 0) added."""
-    if a == 0:
+    """Phi(a, b; x) for a >= 0: exp(x) / Gamma(b) for a = 0 or x = 0, else the power series, with
+    the digits that cancellation loses added."""
+    if a == 0 or x == 0:
         return mp.exp(x) * mp.rgamma(b)
     extra = 0
     while True:
