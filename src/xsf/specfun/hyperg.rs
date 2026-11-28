@@ -1467,7 +1467,6 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         }
         // Unlike in xsf, sum the polynomial itself: for x < 0, xsf sums e^x M(b - a, b, -x), whose
         // series stops at the pole too early, and for a = b, x > 0 its term ratio is 0/0
-
         if b >= -MAX_SERIES_ITERATIONS && (x < 0.0 || a == b) {
             return chgm_pole_poly(a, b, x);
         }
