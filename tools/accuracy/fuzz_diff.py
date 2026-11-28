@@ -68,8 +68,8 @@ F64_EXPS: Final = range(
 )
 # replaces a zero argument, for the side of a branch cut or the sign of a zero result
 TINY: Final = math.ulp(0.0)
-# the offsets of a zero imaginary argument: each the square of the last, so that one is also
-# small next to a tiny real argument
+# the offsets of a zero part of a complex argument: each the square of the last, so that one is
+# also small next to a tiny other part
 SIDES: Final = tuple(mp.mpf(TINY) ** 2**k for k in range(3))
 # the reference where the function rejects the input (and is NaN)
 REJECTED: Final = "rejected"
@@ -304,6 +304,22 @@ def _arb_str(x: flint.arb) -> str:
     return "0" if x.contains(0) else x.str(30, radius=False)
 
 
+def _x_log(name: str, args: accuracy.Args) -> float | None:
+    """The value at x = 0 (the first argument) of a function with a term x log(...), as SciPy:
+    that of its other terms (0 log 0 = 0, where mpmath is NaN), for a y that is not NaN of
+    `xlogy` and `xlog1py`, and y >= 0 of `rel_entr` and `kl_div`; else None."""
+    match name, args:
+        case "entr", (0,):
+            return 0.0
+        case "xlogy" | "xlog1py", (0, y) if not math.isnan(y):
+            return 0.0
+        case "rel_entr", (0, y) if y >= 0:
+            return 0.0
+        case "kl_div", (0, y) if y >= 0:
+            return y
+    return None
+
+
 def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
     """The reference at `args`, with Arb where `ARB` has the function, else as
     `accuracy.ref_task`, or `REJECTED` (where `ARB` rejects it), or an error string (e.g. for
@@ -326,9 +342,6 @@ def _value(name: str, args: accuracy.Args) -> accuracy.Ref | str:
             if spec.complex:
                 return [[re, im], None]
             return [re, None] if best.imag.contains(0) else f"complex result {best}"
-    if name in ("entr", "xlogy") and not any(args):
-        # 0 log 0 = 0, where mpmath is NaN
-        return ["0", None]
     r = accuracy.ref_task((name, args))
     if isinstance(r, list) and any(mp.isnan(p) for p in _mpfs(r)):
         return "NaN reference"
@@ -357,10 +370,10 @@ def _mpfs(r: accuracy.Ref) -> list[mp.mpf]:
 
 
 def ref(line: Line) -> accuracy.Ref | str:
-    """The reference (see `_value`), or an error string. For a signed zero imaginary argument,
-    that on its side of a branch cut (see `_side`); and a part that is 0 gets a sign where that
-    of the function changes with those of the real zero arguments, that of the limit from their
-    side, as `TINY`."""
+    """The reference (see `_x_log` and `_value`), or an error string. For a signed zero part of
+    a complex argument, that on its side of a branch cut (see `_side`); and a part that is 0 gets
+    a sign where that of the function changes with those of the real zero arguments, that of the
+    limit from their side, as `TINY`."""
     # (also in a worker process, which does not inherit it)
     mp.mp.dps = specs.DPS
     try:
@@ -392,25 +405,25 @@ def _signs(r: accuracy.Ref, signs: list[mp.mpf]) -> accuracy.Ref:
 
 
 def _side(
-    name: str, args: accuracy.Args, imag: set[int], r: accuracy.Ref
+    name: str, args: accuracy.Args, at: set[int], r: accuracy.Ref
 ) -> accuracy.Ref:
-    """The limit from the side of the signed zeros at `imag`: the value at the smaller of two
+    """The limit from the side of the signed zeros at `at`: the value at the smaller of two
     offsets of `SIDES` that agree (with the zero parts signed as at the larger), unless the other
     side agrees but `r`, the value at the point, does not (as at a branch point of z^TINY); else
     `r` (as near one of (1 - z)^0.01). Where the reference fails, or is the same non-real value on
     both sides, that at the last offset."""
     last = r
     for i, d in enumerate(SIDES):
-        s = _value(name, _sided(args, imag, d))
+        s = _value(name, _sided(args, at, d))
         if not _finite(s):
             return last
         if i and _agree(last, s):
-            t = _value(name, _sided(args, imag, -SIDES[i - 1]))
+            t = _value(name, _sided(args, at, -SIDES[i - 1]))
             if _finite(t) and _agree(last, t) and not _agree(last, r):
                 return r
             # (the signs of a tiny part, which Arb can tell at the larger offset)
             return _signs(s, list(map(mp.sign, _mpfs(last))))
-        if i and mp.mpc(*_mpfs(s)).imag and s == _value(name, _sided(args, imag, -d)):
+        if i and mp.mpc(*_mpfs(s)).imag and s == _value(name, _sided(args, at, -d)):
             return last
         last = s
     return r
@@ -418,13 +431,18 @@ def _side(
 
 def _ref(line: Line) -> accuracy.Ref | str:
     name, args = line
+    if (v := _x_log(name, args)) is not None:
+        # (exact, of an unknown sign)
+        return [repr(v), None]
     spec = specs.BY_NAME[name]
     zeros = {i for i, x in enumerate(args) if x == 0}
     imag = {i for i in zeros if spec.args[i] in IMAG}
     real = zeros - imag
+    # the zero parts of complex arguments (a real one, e.g. at a cut along the imaginary axis)
+    sides = imag | (real & {i - 1 for i, a in enumerate(spec.args) if a in IMAG})
     r = _value(name, args)
-    if imag and _finite(r):
-        r = _side(name, args, imag, r)
+    if sides and _finite(r):
+        r = _side(name, args, sides, r)
     if not real or not isinstance(r, list) or all(_mpfs(r)):
         return r
     near = _sided(args, imag, TINY)
@@ -444,13 +462,15 @@ def verdict(eb: float, eh: float) -> str:
     return "both wrong" if min(eb, eh) > FLOOR else "both right"
 
 
-def _zeros(z: complex, r: accuracy.Ref) -> bool:
-    """Whether the parts of `z` are 0 (below `DBL_MIN`, as in an underflow) where those of the
-    reference (rounded to f64) are, and then of the same sign; a reference part that is exactly
-    0 has an unknown sign."""
+def _extremes(z: complex, r: accuracy.Ref) -> bool:
+    """Whether the parts of `z` are infinite where those of the reference (rounded to f64) are,
+    and then equal, and 0 (below `DBL_MIN`, as in an underflow) where those are, and then of the
+    same sign; a reference part that is exactly 0 has an unknown sign."""
     z, fs = complex(z), [float(p) for p in _values(r)]
     return all(
-        p == 0
+        u == f
+        if math.isinf(u) or math.isinf(f)
+        else p == 0
         or (abs(u) >= DBL_MIN and abs(f) >= DBL_MIN)
         or (abs(u) < DBL_MIN and abs(f) < DBL_MIN and math.copysign(1, u) == mp.sign(p))
         for u, f, p in zip((z.real, z.imag), fs, _mpfs(r))
@@ -460,7 +480,7 @@ def _zeros(z: complex, r: accuracy.Ref) -> bool:
 def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float, float]:
     """The kind (see `KINDS`) of the results of the base and the head, with their errors; a
     panic counts as a NaN, which is right only for `REJECTED`. If both are right, but only one
-    has the zeros of the reference (see `_zeros`), the other is wrong."""
+    has the infinite and zero parts of the reference (see `_extremes`), the other is wrong."""
     x, y = (math.nan if v is None else v for v in (x, y))
     nan = [cmath.isnan(v) for v in (x, y)]
     if r == REJECTED:
@@ -472,8 +492,8 @@ def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float,
     kind = verdict(eb, eh)
     if nan == [True, False] and eh > NAN_ERR and cmath.isfinite(y):
         kind = "regressed"
-    if kind == "both right" and (zx := _zeros(x, r)) != _zeros(y, r):
-        kind = "regressed" if zx else "improved"
+    if kind == "both right" and (ex := _extremes(x, r)) != _extremes(y, r):
+        kind = "regressed" if ex else "improved"
     return kind, eb, eh
 
 

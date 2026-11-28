@@ -58,6 +58,9 @@ W1 = 0.5671432904097838
 EXP = cmath.exp(c(709.9, PI / 4))
 M = 0.5043435602314388
 J = c(0.008577626689470264, 0.0)
+# Q_1^1(2i), and Q_1(i) of the Ferrers function and of type 3
+Q11 = c(0.14232038033112995)
+FQ1, Q1 = c(-1 - PI / 4), c(PI / 4 - 1)
 DBL_MAX, DBL_MIN = fd.DBL_MAX, fd.DBL_MIN
 SUB = math.nextafter(DBL_MIN, 0)
 
@@ -74,8 +77,11 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # 0 log 0 = 0, where mpmath is NaN
     (("entr", (0.0,)), 0.0, NAN, "regressed"),
     (("xlogy", (0.0, 0.0)), 0.0, NAN, "regressed"),
+    (("xlog1py", (0.0, -1.0)), 0.0, NAN, "regressed"),
+    (("rel_entr", (0.0, 0.0)), 0.0, 1.0, "regressed"),
+    (("kl_div", (0.0, 0.0)), 0.0, 1.0, "regressed"),
     # and no reference where it is NaN otherwise
-    (("xlog1py", (0.0, -1.0)), 0.0, NAN, "no ref"),
+    (("rel_entr", (0.0, -1.0)), INF, NAN, "no ref"),
     # a NaN is better than a large error
     (("sinpi", (0.5,)), NAN, 0.5, "regressed"),
     (("sinpi", (0.5,)), NAN, INF, "both wrong"),
@@ -91,11 +97,18 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("xlogy", (3.2101030212800104e-308, 2.0)), DBL_MIN, SUB, "regressed"),
     (("xlogy", (3.2101030212800104e-308, 2.0)), 2 * DBL_MIN, 0.0, "both wrong"),
     (("erfcinv", (0.0,)), INF, -INF, "regressed"),
+    # and per part, with its sign
+    (("log1p#c", (-1.0, -0.0)), c(-INF, 0), c(INF, 0), "regressed"),
+    (("log1p#c", (-1.0, -0.0)), c(-INF, 0), c(-INF, INF), "regressed"),
     # an argument precondition, where the reference fails
     (("roots_gengegenbauer.1", (41.0, 33.0, -1.0, 1.0)), NAN, None, "no ref"),
     (("log1p#c", (-2.0, -0.0)), c(0, -PI), c(0, PI), "regressed"),
     # near a tiny real part, which `TINY` is not small next to
     (("expi#c", (-fd.TINY, -0.0)), EI, conj(EI), "regressed"),
+    # a signed zero real part, at the cut along the imaginary axis of the sqrt(z^2 - 1) of `lqmn`
+    (("assoc_legendre_q_all.0#c", (1.0, 1.0, -0.0, 2.0)), -Q11, Q11, "regressed"),
+    # the Ferrers function at |z| = 1, as Q_0 of `lqmn`
+    (("legendre_q_all.0#c", (1.0, 0.0, 1.0)), FQ1, Q1, "regressed"),
     # the value at the point, which the sides approach slowly, as J_v(z) ~ (z / 2)^v
     (("bessel_j#c", (0.01, 0.0, 0.0)), 0j, c(5.84e-4, 9.2e-6), "regressed"),
     # I_v(z) ~ (z / 2)^v, still 1 at the offsets of 0 for a tiny v
