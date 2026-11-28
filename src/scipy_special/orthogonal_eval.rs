@@ -13,7 +13,7 @@ use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::dd_real::{DoubleDouble, LOG2, frexp_f64, ldexp_f64, two_prod, two_sum};
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
-use crate::xsf::hyp2f1_continued_c64;
+use crate::xsf::{hyp2f1_continued_c64, xsf_binom};
 
 /// The degrees `n` with an exact `n - 1`
 const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON;
@@ -848,7 +848,7 @@ pub fn eval_sh_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> 
 #[inline]
 pub fn eval_gengegenbauer<N: Copy + Into<f64>, Z: JacobiArg<N>>(n: N, p: f64, q: f64, z: Z) -> Z {
     let nf: f64 = n.into();
-    eval_sh_jacobi(n, p - q, q - 1.0, z) / crate::binom(2.0 * nf + p - 1.0, nf)
+    eval_sh_jacobi(n, p - q, q - 1.0, z) / xsf_binom(2.0 * nf + p - 1.0, nf)
 }
 
 /// Evaluate shifted Legendre polynomial $P_n^*$ at a point.
@@ -908,7 +908,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             let beta = crate::beta(alpha2, n);
             // Unlike in xsf, the binomial can retain a subnormal prefactor when beta overflows.
             if beta.is_infinite() {
-                crate::binom(b - 1.0, n)
+                xsf_binom(b - 1.0, n)
             } else {
                 1.0 / n / beta
             }
@@ -916,7 +916,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             let d = crate::gamma(b) / crate::gamma(1.0 + n) / crate::gamma(alpha2);
             // Unlike in xsf, fall back to the equivalent binomial if a Gamma function overflows.
             if !d.is_finite() || (1.0 + n).max(alpha2) >= MAXGAM {
-                crate::binom(b - 1.0, n)
+                xsf_binom(b - 1.0, n)
             } else {
                 d
             }
@@ -1003,7 +1003,7 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
         // avoid loss of precision
         return sign * 2.0 * alpha / n * p;
     }
-    sign * crate::binom(n + 2.0 * alpha - 1.0, n) * p
+    sign * xsf_binom(n + 2.0 * alpha - 1.0, n) * p
 }
 
 // Whether the top of binom(n + 2α - 1, n) rounds to n - 2.
@@ -1298,7 +1298,7 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
 /// `beta = +-1`.
 fn jacobi_binom(n: f64, alpha: f64) -> f64 {
     if alpha < 0.0 && EXACT_N_MINUS_1.contains(&n) {
-        crate::binom(n + alpha, n - 1.0) * (alpha + 1.0) / n
+        xsf_binom(n + alpha, n - 1.0) * (alpha + 1.0) / n
     } else {
         binom_alpha(n, alpha)
     }
@@ -1313,7 +1313,7 @@ fn binom_alpha(n: f64, alpha: f64) -> f64 {
             return b;
         }
     }
-    crate::binom(n + alpha, n)
+    xsf_binom(n + alpha, n)
 }
 
 impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {

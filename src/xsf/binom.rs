@@ -32,15 +32,34 @@ const BINOM_ASYMP_MAX: f64 = f64::MAX * (1.0 - 16.0 * f64::EPSILON);
 /// Where $\Gamma$ is the Gamma function ([`gamma`](crate::gamma)) and $\Beta$ the Beta function
 /// ([`beta`](crate::beta)).
 ///
-/// Corresponds to [`scipy.special.binom`][binom].
+/// For a negative integer $n$ and an integer $k \ge 0$, this is the polynomial
+/// $n (n - 1) \cdots (n - k + 1) / k! = (-1)^k \binom{k - n - 1}{k}$ ([DLMF 1.2.6]). For a
+/// negative integer $n$ and any other $k$, the result is NaN.
+///
+/// Corresponds to [`scipy.special.binom`][binom], which is NaN for every negative integer $n$.
 ///
 /// [binom]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.binom.html
+/// [DLMF 1.2.6]: https://dlmf.nist.gov/1.2.E6
 ///
 /// # See also
 /// - [`comb`](crate::comb) integer version "$n$ choose $k$"
 #[must_use]
 #[inline]
 pub fn binom(n: f64, k: f64) -> f64 {
+    if n < 0.0 && n.fract() == 0.0 && k >= 0.0 && k.fract() == 0.0 {
+        // Unlike in xsf, the polynomial (-1)^k binom(k - 1 - n, k) (DLMF 1.2.6). By symmetry, the
+        // second argument is the smaller of k and -n - 1, since xsf_binom would subtract k from a
+        // rounded k - 1 - n >= 2^53.
+        return neg_one_pow(k) * xsf_binom(k - 1.0 - n, k.min(-n - 1.0));
+    }
+    xsf_binom(n, k)
+}
+
+/// `binom` without the polynomial of a negative integer `n`, where it is NaN like in xsf, for the
+/// ported callers whose fallbacks rely on that NaN
+#[must_use]
+#[inline]
+pub(crate) fn xsf_binom(n: f64, k: f64) -> f64 {
     let mut kx;
     let mut nx;
     let mut num;
