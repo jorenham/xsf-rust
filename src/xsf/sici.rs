@@ -171,16 +171,24 @@ fn shichi_overflow(z: C64, shi: C64, chi: C64) -> (C64, C64) {
 
     // DLMF 6.12.2 gives the Ei expansion. Rotating the E1 contour (DLMF 6.2.1)
     // by pi/4 away from the pole bounds the normalized remainder by 32 * 8! / |w|^8.
-    let series = [5040.0, 720.0, 120.0, 24.0, 6.0, 2.0, 1.0, 1.0]
-        .into_iter()
-        .fold(C64::ZERO, |s, c| s * inv + c);
-    let phase = C64::cis(w.im) * (inv * series);
-    // Include the phase, exponential and scaling roundoff, plus the bounded
-    // complementary E1 and cut terms (DLMF 6.5.3–4).
-    let error = ((scale * h) * (16.0 * f64::EPSILON)) * h + 4.0;
-    let recover = |old: f64, projection: f64| {
+    let factorials = [5040.0, 720.0, 120.0, 24.0, 6.0, 2.0, 1.0, 1.0];
+    let series = factorials.into_iter().fold(C64::ZERO, |s, c| s * inv + c);
+    // The remainder of `q`: the normalized bound, with 8! = 8 * 7!, times `|1/w|`.
+    let remainder = 32.0 * (8.0 * factorials[0]) * scale.powi(9);
+    let (rotation, q) = (C64::cis(w.im), inv * series);
+    let phase = rotation * q;
+    // For `Re w > 0` the leading `1/w` term dominates `q`, so its evaluation has no severe
+    // cancellation and both its parts are accurate. Given accurate `cis` and `exp`, each
+    // projection is then accurate relative to the magnitudes of its two products.
+    let re_size = (rotation.re * q.re).abs() + (rotation.im * q.im).abs();
+    let im_size = (rotation.re * q.im).abs() + (rotation.im * q.re).abs();
+    let half_ei = |t: f64| ((t * h) * 0.5) * h;
+    let recover = |old: f64, projection: f64, size: f64| {
         if old.is_infinite() {
-            let value = ((projection * h) * 0.5) * h;
+            // Include the phase, exponential and scaling roundoff, plus the bounded
+            // complementary E1 and cut terms (DLMF 6.5.3-4).
+            let error = half_ei(16.0 * f64::EPSILON * size + remainder) + 4.0;
+            let value = half_ei(projection);
             // Near a phase zero even a finite projection can be inaccurate.
             if error < 256.0 * f64::EPSILON * value.abs() && (value.abs() + error).is_finite() {
                 return value;
@@ -189,8 +197,8 @@ fn shichi_overflow(z: C64, shi: C64, chi: C64) -> (C64, C64) {
         old
     };
     (
-        c64(recover(shi.re, sign * phase.re), recover(shi.im, sign * phase.im)),
-        c64(recover(chi.re, phase.re), recover(chi.im, phase.im)),
+        c64(recover(shi.re, sign * phase.re, re_size), recover(shi.im, sign * phase.im, im_size)),
+        c64(recover(chi.re, phase.re, re_size), recover(chi.im, phase.im, im_size)),
     )
 }
 

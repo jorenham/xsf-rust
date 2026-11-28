@@ -48,6 +48,19 @@ fn test_shichi_c64_beyond_expi_overflow() {
     np_assert_allclose!([shi.re, chi.re], [1.472_027_305_516_963_8e308; 2], rtol = 1e-15);
     assert_eq!((shi.im, chi.im), (f64::INFINITY, f64::INFINITY));
 
+    // A part much smaller than the overflowing other part.
+    let (shi, chi) = xsf::shichi(c64(721.519_149_195_927_9, -6.283_185_307_183_285_5));
+    np_assert_allclose!([shi.im, chi.im], [1.360_233_275_528_933e308; 2], rtol = 1e-15);
+    assert_eq!((shi.re, chi.re), (f64::INFINITY, f64::INFINITY));
+    let (shi, chi) = xsf::shichi(c64(-722.975_452_114_241_2, 1.570_635_707_205_021_7));
+    let re = 1.560_223_251_349_315e308;
+    np_assert_allclose!([shi.re, chi.re], [-re, re], rtol = 1e-15);
+    assert_eq!((shi.im, chi.im), (f64::INFINITY, f64::NEG_INFINITY));
+    // A part whose two products sum to more than `|1/w|`.
+    let (shi, chi) = xsf::shichi(c64(719.0, 618.159_024_192_202_4));
+    np_assert_allclose!([shi.re, chi.re], [-1.193_437_846_459_754e308; 2], rtol = 2e-15);
+    assert_eq!((shi.im, chi.im), (f64::INFINITY, f64::INFINITY));
+
     // Near a phase zero, the bound cannot certify a formerly overflowing part.
     let (shi, chi) = xsf::shichi(c64(755.999_999_999_540_4, 9.437_277_058_566_693));
     assert_eq!((shi.im, chi.im), (f64::NEG_INFINITY, f64::NEG_INFINITY));
