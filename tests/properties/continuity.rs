@@ -245,11 +245,12 @@ continuous!(
         => xsf::hyp2f1(a, b, c, c64(re, im))
 );
 
-// known: finite at the poles b = 0, -1, ... (#2239), unlike the limit for integers b <= a <= 0,
-// and wrong for x << 0 next to them (#2240); polynomials a = 0, -1, ... at x << 0 (#2251)
+// singular at the poles b = 0, -1, ..., except for integers b <= a <= 0; known: the polynomials
+// there for a = b < 0, or a < 0 and x < 0 (#2389), wrong for x << 0 next to the poles
+// (#2240); polynomials a = 0, -1, ... at x << 0 (#2251)
 continuous!(
     hyp1f1(a in moderate(), b in moderate(), x)
-        unless is_pole(b)
+        unless (is_pole(b) && x != 0.0 && !(a == 0.0 || is_pole(a) && b < a && x >= 0.0))
             || (pole_distance(b) <= f64::EPSILON.sqrt() && x < -1e4)
             || (is_pole(a) && x.exp() == 0.0)
 );

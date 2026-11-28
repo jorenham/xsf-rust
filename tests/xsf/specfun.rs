@@ -1363,10 +1363,37 @@ fn test_hyp1f1_complex_pole_polynomial_large() {
 fn test_hyp1f1_pole_b_zero() {
     // unlike in xsf: these took ~a steps (or were inf for the last two)
     assert!(xsf::hyp1f1(1.13e9, 0.0, 1.0).is_nan());
-    assert!(xsf::hyp1f1(1.13e9, -0.0, 0.0).is_nan());
+    // the limit in b
+    assert_eq!(xsf::hyp1f1(1.13e9, -0.0, 0.0), 1.0);
     assert!(xsf::hyp1f1(-1.13e9, 0.0, -1.0).is_nan());
     assert!(xsf::hyp1f1(2.0, 0.0, 31.0).is_nan());
     assert!(xsf::hyp1f1(3e9, 0.0, 1.0).is_nan());
+}
+
+#[test]
+fn test_hyp1f1_pole_b() {
+    // unlike in xsf: the first was 6.58e33, and the others inf, -inf and -inf
+    for (a, b, x) in [
+        (64.0, -119.0, 2.122_456_688_499_689_8e-8),
+        (1.0, 0.0, 1.0),
+        (0.5, -1.0, -0.5),
+        (-1.5, -1.0, 1.0),
+    ] {
+        assert!(xsf::hyp1f1(a, b, x).is_nan(), "hyp1f1({a}, {b}, {x})");
+    }
+    // the limit in b
+    assert_eq!(xsf::hyp1f1(64.0, -119.0, 0.0), 1.0);
+    // a = 0 at the poles
+    for (b, x) in [(0.0, 1.0), (-64.0, -1.0), (-3.0, 34.0)] {
+        assert_eq!(xsf::hyp1f1(0.0, b, x), 1.0, "hyp1f1(0, {b}, {x})");
+    }
+    // the polynomials that terminate before the pole, in exact rational arithmetic
+    let actual = [xsf::hyp1f1(-5.0, -119.0, 0.5), xsf::hyp1f1(-118.0, -119.0, 1.5)];
+    xsref::np_assert_allclose!(
+        actual,
+        [1.021_187_203_162_373_7, 4.425_197_191_300_19],
+        rtol = 1e-15
+    );
 }
 
 #[test]

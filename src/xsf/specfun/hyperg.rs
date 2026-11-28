@@ -1357,24 +1357,25 @@ pub(crate) fn chgm_long_poly(a: f64, b: f64, x: f64) -> Option<f64> {
 /// Unlike in xsf, in code order (`x0` is the argument; from 4 on, `a` and `x` are `b - a` and
 /// `-x0` if `x0 < 0`, DLMF 13.2.39):
 ///
-/// 1. NaNs, and `a = 0` or `a = b` for finite non-pole `b`, return at once (scipy/xsf#365).
+/// 1. NaNs, `a = 0`, and `a = b` for finite non-pole `b` return at once (scipy/xsf#365). At the
+///    poles `b = 0, -1, ...`, unless the series terminates before them, so do 1 for `x = 0` and
+///    NaN otherwise (no issue).
 /// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`, or `b > 0` and `0 < -x0` if rounding
 ///    `b - a` errs by more than a rounding: the series of DLMF 13.2.39 in double-double with the
 ///    exact `b - a`, if its error bound is below `eps` (no issue).
 /// 3. Non-integer `b < 0`: `chgm_neg_b`, if that is accurate (scipy/xsf#365).
 /// 4. `a = -n >= -10^6`, `b > 0`, `n x > b`, `x0 > -700`: `chgm_poly`, if finite (scipy/xsf#365).
 /// 5. `a >= 2`, `b > 0`, or `a > -1`, `x > 30 + |b|`: the series in full (scipy/xsf#365).
-/// 6. `a >= 2`, `b = 0`: NaN at once (no issue).
-/// 7. No recurrence in `a` over 10^6 steps, nor for the series with non-integer `b < 0`, but that
+/// 6. No recurrence in `a` over 10^6 steps, nor for the series with non-integer `b < 0`, but that
 ///    series at `a` itself, or the one at `x0 < 0`, if accurate, or else an overflow (see below), 0
 ///    or NaN (scipy/xsf#365).
-/// 8. The terms don't underflow (see `rescale_term`, scipy/xsf#544), and a negligible nonzero term
+/// 7. The terms don't underflow (see `rescale_term`, scipy/xsf#544), and a negligible nonzero term
 ///    only marks convergence if they can't grow again (scipy/xsf#454).
-/// 9. Non-integer `b < 0`: up to 100000 terms, until the rest is negligible (scipy/xsf#365).
-/// 10. An unconverged sum is scaled by `e^x0` (DLMF 13.2.39) too, and past 500 terms with
-///     `mul_exp` for `x0 <= -700` (scipy/xsf#365).
-/// 11. A sum that cancels or doesn't converge: see `chgm_fallback` (scipy/xsf#365).
-/// 12. NaN if a sum is wrong or lossy (see `KummerSum`), for finite `a`, `x0` and non-pole `b`
+/// 8. Non-integer `b < 0`: up to 100000 terms, until the rest is negligible (scipy/xsf#365).
+/// 9. An unconverged sum is scaled by `e^x0` (DLMF 13.2.39) too, and past 500 terms with
+///    `mul_exp` for `x0 <= -700` (scipy/xsf#365).
+/// 10. A sum that cancels or doesn't converge: see `chgm_fallback` (scipy/xsf#365).
+/// 11. NaN if a sum is wrong or lossy (see `KummerSum`), for finite `a`, `x0` and non-pole `b`
 ///     (scipy/xsf#365).
 #[allow(clippy::needless_late_init)]
 pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
@@ -1401,8 +1402,13 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let neg_b = b < 0.0 && b != b.trunc();
     // b is not a pole 0, -1, ...
     let regular = b > 0.0 || neg_b;
-    if b.is_finite() && regular && (a == 0.0 || a == b) {
+    if b.is_finite() && (a == 0.0 || regular && a == b) {
         return if a == 0.0 { 1.0 } else { x.exp() };
+    }
+    // Unlike in xsf, at the poles of b also M(0, b, x) = 1 above and the limit M(a, b, 0) = 1, and
+    // otherwise NaN unless the series terminates before them
+    if b.is_finite() && !regular && !(is_nonpos_int(a) && b <= a) {
+        return if x == 0.0 { 1.0 } else { f64::NAN };
     }
 
     // Unlike in xsf, combine the exact linear Kummer transform with the
@@ -1479,10 +1485,6 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         {
             return hg;
         }
-    }
-    // Unlike in xsf, NaN at the pole without the O(a) recurrence below
-    if b == 0.0 && a >= 2.0 {
-        return f64::NAN;
     }
     // Unlike in xsf (scipy/xsf#365), NaN if a sum below is wrong, except at the poles of b and for
     // infinite a or x
