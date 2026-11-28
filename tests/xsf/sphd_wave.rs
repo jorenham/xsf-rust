@@ -139,6 +139,17 @@ fn test_prolate_segv_c0_large_n() {
     assert_eq!(xsf::prolate_segv(46341, 46341, 0.0), 46341.0 * 46342.0);
 }
 
+/// https://github.com/jorenham/xsf-rust/issues/1728
+#[test]
+fn test_segv_negative_c() {
+    // the characteristic values only depend on c^2 (DLMF 30.3)
+    assert_eq!(xsf::prolate_segv(1, 1, -10.0), xsf::prolate_segv(1, 1, 10.0));
+    let cv = xsf::prolate_segv(1, 10, -10.0);
+    xsref::np_assert_allclose!([cv], [162.366_878_550_363_08], rtol = 1e-14);
+    assert_eq!(xsf::oblate_segv(1, 10, -10.0), xsf::oblate_segv(1, 10, 10.0));
+    assert_eq!(xsf::prolate_segv_seq(1, 10, -10.0), xsf::prolate_segv_seq(1, 10, 10.0));
+}
+
 type Case = (u64, u64, f64, &'static [f64], &'static [f64]);
 
 /// Compares with `scipy.special.{pro,obl}_cv_seq` (SciPy 1.18.1)

@@ -4664,6 +4664,13 @@ SW_PROLATE_R1_CANCELLATION: Final = Override(
 )
 
 
+SW_NEGATIVE_C: Final = Override(
+    lambda a: 0 <= a[0] <= a[1] and a[2] < 0,
+    "xsf returns n (n + 1) for c < 0, but the characteristic value only depends on c^2 "
+    "(#1728)",
+)
+
+
 def _spheroidal(
     name: str,
     rules: tuple[Rule, ...],
@@ -6105,6 +6112,17 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 HYP2F1_FLOORS,
             ),
         )
+    ),
+    ("prolate_segv", "d_d_d-d"): Entry(
+        (
+            Out(
+                "prolate_segv",
+                (spheroidal.segv(1),),
+                rules=(SW_MODE,),
+                overrides=(SW_NEGATIVE_C,),
+            ),
+        ),
+        Identity(lambda a: True, spheroidal.segv_residual(1)),
     ),
     **_spheroidal("prolate_aswfa", (SW_MODE, SW_ANGLE)),
     **_spheroidal("oblate_aswfa", (SW_MODE, SW_ANGLE)),
