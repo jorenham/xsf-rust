@@ -1742,6 +1742,8 @@ impl_legendre_q_arg!(Complex64, C64, lqn_c64, lqmn_c64);
 
 /// Legendre polynomial of degree `n`
 ///
+/// For $n < 0$, this gives $P_{-n-1}(z)$.
+///
 /// Corresponds to [`scipy.special.legendre_p`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre_p.html
@@ -1752,7 +1754,14 @@ impl_legendre_q_arg!(Complex64, C64, lqn_c64, lqmn_c64);
 #[doc(alias = "eval_legendre")]
 #[inline]
 pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
-    z.legendre_p(n as c_int)
+    z.legendre_p(nonnegative_degree(n))
+}
+
+/// The degree -n - 1 for n < 0, where P_n^m = P_{-n-1}^m (DLMF 14.9.5)
+//
+// Unlike in xsf, where a negative degree gives z for P_n and 0 for P_n^m.
+const fn nonnegative_degree(n: i32) -> c_int {
+    if n < 0 { -(n + 1) } else { n }
 }
 
 /// All Legendre polynomials of the 1st kind
@@ -1815,7 +1824,7 @@ pub trait AssocLegendrePDegree<T>: crate::sealed::Sealed {
 impl<T: LegendrePArg> AssocLegendrePDegree<T> for i32 {
     #[inline]
     fn assoc_legendre_p(self, m: i32, z: T) -> T {
-        z.assoc_legendre_p(self as c_int, m as c_int, 2, false)
+        z.assoc_legendre_p(nonnegative_degree(self), m as c_int, 2, false)
     }
 }
 
@@ -1829,9 +1838,9 @@ impl AssocLegendrePDegree<f64> for f64 {
 
 /// Associated Legendre function of the 1st kind, $P_n^m(z)$
 ///
-/// The degree `n` is an `i32`, or an `f64` for real `z`. For $n < 0$, an `f64` degree gives
-/// $P_{-n-1}^m(z)$, and an `i32` degree gives 0. For $m < -n$, an `f64` degree gives NaN, and an
-/// `i32` degree gives 0.
+/// The degree `n` is an `i32`, or an `f64` for real `z`. An `i32` degree $n < 0$ gives
+/// $P_{-n-1}^m(z)$, and so does an `f64` one away from $z = -1$. For $n \ge 0$, an `i32` degree
+/// gives 0 for $|m| > n$, and an integer `f64` degree gives NaN for $m < -n$.
 ///
 /// With an `i32` degree, this corresponds to [`scipy.special.assoc_legendre_p`][scipy], and with
 /// an `f64` degree, to [`scipy.special.lpmv`][lpmv].
