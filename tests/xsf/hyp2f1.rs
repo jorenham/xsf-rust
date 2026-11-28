@@ -1606,6 +1606,23 @@ fn test_hyp2f1_c64_pfaff_mixed_signs_rest() {
             c64(2.611_636_095_619_959e145, 2.337_048_500_948_891_5e145),
             1e-14,
         ),
+        // A tiny b and c near a pole
+        (
+            0.625,
+            -f64::EPSILON,
+            f64::EPSILON / 2.0 - 1.0,
+            c64(-0.5, 0.25),
+            c64(1.122_250_863_186_607_7, -0.089_961_918_593_940_52),
+            2e-15,
+        ),
+        (
+            2.25,
+            -8.0 * f64::EPSILON,
+            f64::EPSILON - 1.0,
+            c64(-0.1, 0.1),
+            c64(1.111_008_025_089_721_6, -0.427_293_507_086_700_33),
+            2e-15,
+        ),
     ] {
         let actual = xsf::hyp2f1(a, b, c, z);
         assert!((actual - expected).norm() <= rtol * expected.norm(), "{actual}");
