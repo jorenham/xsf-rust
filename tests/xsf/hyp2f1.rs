@@ -1525,8 +1525,8 @@ fn test_hyp2f1_c64_pfaff_mixed_signs() {
             c64(7.727_711_094_928_119e127, 2.149_710_740_576_679_6e128),
             2e-12,
         ),
-        // The Pfaff transform in b < 0 loses all digits, or its power overflows alone or loses
-        // all digits from 1 - z
+        // The fallback from the Pfaff transform in b < 0, directly and from 1/z, and its power,
+        // which loses all digits if 1 - z is rounded first
         (
             5.5,
             -375.5,

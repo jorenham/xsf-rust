@@ -1343,7 +1343,7 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
 // Its upper parameters are then both negative, and for k >= 1 each of its series coefficients is
 // smaller in magnitude than that of the transform in a, as |b + k| < c - b + k and
 // |c - a + k| < a + k. Past k = max(-b, a - c), its term ratios are below |w| for the argument w,
-// so summing to HYP2F1_EPS (1 - |w|) bounds the omitted tail by HYP2F1_EPS.
+// so if summing to HYP2F1_EPS (1 - |w|) stops past that k, the omitted tail is below HYP2F1_EPS.
 fn hyp2f1_pfaff_negative(a: f64, b: f64, c: f64, z: C64) -> Option<Cancelled> {
     let (a, b) = if a < b { (b, a) } else { (a, b) };
     if !(b < 0.0 && 0.0 < c && c < a) {
