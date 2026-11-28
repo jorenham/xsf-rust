@@ -205,9 +205,8 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
 ///
-/// For complex $z$ and integers $b \le a \le 0$, the polynomial extension has degree $-a$. At the
-/// other poles $b = 0, -1, \ldots$ and real $z$, it is NaN for $z \ne 0$ and 1 for $z = 0$ (the
-/// limit in $b$).
+/// For integers $b \le a \le 0$, the polynomial extension has degree $-a$. At the other poles
+/// $b = 0, -1, \ldots$ and real $z$, it is NaN for $z \ne 0$ and 1 for $z = 0$ (the limit in $b$).
 ///
 /// The function may return NaN for ill-conditioned real inputs or when evaluating a terminating
 /// series at complex $z$.

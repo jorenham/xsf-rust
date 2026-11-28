@@ -19,7 +19,7 @@ use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
 use crate::xsf::cephes::dd_real::{
-    DoubleDouble, FRAC_PI_2_DD, LOG2, frexp_f64, ldexp_f64, two_sum,
+    DoubleDouble as Dd, FRAC_PI_2_DD, LOG2, frexp_f64, ldexp_f64, two_sum,
 };
 use crate::xsf::cephes::rgamma;
 use crate::xsf::cexpm1;
@@ -168,6 +168,62 @@ pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
             .filter(|&(sum, err)| sum.is_finite() && err <= (sum * SQRT_EPSILON).norm())
             .map_or(C64::NAN, |(sum, _)| sum)
     })
+}
+
+/// The polynomial `P = M(-m, -n, x)` for `0 < m <= n` (cf. `hyp1f1_pole_poly`): its terms if they
+/// lose at most a rounding, which they always do for `x >= 0` (where they have one sign), else
+/// `chgm_pole_poly_kummer`.
+fn chgm_pole_poly(a: f64, b: f64, x: f64) -> f64 {
+    if a == -1.0 {
+        // `1 - x / b`, exact near its root `x = b`, where the subtraction is exact
+        return (x - b) / -b;
+    }
+    if x.is_infinite() {
+        // the leading term
+        return x.powf(-a);
+    }
+    match pole_poly_sum(a, b, x, 0.0) {
+        // (for x >= 0 the sum is only NaN if it overflows)
+        Some((p, _)) if x >= 0.0 && p.is_nan() => f64::INFINITY,
+        Some((p, err)) if x >= 0.0 || err <= f64::EPSILON * p.abs() => p,
+        _ => chgm_pole_poly_kummer(a, b, x).unwrap_or(f64::NAN),
+    }
+}
+
+/// `e^l M(a, b, x)` for `b <= a <= 0` from its terms up to degree `-a`, and its error bound.
+fn pole_poly_sum(a: f64, b: f64, x: f64, l: f64) -> Option<(f64, f64)> {
+    if a == 0.0 {
+        return Some((l.exp(), 0.0));
+    }
+    let next_term = |t: Dd, n: f64| t * (Dd::new(a + n) * x / ((b + n) * (n + 1.0)));
+    let (p, err) = hyp1f1_sum(a, b, x.abs(), next_term, Dd::ONE, l, Some(-a as i32))?;
+    Some((p.hi, err))
+}
+
+/// `P = M(-m, -n, x)` of `chgm_pole_poly` as `P = Q + R` with
+///
+/// - `Q = e^x M(m - n, -n, -x)`,
+/// - `R = c (-x)^(n + 1) M(n - m + 1, n + 2, x)`, `c = (-1)^m (n - m)! m! / (n! (n + 1)!)`,
+///
+/// whose series terms have one sign for `x < 0`: as `b -> -n` in `M(a, b, x) = e^x M(b - a, b, -x)`
+/// (DLMF 13.2.39), the terms `k <= n` on the right give `Q`, and the terms `k > n` tend to
+/// `e^x c (-x)^(n + 1) M(m + 1, n + 2, -x) = R` (DLMF 13.2.39 again).
+fn chgm_pole_poly_kummer(a: f64, b: f64, x: f64) -> Option<f64> {
+    // Q, with e^x in the sum where that would overflow, as in `chgm_series`
+    let l = if x > GRADUAL_EXP_X0 { 0.0 } else { x };
+    let (q, err_q) = pole_poly_sum(b - a, b, -x, l)?;
+    // (none if it underflows)
+    let q = Scaled::new(q, 0, err_q / q).map(|q| q.with_l(Dd::new(x - l)));
+
+    // R, with `M(n - m + 1, n + 2, x) = e^x M(m + 1, n + 2, -x)`, but not if that is subnormal,
+    // i.e. has lost precision before its scale is applied
+    let (m, err_m) = chgm_series(1.0 - a, 2.0 - b, -x, x).filter(|&(m, _)| m.is_normal())?;
+    let r = Scaled::new(neg_if_odd(a, m), 0, err_m / m)?.with_l(ln_dd(-x) * (1.0 - b));
+    // |c| = gamma(a - b + 1) gamma(1 - a) / (gamma(1 - b) gamma(2 - b))
+    let [num, den] = [[a - b + 1.0, 1.0 - a], [1.0 - b, 2.0 - b]].map(|g| g.map(Dd::new));
+    let r = mul_gamma_ratio(num, den, || Some(r))?;
+
+    Some(add_exp(q.into_iter().chain([r]))?.to_f64().0)
 }
 
 // M(1, 2, z) = (exp(z) - 1) / z for nonzero z.
@@ -436,7 +492,7 @@ impl Term for C64 {
     }
 }
 
-impl Term for DoubleDouble {
+impl Term for Dd {
     const EPS: f64 = EPSILON_SQ;
     fn norm(self) -> f64 {
         // `inf` on overflow, where the error terms of the products are NaN
@@ -458,8 +514,8 @@ fn cchg_series_dd(a: f64, b: f64, z: C64, r: f64, previous: C64) -> C64 {
     // numerator parameter. Here b-a is exact by Sterbenz's lemma.
     let reflect = z.re < 0.0 && a >= 0.5 * b;
     let (a, z) = if reflect { (b - a, -z) } else { (a, z) };
-    let y2 = DoubleDouble::new(z.im) * z.im;
-    let (mut re, mut im) = (DoubleDouble::new(z.re), DoubleDouble::ONE);
+    let y2 = Dd::new(z.im) * z.im;
+    let (mut re, mut im) = (Dd::new(z.re), Dd::ONE);
     let (mut sum_re, mut sum_im) = (re, im);
     // For the nth term with coefficient c_n after factoring out a/b, bound its real part by
     // B_n = c_n r^n and its imaginary part divided by Im z by n B_n/r (differentiate z^n).
@@ -468,7 +524,7 @@ fn cchg_series_dd(a: f64, b: f64, z: C64, r: f64, previous: C64) -> C64 {
     let (mut err_re, mut err_im) = (r, r);
     let mut n = 1.0;
     while n <= 2.0 * r || majorant > EPSILON_SQ {
-        let ratio = (DoubleDouble::new(a) + n) / ((DoubleDouble::new(b) + n) * (n + 1.0));
+        let ratio = (Dd::new(a) + n) / ((Dd::new(b) + n) * (n + 1.0));
         (re, im) = ((re * z.re - im * y2) * ratio, (re + im * z.re) * ratio);
         sum_re = sum_re + re;
         sum_im = sum_im + im;
@@ -622,7 +678,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
         return hg;
     }
     let (a, z, ln_scale, phase) = if z.re < 0.0 {
-        let ak = DoubleDouble::new(b) - a;
+        let ak = Dd::new(b) - a;
         if rounding_ratio(ak) > SQRT_EPSILON {
             return hg;
         }
@@ -678,10 +734,9 @@ fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
 }
 
 /// `chgm_series` in double-double, with `log_scale = min(x0, 0)`.
-fn chgm_series_dd(a: DoubleDouble, b: DoubleDouble, x: f64, x0: f64) -> Option<(f64, f64)> {
+fn chgm_series_dd(a: Dd, b: Dd, x: f64, x0: f64) -> Option<(f64, f64)> {
     let next_term = |t, n| t * (a + n) * x / ((b + n) * (n + 1.0));
-    hyp1f1_sum(a.hi, b.hi, x, next_term, DoubleDouble::ONE, x0.min(0.0), None)
-        .map(|(hg, err)| (hg.hi, err))
+    hyp1f1_sum(a.hi, b.hi, x, next_term, Dd::ONE, x0.min(0.0), None).map(|(hg, err)| (hg.hi, err))
 }
 
 /// Whether the terms `t_m` (`m >= n`) of DLMF 13.2.2 with `z > 0` have one sign: `t_(k+1) / t_k`
@@ -701,7 +756,7 @@ fn half_accurate(&(hg, err): &(f64, f64)) -> bool {
 /// The largest relative error of `a.hi + k` for `a + k` over the integers `0 <= k < MAX_TERMS`, as
 /// in the factors `(a.hi)_n` of the series terms that `hyp1f1_sum` can reach; infinite if one is 0
 /// but its `a + k` isn't
-fn rounding_ratio(a: DoubleDouble) -> f64 {
+fn rounding_ratio(a: Dd) -> f64 {
     if a.lo == 0.0 {
         return 0.0;
     }
@@ -718,11 +773,11 @@ fn rounding_ratio(a: DoubleDouble) -> f64 {
 
 /// `(a, x)`, or `(b - a, -x)` of DLMF 13.2.39 for `x < 0`, with `b - a` also without rounding, e.g.
 /// to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
-fn kummer_args(x: f64, a: f64, b: f64) -> (DoubleDouble, f64) {
+fn kummer_args(x: f64, a: f64, b: f64) -> (Dd, f64) {
     if x < 0.0 {
-        (DoubleDouble::new(b) - a, -x)
+        (Dd::new(b) - a, -x)
     } else {
-        (DoubleDouble::new(a), x)
+        (Dd::new(a), x)
     }
 }
 
@@ -736,7 +791,7 @@ fn kummer_args(x: f64, a: f64, b: f64) -> (DoubleDouble, f64) {
 /// `r = K(a + 1) / K(a)` is a continued fraction. The Wronskian of `K` and `x^(1 - b) M2` is that
 /// of `M`, i.e. `(1 - b) x^-b e^x` (DLMF 13.2.33), so by DLMF 13.3.15 and 13.3.24,
 /// `K = (1 - b) e^x / ((1 - b + a (1 - r)) M2 + x (a - b + 1) / (2 - b) M3)`, where `0 < r < 1`.
-fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
+fn chgm_minimal(a: Dd, b: f64, x: f64, x0: f64) -> Option<f64> {
     // a (1 - r) = a / g, with g = 1 + (a_1 - b) / (x + a_1 / (1 + (a_2 - b) / (x + ...))) and
     // a_n = a + n, by the modified Lentz method. Its terms are positive, so nothing cancels, and
     // successive convergents enclose g.
@@ -750,7 +805,7 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
         (c * d - 1.0).abs() <= f64::EPSILON
     })?;
     // e^-x M2 and e^-x M3, with their absolute errors
-    let (a2, b1) = (a - b + 1.0, DoubleDouble::ONE - b);
+    let (a2, b1) = (a - b + 1.0, Dd::ONE - b);
     let (m2, err2) = chgm_series_dd(a2, b1 + 1.0, x, -x).filter(half_accurate)?;
     let (m3, err3) = chgm_series_dd(a2 + 1.0, b1 + 2.0, x, -x).filter(half_accurate)?;
     let ar = a.hi / g;
@@ -765,7 +820,7 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
     let k = Scaled::new(b1.hi / den, 0, err_k)?;
     let i = Scaled::new(-m2, 0, err2 / m2)?.with_l(ln_dd(x) * b1 + x0.max(0.0));
     let i = mul_gamma_ratio([a2, -b1], [b1, a], || Some(i))?;
-    let (hg, err) = add_exp([k.with_l(DoubleDouble::new(x0.min(0.0))), i])?.to_f64();
+    let (hg, err) = add_exp([k.with_l(Dd::new(x0.min(0.0))), i])?.to_f64();
     (err <= SQRT_EPSILON).then_some(hg)
 }
 
@@ -801,7 +856,7 @@ fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
 /// Near a pole of `Gamma(b - a)`, whose reciprocal scales the `e^-x` part, rounding `b - a` and the
 /// recurrence in `a` lose all digits, and even the sign. The series needs over `-x` terms.
 fn chgm_neg_x_series(x: f64, a: f64, b: f64) -> Option<f64> {
-    let ak = DoubleDouble::new(b) - a;
+    let ak = Dd::new(b) - a;
     // (for `b < 0` see `chgm_neg_b`, where the series can need over `MAX_TERMS` terms)
     let near = 0.0 < -x && b > 0.0 && rounding_ratio(ak) > f64::EPSILON;
     if !(near || -x >= 30.0 + b.abs()) || -x >= f64::from(MAX_TERMS) {
@@ -810,7 +865,7 @@ fn chgm_neg_x_series(x: f64, a: f64, b: f64) -> Option<f64> {
     if ak >= 0.0 || (ak.hi.fract() == 0.0 && ak.lo.fract() == 0.0) {
         return None;
     }
-    let (hg, err) = chgm_series_dd(ak, DoubleDouble::new(b), -x, x)?;
+    let (hg, err) = chgm_series_dd(ak, Dd::new(b), -x, x)?;
     (hg.is_finite() && err <= f64::EPSILON * hg.abs()).then_some(hg)
 }
 
@@ -835,7 +890,7 @@ pub(crate) fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
     if !(z >= 30.0 + b.abs() && z > 2.0 * r) {
         return None;
     }
-    let q = DoubleDouble::new(b) - a;
+    let q = Dd::new(b) - a;
     let (ln_gb, sign_b, err_gb) = ln_gamma(b)?;
     let (ln_gq, sign_q, err_gq) = ln_gamma(q)?;
     let (ln_ga, _, err_ga) = ln_gamma(a)?;
@@ -951,7 +1006,7 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
     let (ak, xk) = kummer_args(x, a, b);
     // whether the series can end with a finite sum, i.e. within `MAX_TERMS` (see `term_ratio`)
     let ends = b + f64::from(MAX_TERMS) >= xk;
-    let series_dd = |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0);
+    let series_dd = |x0| chgm_series_dd(ak, Dd::new(b), xk, x0);
     // with an estimate of the error of rounding `b - a`, which changes the term `t_n` relatively by
     // up to about `n r`, while `err` is at least `4 eps sum (n + 1) |t_n|` (see `hyp1f1_sum`)
     let r = rounding_ratio(ak);
@@ -1002,7 +1057,7 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64, correct_phase: bool) -> Option<
     }
     let (t, dt) = if correct_phase {
         // Unlike in xsf, retain the Bessel argument residual for long polynomials.
-        let arg = ((DoubleDouble::new(b) - 2.0 * a) * 2.0 * x).sqrt();
+        let arg = ((Dd::new(b) - 2.0 * a) * 2.0 * x).sqrt();
         if arg.hi < b {
             return None;
         }
@@ -1181,8 +1236,8 @@ fn chgm_positive_tail(a: f64, b: f64, x: f64, start: i32, head: f64, seed: f64) 
     if err <= SQRT_EPSILON * half {
         // Unlike in xsf, compare the half-scaled sum and its error with the
         // midpoint between MAX and the next power of two.
-        let midpoint = DoubleDouble::new(pow2(1023)) - pow2(969);
-        let distance = (DoubleDouble::new(half) - midpoint).hi;
+        let midpoint = Dd::new(pow2(1023)) - pow2(969);
+        let distance = (Dd::new(half) - midpoint).hi;
         if distance < -err {
             return Some(2.0 * half);
         }
@@ -1191,14 +1246,13 @@ fn chgm_positive_tail(a: f64, b: f64, x: f64, start: i32, head: f64, seed: f64) 
         }
         // Unlike in xsf, restart in double-double when prefix roundoff
         // prevents classifying the result at the overflow boundary.
-        let scaled_x = DoubleDouble::new(x * RATIO_SCALE);
-        let scaled_b = DoubleDouble::new(b * RATIO_SCALE);
+        let scaled_x = Dd::new(x * RATIO_SCALE);
+        let scaled_b = Dd::new(b * RATIO_SCALE);
         let next_term = |t, n| {
             let ratio = (scaled_x * (a + n)) / ((scaled_b + n * RATIO_SCALE) * (n + 1.0));
             t * ratio
         };
-        let (sum, err) =
-            hyp1f1_sum(a, b, radius, next_term, DoubleDouble::new(0.5), 0.0, Some(-a as i32))?;
+        let (sum, err) = hyp1f1_sum(a, b, radius, next_term, Dd::new(0.5), 0.0, Some(-a as i32))?;
         let distance = (sum - midpoint).hi;
         // Allow for the additional products in the double-double term ratio.
         let err = 8.0 * err;
@@ -1359,7 +1413,7 @@ pub(crate) fn chgm_long_poly(a: f64, b: f64, x: f64) -> Option<f64> {
 ///
 /// 1. NaNs, `a = 0`, and `a = b` for finite non-pole `b` return at once (scipy/xsf#365). At the
 ///    poles `b = 0, -1, ...`, unless the series terminates before them, so do 1 for `x = 0` and
-///    NaN otherwise (no issue).
+///    NaN otherwise, and else `chgm_pole_poly` if `b >= -10^6 && (x < 0 || a = b)` (no issue).
 /// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`, or `b > 0` and `0 < -x0` if rounding
 ///    `b - a` errs by more than a rounding: the series of DLMF 13.2.39 in double-double with the
 ///    exact `b - a`, if its error bound is below `eps` (no issue).
@@ -1407,8 +1461,15 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     // Unlike in xsf, at the poles of b also M(0, b, x) = 1 above and the limit M(a, b, 0) = 1, and
     // otherwise NaN unless the series terminates before them
-    if b.is_finite() && !regular && !(is_nonpos_int(a) && b <= a) {
-        return if x == 0.0 { 1.0 } else { f64::NAN };
+    if b.is_finite() && !regular {
+        if !(is_nonpos_int(a) && b <= a) {
+            return if x == 0.0 { 1.0 } else { f64::NAN };
+        }
+        // Unlike in xsf, sum the polynomial itself: for x < 0, xsf sums e^x M(b - a, b, -x), whose
+        // series stops at the pole too early, and for a = b, x > 0 its term ratio is 0/0
+        if b >= -MAX_SERIES_ITERATIONS && (x < 0.0 || a == b) {
+            return chgm_pole_poly(a, b, x);
+        }
     }
 
     // Unlike in xsf, combine the exact linear Kummer transform with the
@@ -1420,8 +1481,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             return 0.0_f64.copysign((b + x) / b);
         }
         // Shift the exponential so the product is measured in units of 2^-1074.
-        let units = ((DoubleDouble::new(b) + x) / b)
-            * (DoubleDouble::new(x) + LOG2 * -f64::from(MIN_SUBNORMAL_EXP)).exp();
+        let units =
+            ((Dd::new(b) + x) / b) * (Dd::new(x) + LOG2 * -f64::from(MIN_SUBNORMAL_EXP)).exp();
         return units.round_subnormal_units();
     }
 
@@ -2402,7 +2463,7 @@ pub(super) fn hypu_neg_x(x: f64, a: f64, b: f64) -> f64 {
     let (value, err) = u.to_f64();
     // an infinity or zero only if both bounds of |U| (by 2 err, as it is rounded) are one too
     let class = |v: f64| (v.is_infinite(), v == 0.0);
-    let bound = |k: f64| u.mul_exp(DoubleDouble::new(k * err)).to_f64().0;
+    let bound = |k: f64| u.mul_exp(Dd::new(k * err)).to_f64().0;
     if err <= 10_f64.powi(-ID_ACCEPT)
         && class(bound(-2.0)) == class(value)
         && class(bound(2.0)) == class(value)
@@ -2850,14 +2911,14 @@ fn chgus(x: f64, a: f64, b: f64, d: f64, ln_prefactors: bool, id: &mut i32) -> f
 /// either series can grow by about e^x)
 ///
 /// (by `ln_gamma` of the exact arguments, so reflected with sinpi near the poles)
-fn chgus_ln_prefactors(x: f64, a: f64, b: f64) -> Option<(f64, f64, DoubleDouble, (f64, f64))> {
+fn chgus_ln_prefactors(x: f64, a: f64, b: f64) -> Option<(f64, f64, Dd, (f64, f64))> {
     let ln_ratio = |num, den| {
         let ((n, n_sign, n_err), (d, d_sign, d_err)) = (ln_gamma(num)?, ln_gamma(den)?);
         Some((n - d, n_sign * d_sign, n_err + d_err))
     };
-    let bm = 1.0 - DoubleDouble::new(b);
+    let bm = 1.0 - Dd::new(b);
     let (l1, sign1, err1) = ln_ratio(bm, bm + a)?;
-    let (l2, sign2, err2) = ln_ratio(-bm, DoubleDouble::new(a))?;
+    let (l2, sign2, err2) = ln_ratio(-bm, Dd::new(a))?;
     let l2 = l2 + ln_dd(x) * bm;
     let l = if l1.hi > l2.hi { l1 } else { l2 };
     let (r1, r2) = (sign1 * (l1 - l).exp().hi, -sign2 * (l2 - l).exp().hi);
@@ -2890,14 +2951,14 @@ fn chgus_near_1(x: f64, a: f64, e: f64, id: &mut i32) -> Option<f64> {
     // Gamma(1 + e) / Gamma(1 - e) = 1 + 2e q_1, and s = (1 / Gamma(a) - 1 / Gamma(a - e)) / e
     // from Gamma(a) / Gamma(a - e) = 1 + e q_2, or at a pole a = -n by DLMF 5.5.3 as
     // (-1)^n Gamma(1 - a + e) sin(pi e) / (pi e)
-    let (dd_1, dd_e) = (DoubleDouble::ONE, DoubleDouble::new(e));
+    let (dd_1, dd_e) = (Dd::ONE, Dd::new(e));
     let q_1 = gamma_quot(dd_1 - e, dd_e * 2.0)?.0;
     let rm = rp * (1.0 + 2.0 * e * q_1);
     let s = if pole {
         let q = gamma_quot(dd_1 - a, dd_e)?.0;
         neg_if_odd(a, gamma(1.0 - a) * (1.0 + e * q) * sinc(e))
     } else {
-        -ra * gamma_quot(DoubleDouble::new(a) - e, dd_e)?.0
+        -ra * gamma_quot(Dd::new(a) - e, dd_e)?.0
     };
     let lx = x.ln();
     // d_k = (p_k - q_k) / e, with p_k = x^(k-e) (a - e)_k / (k! Gamma(a) Gamma(1 - e + k)) and

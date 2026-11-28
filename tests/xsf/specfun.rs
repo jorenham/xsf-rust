@@ -1397,6 +1397,36 @@ fn test_hyp1f1_pole_b() {
 }
 
 #[test]
+fn test_hyp1f1_pole_polynomial() {
+    // exact rational sums; unlike in xsf, these were NaN, e^-0.5, 9.28e-40, 3.26e14, 9.09e299
+    // and 7.25e-12 (e^x times the polynomial M(b - a, b, -x))
+    let actual = [
+        xsf::hyp1f1(-3.0, -3.0, 0.5),
+        xsf::hyp1f1(-3.0, -3.0, -0.5),
+        xsf::hyp1f1(-50.0, -60.0, -100.0),
+        xsf::hyp1f1(-5.0, -5.0, -800.0),
+        xsf::hyp1f1(-100.0, -100.0, -1000.0),
+        xsf::hyp1f1(-7.0, -10.0, -30.0),
+    ];
+    let desired = [
+        1.645_833_333_333_333_3,
+        0.604_166_666_666_666_6,
+        4.334_668_462_043_815e22,
+        -2_713_685_014_132.333_5,
+        9.740_196_310_795_686e141,
+        -14_783.214_285_714_286,
+    ];
+    xsref::np_assert_allclose!(actual, desired, rtol = 1e-15);
+    // the leading term
+    assert_eq!(xsf::hyp1f1(-3.0, -3.0, f64::NEG_INFINITY), f64::NEG_INFINITY);
+    assert_eq!(xsf::hyp1f1(-2.0, -3.0, f64::NEG_INFINITY), f64::INFINITY);
+    assert_eq!(xsf::hyp1f1(-3.0, -3.0, 1e200), f64::INFINITY);
+    // the root x = b of the linear polynomial, and next to it
+    assert_eq!(xsf::hyp1f1(-1.0, -2.0, -2.0), 0.0);
+    assert_eq!(xsf::hyp1f1(-1.0, -1.0, -1.0 + f64::EPSILON / 2.0), f64::EPSILON / 2.0);
+}
+
+#[test]
 fn test_hyp1f1_huge_b_minus_a() {
     // Arb; these took ~(b - a) steps (up to 21 s), and were 0
     let abx = [(0.5, 1e9, -1e8), (100.3, 2e8, -2e6), (3.7, 2.1e9, -1e9), (-3.7, 1e7, -5e6)];
