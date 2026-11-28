@@ -1403,7 +1403,7 @@ fn bessel_j_series_underflow(v: f64, z: C64) -> Option<C64> {
     let gamma = crate::gamma(order + 1.0);
     let mut j = if order >= 1.0 && order == order.trunc() && gamma.is_finite() {
         let n = order as i32;
-        let k = ((gamma.ln() / order - az.ln()) / LN_2 + 1.0).floor() as i32;
+        let k = (gamma.log2() / order - az.log2() + 1.0).floor() as i32;
         (z.ldexp(k - 1).powi(n) * sum / gamma).ldexp(-k * n)
     } else {
         // as in `besj`, the upper lip of the cut for `Im z = -0`; the phase in units of pi keeps
