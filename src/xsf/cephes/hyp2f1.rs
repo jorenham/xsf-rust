@@ -139,7 +139,13 @@ fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 /// Defining power series expansion of Gauss hypergeometric function.
 /// The `loss` (the second return value) estimates loss of significance. Unlike in xsf, the third
 /// is an estimate of the relative error that also includes the error of the recurrence in `a`.
-fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
+fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
+    hys2f1_impl(a, b, c, x, true)
+}
+
+/// `hys2f1`, where `prefer_series` is whether to prefer the power series to the recurrence in `a`
+/// if its first term is below rounding
+fn hys2f1_impl(mut a: f64, mut b: f64, c: f64, x: f64, prefer_series: bool) -> (f64, f64, f64) {
     // Put the larger magnitude first, except when b is near a non-positive integer.
     if b.abs() > a.abs() {
         core::mem::swap(&mut a, &mut b);
@@ -158,6 +164,14 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
          *
          * We try to reduce it with the recurrence relations
          */
+        // Unlike in xsf, first try the power series if its first term is below rounding (e.g. for
+        // a tiny x), where the recurrence only accumulates rounding errors
+        if prefer_series && (a * b * x / c).abs() < MACHEP {
+            let series = hys2f1_series(a, b, c, x);
+            if series.1 < HYP2F1_ETHRESH {
+                return series;
+            }
+        }
         return hyp2f1ra(a, b, c, x);
     }
     hys2f1_series(a, b, c, x)
@@ -188,8 +202,15 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         let m = k + 1.0;
         let ratio = (a + k) * (b + k) * x / ((c + k) * m);
         term *= ratio;
-        // fail if the term ratio underflows, e.g. for tiny a and b
-        if pole_ahead && ratio.abs() < f64::MIN_POSITIVE && a + k != 0.0 && b + k != 0.0 {
+        // Unlike in xsf, fail if the term ratio underflows, e.g. for tiny a and b or a subnormal
+        // c, but not if only by a tiny x, as the later ratios then are tiny too
+        let underflows = |t: f64| t.abs() < f64::MIN_POSITIVE;
+        let lost = || {
+            (underflows((a + k) * (b + k) / ((c + k) * m)) || underflows(c))
+                && a + k != 0.0
+                && b + k != 0.0
+        };
+        if pole_ahead && underflows(ratio) && lost() {
             return (sum, 1.0, 1.0);
         }
         if pole_ahead && term != 0.0 && term.abs() < 1.0 / HYP2F1_SCALE {
@@ -623,7 +644,8 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     // Unlike in xsf (scipy/xsf#371), check the starting values, but only replace both, as their
     // errors correlate
     let t0 = if da < 0.0 { t - 1.0 } else { t + 1.0 };
-    let starts = (hys2f1(t, b, c, x), hys2f1(t0, b, c, x));
+    // (without preferring the power series, which could replace the recurrence for only one)
+    let starts = (hys2f1_impl(t, b, c, x, false), hys2f1_impl(t0, b, c, x, false));
     let starts_checked = || {
         Some((
             hys2f1_series_checked(t, b, c, x, starts.0)?,

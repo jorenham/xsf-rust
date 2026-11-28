@@ -8,7 +8,7 @@ use proptest::prelude::*;
 use proptest::sample::Index;
 
 use super::strategies::{arg, balanced, imag, moderate, near_threshold_z, small, unit};
-use super::{NEAR_POLE, almost_int, config, int_distance, is_linear, is_pole, pole_distance};
+use super::{NEAR_POLE, almost_int, config, int_distance, is_pole, pole_distance};
 
 /// Relative steps `2^-k` from half the digits, `2^-MIN_K`, down to an ulp, `2^-MAX_K`
 const MIN_K: u32 = f64::MANTISSA_DIGITS / 2;
@@ -184,8 +184,6 @@ fn known_hyp2f1_balanced_x(a: f64, b: f64, c: f64, x: f64, i: usize) -> bool {
         // at its neighbours, so only for the neighbours of x (i = 3)
         || (i == 3 && x == 1.0 && c - a - b <= f64::EPSILON.sqrt())
         || (x > 0.9 && (terminating(a, b) || terminating(b, a)))
-        // c < 0 at a subnormal x (#2255, #2332)
-        || (x.is_subnormal() && c < 0.0 && !(is_linear(a) || is_linear(b)))
 }
 
 // singular at the poles of c, and at x = 1 for c <= a + b; known: polynomials at x = 1 (#2198,
