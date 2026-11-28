@@ -1076,14 +1076,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         }
     }
 
-    // Unlike in xsf, for |x| > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
-    // DLMF 15.4.6, as the paths below lose digits or diverge. For x > 1 only if the exponent is an
-    // integer, else inf, as for the other powers (see below). Not for an integer c <= 0 (see above),
-    // nor for x > 1 with an exponent within `HYP2F1_EPS` of an integer, nor in the transformations,
-    // where c - a or c - b can round to c.
-    if outer && ax > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
+    // Unlike in xsf, for c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of DLMF 15.4.6,
+    // as the paths below lose digits or diverge for |x| > 1, and round 1 - x for -1 <= x < 1 (as
+    // does the recurrence for large parameters). For x > 1 only if the exponent is an integer,
+    // else inf, as for the other powers (see below). Not for an integer c <= 0 (see above), nor
+    // for x > 1 with an exponent within `HYP2F1_EPS` of an integer, nor for -1 <= x < 1 and an
+    // infinite c, nor in the transformations, where c - a or c - b can round to c.
+    if outer && (ax > 1.0 || x < 1.0 && c.is_finite()) && (a == c || b == c) && !is_nonpos_int(c) {
         let e = if a == c { b } else { a };
-        if x < -1.0 {
+        if x < 1.0 {
             return pow_1mx(x, -e);
         } else if e == e.round() {
             return s.powf(-e);
@@ -1316,13 +1317,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             if neg_int_b && ib < 0.0 {
                 y = hyp2f1_neg_c_equal_bc(a, b, x);
             } else {
-                y = s.powf(-a); /* s to the -a power */
+                // Unlike in xsf, without rounding 1 - x first
+                y = pow_1mx(x, -a); /* s to the -a power */
             }
             return y; // goto hypdon
         }
         if near(a, c) {
             /* a = c */
-            y = s.powf(-b); /* s to the -b power */
+            // Unlike in xsf, without rounding 1 - x first
+            y = pow_1mx(x, -b); /* s to the -b power */
             return y; // goto hypdon
         }
     }
