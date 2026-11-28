@@ -17,10 +17,9 @@ reports with file and line:
 - a removed test (`#[test]` fn or `xsref::tests!` entry), unless a changed file gains a test of that
   name (a move), or a new test replaces it in the same file (a rename)
 - removed rows of a test table, whose inputs no added row has
-- a removed xsref table, or a removed row of one, or in a row a larger tolerance or scale, a
-  computed output that becomes a convention or a gap, or a gap with another rule value than before
-  (a convention that becomes a gap with its value is not loosened)
-  (`tests/data/xsref`)
+- a removed xsref table, or a removed row of one, or an output of a row that may accept a value
+  that it rejected before, as `testing/src/xsref.rs` checks it (a computed or legacy output may get
+  another reference, and a gap may close at its reference) (`tests/data/xsref`)
 
 Test code is everything in `tests/` and `testing/`, and the `#[cfg(test)]` part of `src/`. The exit
 status is 1 if there are findings. On GitHub Actions, they are also printed as annotations, and
@@ -41,6 +40,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 EPSILON = 2.0**-52
+MAX = sys.float_info.max
+DENORM_MIN = math.ulp(0.0)
+# more than the relative rounding error of a bound here, and of the error in Rust
+ROUNDING = 16 * EPSILON
 # numbers below this are tolerances
 SMALL = 0.1
 XSREF = "tests/data/xsref/"
@@ -286,10 +289,10 @@ class Output(NamedTuple):
     status: int  # LEGACY, COMPUTED, CONVENTION, or GAP
     tol: float
     scale: float
-    # the f64s of the reference
-    ref: bytes
-    # the f64s of the rule value of a gap (None without one: any wrong output)
-    rule: bytes | None
+    # the parts of the reference
+    ref: tuple[float, ...]
+    # the parts of the rule value of a gap (None without one: any wrong output)
+    rule: tuple[float, ...] | None
 
 
 def parse_table(data: bytes) -> dict[bytes, list[Output]]:
@@ -314,9 +317,6 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
     statuses = data[20 + 8 * n_rows * width + n_rows :] or bytes(n_rows * n_tol)
     size = n_out // n_tol
 
-    def pack(x: tuple[float, ...], i: int) -> bytes:
-        return struct.pack(f"<{size}d", *x[i * size : (i + 1) * size])
-
     rows: dict[bytes, list[Output]] = {}
     for r in range(n_rows):
         row = values[r * width : (r + 1) * width]
@@ -332,51 +332,151 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
                 status[i],
                 tols[i],
                 scales[i],
-                pack(refs, i),
-                pack(rules, i) if status[i] == GAP and rules else None,
+                refs[i * size : (i + 1) * size],
+                rules[i * size : (i + 1) * size]
+                if status[i] == GAP and rules
+                else None,
             )
             for i in range(n_tol)
         ]
     return rows
 
 
-def same(a: bytes | None, b: bytes | None) -> bool:
-    """Whether values are equal, per f64 with NaNs equal and zero signs kept"""
-    if a is None or b is None or len(a) != len(b):
+def same(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
+    """Whether values are equal, per part with zero signs kept (`float.hex` of any NaN is `nan`)"""
+    return len(a) == len(b) and all(
+        x.hex() == y.hex() for x, y in zip(a, b, strict=True)
+    )
+
+
+class Check(NamedTuple):
+    """What `Check::failure` of `testing/src/xsref.rs` accepts: the values in the classes of the
+    parts of `ref`, by the strictness of a status, whose error is at most `rtol`"""
+
+    # LEGACY: no classes, COMPUTED: NaN and the infinities, CONVENTION: also the zeros
+    strict: int
+    ref: tuple[float, ...]
+    rtol: float
+    scale: float
+
+
+class Gap(NamedTuple):
+    """What a gap accepts: what `rule` accepts (anything if None), and `ref` rejects"""
+
+    rule: Check | None
+    ref: Check
+
+
+def exact(strict: int, rtol: float, x: float) -> bool:
+    """Whether a part is a class of its own, which only that value passes (a legacy NaN only below
+    an infinite tolerance, which any error passes)"""
+    return (
+        (math.isnan(x) and (strict > LEGACY or rtol < math.inf))
+        or (strict >= COMPUTED and math.isinf(x))
+        or (strict == CONVENTION and x == 0)
+    )
+
+
+def check(strict: int, ref: tuple[float, ...], tol: float, scale: float) -> Check:
+    """What an output of the strictness of a status accepts"""
+    # like `max` in Rust, which ignores a NaN tolerance
+    rtol = 4 * max(EPSILON, tol)
+    if all(exact(strict, rtol, x) for x in ref):
+        # the tolerance and the scale don't matter (the error is 0)
+        return Check(strict, ref, 0.0, 0.0)
+    return Check(strict, ref, rtol, scale)
+
+
+def accepts(out: Output) -> Check | Gap:
+    if out.status != GAP:
+        return check(out.status, out.ref, out.tol, out.scale)
+    # the rule value with a tolerance of 0, and the reference as a convention (with the zeros)
+    rule = None if out.rule is None else check(CONVENTION, out.rule, 0.0, 0.0)
+    return Gap(rule, check(CONVENTION, out.ref, out.tol, out.scale))
+
+
+def radii(c: Check) -> tuple[float, ...]:
+    """Bounds of `|actual - ref|` per part of what a check accepts, rounded up
+
+    Like `table_error` of `testing/src/xsref.rs`, the error is relative to the magnitude of `ref`,
+    where a zero counts as the smallest subnormal, an infinity as `f64::MAX`, and NaN as 1 (or to
+    the part itself, if it is finite and another one is not), or else to `scale`.
+    """
+    parts = [1.0 if math.isnan(x) else min(max(abs(x), DENORM_MIN), MAX) for x in c.ref]
+    mixed = not all(map(math.isfinite, c.ref))
+    return tuple(
+        0.0
+        if exact(c.strict, c.rtol, x)
+        else c.rtol
+        * max(p if mixed and math.isfinite(x) else math.hypot(*parts), c.scale)
+        * (1 + ROUNDING)
+        for x, p in zip(c.ref, parts, strict=True)
+    )
+
+
+def subset(n: Check | None, o: Check | None) -> bool:
+    """Whether `o` accepts all that `n` accepts, where None accepts anything"""
+    if o is None or n is None:
+        return o is None
+
+    def wider(x: float, r: float) -> bool:
+        # with fewer classes, `n` can accept another value of a part that is a class in `o`, or a
+        # zero or an infinity next to a small or a large one, which `o` rejects
+        return (exact(o.strict, o.rtol, x) and not exact(n.strict, n.rtol, x)) or (
+            (n.strict < COMPUTED <= o.strict and MAX - abs(x) <= r)
+            or (n.strict < CONVENTION == o.strict and abs(x) <= r)
+        )
+
+    return (
+        same(n.ref, o.ref)
+        and n.rtol <= o.rtol
+        and n.scale <= o.scale
+        and not any(map(wider, n.ref, radii(n)))
+    )
+
+
+def disjoint(n: Check | None, o: Check) -> bool:
+    """Whether `n` accepts nothing that the convention check `o` accepts: a part of the values of
+    one is in no class of the other, or too far from it"""
+    if n is None:
         return False
-    xs, ys = (struct.unpack(f"<{len(v) // 8}d", v) for v in (a, b))
-    return all(
-        x.hex() == y.hex() or (math.isnan(x) and math.isnan(y))
-        for x, y in zip(xs, ys, strict=True)
+
+    def apart(x: float, y: float, r: float) -> bool:
+        if exact(n.strict, n.rtol, x):
+            # `o` takes a part that is no zero, NaN, or infinity as finite and nonzero
+            return not same((x,), (y,))
+        if math.isfinite(x) and math.isfinite(y):
+            return abs(x - y) > r
+        # NaN or an infinity that is no class of `n`: only an infinite tolerance passes NaN, and
+        # an infinity only passes without classes
+        return (math.isnan(y) and n.rtol < math.inf) or (
+            math.isinf(y) and n.strict >= COMPUTED
+        )
+
+    return any(
+        apart(x, y, a + b)
+        for x, y, a, b in zip(n.ref, o.ref, radii(n), radii(o), strict=True)
     )
 
 
 def output_loosened(old: Output, new: Output) -> bool:
-    """Whether `new` accepts more than `old`, where a gap accepts its rule value (what a
-    convention accepts at a tolerance of 4 `EPSILON`) and not what passes its reference"""
-    same_ref = same(new.ref, old.ref)
-    not_larger = new.tol <= old.tol and new.scale <= old.scale
-    if new.status == GAP:
-        if old.status != GAP:
-            return not same(new.rule, old.ref)
-        # a smaller tolerance or scale makes the exclusion of the reference smaller
+    """Whether `new` may accept a value that `old` rejects, unless it closes a gap: a computed
+    output at its reference"""
+    if max(old.status, new.status) < CONVENTION:
+        # a reference that is no rule value is the true value, which only gets more accurate
+        old = old._replace(ref=new.ref)
+    o, n = accepts(old), accepts(new)
+    if isinstance(o, Check):
+        return not subset(n.rule if isinstance(n, Gap) else n, o)
+    if isinstance(n, Gap):
+        # a smaller exclusion of the reference only matters where the rule value is near it
         return not (
-            same_ref
-            and new.tol >= old.tol
-            and new.scale >= old.scale
-            and (old.rule is None or same(new.rule, old.rule))
+            subset(n.rule, o.rule) and (subset(o.ref, n.ref) or disjoint(n.rule, o.ref))
         )
-    if old.status == GAP:
-        if new.status == CONVENTION:
-            # a gap without a stored rule (older tables) gives nothing to compare
-            return old.rule is not None and not (
-                same(new.ref, old.rule) and new.tol <= EPSILON and new.scale == 0
-            )
-        # a gap that closes
-        return not (new.status == COMPUTED and same_ref and not_larger)
-    if new.status == CONVENTION and old.status in (LEGACY, COMPUTED):
-        return not (same_ref and not_larger)
-    return not not_larger
+    closes = new.status == COMPUTED and subset(
+        n, check(COMPUTED, old.ref, old.tol, old.scale)
+    )
+    return not (closes or (subset(n, o.rule) and disjoint(n, o.ref)))
 
 
 def check_tables(base: str, head: str, changed: list[tuple[str, str]]) -> list[Finding]:
