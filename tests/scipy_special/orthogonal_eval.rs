@@ -500,6 +500,10 @@ fn test_eval_real_degree_origin() {
     let actual = [xsf::eval_jacobi(-2.5, a, a, -1e-16)];
     np_assert_allclose!(actual, [-5.426_659_300_410_11e-18], atol = 1e-17);
     assert!(xsf::eval_jacobi(1.0, f64::INFINITY, f64::INFINITY, 1e-8).is_nan());
+    // also for complex z, on and off the origin (mpmath)
+    let actual =
+        [0.0, 0.25].map(|x| xsf::eval_jacobi(-3.0 * u, -1.0 + u, -1.0 + u, c64(x, 0.0)).re);
+    np_assert_allclose!(actual, [0.250_000_000_000_000_06, 0.062_500_000_000_000_05], rtol = 1e-15);
 
     // and the complex recurrence still uses such a degree away from the origin (mpmath:
     // 0.093683301849704395857, 0.032611483202643810132)

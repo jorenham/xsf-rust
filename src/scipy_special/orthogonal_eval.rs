@@ -128,11 +128,10 @@ mod sealed {
             // Unlike in xsf, odd integer degrees of the Gegenbauer case use the three-term
             // recurrence near the origin (as for complex z), where the series cancels
             // catastrophically to their small values (the even ones don't vanish there).
-            // The degree `-b` is used only if the supplied `n + lam` is exactly `b` (the 2F1 is
-            // symmetric in `n` and `-n - lam`), for which `lam` must be exact as well (see `sym`),
-            // and infinite parameters are left to the series.
-            let exact = super::two_sum(n, lam) == (b, 0.0);
-            let nu = if exact { n.max(-b) } else { n };
+            // The degree `-b` is used only if the supplied `n + lam` is exactly `b`, for which
+            // `lam` must be exact as well (see `sym`), and infinite parameters are left to the
+            // series.
+            let nu = super::symmetric_degree(n, b, lam, 0.0);
             super::int_degree(nu, 0.0, 0.0)
                 .filter(|&nu| nu % 2 == 1 && sym && c > 0.0 && lam.is_finite())
                 .filter(|_| self.abs() < super::ORIGIN_RADIUS)
@@ -209,7 +208,10 @@ mod sealed {
             // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
             // z = 1, and lose the small values near the origin (as the power series in
             // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
-            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+            // The degree `-b` is used if `n + lam` is within `EPSILON |n|` of `b` (about a
+            // rounding of `n`), not only if exact as for real x, since the series cancels for
+            // large degrees.
+            let nu = super::symmetric_degree(n, b, lam, f64::EPSILON);
             let p = super::int_degree(nu, 0.0, 0.0)
                 .filter(|_| sym && c > 0.0)
                 .map(|n| {
@@ -235,6 +237,17 @@ mod sealed {
                 });
             p.filter(OrthoPolyArg::is_finite)
         }
+    }
+}
+
+/// The degree `n.max(-b)` of `2F1(-n, b; c; (1 - x) / 2)`, which is symmetric in `n` and
+/// `-n - lam` for `b = n + lam`, if the rounded `b` is within `rtol |n|` of `n + lam`, else `n`
+fn symmetric_degree(n: f64, b: f64, lam: f64, rtol: f64) -> f64 {
+    let (s, e) = two_sum(n, lam);
+    if ((s - b) + e).abs() <= rtol * n.abs() {
+        n.max(-b)
+    } else {
+        n
     }
 }
 
