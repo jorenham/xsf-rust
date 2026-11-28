@@ -1025,12 +1025,17 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         return 1.0;
     }
 
-    // Unlike in xsf, for x > 1 take whichever rounding of `c - a - b`, in either order of `a` and
-    // `b`, is closest to an integer without being one, so that whether the power of the Euler
-    // transformation below is real doesn't depend on that order
+    // Unlike in xsf, for x > 1 where `c - a - b` rounds differently in the two orders of `a` and
+    // `b`, take the integer it is exactly (in double-double), else the rounding closest to an
+    // integer without being one, so that neither the entry into the Euler transformation below
+    // nor whether its power is real depends on that order
     let (ab, ba) = (c - a - b, c - b - a);
     let key = |t: f64| (t == t.round(), (t - t.round()).abs(), t);
-    let d = if x > 1.0 && key(ba) < key(ab) { ba } else { ab };
+    let d = match (x > 1.0 && ab != ba).then(|| Dd::new(c) - (Dd::new(a) + b)) {
+        Some(exact) if exact.is_integer() => exact.hi,
+        Some(_) if key(ba) < key(ab) => ba,
+        _ => ab,
+    };
     let mut id = d.round();
 
     // Unlike in xsf, also for c = 0 (DLMF 15.2.5 for m = 0, see below)

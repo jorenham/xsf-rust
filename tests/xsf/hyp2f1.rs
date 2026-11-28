@@ -4138,6 +4138,20 @@ fn test_hyp2f1_f64_x_gt_1_near_integer_exponent_symmetric() {
 }
 
 #[test]
+fn test_hyp2f1_f64_x_gt_1_integer_exponent_symmetric() {
+    // c - a - b is exactly -4 and -2, but rounds to a non-integer in one order of a and b, and
+    // c - a or c - b is a negative integer, so that the Euler transformation is real (Arb)
+    let cases = [
+        ((-5.125_000_000_000_001, 2.0, -7.125_000_000_000_001), 2.672_753_311_851_056),
+        ((1.0, -14.499_999_999_999_998, -15.499_999_999_999_998), -1.129_032_258_064_516_2),
+    ];
+    for ((a, b, c), expected) in cases {
+        let actual = [xsf::hyp2f1(a, b, c, 2.0), xsf::hyp2f1(b, a, c, 2.0)];
+        np_assert_allclose!(actual, [expected; 2], rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_centered_population_polynomial() {
     // Pearson, Olver and Porter, Table A.2 case 16, with an off-axis ordinate.
     let z = c64(core::f64::consts::FRAC_1_SQRT_2, 0.01);
