@@ -56,8 +56,8 @@ fn known_hyp2f1_balanced(a: f64, b: f64, c: f64, x: f64) -> bool {
     // wrong for x > 0.9 or x < -100 (seen from -288) if c - a - b is next to -1, for a tiny a or b
     // (#2333), or one next to a negative pole (#2343)
     let shifted = |p: f64| p.fract() != 0.0 && pole_distance(p) <= NEAR_DEGENERATE;
-    // 0 or NaN at x = -inf, and inf at -f64::MAX, for a tiny a or b (#2325)
-    (x <= -f64::MAX && (tiny(a) || tiny(b)))
+    // NaN in one order at x = -f64::MAX, for a tiny a or b (#2381)
+    (x == -f64::MAX && (tiny(a) || tiny(b)))
         // NaN or infinite in one order for x > 1, where c - a - b is an integer in only one order
         // of a and b (#2341)
         || (x > 1.0 && ((c - a - b).fract() == 0.0) != ((c - b - a).fract() == 0.0))
