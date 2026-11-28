@@ -2174,6 +2174,20 @@ fn test_hyp2f1_f64_x_lt_minus_2() {
 }
 
 #[test]
+fn test_hyp2f1_f64_neg_inf() {
+    // unlike in xsf, the limit (DLMF 15.8.2) in both orders of a and b, where xsf gives NaN in
+    // one or both of them
+    let x = f64::NEG_INFINITY;
+    for (a, b, c, desired) in [
+        (18.871_871_023_738_12, 1.235_125_312_516_039_9e-9, 17.871_871_024_973_245, 0.0),
+        (-0.5, 0.5, 2.0, f64::INFINITY),
+        (-2.5, -0.5, 0.5, f64::NEG_INFINITY),
+    ] {
+        assert_eq!([xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)], [desired; 2]);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_x_lt_minus_2_b_minus_a_near_int() {
     // unlike in xsf: these were -1.26e5, -2.06e69 and -5.53e3, the last of which is the second
     // function of the 1/x transformation of the one before it (Arb)

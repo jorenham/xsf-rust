@@ -1073,6 +1073,24 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     let neg_int_a = near_neg_int(a);
     let neg_int_b = near_neg_int(b);
 
+    // Unlike in xsf, the limit at x = -inf of the 1/x transformation (DLMF 15.8.2, 15.8.8), as the
+    // paths below can give `0 * inf` there: 0 if a, b > 0, else inf with the sign of the leading
+    // asymptotic coefficient, unless `gammasgn` is NaN at a rounded parameter. Not for a
+    // polynomial or a pole of c.
+    if x == f64::NEG_INFINITY
+        && [a, b, c].into_iter().all(f64::is_finite)
+        && !(neg_int_a || neg_int_b || is_nonpos_int(c))
+    {
+        let m = a.min(b);
+        if m > 0.0 {
+            return 0.0;
+        }
+        let sign = gammasgn(c) * gammasgn(a.max(b)) * gammasgn(c - m);
+        if !sign.is_nan() {
+            return f64::INFINITY * sign;
+        }
+    }
+
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
     // excludes c close to (but not at) a non-positive integer (unless tiny), and a zero or
