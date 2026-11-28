@@ -177,7 +177,7 @@ pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
 /// (by DLMF 13.2.39 again) `P = e^x M(m - n, -n, -x) + c (-x)^(n + 1) M(n - m + 1, n + 2, x)`,
 /// where the terms of both series have one sign.
 fn chgm_pole_poly(a: f64, b: f64, x: f64) -> f64 {
-    // (with a single rounding, also at its root x = b)
+    // (exact near its root x = b, where the subtraction is exact)
     if a == -1.0 {
         return (x - b) / -b;
     }
@@ -1457,8 +1457,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if !(is_nonpos_int(a) && b <= a) {
             return if x == 0.0 { 1.0 } else { f64::NAN };
         }
-        // Unlike in xsf, the polynomial, both for x < 0 (where xsf takes the b -> -n limit of
-        // e^x M(b - a, b, -x), which drops terms) and for a = b (where its term ratio is 0/0)
+        // Unlike in xsf, the polynomial: for x < 0 xsf takes e^x M(b - a, b, -x), whose series
+        // terminates too early at the pole, and for a = b, x > 0 its term ratio is 0/0
         if b >= -MAX_SERIES_ITERATIONS && (x < 0.0 || a == b) {
             return chgm_pole_poly(a, b, x);
         }
