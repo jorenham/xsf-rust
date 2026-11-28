@@ -76,18 +76,23 @@ def km(a: tuple[float, ...]) -> float:
     return qm + 0.5 * a[0]
 
 
-def _value(v: mp.mpf | tuple[mp.mpf, mp.mpf]) -> mp.mpf:
+def value(v: mp.mpf | tuple[mp.mpf, mp.mpf]) -> mp.mpf:
     return v[0] if isinstance(v, tuple) else v
 
 
 def radial(
     odd: int, kind: int, derivative: bool
 ) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf | tuple[mp.mpf, mp.mpf]]:
-    """The modified Mathieu function of the given kind or its derivative."""
+    """The modified Mathieu function of the given kind or its derivative. For q < 0, only the
+    first kind of an even order m is real: (-1)^(m/2) times Ie_m(x, sqrt(-q)) for Mc_m^(1), and
+    times Io_m(x, sqrt(-q)) for Ms_m^(1) (DLMF 28.20.17-18)."""
 
     def at(k: int, d: bool, m: mp.mpf, q: mp.mpf, x: mp.mpf):
         res = specs._mathieu_radial(odd, k, m, q, x, d)
-        if k == 1 or not isinstance(res, tuple) or res[0] == 0:
+        if k == 1:
+            # for q < 0, the imaginary part is rounding
+            return mp.re(res) if q < 0 else res
+        if not isinstance(res, tuple) or res[0] == 0:
             return res
         # The series is accurate relative to the scale. Where the value is much smaller (as
         # for large q at x = 0), more digits make it accurate relative to itself.
@@ -98,10 +103,12 @@ def radial(
         return res
 
     def reference(m: mp.mpf, q: mp.mpf, x: mp.mpf) -> mp.mpf | tuple[mp.mpf, mp.mpf]:
-        if x >= 0:
-            return at(kind, derivative, m, q, x)
         # The first kind has definite parity: even for Mc, odd for Ms.
         flip = derivative != bool(odd)
+        if kind == 1 and flip and x == 0:
+            return mp.mpf(0)
+        if x >= 0:
+            return at(kind, derivative, m, q, x)
         if kind == 1:
             res = at(1, derivative, m, q, -x)
             if not flip:
@@ -112,12 +119,12 @@ def radial(
         # z = 0. The series of Mc2 does not converge for large negative x, where Y_n(u) has a
         # tiny u.
         sign = 1 - 2 * odd
-        c0 = _value(at(2, bool(odd), m, q, mp.mpf(0)))
-        s0 = _value(at(1, bool(odd), m, q, mp.mpf(0)))
+        c0 = value(at(2, bool(odd), m, q, mp.mpf(0)))
+        s0 = value(at(1, bool(odd), m, q, mp.mpf(0)))
         a = (2 - 4 * odd) * c0 / s0
-        y1 = _value(at(1, derivative, m, q, -x))
+        y1 = value(at(1, derivative, m, q, -x))
         y2 = at(2, derivative, m, q, -x)
-        y = a * y1 - sign * _value(y2)
+        y = a * y1 - sign * value(y2)
         y = -y if derivative else y
         if isinstance(y2, tuple):
             # the modulus of the first and second kind, where they oscillate
@@ -181,7 +188,7 @@ def radial2_residual(odd: int) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf]:
                 # the first kind has definite parity, so its value or derivative is 0 at x = 0
                 mp.mpf(0)
                 if x == 0 and kind == 1 and d == (not odd)
-                else _value(radial(odd, kind, d)(m, q, x))
+                else value(radial(odd, kind, d)(m, q, x))
                 for d in (False, True)
             ]
             for kind in (1, 2)
@@ -192,7 +199,7 @@ def radial2_residual(odd: int) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf]:
                 ref = radial(odd, 2, d)(m, q, x)
                 y, scale = ref if isinstance(ref, tuple) else (ref, abs(ref))
                 direct = specs._mathieu_radial(odd, 2, m, q, x, d)
-                errors.append(abs(_value(direct) - y) / scale)
+                errors.append(abs(value(direct) - y) / scale)
         return max(errors)
 
     return residual

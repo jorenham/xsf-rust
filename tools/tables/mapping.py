@@ -4750,6 +4750,29 @@ def _mathieu_long_cvf(odd: int, kind: int, derivative: bool) -> Floor:
     )
 
 
+MATHIEU_NEGATIVE_Q: Final = Rule(lambda a: a[1] < 0, math.nan, "q must be nonnegative")
+
+
+def _mathieu_negative_q_gap(odd: int, derivative: bool) -> Rule:
+    """`MATHIEU_NEGATIVE_Q` as a gap of the first kind, for an even m, where `mathieu.radial`
+    is real, and a finite f64."""
+    ref = mathieu.radial(odd, 1, derivative)
+
+    def when(a: tuple[float, ...]) -> bool:
+        if not MATHIEU_NEGATIVE_Q.when(a) or a[0] % 2:
+            return False
+        with mp.workdps(20):
+            return math.isfinite(float(mathieu.value(ref(*map(mp.mpf, a)))))
+
+    return Rule(
+        when,
+        MATHIEU_NEGATIVE_Q.value,
+        f"{MATHIEU_NEGATIVE_Q.why}, but for an even m, the function is (-1)^(m/2) times"
+        f" I{'o' if odd else 'e'}_m(x, sqrt(-q)) (DLMF 28.20.17-18)",
+        gap=True,
+    )
+
+
 def _mathieu_radial1(odd: int) -> Entry:
     family = "s" if odd else "c"
     return Entry(
@@ -4759,7 +4782,8 @@ def _mathieu_radial1(odd: int) -> Entry:
                 (mathieu.radial(odd, 1, derivative),),
                 rules=(
                     _mathieu_m(odd, f"M{family}1"),
-                    Rule(lambda a: a[1] < 0, math.nan, "q must be nonnegative"),
+                    _mathieu_negative_q_gap(odd, derivative),
+                    MATHIEU_NEGATIVE_Q,
                     Rule(
                         lambda a: mathieu.km(a) >= 251,
                         math.nan,
@@ -4794,7 +4818,12 @@ def _mathieu_radial1(odd: int) -> Entry:
             for derivative in (False, True)
         ),
         Identity(
-            lambda a: odd <= a[0] <= 12 and 0 < a[1] <= 10 and abs(a[2]) <= 1,
+            lambda a: (
+                odd <= a[0] <= 12
+                and 0 < abs(a[1]) <= 10
+                and (a[1] > 0 or a[0] % 2 == 0)
+                and abs(a[2]) <= 1
+            ),
             mathieu.radial1_residual(odd),
         ),
     )
@@ -4809,7 +4838,7 @@ def _mathieu_radial2(odd: int) -> Entry:
                 (mathieu.radial(odd, 2, derivative),),
                 rules=(
                     _mathieu_m(odd, f"M{family}2"),
-                    Rule(lambda a: a[1] < 0, math.nan, "q must be nonnegative"),
+                    MATHIEU_NEGATIVE_Q,
                     Rule(
                         lambda a: mathieu.km(a) >= 251,
                         math.nan,
