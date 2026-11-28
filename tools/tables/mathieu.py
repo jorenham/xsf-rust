@@ -84,8 +84,8 @@ def radial(
     odd: int, kind: int, derivative: bool
 ) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf | tuple[mp.mpf, mp.mpf]]:
     """The modified Mathieu function of the given kind or its derivative. For q < 0, only the
-    first kind of an even order m is real: (-1)^(m/2) Ie_m(x, sqrt(-q)) for Mc_m^(1), and Io_m
-    for Ms_m^(1) (DLMF 28.20.17-18)."""
+    first kind of an even order m is real: (-1)^(m/2) times Ie_m(x, sqrt(-q)) for Mc_m^(1), and
+    times Io_m(x, sqrt(-q)) for Ms_m^(1) (DLMF 28.20.17-18)."""
 
     def at(k: int, d: bool, m: mp.mpf, q: mp.mpf, x: mp.mpf):
         res = specs._mathieu_radial(odd, k, m, q, x, d)

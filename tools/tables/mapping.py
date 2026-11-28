@@ -4801,7 +4801,12 @@ def _mathieu_radial1(odd: int) -> Entry:
             for derivative in (False, True)
         ),
         Identity(
-            lambda a: odd <= a[0] <= 12 and 0 < abs(a[1]) <= 10 and abs(a[2]) <= 1,
+            lambda a: (
+                odd <= a[0] <= 12
+                and 0 < abs(a[1]) <= 10
+                and (a[1] > 0 or a[0] % 2 == 0)
+                and abs(a[2]) <= 1
+            ),
             mathieu.radial1_residual(odd),
         ),
     )
