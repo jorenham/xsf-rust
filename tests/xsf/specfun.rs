@@ -2291,6 +2291,9 @@ fn test_hypu_tiny_a_integer_b() {
         (1e-315, 100.0, 0.01, 9.522_603_953_825_106e36),
         (5e-324, 100.0, 0.01, 4.704_791_479_680_37e28),
         (0.75 * f64::MIN_POSITIVE, 10_000.0, 6_666.666_666_666_667, 15_390.988_734_525_35),
+        (-1e-315, 100.0, 0.01, -9.522_603_953_825_106e36),
+        (-5e-324, 100.0, 0.01, -4.704_791_479_680_37e28),
+        (-0.75 * f64::MIN_POSITIVE, 10_000.0, 6_666.666_666_666_667, -15_388.988_734_525_35),
     ] {
         xsref::np_assert_allclose!([xsf::hypu(a, b, x)], [expected], rtol = 1e-13);
     }
@@ -2299,4 +2302,5 @@ fn test_hypu_tiny_a_integer_b() {
         f64::INFINITY
     );
     assert_eq!(xsf::hypu(f64::MIN_POSITIVE, 70_000.0, 56_000.0), f64::INFINITY);
+    assert_eq!(xsf::hypu(-f64::MIN_POSITIVE, 70_000.0, 56_000.0), f64::NEG_INFINITY);
 }

@@ -2494,15 +2494,14 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     // IL1: DLMF 13.2.7 with k=-s-a
     // IL2: DLMF 13.2.8
     if il1 || il2 {
-        // Unlike in xsf, scale the seed of the positive terminating sum
+        // Unlike in xsf, scale the seed of the terminating sum for a tiny a
         // to keep the first term from rounding to zero or losing digits.
         let (seed, mut e_sum) = if il2
-            && 0.0 < a
             && b > 1.0
-            // A term before later growth has magnitude at least a/k, where k < b.
-            && a < b * f64::MIN_POSITIVE
+            // A term before later growth has magnitude at least |a|/k, where k < b.
+            && a.abs() < b * f64::MIN_POSITIVE
             && b.fract() == 0.0
-            // This discards corrections below 2*b*a*exp(600), too small to affect 1.
+            // This discards corrections below 2*b*|a|*exp(600), too small to affect 1.
             && b * ((b - x).max(0.0) / x).powi(2) > 1200.0
         {
             (SCALE, -LOG2_SCALE)
