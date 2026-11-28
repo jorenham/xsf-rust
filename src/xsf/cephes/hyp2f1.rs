@@ -1272,7 +1272,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         /* 2F1(a,b;b;x) = (1-x)**(-a) */
         if near(b, c) {
             /* b = c */
-            if neg_int_b {
+            // Unlike in xsf, skip the polynomial when b rounds to zero
+            if neg_int_b && ib < 0.0 {
                 y = hyp2f1_neg_c_equal_bc(a, b, x);
             } else {
                 y = s.powf(-a); /* s to the -a power */
