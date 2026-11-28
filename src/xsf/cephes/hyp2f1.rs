@@ -1026,13 +1026,18 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     }
 
     // Unlike in xsf, for x > 1 where `c - a - b` rounds differently in the two orders of `a` and
-    // `b`, take the integer it is exactly (in double-double), else the rounding closest to an
-    // integer without being one, so that neither the entry into the Euler transformation below
-    // nor whether its power is real depends on that order
+    // `b`, take the integer it is exactly (in double-double) if the Euler transformation below
+    // terminates (`c - a` or `c - b` is exactly a nonpositive integer), else the rounding closest
+    // to an integer without being one, so that neither the entry into that transformation nor
+    // whether its power is real depends on that order
     let (ab, ba) = (c - a - b, c - b - a);
     let key = |t: f64| (t == t.round(), (t - t.round()).abs(), t);
-    let d = match (x > 1.0 && ab != ba).then(|| Dd::new(c) - (Dd::new(a) + b)) {
-        Some(exact) if exact.is_integer() => exact.hi,
+    let terminates = |p: f64| {
+        let t = c - Dd::new(p);
+        t.is_integer() && t.hi <= 0.0
+    };
+    let d = match (x > 1.0 && ab != ba).then(|| c - (Dd::new(a) + b)) {
+        Some(exact) if exact.is_integer() && (terminates(a) || terminates(b)) => exact.hi,
         Some(_) if key(ba) < key(ab) => ba,
         _ => ab,
     };

@@ -4105,7 +4105,9 @@ fn test_hyp2f1_f64_x_gt_1_near_integer_exponent_symmetric() {
     // 2F1 is complex, also where it is at or near one in only one order (#1687, #2341); xsf
     // gives NaN in one order, and inf or a value in the other. Arb (principal branch):
     // -0.21644 + 1.6e-14i, -0.019047 + 4.0e-16i, -12.738 - 4.5e-12i, 2.7e-1980 + 4.5e-1994i,
-    // 1.6559 - 2.1e-13i, 1.0000 - 6.3e-15i, 0.99999999999994 - 6.8e-15i, 0.0092578 + 1.4e-15i
+    // 1.6559 - 2.1e-13i, 1.0000 - 6.3e-15i, 0.99999999999994 - 6.8e-15i, 0.0092578 + 1.4e-15i;
+    // and where c - a - b is exactly an integer but the Euler transformation doesn't terminate:
+    // 57.290 - 3.8e-14i, -0.056206 - 2923.0i
     let args = [
         (32.0, 2.381_415_082_656_166_5e-14, 1.957_691_271_250_615_3e-14, 149.664_072_955_019_1),
         (1.000_000_000_000_006_7, 136.0, 136.0, 53.501_842_110_012_255),
@@ -4130,6 +4132,8 @@ fn test_hyp2f1_f64_x_gt_1_near_integer_exponent_symmetric() {
             620_584_238_963.234_5,
         ),
         (2.0, -0.055_804_321_741_268_32, -1.055_804_321_741_268_7, 19.0),
+        (-2.875_000_000_000_002, 2.000_000_000_000_001_8, -3.875_000_000_000_000_4, 1.25),
+        (-14.499_999_999_999_998, 1.000_000_000_000_001_8, -15.499_999_999_999_996, 20.0),
     ];
     for (a, b, c, x) in args {
         assert!(xsf::hyp2f1(a, b, c, x).is_nan());
