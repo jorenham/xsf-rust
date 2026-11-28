@@ -100,3 +100,15 @@ fn test_binom_reflection_negative_a() {
     xsref::np_assert_allclose!(&actual[..1], &expected[..1], rtol = 5e-15);
     xsref::np_assert_allclose!(&actual[1..], &expected[1..], rtol = 2e-13);
 }
+
+#[test]
+fn test_binom_negative_integer_n() {
+    // unlike in xsf, the polynomial (-1)^k binom(k - n - 1, k) (DLMF 1.2.6) for an integer
+    // k >= 0 (exact)
+    let nk = [(-1.0, 2.0), (-3.0, 4.0), (-21.0, 25.0), (-10.0, 1_000.0), (-1e16, 19.0)];
+    let actual = nk.map(|(n, k)| xsf::binom(n, k));
+    let expected =
+        [1.0, 15.0, -3_169_870_830_126.0, 2.882_163_562_453_29e21, -8.220_635_246_624_47e286];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+    assert_eq!(xsf::binom(-1e300, 3.0), f64::NEG_INFINITY);
+}

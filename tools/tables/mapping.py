@@ -211,14 +211,11 @@ def _binom_arb(n: flint.arb, k: flint.arb) -> flint.arb:
     return (k + 1).rgamma() * _gamma_ratio(n + 1 - k, k)
 
 
-def _binom_finite(a: tuple[float, ...]) -> bool:
-    """Whether binom(n, k) of a negative integer n and an integer k >= 0, the polynomial
-    n (n - 1) ... (n - k + 1) / k!, is certainly a finite f64."""
+def _binom_poly(a: tuple[float, ...]) -> bool:
+    """Whether binom(n, k) of a negative integer n is the polynomial n (n - 1) ... (n - k + 1) /
+    k!, for an integer k >= 0 (DLMF 1.2.6)."""
     n, k = a
-    if not (n < 0 and n.is_integer() and k >= 0 and k.is_integer()):
-        return False
-    with flint.ctx.workprec(ARB_BITS):
-        return abs(_binom_arb(flint.arb(n), flint.arb(k))) < F64_INF_TIE
+    return n < 0 and n.is_integer() and k >= 0 and k.is_integer()
 
 
 BETA_POLES: Final = (
@@ -374,12 +371,14 @@ def _binom_kx(args: tuple[float, ...]) -> float | None:
 
 
 def _binom_late(args: tuple[float, ...]) -> bool:
-    """Whether `binom` gets past the integer k (kx < 20), `n >= 1e10 k`, `k > 1e8 |n|`, and
-    `|k| > 2e4` branches, to the evaluation with `a = 1 + n - k`."""
+    """Whether `binom` gets past the polynomial of a negative integer n, the integer k (kx < 20),
+    `n >= 1e10 k`, `k > 1e8 |n|`, and `|k| > 2e4` branches, to the evaluation with
+    `a = 1 + n - k`."""
     n, k = args
     kx = _binom_kx(args)
     return not (
-        (kx is not None and kx < 20)
+        _binom_poly(args)
+        or (kx is not None and kx < 20)
         or (n >= 1e10 * k and k > 0)
         or k > 1e8 * abs(n)
         or (math.isfinite(k) and abs(k) > 2e4 and abs(n) < 170)
@@ -455,6 +454,7 @@ def _reflects_underflow(args: tuple[float, ...]) -> bool:
 
 
 BINOM_OVERRIDES: Final = (
+    Override(_binom_poly, "xsf returns NaN for every negative integer n"),
     Override(
         _binom_big_zero,
         "xsf has Gamma(1 + n) = inf for 1 + n > 171.6 in its expansion for k > 1e8 |n|, and so "
@@ -5041,16 +5041,10 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (
                     NAN,
                     Rule(
-                        _binom_finite,
+                        lambda a: a[0] < 0 and a[0].is_integer() and not _binom_poly(a),
                         math.nan,
-                        "binom(n, k) is finite for a negative integer n and an integer"
-                        " k >= 0, but NaN like in xsf",
-                        gap=True,
-                    ),
-                    Rule(
-                        lambda a: a[0] < 0 and a[0].is_integer(),
-                        math.nan,
-                        "xsf leaves binom(n, k) undefined for a negative integer n",
+                        "binom(n, k) is undefined for a negative integer n, unless k is an"
+                        " integer >= 0",
                     ),
                 ),
                 BINOM_OVERRIDES,

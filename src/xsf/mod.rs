@@ -143,6 +143,7 @@ pub use wright_bessel::{log_wright_bessel, wright_bessel};
 pub use zeta::{riemann_zeta, zeta, zetac};
 
 pub(crate) use airy::airy_ai_zeros_vec;
+pub(crate) use binom::xsf_binom;
 pub(crate) use cdflib::find_positive_root;
 pub(crate) use exp::cexpm1;
 pub(crate) use hyp2f1::{Hyp2F1Arg, hyp2f1_continued_c64};
