@@ -143,6 +143,31 @@ fn test_assoc_legendre_p_c64() {
     );
 }
 
+#[test]
+fn test_assoc_legendre_p_negative_degree() {
+    // P_n^m = P_{-n-1}^m (DLMF 14.9.5); mpmath `legenp(n, m, z, type=2)`
+    xsref::np_assert_allclose!(
+        [
+            xsf::assoc_legendre_p(-2, 0, 0.5),
+            xsf::assoc_legendre_p(-3, 1, 0.5),
+            xsf::assoc_legendre_p(-3, -1, 0.5),
+            xsf::assoc_legendre_p(-4, 2, -0.3),
+        ],
+        [0.5, -1.299_038_105_676_658, 0.216_506_350_946_109_65, -4.095_000_000_000_001],
+        rtol = f64::EPSILON
+    );
+    xsref::np_assert_allclose!(
+        [xsf::assoc_legendre_p(-3, 1, c64(0.5, 0.2))],
+        [c64(-1.410_682_430_103_991, -0.370_033_672_257_135_8)],
+        rtol = f64::EPSILON
+    );
+    xsref::np_assert_allclose!(
+        [xsf::legendre_p(-1, 0.5), xsf::legendre_p(-3, 0.5)],
+        [1.0, -0.125],
+        rtol = f64::EPSILON
+    );
+}
+
 // assoc_legendre_p_all
 
 #[test]
