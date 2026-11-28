@@ -505,8 +505,9 @@ fn series_eval_conditioned(mut g: impl FnMut() -> C64, tol: f64) -> Cancelled {
     for n in 1..=HYP2F1_MAXITER {
         let term = g();
         sum += term;
-        bound += n as f64 * term.norm() + sum.norm();
-        if term.norm() < sum.norm() * tol {
+        let (term_norm, sum_norm) = (term.norm(), sum.norm());
+        bound += n as f64 * term_norm + sum_norm;
+        if term_norm < sum_norm * tol {
             return Cancelled {
                 value: sum,
                 cancellation: cancellation(bound, sum),
