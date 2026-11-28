@@ -170,48 +170,60 @@ pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
     })
 }
 
-/// The polynomial `P = M(-m, -n, x)` for `0 < m <= n` (cf. `hyp1f1_pole_poly`), from its terms if
-/// they lose at most a rounding (always for `x >= 0`, where they have one sign). Else, as
-/// `b -> -n` in DLMF 13.2.39, the terms `k > n` of `M(b - a, b, -x)` tend to
-/// `c (-x)^(n + 1) M(m + 1, n + 2, -x)`, with `c = (-1)^m (n - m)! m! / (n! (n + 1)!)`, so that
-/// (by DLMF 13.2.39 again) `P = e^x M(m - n, -n, -x) + c (-x)^(n + 1) M(n - m + 1, n + 2, x)`,
-/// where the terms of both series have one sign.
+/// The polynomial `P = M(-m, -n, x)` for `0 < m <= n` (cf. `hyp1f1_pole_poly`): its terms if they
+/// lose at most a rounding, which they always do for `x >= 0` (where they have one sign), else
+/// `chgm_pole_poly_kummer`.
 fn chgm_pole_poly(a: f64, b: f64, x: f64) -> f64 {
-    // (exact near its root x = b, where the subtraction is exact)
     if a == -1.0 {
+        // `1 - x / b`, exact near its root `x = b`, where the subtraction is exact
         return (x - b) / -b;
     }
-    // `e^l M(a, b, x)` for `b <= a <= 0` up to the term of degree `-a`, and its error bound
-    let poly = |a: f64, x: f64, l: f64| {
-        if a == 0.0 {
-            return Some((l.exp(), 0.0));
-        }
-        let next_term = |t: Dd, n: f64| t * (Dd::new(a + n) * x / ((b + n) * (n + 1.0)));
-        let sum = hyp1f1_sum(a, b, x.abs(), next_term, Dd::ONE, l, Some(-a as i32));
-        sum.map(|(p, err)| (p.hi, err))
-    };
-    // (the leading term)
     if x.is_infinite() {
+        // the leading term
         return x.powf(-a);
     }
-    let kummer = || {
-        // (e^x gradually in the sum where that can overflow, as in `chgm_series`)
-        let l = if x > GRADUAL_EXP_X0 { 0.0 } else { x };
-        let (q, err_q) = poly(b - a, -x, l)?;
-        // (not if it is subnormal, i.e. has lost precision before its scale is applied)
-        let (m, err_m) = chgm_series(1.0 - a, 2.0 - b, -x, x).filter(|&(m, _)| m.is_normal())?;
-        let r = Scaled::new(neg_if_odd(a, m), 0, err_m / m)?.with_l(ln_dd(-x) * (1.0 - b));
-        let [num, den] = [[a - b + 1.0, 1.0 - a], [1.0 - b, 2.0 - b]].map(|g| g.map(Dd::new));
-        let r = mul_gamma_ratio(num, den, || Some(r))?;
-        // (without `e^x M(m - n, -n, -x)` if that underflows)
-        let q = Scaled::new(q, 0, err_q / q).map(|q| q.with_l(Dd::new(x - l)));
-        Some(add_exp(q.into_iter().chain([r]))?.to_f64().0)
-    };
-    // (for x >= 0 the sum is only NaN if it overflows)
-    (poly(a, x, 0.0).filter(|&(p, err)| x >= 0.0 || err <= f64::EPSILON * p.abs()))
-        .map(|(p, _)| if p.is_nan() { f64::INFINITY } else { p })
-        .or_else(kummer)
-        .unwrap_or(f64::NAN)
+    match pole_poly_sum(a, b, x, 0.0) {
+        // (for x >= 0 the sum is only NaN if it overflows)
+        Some((p, _)) if x >= 0.0 && p.is_nan() => f64::INFINITY,
+        Some((p, err)) if x >= 0.0 || err <= f64::EPSILON * p.abs() => p,
+        _ => chgm_pole_poly_kummer(a, b, x).unwrap_or(f64::NAN),
+    }
+}
+
+/// `e^l M(a, b, x)` for `b <= a <= 0` from its terms up to degree `-a`, and its error bound.
+fn pole_poly_sum(a: f64, b: f64, x: f64, l: f64) -> Option<(f64, f64)> {
+    if a == 0.0 {
+        return Some((l.exp(), 0.0));
+    }
+    let next_term = |t: Dd, n: f64| t * (Dd::new(a + n) * x / ((b + n) * (n + 1.0)));
+    let (p, err) = hyp1f1_sum(a, b, x.abs(), next_term, Dd::ONE, l, Some(-a as i32))?;
+    Some((p.hi, err))
+}
+
+/// `P = M(-m, -n, x)` of `chgm_pole_poly` as `P = Q + R` with
+///
+/// - `Q = e^x M(m - n, -n, -x)`,
+/// - `R = c (-x)^(n + 1) M(n - m + 1, n + 2, x)`, `c = (-1)^m (n - m)! m! / (n! (n + 1)!)`,
+///
+/// whose series terms have one sign for `x < 0`: as `b -> -n` in `M(a, b, x) = e^x M(b - a, b, -x)`
+/// (DLMF 13.2.39), the terms `k <= n` on the right give `Q`, and the terms `k > n` tend to
+/// `e^x c (-x)^(n + 1) M(m + 1, n + 2, -x) = R` (DLMF 13.2.39 again).
+fn chgm_pole_poly_kummer(a: f64, b: f64, x: f64) -> Option<f64> {
+    // Q, with e^x in the sum where that would overflow, as in `chgm_series`
+    let l = if x > GRADUAL_EXP_X0 { 0.0 } else { x };
+    let (q, err_q) = pole_poly_sum(b - a, b, -x, l)?;
+    // (none if it underflows)
+    let q = Scaled::new(q, 0, err_q / q).map(|q| q.with_l(Dd::new(x - l)));
+
+    // R, with `M(n - m + 1, n + 2, x) = e^x M(m + 1, n + 2, -x)`, but not if that is subnormal,
+    // i.e. has lost precision before its scale is applied
+    let (m, err_m) = chgm_series(1.0 - a, 2.0 - b, -x, x).filter(|&(m, _)| m.is_normal())?;
+    let r = Scaled::new(neg_if_odd(a, m), 0, err_m / m)?.with_l(ln_dd(-x) * (1.0 - b));
+    // |c| = gamma(a - b + 1) gamma(1 - a) / (gamma(1 - b) gamma(2 - b))
+    let [num, den] = [[a - b + 1.0, 1.0 - a], [1.0 - b, 2.0 - b]].map(|g| g.map(Dd::new));
+    let r = mul_gamma_ratio(num, den, || Some(r))?;
+
+    Some(add_exp(q.into_iter().chain([r]))?.to_f64().0)
 }
 
 // M(1, 2, z) = (exp(z) - 1) / z for nonzero z.
@@ -1453,8 +1465,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if !(is_nonpos_int(a) && b <= a) {
             return if x == 0.0 { 1.0 } else { f64::NAN };
         }
-        // Unlike in xsf, the polynomial: for x < 0 xsf takes e^x M(b - a, b, -x), whose series
-        // terminates too early at the pole, and for a = b, x > 0 its term ratio is 0/0
+        // Unlike in xsf, sum the polynomial itself: for x < 0, xsf sums e^x M(b - a, b, -x), whose
+        // series stops at the pole too early, and for a = b, x > 0 its term ratio is 0/0
+
         if b >= -MAX_SERIES_ITERATIONS && (x < 0.0 || a == b) {
             return chgm_pole_poly(a, b, x);
         }
