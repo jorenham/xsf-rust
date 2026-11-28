@@ -117,3 +117,12 @@ fn test_wright_bessel_asymptotic_overflow() {
     assert_eq!(xsf::wright_bessel(1.0, 120.0, 1e9), f64::INFINITY);
     assert_eq!(xsf::wright_bessel(2.0, 30.0, 1e308), f64::INFINITY);
 }
+
+#[test]
+fn test_log_wright_bessel_ax_overflow() {
+    // a x overflows, but Z = (a x)^(1/(1+a)) of the asymptotic expansion does not (#2264)
+    let abx = [(2.0, 30.0, 1e308), (4.9, 1.0, f64::MAX)];
+    let actual = abx.map(|(a, b, x)| xsf::log_wright_bessel(a, b, x));
+    let expected = [8.772_053_214_638_599e102, 2.780_995_443_939_785e52];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+}
