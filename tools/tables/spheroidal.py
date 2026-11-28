@@ -110,6 +110,11 @@ def _ode_residual(kd: int, m: int, n: int, c: mp.mpf, x: mp.mpf) -> mp.mpf:
     return max(ode, abs(mp.diff(s(0), x) - dy) / (abs(y) + abs(dy)))
 
 
+def segv_residual(kd: int) -> Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf]:
+    """`_ode_residual` of the inputs (m, n, c) at x = 1/3."""
+    return lambda m, n, c: _ode_residual(kd, int(m), int(n), c, mp.mpf(1) / 3)
+
+
 def angular_residual(kd: int) -> Callable[..., mp.mpf]:
     """`_ode_residual` of the inputs (m, n, c, x) or (m, n, c, cv, x)."""
 

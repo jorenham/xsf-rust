@@ -482,6 +482,8 @@ fn out_of_bounds(m: f64, n: f64, c: f64, lo: f64, hi: f64) -> bool {
 
 /// `specfun::segv`, returning `eg[..=n-m]`, or `None` if an allocation fails
 fn segv_all(m: f64, n: f64, c: f64, kd: i32) -> Option<Vec<f64>> {
+    // Unlike in xsf, use `|c|`: the characteristic values only depend on `c^2`
+    let c = c.abs();
     let len = (n - m + 1.0) as usize;
     // `nm = 10 + (int)(0.5 (n - m) + c)` indexes buffers of size 300
     if out_of_bounds(m, n, c, -1e9, 291.0) {
