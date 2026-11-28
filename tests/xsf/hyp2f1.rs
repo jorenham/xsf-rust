@@ -3896,6 +3896,21 @@ fn test_hyp2f1_f64_c_eq_b_x_lt_minus_1() {
 }
 
 #[test]
+fn test_hyp2f1_f64_c_eq_b_tiny() {
+    // for a tiny c = b < 0, (1 - x)^-a (DLMF 15.4.6), in either order of a and b; references: Arb
+    let args = [
+        (2.0, -3.730_349_362_740_526e-14, 0.999_999_999_999_545_3, 4.835_703_278_458_517e24),
+        (-3.0, -1.243_449_787_580_175_3e-14, -0.499_999_999_999_944_43, 3.374_999_999_999_624_7),
+        (0.5, -1e-310, -1.0, core::f64::consts::FRAC_1_SQRT_2),
+        (2.5, -5e-324, 0.5, 5.656_854_249_492_381),
+    ];
+    for (a, b, x, expected) in args {
+        let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
+        np_assert_allclose!(actual, [expected; 2], rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_underflow_rounding() {
     // Arb: 2_435_967_307_718_350.148 times the smallest subnormal
     let y = xsf::hyp2f1(
