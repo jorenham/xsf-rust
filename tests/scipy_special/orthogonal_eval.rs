@@ -494,6 +494,11 @@ fn test_eval_real_degree_origin() {
         xsf::eval_jacobi(-2.0 - 8.0 * u, -1.0 + 3.0 * u, -1.0 + 3.0 * u, 0.0),
     ];
     np_assert_allclose!(actual, [0.25, -1.776_356_839_400_250_3e-16], rtol = 0.05);
+    // also for complex z, on and off the origin (mpmath)
+    let actual = [0.0, 0.25].map(|x| xsf::eval_jacobi(-3.0 * u, -1.0 + u, -1.0 + u, c64(x, 0.0)));
+    assert!(actual.iter().all(|p| p.im == 0.0));
+    let desired = [0.250_000_000_000_000_06, 0.062_500_000_000_000_05];
+    np_assert_allclose!(actual.map(|p| p.re), desired, rtol = 1e-15);
     // nor by one from a `lam = 2a + 1` that rounds to an exact `n + lam` (mpmath), where the
     // series keeps none of the digits
     let a = 0.250_000_000_000_000_06;
@@ -508,6 +513,10 @@ fn test_eval_real_degree_origin() {
         [-100.5, -63.500_000_000_000_01].map(|n| xsf::eval_jacobi(n, a, a, c64(0.25, 0.0)).re);
     let desired = [0.093_683_301_849_704_4, 0.032_611_483_202_643_81];
     np_assert_allclose!(actual, desired, rtol = 5e-14);
+    // also where the roundings of `b` add up to more than an ulp of `n` (Arb)
+    let a = -0.500_000_000_000_021_3;
+    let actual = [xsf::eval_jacobi(-63.999_999_999_999_94, a, a, c64(0.25, 0.0)).re];
+    np_assert_allclose!(actual, [1.128_689_650_405_340_6e-14], rtol = 5e-14);
 }
 
 #[test]
