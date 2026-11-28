@@ -55,10 +55,13 @@ def table(rows: Sequence[tuple[float, ...]], *, scaled: bool = True) -> bytes:
     return header + values + bytes(len(rows))
 
 
-def statuses(rows: Sequence[tuple[float, ...]], status: int, *, ruled: bool) -> bytes:
-    """A table of rows `(input, output, tolerance, scale[, rule value])` of one status"""
+def statuses(
+    rows: Sequence[tuple[float, ...]], status: int, *, ruled: bool, parts: int = 1
+) -> bytes:
+    """A table of rows `(input, output, tolerance, scale[, rule value])` of one status, whose
+    output and rule value have `parts` parts"""
     flags = 3 | 4 * ruled
-    header = b"XSFT" + struct.pack("<IIHHHH", 1, len(rows), 1, 1, 1, flags)
+    header = b"XSFT" + struct.pack("<IIHHHH", 1, len(rows), 1, parts, 1, flags)
     values = b"".join(struct.pack(f"<{len(row)}d", *row) for row in rows)
     return header + values + bytes(len(rows)) + bytes([status]) * len(rows)
 
@@ -344,7 +347,8 @@ class Synthetic(unittest.TestCase):
             (gap(2.0, 1.0, 0.125), gap(2.0, 1.0, 0.0625), [found]),
             (gap(2.0, 1.0, 0.0625), gap(2.0, 1.0, 0.125), []),
             (gap(2.0, 1.0, 0.0625, 4.0), gap(2.0, 1.0, 0.0625, 2.0), [found]),
-            # but not where the gap rejects the rule value
+            # but not where the rule check stays outside what the reference excludes (the rule
+            # value 1 + 2^-24 + 2^-52 does, but its check reaches 1 + 2^-24)
             (gap(2.0, 1.0, scale=1.0), gap(2.0, 1.0, scale=0.5), []),
             (
                 gap(1.0, 1 + 2.0**-24 + 2.0**-52, 2.0**-26),
@@ -418,6 +422,83 @@ class Synthetic(unittest.TestCase):
             ),
             # a NaN tolerance is that of `EPSILON`
             (one((1.0, 2.0, nan, 0.0), legacy), one((1.0, 2.0, eps, 0.0), legacy), []),
+            # a convention for the rule value of a gap, and a smaller tolerance of a gap, which
+            # accept 1 - 2^-50 and 0.9999999999999993 that the gap rejected by a rounding
+            (
+                one(
+                    (
+                        1.0,
+                        0.9999993113601826,
+                        1.3897620832552471e-7,
+                        1.238772853284026,
+                        1.0,
+                    ),
+                    gap,
+                ),
+                one((1.0, 1.0, 0.0, 0.0), convention),
+                [found],
+            ),
+            (
+                one(
+                    (
+                        1.0,
+                        0.9999998837304237,
+                        1.9061552660795398e-8,
+                        1.5249226768548942,
+                        1.0 + eps,
+                    ),
+                    gap,
+                ),
+                one(
+                    (1.0, 0.9999998837304237, 2.0**-26, 1.5249226768548942, 1.0 + eps),
+                    gap,
+                ),
+                [found],
+            ),
+            # a computed reference that is no longer exact keeps its tolerance
+            (
+                one((1.0, inf, 1e-8, 0.0), computed),
+                one((1.0, 1.0, 1e-8, 0.0), computed),
+                [],
+            ),
+            # a legacy NaN at a tolerance that overflows also accepts 1
+            (
+                one((1.0, nan, 5e307, 0.0), computed),
+                one((1.0, nan, 5e307, 0.0), legacy),
+                [found],
+            ),
+        ]
+        for old, new, expected in cases:
+            with self.subTest(old=old[20:], new=new[20:]):
+                self.assertEqual(self.check({BIN: old}, {BIN: new}), expected)
+
+    def test_xsref_complex(self) -> None:
+        nan, inf, eps = math.nan, math.inf, 2.0**-52
+        found = f"{BIN}: larger tolerance or scale, or weaker status in 1 xsref row"
+        computed, convention, gap = 1, 2, 3
+
+        def one(row: tuple[float, ...], status: int) -> bytes:
+            return statuses([row], status, ruled=len(row) == 7, parts=2)
+
+        cases: list[tuple[bytes, bytes, list[str]]] = [
+            # a part next to NaN has an error relative to itself, or to the scale (+0 passes)
+            (
+                one((1.0, nan, eps, 0.0, 1.0), convention),
+                one((1.0, nan, eps, 0.0, 1.0), computed),
+                [found],
+            ),
+            # but not without a scale, where a zero part has the error 1 (`log1p` at (inf, inf))
+            (
+                one((1.0, inf, math.pi / 4, 0.0, 0.0), convention),
+                one((1.0, inf, math.pi / 4, 0.0, 0.0), computed),
+                [],
+            ),
+            # a convention for the rule value of a gap, whose finite parts are far apart
+            (
+                one((1.0, inf, 2.0, 1e-8, 0.0, inf, 1.0), gap),
+                one((1.0, inf, 1.0, 0.0, 0.0), convention),
+                [],
+            ),
         ]
         for old, new, expected in cases:
             with self.subTest(old=old[20:], new=new[20:]):

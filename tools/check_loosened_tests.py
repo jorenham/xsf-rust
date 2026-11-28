@@ -40,6 +40,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 EPSILON = 2.0**-52
+MAX = sys.float_info.max
+DENORM_MIN = math.ulp(0.0)
+# more than the relative rounding error of a bound here, and of the error in Rust
+ROUNDING = 16 * EPSILON
 # numbers below this are tolerances
 SMALL = 0.1
 XSREF = "tests/data/xsref/"
@@ -339,10 +343,9 @@ def parse_table(data: bytes) -> dict[bytes, list[Output]]:
 
 
 def same(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
-    """Whether values are equal, per part with NaNs equal and zero signs kept"""
+    """Whether values are equal, per part with zero signs kept (`float.hex` of any NaN is `nan`)"""
     return len(a) == len(b) and all(
-        x.hex() == y.hex() or (math.isnan(x) and math.isnan(y))
-        for x, y in zip(a, b, strict=True)
+        x.hex() == y.hex() for x, y in zip(a, b, strict=True)
     )
 
 
@@ -364,10 +367,11 @@ class Gap(NamedTuple):
     ref: Check
 
 
-def exact(strict: int, x: float) -> bool:
-    """Whether a part is a class of its own, which only that value passes"""
+def exact(strict: int, rtol: float, x: float) -> bool:
+    """Whether a part is a class of its own, which only that value passes (a legacy NaN only below
+    an infinite tolerance, which any error passes)"""
     return (
-        math.isnan(x)
+        (math.isnan(x) and (strict > LEGACY or rtol < math.inf))
         or (strict >= COMPUTED and math.isinf(x))
         or (strict == CONVENTION and x == 0)
     )
@@ -377,8 +381,8 @@ def check(strict: int, ref: tuple[float, ...], tol: float, scale: float) -> Chec
     """What an output of the strictness of a status accepts"""
     # like `max` in Rust, which ignores a NaN tolerance
     rtol = 4 * max(EPSILON, tol)
-    if rtol < math.inf and all(exact(strict, x) for x in ref):
-        # the tolerance and the scale don't matter (an infinite error only passes an infinite one)
+    if all(exact(strict, rtol, x) for x in ref):
+        # the tolerance and the scale don't matter (the error is 0)
         return Check(strict, ref, 0.0, 0.0)
     return Check(strict, ref, rtol, scale)
 
@@ -391,53 +395,78 @@ def accepts(out: Output) -> Check | Gap:
     return Gap(rule, check(CONVENTION, out.ref, out.tol, out.scale))
 
 
-def radius(c: Check) -> float:
-    """A bound of `|actual - ref|` of what a check accepts"""
-    return c.rtol and c.rtol * max(math.hypot(*c.ref), c.scale)
+def radii(c: Check) -> tuple[float, ...]:
+    """Bounds of `|actual - ref|` per part of what a check accepts, rounded up
+
+    Like `table_error` of `testing/src/xsref.rs`, the error is relative to the magnitude of `ref`,
+    where a zero counts as the smallest subnormal, an infinity as `f64::MAX`, and NaN as 1 (or to
+    the part itself, if it is finite and another one is not), or else to `scale`.
+    """
+    parts = [1.0 if math.isnan(x) else min(max(abs(x), DENORM_MIN), MAX) for x in c.ref]
+    mixed = not all(map(math.isfinite, c.ref))
+    return tuple(
+        0.0
+        if exact(c.strict, c.rtol, x)
+        else c.rtol
+        * max(p if mixed and math.isfinite(x) else math.hypot(*parts), c.scale)
+        * (1 + ROUNDING)
+        for x, p in zip(c.ref, parts, strict=True)
+    )
 
 
 def subset(n: Check | None, o: Check | None) -> bool:
     """Whether `o` accepts all that `n` accepts, where None accepts anything"""
     if o is None or n is None:
         return o is None
-    r = radius(n)
-    # with fewer classes, `n` can accept a zero or an infinity in a part next to a small or a large
-    # one, which `o` rejects
-    wider = any(
-        (n.strict < COMPUTED <= o.strict and sys.float_info.max - abs(x) <= r)
-        or (n.strict < CONVENTION == o.strict and abs(x) <= r)
-        for x in n.ref
+
+    def wider(x: float, r: float) -> bool:
+        # with fewer classes, `n` can accept another value of a part that is a class in `o`, or a
+        # zero or an infinity next to a small or a large one, which `o` rejects
+        return (exact(o.strict, o.rtol, x) and not exact(n.strict, n.rtol, x)) or (
+            (n.strict < COMPUTED <= o.strict and MAX - abs(x) <= r)
+            or (n.strict < CONVENTION == o.strict and abs(x) <= r)
+        )
+
+    return (
+        same(n.ref, o.ref)
+        and n.rtol <= o.rtol
+        and n.scale <= o.scale
+        and not any(map(wider, n.ref, radii(n)))
     )
-    return same(n.ref, o.ref) and n.rtol <= o.rtol and n.scale <= o.scale and not wider
 
 
 def disjoint(n: Check | None, o: Check) -> bool:
-    """Whether `n` accepts nothing that the convention check `o` accepts"""
+    """Whether `n` accepts nothing that the convention check `o` accepts: a part of the values of
+    one is in no class of the other, or too far from it"""
     if n is None:
         return False
 
-    def apart(x: float, y: float) -> bool:
-        if exact(n.strict, x):
+    def apart(x: float, y: float, r: float) -> bool:
+        if exact(n.strict, n.rtol, x):
+            # `o` takes a part that is no zero, NaN, or infinity as finite and nonzero
             return not same((x,), (y,))
-        # a finite part, or a legacy infinity; only an infinite error tolerance passes NaN
+        if math.isfinite(x) and math.isfinite(y):
+            return abs(x - y) > r
+        # NaN or an infinity that is no class of `n`: only an infinite tolerance passes NaN, and
+        # an infinity only passes without classes
         return (math.isnan(y) and n.rtol < math.inf) or (
             math.isinf(y) and n.strict >= COMPUTED
         )
 
-    finite = all(map(math.isfinite, n.ref + o.ref))
-    return any(map(apart, n.ref, o.ref)) or (
-        finite and math.dist(n.ref, o.ref) > radius(n) + radius(o)
+    return any(
+        apart(x, y, a + b)
+        for x, y, a, b in zip(n.ref, o.ref, radii(n), radii(o), strict=True)
     )
 
 
 def output_loosened(old: Output, new: Output) -> bool:
     """Whether `new` may accept a value that `old` rejects, unless it closes a gap: a computed
     output at its reference"""
+    if max(old.status, new.status) < CONVENTION:
+        # a reference that is no rule value is the true value, which only gets more accurate
+        old = old._replace(ref=new.ref)
     o, n = accepts(old), accepts(new)
     if isinstance(o, Check):
-        if isinstance(n, Check) and max(n.strict, o.strict) < CONVENTION:
-            # a reference that is no rule value is the true value, which only gets more accurate
-            o = o._replace(ref=n.ref)
         return not subset(n.rule if isinstance(n, Gap) else n, o)
     if isinstance(n, Gap):
         # a smaller exclusion of the reference only matters where the rule value is near it
