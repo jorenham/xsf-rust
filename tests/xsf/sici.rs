@@ -56,7 +56,7 @@ fn test_shichi_c64_beyond_expi_overflow() {
     let re = 1.560_223_251_349_315e308;
     np_assert_allclose!([shi.re, chi.re], [-re, re], rtol = 1e-15);
     assert_eq!((shi.im, chi.im), (f64::INFINITY, f64::NEG_INFINITY));
-    // A part whose two products sum to more than `|1/w|`.
+    // A part whose two product magnitudes sum to more than `|1/w|`.
     let (shi, chi) = xsf::shichi(c64(719.0, 618.159_024_192_202_4));
     np_assert_allclose!([shi.re, chi.re], [-1.193_437_846_459_754e308; 2], rtol = 2e-15);
     assert_eq!((shi.im, chi.im), (f64::INFINITY, f64::INFINITY));
