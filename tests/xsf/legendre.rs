@@ -168,6 +168,26 @@ fn test_assoc_legendre_p_negative_degree() {
     );
 }
 
+#[test]
+fn test_assoc_legendre_p_zero_and_infinity() {
+    // P_n^m(0) = 0 for odd n + m (DLMF 14.5.1), also where the diagonal (-1)^m (2m-1)!! overflows;
+    // P_n(z) ~ z^n as z -> +-inf
+    let inf = f64::INFINITY;
+    assert_eq!(
+        [
+            xsf::assoc_legendre_p(201, 200, 0.0),
+            xsf::assoc_legendre_p(153, 152, 0.0),
+            xsf::assoc_legendre_p(200, 200, 0.0),
+            xsf::assoc_legendre_p(201, 201, 0.0),
+            xsf::assoc_legendre_p(3, 0, -inf),
+            xsf::legendre_p(3, inf),
+            xsf::legendre_p(3, -inf),
+            xsf::legendre_p(4, -inf),
+        ],
+        [0.0, 0.0, inf, -inf, -inf, inf, -inf, inf],
+    );
+}
+
 // assoc_legendre_p_all
 
 #[test]

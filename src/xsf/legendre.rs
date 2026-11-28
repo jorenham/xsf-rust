@@ -91,10 +91,20 @@ fn int_product(factors: &[i32]) -> f64 {
 fn dot<T: Num, const N: usize>(x: &[T; N], y: &[T; N]) -> T {
     let mut res = T::from(0.0);
     for i in 0..N {
-        res = res + x[i] * y[i];
+        res = res + mul_overflowed(x[i], y[i]);
     }
 
     res
+}
+
+// Unlike in xsf, an exact zero times an infinite (overflowed) value is 0 instead of NaN, since the
+// Legendre recurrences use zero coefficients for terms that vanish.
+fn mul_overflowed<T: Num>(x: T, y: T) -> T {
+    if x.abs() == 0.0 && y.abs() == f64::INFINITY {
+        T::from(0.0)
+    } else {
+        x * y
+    }
 }
 
 fn forward_recur_shift_left<T: Copy, const K: usize>(res: &mut [T; K]) {
@@ -190,8 +200,18 @@ fn legendre_p_recurrence_n<T: Num>(z: T, n: i32, res: &mut [T; 2]) {
     let fac0 = -T::from(n - 1.0) / T::from(n);
     let fac1 = T::from(2.0 * n - 1.0) / T::from(n);
 
-    res[0] = fac0;
+    res[0] = degree_n_minus_2_coefficient(fac0, z);
     res[1] = fac1 * z;
+}
+
+// Unlike in xsf, drop the term of degree n - 2 at an infinite z, where it is negligible but would
+// give inf - inf.
+fn degree_n_minus_2_coefficient<T: Num>(fac0: T, z: T) -> T {
+    if z.abs() == f64::INFINITY {
+        T::from(0.0)
+    } else {
+        fac0
+    }
 }
 
 /// Compute the Legendre polynomial of degree n.
@@ -343,7 +363,7 @@ fn assoc_legendre_p_initializer_n<const NORM: bool, T: Num>(
     };
 
     res[0] = res_m_abs_m;
-    res[1] = fac * z * res_m_abs_m;
+    res[1] = mul_overflowed(fac * z, res_m_abs_m);
 }
 
 fn assoc_legendre_p_recurrence_n<const NORM: bool, T: Num>(m: i32, z: T, n: i32, res: &mut [T; 2]) {
@@ -358,7 +378,7 @@ fn assoc_legendre_p_recurrence_n<const NORM: bool, T: Num>(m: i32, z: T, n: i32,
         fac1 = T::from(2.0 * n - 1.0) / T::from(n - m);
     }
 
-    res[0] = fac0;
+    res[0] = degree_n_minus_2_coefficient(fac0, z);
     res[1] = fac1 * z;
 }
 
