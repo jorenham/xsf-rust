@@ -413,6 +413,16 @@ impl From<C64> for Estimate<C64> {
     }
 }
 
+/// The value with the error of its estimated roundoff
+impl From<Cancelled> for Estimate<C64> {
+    fn from(series: Cancelled) -> Self {
+        Self {
+            value: series.value,
+            error: f64::EPSILON * series.cancellation * series.value.norm(),
+        }
+    }
+}
+
 impl Estimate<C64> {
     // Whether the estimate is finite with an estimated error below its magnitude.
     fn resolved(&self) -> bool {
@@ -449,6 +459,11 @@ impl Cancelled {
         self.cancellation * f64::EPSILON > CONTINUED_ROUNDOFF
     }
 
+    /// Whether the estimated relative roundoff is below sqrt(EPSILON)
+    fn is_accurate(self) -> bool {
+        self.cancellation * f64::EPSILON < f64::EPSILON.sqrt()
+    }
+
     /// Whether the estimated relative roundoff is at most `USABLE_ERROR`
     fn is_usable(self) -> bool {
         self.cancellation * f64::EPSILON <= USABLE_ERROR
@@ -479,6 +494,29 @@ fn series_eval_cancellation_to(mut g: impl FnMut() -> C64, tol: f64) -> Cancelle
     Cancelled {
         value: result,
         cancellation: cancellation(abs_sum, result),
+    }
+}
+
+/// `series_eval_cancellation_to`, but with sum((k + 1) |term k| + |partial sum k|) for the terms
+/// k = 0, 1, ... in the cancellation, which also counts the roundings of the term ratios, of the
+/// series argument in them, and of the partial sums
+fn series_eval_conditioned(mut g: impl FnMut() -> C64, tol: f64) -> Cancelled {
+    let (mut sum, mut bound) = (C64::ZERO, 0.0);
+    for n in 1..=HYP2F1_MAXITER {
+        let term = g();
+        sum += term;
+        let (term_norm, sum_norm) = (term.norm(), sum.norm());
+        bound += n as f64 * term_norm + sum_norm;
+        if term_norm < sum_norm * tol {
+            return Cancelled {
+                value: sum,
+                cancellation: cancellation(bound, sum),
+            };
+        }
+    }
+    Cancelled {
+        value: C64::NAN,
+        cancellation: f64::INFINITY,
     }
 }
 
@@ -1299,6 +1337,29 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     Some((t1 + t2, t1.norm() * t1_error + t2.norm() * t2_error))
 }
 
+/// The Pfaff transform (1 - z)^(-b) F(b, c - a; c; z / (z - 1)) (DLMF 15.8.1) for b < 0 < c < a,
+/// or with a and b swapped, and the estimated cancellation of its series, if that sum is finite
+//
+// Its upper parameters are then both negative, and for k >= 1 each of its series coefficients is
+// smaller in magnitude than that of the transform in a, as |b + k| < c - b + k and
+// |c - a + k| < a + k. Past k = max(-b, a - c), its term ratios are below |w| for the argument w,
+// so if summing to HYP2F1_EPS (1 - |w|) stops past that k, the omitted tail is below HYP2F1_EPS.
+fn hyp2f1_pfaff_negative(a: f64, b: f64, c: f64, z: C64) -> Option<Cancelled> {
+    let (a, b) = if a < b { (b, a) } else { (a, b) };
+    if !(b < 0.0 && 0.0 < c && c < a) {
+        return None;
+    }
+    let w = z / (z - 1.0);
+    let series_generator = hypergeometric_series_generator(b, c - a, c, w);
+    let series = series_eval_conditioned(series_generator, HYP2F1_EPS * (1.0 - w.norm()));
+    // (times the power from z with a separate scale, as rounding 1 - z can lose all digits of the
+    // power for a large b, and it can overflow alone)
+    series.value.is_finite().then(|| Cancelled {
+        value: (power::one_minus_z_pow_sqrt(z, -b) * series.value).to_c64(),
+        ..series
+    })
+}
+
 fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     let (a, b) = if 0.0 < b && b < a && a < c {
         (b, a)
@@ -1309,7 +1370,31 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     let series_generator = hypergeometric_series_generator(a, c - b, c, z_pfaff);
     let positive_parameters = a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite();
     if z.is_real() || !positive_parameters {
-        return (1.0 - z).powf(-a) * series_eval(series_generator);
+        // Unlike in xsf, for b < 0 < c < a, or a and b swapped, use the transform in the negative
+        // upper parameter if it cancels less or this one is not finite, and continue the one used
+        // analytically if it cancels.
+        let series = series_eval_conditioned(series_generator, HYP2F1_EPS);
+        let pfaff = Cancelled {
+            value: (1.0 - z).powf(-a) * series.value,
+            ..series
+        };
+        let Some(negative) = hyp2f1_pfaff_negative(a, b, c, z) else {
+            return pfaff.value;
+        };
+        let best = if negative.cancellation <= pfaff.cancellation || !pfaff.value.is_finite() {
+            negative
+        } else {
+            pfaff
+        };
+        let continued = best
+            .is_continued()
+            .then(|| hyp2f1_continuation(a, b, c, z, best.into()));
+        // (else the negative one only if accurate, as both can lose all digits)
+        return continued.flatten().unwrap_or(if best.is_accurate() {
+            best.value
+        } else {
+            pfaff.value
+        });
     }
     // Unlike in xsf, evaluate the Pfaff prefactor without rounding |1-z| first.
     let power = pfaff_power(a, z);
@@ -1664,12 +1749,19 @@ fn hyp2f1_continued(a: f64, b: f64, c: f64, z: C64) -> Option<Estimate> {
     // Unlike in xsf, also continue the Pfaff transform: F(a, b; c; z) = (1 - z)^(-a)
     // F(a, c - b; c; z / (z - 1)) (DLMF 15.8.1), whose argument is within the unit circle about 1
     // if z is not, and off the cut for Re z < 1.
-    let (power, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
+    let (power, a, b, z) = if (1.0 - z).norm() > 1.0 && z.re < 1.0 {
+        // (in b if a < 0 < b and c <= b, where the upper parameters of the one in a are both
+        // nonpositive)
+        let (a, b) = if a < 0.0 && 0.0 < b && c <= b {
+            (b, a)
+        } else {
+            (a, b)
+        };
         // (only if normal, as the error estimate omits the rounding of a subnormal power)
         let power = Some(pfaff_power(a, z)).filter(|p| p.norm().is_normal())?;
-        (Some(power), c - b, z / (z - 1.0))
+        (Some(power), a, c - b, z / (z - 1.0))
     } else {
-        (None, b, z)
+        (None, a, b, z)
     };
     let w = 1.0 - z;
     let r = w.norm();
@@ -2076,6 +2168,16 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
             }
         }
     }
+    // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, use the Pfaff
+    // transform in a negative upper parameter for Re z < 0 instead if it cancels less and is
+    // accurate, with its estimated error.
+    let pfaff = if z.re < 0.0 && series.is_lossy() {
+        hyp2f1_pfaff_negative(a, b, c, z)
+            .filter(|p| p.cancellation < series.cancellation && p.is_accurate())
+    } else {
+        None
+    };
+    let (series, estimate) = pfaff.map_or((series, series.value.into()), |p| (p, p.into()));
     // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, also sum the
     // Lopez-Temme series for Re z < 1 where its tail is bounded.
     if z.re < 1.0 && series.is_lossy() {
@@ -2085,7 +2187,7 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
     }
     // Unlike in xsf, continue the Maclaurin series analytically if the 1/z series cancel.
     let value = if series.is_lossy() {
-        hyp2f1_continuation(a, b, c, z, series.value.into()).unwrap_or(series.value)
+        hyp2f1_continuation(a, b, c, z, estimate).unwrap_or(series.value)
     } else {
         series.value
     };
@@ -2106,8 +2208,7 @@ fn hyp2f1_lopez_temme_retry(a: f64, b: f64, c: f64, z: C64, cancellation: f64) -
     let paired = lopez_temme_paired(p, q, c, z, LOPEZ_TEMME_RETRY_MAXITER)?;
     let result = prefactor * paired.value;
     let value = euler.map_or(result, |euler| euler * result);
-    let roundoff = f64::EPSILON * paired.cancellation;
-    let accurate = 2.0 * paired.cancellation < cancellation && roundoff < f64::EPSILON.sqrt();
+    let accurate = 2.0 * paired.cancellation < cancellation && paired.is_accurate();
     (accurate && value.norm().is_normal()).then_some(value)
 }
 
