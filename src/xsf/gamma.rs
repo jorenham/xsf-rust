@@ -1,9 +1,9 @@
 use num_complex::Complex;
 
-use crate::utils::is_nonpos_int;
+use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::digamma::negative_real_psi_sign;
-use crate::xsf::loggamma::{cloggamma, exp_loggamma};
+use crate::xsf::loggamma::{cloggamma, exp_loggamma, rgamma_large_negative};
 
 pub trait GammaArg: crate::sealed::Sealed {
     fn xsf_gamma(self) -> Self;
@@ -30,6 +30,14 @@ pub(crate) fn cgamma(z: C64) -> C64 {
         // Poles
         return C64::NAN;
     }
+    if z.re <= -pow2(53) && z.is_finite() {
+        // For real(z) <= -2**53, every representable real part has even-integer
+        // parity, and Gamma(z) underflows to signed zero.
+        // Unlike in xsf, take the signs from 1/Gamma(z) where its phase resolves them.
+        return rgamma_large_negative(z).map_or(c64(0.0, 0.0_f64.copysign(z.im)), |w| {
+            c64(0.0_f64.copysign(w.re), 0.0_f64.copysign(-w.im))
+        });
+    }
     // Unlike in xsf, evaluate negative real non-poles on the real axis.
     if z.is_real() && z.re < 0.0 {
         if let Some(psi_negative) = negative_real_psi_sign(z.re) {
@@ -42,7 +50,8 @@ pub(crate) fn cgamma(z: C64) -> C64 {
             return c64(re, if derivative_negative { -z.im } else { z.im });
         }
     }
-    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite.
+    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite, and
+    // exp(log Gamma) where Re(log Gamma) = -inf, or where it overflows with x, |y| > sqrt(max).
     exp_loggamma(cloggamma(z), z)
 }
 

@@ -52,6 +52,23 @@ fn test_gamma_c64_log_overflow() {
     assert!(w.re.is_nan() && w.im.is_nan());
 }
 
+#[test]
+fn test_gamma_c64_underflow_at_large_even_real_part() {
+    // the signs of the underflowed components (Arb)
+    for (x, y, re, im) in [
+        (-9_007_199_254_740_992.0, DENORM_MIN, 0.0_f64, -0.0_f64),
+        (-1e17, 1.0, 0.0, -0.0),
+        (-2.998_076_996_061_15e154, 8.333_333_333_333_334, -0.0, -0.0),
+        (-8.988_465_674_311_05e307, 10.0, -0.0, 0.0),
+        (-8.988_465_674_311_05e307, 1e6, 0.0, 0.0),
+    ] {
+        for (y, im) in [(y, im), (-y, -im)] {
+            let w = xsf::gamma(c64(x, y));
+            assert_eq!((w.re.to_bits(), w.im.to_bits()), (re.to_bits(), im.to_bits()), "{x} {y}");
+        }
+    }
+}
+
 xsref::tests! {
     test_gammainc: "gammainc", "d_d-d", |x| xsf::gammainc(x[0], x[1]);
     test_gammaincc: "gammaincc", "d_d-d", |x| xsf::gammaincc(x[0], x[1]);

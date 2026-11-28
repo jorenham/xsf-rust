@@ -22,6 +22,13 @@ fn test_complex_gamma_family_at_positive_real_infinity() {
 }
 
 #[test]
+fn test_rgamma_c64_negative_real_infinity() {
+    for im in [0.0, -0.0] {
+        assert!(xsf::rgamma(c64(f64::NEG_INFINITY, im)).is_nan());
+    }
+}
+
+#[test]
 fn test_loggamma_c64_taylor_cutoff() {
     for (z, expected) in [
         (
