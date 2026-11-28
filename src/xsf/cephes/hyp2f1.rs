@@ -981,7 +981,7 @@ fn hyp2f1_gauss_dd(c: f64, d: Dd, denominators: [(Dd, Option<f64>); 2]) -> Optio
 // whether the Euler exponent is integral. Check the polynomial separately,
 // since an exact zero is real even with a nonreal power.
 #[cold]
-fn rounded_euler_power_is_complex(a: f64, b: f64, c: f64, x: f64, d: f64) -> bool {
+fn rounded_euler_power_is_complex(a: f64, b: f64, c: f64, x: f64) -> bool {
     let is_rounded_power = |e: f64| e <= -1.0 && e.fract() == 0.0;
     // For odd degree the beta integral of (1-xt)^m strictly decreases in x.
     // Pairing t and 1-t gives the sign of 2*opposite-c at x=2.
@@ -1005,7 +1005,8 @@ fn rounded_euler_power_is_complex(a: f64, b: f64, c: f64, x: f64, d: f64) -> boo
             even_degree || odd_nonzero(opposite)
         }
     };
-    (is_rounded_power(d) || is_rounded_power(c - b - a)) && (nonzero(a, b) || nonzero(b, a))
+    let rounded = is_rounded_power(c - a - b) || is_rounded_power(c - b - a);
+    rounded && (nonzero(a, b) || nonzero(b, a))
 }
 
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
@@ -1024,7 +1025,12 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         return 1.0;
     }
 
-    let d = c - a - b;
+    // Unlike in xsf, for x > 1 take whichever rounding of `c - a - b`, in either order of `a` and
+    // `b`, is closest to an integer without being one, so that whether the power of the Euler
+    // transformation below is real doesn't depend on that order
+    let (ab, ba) = (c - a - b, c - b - a);
+    let key = |t: f64| (t == t.round(), (t - t.round()).abs(), t);
+    let d = if x > 1.0 && key(ba) < key(ab) { ba } else { ab };
     let mut id = d.round();
 
     // Unlike in xsf, also for c = 0 (DLMF 15.2.5 for m = 0, see below)
@@ -1207,7 +1213,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         && x > 1.0
         && x.is_finite()
         && !(neg_int_a || neg_int_b)
-        && rounded_euler_power_is_complex(a, b, c, x, d)
+        && rounded_euler_power_is_complex(a, b, c, x)
     {
         return f64::NAN;
     }

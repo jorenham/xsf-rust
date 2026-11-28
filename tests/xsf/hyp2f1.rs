@@ -4100,6 +4100,44 @@ fn test_hyp2f1_f64_rounded_euler_exponent_on_cut() {
 }
 
 #[test]
+fn test_hyp2f1_f64_x_gt_1_near_integer_exponent_symmetric() {
+    // NaN in both orders of a and b, where c - a - b is near an integer, but not one, so that
+    // 2F1 is complex, also where it is at or near one in only one order (#1687, #2341); xsf
+    // gives NaN in one order, and inf or a value in the other. Arb (principal branch):
+    // -0.21644 + 1.6e-14i, -0.019047 + 4.0e-16i, -12.738 - 4.5e-12i, 2.7e-1980 + 4.5e-1994i,
+    // 1.6559 - 2.1e-13i, 1.0000 - 6.3e-15i, 0.99999999999994 - 6.8e-15i, 0.0092578 + 1.4e-15i
+    let args = [
+        (32.0, 2.381_415_082_656_166_5e-14, 1.957_691_271_250_615_3e-14, 149.664_072_955_019_1),
+        (1.000_000_000_000_006_7, 136.0, 136.0, 53.501_842_110_012_255),
+        (65.0, -1.210_262_194_225_493_4e-13, -1.761_923_088_622_502e-14, 2.0),
+        (
+            112.999_999_999_999_99,
+            14.999_999_999_999_995,
+            -1.189_586_909_929_237_5e-13,
+            5.711_058_107_196_326e130,
+        ),
+        (
+            128.0,
+            4.130_226_448_299_168e-14,
+            -6.297_507_024_813_356e-14,
+            2.136_283_112_770_334_5e151,
+        ),
+        (20.0, 1.993_321_724_492_374e-15, 16.000_000_000_000_004, 2.0),
+        (
+            -144.999_999_355_938_23,
+            2.173_289_950_240_383e-15,
+            -147.999_999_355_938_23,
+            620_584_238_963.234_5,
+        ),
+        (2.0, -0.055_804_321_741_268_32, -1.055_804_321_741_268_7, 19.0),
+    ];
+    for (a, b, c, x) in args {
+        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
+        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_centered_population_polynomial() {
     // Pearson, Olver and Porter, Table A.2 case 16, with an off-axis ordinate.
     let z = c64(core::f64::consts::FRAC_1_SQRT_2, 0.01);
