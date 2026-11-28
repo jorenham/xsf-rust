@@ -2315,6 +2315,11 @@ def _j_underflows(a: tuple[float, ...]) -> bool:
     return (a[1] != 0 or a[2] != 0) and _j_log(a) < -AMOS_ELIM
 
 
+def _j_underflow_nonzero(a: tuple[float, ...]) -> bool:
+    """Whether AMOS underflows J_v(z) to 0 where a part of it is a nonzero f64."""
+    return _j_underflows(a) and _nonzero(_j_ball(a))
+
+
 def _j_mlri(a: tuple[float, ...]) -> bool:
     """Whether the result of `cyl_bessel_j_c64` depends on `mlri` with a non-integer order
     (else its binomial coefficient is exactly 1): through `besj` (`binu`) unless v < 0 is a
@@ -2567,16 +2572,16 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     " the direction (DLMF 10.8.1)",
                 ),
                 Rule(
-                    lambda a: _j_underflows(a) and _nonzero(_j_ball(a)),
-                    complex(0, 0),
-                    "AMOS underflows to 0 below e^-elim (about 4e-305), where a part of"
-                    " J_v(z) is a nonzero f64 (#2365)",
-                    gap=True,
-                ),
-                Rule(
-                    _j_underflows,
+                    lambda a: _j_underflows(a) and not _nonzero(_j_ball(a)),
                     complex(0, 0),
                     "AMOS underflows to 0 below e^-elim (about 4e-305)",
+                ),
+                overrides=(
+                    Override(
+                        _j_underflow_nonzero,
+                        "xsf's AMOS underflows to 0 below e^-elim (about 4e-305), where a part"
+                        " of J_v(z) is a nonzero f64",
+                    ),
                 ),
                 floors=(J_MLRI_FLOOR,),
             ),

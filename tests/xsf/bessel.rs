@@ -401,6 +401,32 @@ fn test_bessel_jy_negative_order_overflow() {
 }
 
 #[test]
+fn test_bessel_j_c64_below_amos_underflow() {
+    // Arb, where AMOS underflows to 0 below about 4e-305
+    let actual = [
+        xsf::bessel_j(10.0, c64(-1e-30, 0.0)),
+        xsf::bessel_j(10.0, c64(-1e-30, -1e-30)),
+        xsf::bessel_j(63.886_764_526_367_19, c64(0.000_550_286_553_334_444_8, 0.0)),
+        xsf::bessel_j(-10.0, c64(0.0, -1e-30)),
+        xsf::bessel_j(84.0, c64(0.011_950_606_943_212_828, -0.008_524_519_721_266_655)),
+        xsf::bessel_j(10.5, c64(-1e-29, -0.0)),
+        xsf::bessel_j(171.0, c64(-2.0, 0.0)),
+    ];
+    let expected = [
+        c64(2.691_144_455_467_36e-310, 0.0),
+        c64(0.0, 8.611_662_257_495_596e-309),
+        c64(4.328_973e-317, 0.0),
+        c64(-2.691_144_455_467_36e-310, 0.0),
+        c64(-3.286_018_720_031_373e-307, -1.537_688_140_498_833_6e-306),
+        c64(0.0, 1.835_097_48e-315),
+        c64(-8.011_187_278_898_1e-310, 0.0),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+    // exactly 0 on the real axis, also past the overflow of `Gamma(v + 1)`
+    assert_eq!(actual[6].im, 0.0);
+}
+
+#[test]
 fn test_bessel_j_power_series_overflow_sign() {
     // unlike in xsf, the sign is kept if the power series of cephes `jv` overflows
     let inf = f64::INFINITY;

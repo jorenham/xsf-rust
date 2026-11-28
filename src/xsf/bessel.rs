@@ -14,6 +14,7 @@ use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_PI_2_DD, LOG2, two_sum};
 use crate::xsf::cephes::ikv_asymptotic_uniform_sums;
+use crate::xsf::complex::Num as _;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::phase::Quadrant;
 use crate::xsf::specfun;
@@ -84,7 +85,15 @@ impl BesselArg for f64 {
 impl BesselArg for Complex<f64> {
     #[inline]
     fn bessel_j(self, v: f64) -> Self {
-        self.via(|z| cyl_bessel_j_c64(v, z))
+        self.via(|z| {
+            let j = cyl_bessel_j_c64(v, z);
+            // Unlike in xsf, recover a result that AMOS underflows to 0.
+            if j == C64::ZERO && z != C64::ZERO {
+                bessel_j_series_underflow(v, z).unwrap_or(j)
+            } else {
+                j
+            }
+        })
     }
     #[inline]
     fn bessel_je(self, v: f64) -> Self {
@@ -1372,6 +1381,42 @@ fn bessel_small_argument_overflow(v: f64, z: C64, weight: f64) -> Option<C64> {
         let value = c64(f64::INFINITY.copysign(re), f64::INFINITY.copysign(im));
         if weight < 0.0 { -value } else { value }
     })
+}
+
+/// `J_v(z) = (z/2)^v / Gamma(v + 1) 0F1(; v + 1; -z^2/4)` (DLMF 10.16.9) where the AMOS `seri`
+/// sums it (`|z| <= 2` or `|z|^2/4 <= v + 1`), with `J_-n = (-1)^n J_n` (DLMF 10.4.1)
+///
+/// A subnormal result is rounded once: for an integer order up to the overflow of its
+/// `Gamma(v + 1)`, the power is a product of `z 2^(k-1)` with `|z 2^(k-1)|^v <= Gamma(v + 1)`,
+/// rescaled by `2^(-k v)`, so the parts that vanish on the axes and diagonals stay exactly 0.
+/// Otherwise the power is scaled by `1 / eps` as in `seri`.
+#[cold]
+fn bessel_j_series_underflow(v: f64, z: C64) -> Option<C64> {
+    const SCALE: f64 = 1.0 / f64::EPSILON;
+    let order = v.abs();
+    let az = z.norm();
+    if !(az <= 2.0 || 0.25 * az * az <= order + 1.0) {
+        return None;
+    }
+    let half_z = 0.5 * z;
+    let sum: C64 = crate::hyp0f1(order + 1.0, Complex::from(-(half_z * half_z))).into();
+    let gamma = crate::gamma(order + 1.0);
+    let mut j = if order >= 1.0 && order == order.trunc() && gamma.is_finite() {
+        let n = order as i32;
+        let k = (gamma.log2() / order - az.log2() + 1.0).floor() as i32;
+        (z.ldexp(k - 1).powi(n) * sum / gamma).ldexp(-k * n)
+    } else {
+        // as in `besj`, the upper lip of the cut for `Im z = -0`; the phase in units of pi keeps
+        // the parts that vanish on the axes exactly 0
+        let w = c64(z.re, z.im + 0.0);
+        let ln = (w.ln().re - LN_2) * order - crate::gammaln(order + 1.0);
+        rotate(sum, order * w.im.atan2(w.re) / PI) * (ln + SCALE.ln()).exp() / SCALE
+    };
+    // a non-integer `v < 0` also needs `Y_|v|` (DLMF 10.2.3)
+    if v < 0.0 && !reflect_jy(&mut j, order) {
+        return None;
+    }
+    (j.is_finite() && j != C64::ZERO).then_some(j)
 }
 
 fn bessel_y_axis_continuation(v: f64, z: C64) -> Option<C64> {
