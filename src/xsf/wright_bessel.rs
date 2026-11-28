@@ -749,7 +749,13 @@ fn wb_asymptotic<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
                 - 156_998_277_198_784.0 * a
                 + 573_840_801_152.0);
 
-    let Z = (a * x).powf(1.0 / Ap1[1]);
+    let (ax, p) = (a * x, 1.0 / Ap1[1]);
+    // Unlike in xsf, split the power if a x overflows, as Z is still finite.
+    let Z = if ax.is_finite() {
+        ax.powf(p)
+    } else {
+        a.powf(p) * x.powf(p)
+    };
     let mut Zp = 1.;
     let mut res = C[0];
     for k in 1..9 {
