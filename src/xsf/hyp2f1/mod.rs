@@ -1404,7 +1404,18 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
             value: (1.0 - z).powf(-a) * series.value,
             ..series
         };
-        let Some(negative) = hyp2f1_pfaff_negative(a, b, c, z) else {
+        // (as the other sums at least max(-b, a - c) terms for c < 0, there only if this one would
+        // be continued, is not finite, or c is near a pole)
+        let negative = if 0.0 < c
+            || pfaff.is_continued()
+            || !pfaff.value.is_finite()
+            || pole_rounding(c) > f64::EPSILON.sqrt()
+        {
+            hyp2f1_pfaff_negative(a, b, c, z)
+        } else {
+            None
+        };
+        let Some(negative) = negative else {
             return pfaff.value;
         };
         let best = if negative.cancellation <= pfaff.cancellation || !pfaff.value.is_finite() {
@@ -2504,7 +2515,8 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         // Unlike in xsf, also try the paired 1 - z series if the Maclaurin series cancels.
         let series = hypergeometric_series(a, b, c, z, 0.0);
         // Unlike in xsf, for c < 0, where this series is not continued analytically, use the
-        // Pfaff transform in a negative upper parameter instead if it cancels less.
+        // Pfaff transform in a negative upper parameter instead if this one is lossy and the
+        // other cancels less and is accurate.
         let series = if c < 0.0 {
             hyp2f1_pfaff_negative_retry(a, b, c, z, series).unwrap_or(series)
         } else {
@@ -2520,7 +2532,8 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         let (p, q, prefactor, euler) = lopez_temme_form(a, b, c, z);
         let series = lopez_temme_series(p, q, c, z, None);
         // Unlike in xsf, for c < 0, where this series is not continued analytically, use the
-        // Pfaff transform in a negative upper parameter instead if it cancels less.
+        // Pfaff transform in a negative upper parameter instead if this one is lossy and the
+        // other cancels less and is accurate.
         if c < 0.0 {
             if let Some(pfaff) = hyp2f1_pfaff_negative_retry(a, b, c, z, series) {
                 return pfaff.value;

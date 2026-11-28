@@ -1559,9 +1559,11 @@ fn test_hyp2f1_c64_pfaff_mixed_signs() {
 
 #[test]
 fn test_hyp2f1_c64_pfaff_mixed_signs_rest() {
-    // Arb at the exact binary64 inputs. Large a > 0 > b with c near a + b, |1 - z| > 1 and
-    // Re z < 1/2, for c < 0 and from the 1/z series for Re z >= 0 (#2317)
+    // Arb at the exact binary64 inputs
     for (a, b, c, z, expected, rtol) in [
+        // Large a > 0 > b with c near a + b, |1 - z| > 1 and Re z < 1/2, for c < 0 and from the
+        // 1/z series for Re z >= 0 (#2317)
+        //
         // Re z < 0
         (
             145.019_088_695_703_1,
@@ -1606,7 +1608,7 @@ fn test_hyp2f1_c64_pfaff_mixed_signs_rest() {
             c64(2.611_636_095_619_959e145, 2.337_048_500_948_891_5e145),
             1e-14,
         ),
-        // A tiny b and c near a pole
+        // A tiny or near-integer b < 0, and c < 0 just above a pole
         (
             0.625,
             -f64::EPSILON,
@@ -1621,6 +1623,23 @@ fn test_hyp2f1_c64_pfaff_mixed_signs_rest() {
             f64::EPSILON - 1.0,
             c64(-0.1, 0.1),
             c64(1.111_008_025_089_721_6, -0.427_293_507_086_700_33),
+            2e-15,
+        ),
+        (
+            2.25,
+            f64::EPSILON / 2.0 - 1.0,
+            f64::EPSILON - 2.0,
+            c64(0.125, 0.75),
+            c64(0.789_211_086_725_216_9, 0.929_998_433_363_018_9),
+            2e-15,
+        ),
+        // Re z < 0, with c within a few ulps of a pole
+        (
+            3.887_919_203_364_256_7,
+            -1.222_974_857_472_808_3e-16,
+            -1.999_999_999_999_997,
+            c64(-0.068_270_234_032_309_2, -0.052_433_069_528_597_98),
+            c64(0.999_952_784_435_381, 0.000_327_519_503_803_414_05),
             2e-15,
         ),
     ] {
