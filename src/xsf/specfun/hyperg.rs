@@ -177,16 +177,19 @@ pub(super) fn hyp1f1_pole_poly(a: f64, b: f64, z: C64) -> Option<C64> {
 /// (by DLMF 13.2.39 again) `P = e^x M(m - n, -n, -x) + c (-x)^(n + 1) M(n - m + 1, n + 2, x)`,
 /// where the terms of both series have one sign.
 fn chgm_pole_poly(a: f64, b: f64, x: f64) -> f64 {
+    // (with a single rounding, also at its root x = b)
+    if a == -1.0 {
+        return (x - b) / -b;
+    }
     // `e^l M(a, b, x)` for `b <= a <= 0` up to the term of degree `-a`, and its error bound
     let poly = |a: f64, x: f64, l: f64| {
+        if a == 0.0 {
+            return Some((l.exp(), 0.0));
+        }
         let next_term =
             |t: DoubleDouble, n: f64| t * (DoubleDouble::new(a + n) * x / ((b + n) * (n + 1.0)));
         let sum = hyp1f1_sum(a, b, x.abs(), next_term, DoubleDouble::ONE, l, Some(-a as i32));
-        if a == 0.0 {
-            Some((l.exp(), 0.0))
-        } else {
-            sum.map(|(p, err)| (p.hi, err))
-        }
+        sum.map(|(p, err)| (p.hi, err))
     };
     // (the leading term)
     if x.is_infinite() {
@@ -196,7 +199,8 @@ fn chgm_pole_poly(a: f64, b: f64, x: f64) -> f64 {
         // (e^x gradually in the sum where that can overflow, as in `chgm_series`)
         let l = if x > GRADUAL_EXP_X0 { 0.0 } else { x };
         let (q, err_q) = poly(b - a, -x, l)?;
-        let (m, err_m) = chgm_series(1.0 - a, 2.0 - b, -x, x)?;
+        // (not if it is subnormal, i.e. has lost precision before its scale is applied)
+        let (m, err_m) = chgm_series(1.0 - a, 2.0 - b, -x, x).filter(|&(m, _)| m.is_normal())?;
         let r = Scaled::new(neg_if_odd(a, m), 0, err_m / m)?.with_l(ln_dd(-x) * (1.0 - b));
         let [num, den] =
             [[a - b + 1.0, 1.0 - a], [1.0 - b, 2.0 - b]].map(|g| g.map(DoubleDouble::new));
@@ -1401,7 +1405,7 @@ pub(crate) fn chgm_long_poly(a: f64, b: f64, x: f64) -> Option<f64> {
 ///
 /// 1. NaNs, `a = 0`, and `a = b` for finite non-pole `b` return at once (scipy/xsf#365). At the
 ///    poles `b = 0, -1, ...`, unless the series terminates before them, so do 1 for `x = 0` and
-///    NaN otherwise, and else `chgm_pole_poly` for `b >= -10^6` and `x < 0` or `a = b` (no issue).
+///    NaN otherwise, and else `chgm_pole_poly` if `b >= -10^6 && (x < 0 || a = b)` (no issue).
 /// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`, or `b > 0` and `0 < -x0` if rounding
 ///    `b - a` errs by more than a rounding: the series of DLMF 13.2.39 in double-double with the
 ///    exact `b - a`, if its error bound is below `eps` (no issue).
@@ -1453,8 +1457,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if !(is_nonpos_int(a) && b <= a) {
             return if x == 0.0 { 1.0 } else { f64::NAN };
         }
-        // Unlike in xsf, the polynomial, which is not e^x M(b - a, b, -x) for x < 0, and also for
-        // a = b
+        // Unlike in xsf, the polynomial, both for x < 0 (where xsf takes the b -> -n limit of
+        // e^x M(b - a, b, -x), which drops terms) and for a = b (where its term ratio is 0/0)
         if b >= -MAX_SERIES_ITERATIONS && (x < 0.0 || a == b) {
             return chgm_pole_poly(a, b, x);
         }

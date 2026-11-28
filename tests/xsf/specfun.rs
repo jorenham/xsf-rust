@@ -1420,7 +1420,10 @@ fn test_hyp1f1_pole_polynomial() {
     // the leading term
     assert_eq!(xsf::hyp1f1(-3.0, -3.0, f64::NEG_INFINITY), f64::NEG_INFINITY);
     assert_eq!(xsf::hyp1f1(-2.0, -3.0, f64::NEG_INFINITY), f64::INFINITY);
-    assert_eq!(xsf::hyp1f1(-1000.0, -1001.0, 1000.0), f64::INFINITY);
+    assert_eq!(xsf::hyp1f1(-3.0, -3.0, 1e200), f64::INFINITY);
+    // the root x = b of the linear polynomial, and next to it
+    assert_eq!(xsf::hyp1f1(-1.0, -2.0, -2.0), 0.0);
+    assert_eq!(xsf::hyp1f1(-1.0, -1.0, -1.0 + f64::EPSILON / 2.0), f64::EPSILON / 2.0);
 }
 
 #[test]
