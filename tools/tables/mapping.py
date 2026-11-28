@@ -2932,7 +2932,13 @@ def _incomplete(
 
 def _jacobi_arb(u: flint.arb, m: flint.arb) -> tuple[flint.arb, flint.arb, flint.arb]:
     """sn, cn, and dn for m < 1, by theta functions with the nome of tau = i K(1 - m) / K(m),
-    and for m < 0 by sn(u|m) = sd(u k'|-m/k'^2) / k', with k' = sqrt(1 - m)."""
+    for m < 0 by sn(u|m) = sd(u k'|-m/k'^2) / k', with k' = sqrt(1 - m), and for m > 1 by
+    sn(u|m) = sn(u k|1/m) / k, cn(u|m) = dn(u k|1/m), dn(u|m) = cn(u k|1/m), with k = sqrt(m)
+    (DLMF 22.17.4)."""
+    if m > 1:
+        k = m.sqrt()
+        sn, cn, dn = _jacobi_arb(u * k, 1 / m)
+        return sn / k, dn, cn
     if m < 0:
         k1 = (1 - m).sqrt()
         sn, cn, dn = _jacobi_arb(u * k1, -m / (1 - m))
@@ -2946,13 +2952,10 @@ def _jacobi_arb(u: flint.arb, m: flint.arb) -> tuple[flint.arb, flint.arb, flint
     return (a3 / a2 * t1 / t4).real, (a4 / a2 * t2 / t4).real, (a4 / a3 * t3 / t4).real
 
 
-ELLIPJ_RULES: Final = (
-    NAN,
-    Rule(
-        lambda a: a[1] > 1,
-        math.nan,
-        "sn, cn, dn, and am are real for m > 1, but NaN like in xsf",
-    ),
+ELLIPJ_ABOVE_1: Final = Rule(
+    lambda a: a[1] > 1,
+    math.nan,
+    "sn, cn, dn, and am are real for m > 1, but NaN like in xsf",
 )
 ELLIPJ_OVERRIDE: Final = Override(
     lambda a: a[1] == 1 and abs(a[0]) > 710.47,
@@ -2993,13 +2996,21 @@ def _ellipj_out(i: int) -> Out:
         sn, cn, dn = _jacobi_arb(u, m)
         if i < 3:
             return (sn, cn, dn)[i]
+        if m > 1:
+            # cn > 0, so |am| < pi / 2
+            return flint.arb.atan2(sn, cn)
         k = flint.acb(m).elliptic_k().real
         n = math.floor(float((u + k) / (2 * k)))
         s = -1 if n % 2 else 1
         return n * flint.arb.pi() + flint.arb.atan2(s * sn, s * cn)
 
+    rules = (
+        NAN,
+        _finite_gap(ELLIPJ_ABOVE_1, arb, "where the value is finite"),
+        ELLIPJ_ABOVE_1,
+    )
     overrides = (ELLIPJ_OVERRIDE, AM_OVERRIDE) if i == 3 else (ELLIPJ_OVERRIDE,)
-    return Out(f"ellipj.{i}", (ref,), (arb,), ELLIPJ_RULES, overrides, (ELLIPJ_FLOOR,))
+    return Out(f"ellipj.{i}", (ref,), (arb,), rules, overrides, (ELLIPJ_FLOOR,))
 
 
 def _kolmogc_arb(x: flint.arb, r: int = 0) -> flint.arb:
@@ -3777,11 +3788,12 @@ VOIGT_RULES: Final = (
 
 
 def _wright_bessel_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
-    """Phi(a, b; x) for a, b, x >= 0: exp(x) / Gamma(b) for a = 0, else the power series with
-    a ball for the tail.
+    """Phi(a, b; x) for a >= 0: exp(x) / Gamma(b) for a = 0, else the power series with a
+    ball for the tail.
 
-    The ratio of consecutive terms decreases, since Gamma(y + a) / Gamma(y) increases in y,
-    so the tail after a term t with a ratio r <= 1/2 is at most t r / (1 - r) <= t."""
+    From a term t with a k + b > 0 on, the magnitude ratio of consecutive terms decreases,
+    since Gamma(y + a) / Gamma(y) increases in y > 0, so the tail after t with a ratio
+    r <= 1/2 is at most |t| r / (1 - r) <= |t|."""
     if x == 0:
         return b.rgamma()
     if a == 0:
@@ -3791,12 +3803,13 @@ def _wright_bessel_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
     while True:
         term = power * (a * k + b).rgamma()
         s += term
+        positive = a * k + b > 0
         k += 1
         power *= x / k
-        if k > 1 and term < s * 2 ** (1 - prec):
-            ratio = power * (a * k + b).rgamma() / term
+        if positive and k > 1 and abs(term) < abs(s) * 2 ** (1 - prec):
+            ratio = abs(power * (a * k + b).rgamma() / term)
             if ratio < 0.5:
-                return s + flint.arb(0, term)
+                return s + flint.arb(0, abs(term))
 
 
 def _log_wright_bessel_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
@@ -3819,6 +3832,11 @@ def _wright_bessel(a: mp.mpf, b: mp.mpf, x: mp.mpf) -> mp.mpf:
 
 WRIGHT_DOMAIN: Final = Rule(
     lambda a: min(a) < 0, math.nan, "only a, b, x >= 0 are supported, like in xsf"
+)
+WRIGHT_DOMAIN_GAP: Final = _finite_gap(
+    Rule(lambda a: a[0] >= 0 > min(a), WRIGHT_DOMAIN.value, WRIGHT_DOMAIN.why),
+    _wright_bessel_arb,
+    "but Phi(a, b; x) is finite for a >= 0",
 )
 
 
@@ -5924,7 +5942,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 "wright_bessel",
                 (_wright_bessel,),
                 (_wright_bessel_arb,),
-                (WRIGHT_DOMAIN,),
+                (WRIGHT_DOMAIN_GAP, WRIGHT_DOMAIN),
                 WRIGHT_OVERRIDES,
                 WRIGHT_FLOORS,
             ),
