@@ -499,15 +499,16 @@ fn series_eval_cancellation_to(mut g: impl FnMut() -> C64, tol: f64) -> Cancelle
 
 /// `series_eval_cancellation_to`, but with sum((k + 1) |term k| + |partial sum k|) for the terms
 /// k = 0, 1, ... in the cancellation, which also counts the roundings of the term ratios, of the
-/// series argument in them, and of the partial sums
-fn series_eval_conditioned(mut g: impl FnMut() -> C64, tol: f64) -> Cancelled {
+/// series argument in them, and of the partial sums, and where only a small term k >= `first` ends
+/// the sum
+fn series_eval_conditioned(mut g: impl FnMut() -> C64, tol: f64, first: f64) -> Cancelled {
     let (mut sum, mut bound) = (C64::ZERO, 0.0);
     for n in 1..=HYP2F1_MAXITER {
         let term = g();
         sum += term;
         let (term_norm, sum_norm) = (term.norm(), sum.norm());
         bound += n as f64 * term_norm + sum_norm;
-        if term_norm < sum_norm * tol {
+        if term_norm < sum_norm * tol && (n - 1) as f64 >= first {
             return Cancelled {
                 value: sum,
                 cancellation: cancellation(bound, sum),
@@ -1337,27 +1338,52 @@ fn hyp2f1_negative_c(a: f64, b: f64, c: f64, z: C64) -> Option<(C64, f64)> {
     Some((t1 + t2, t1.norm() * t1_error + t2.norm() * t2_error))
 }
 
-/// The Pfaff transform (1 - z)^(-b) F(b, c - a; c; z / (z - 1)) (DLMF 15.8.1) for b < 0 < c < a,
-/// or with a and b swapped, and the estimated cancellation of its series, if that sum is finite
+/// The Pfaff transform (1 - z)^(-b) F(b, c - a; c; z / (z - 1)) (DLMF 15.8.1) for b < 0 < a,
+/// c < a and Re z < 1/2, or with a and b swapped, and the estimated cancellation of its series, if
+/// that sum is finite
 //
-// Its upper parameters are then both negative, and for k >= 1 each of its series coefficients is
-// smaller in magnitude than that of the transform in a, as |b + k| < c - b + k and
-// |c - a + k| < a + k. Past k = max(-b, a - c), its term ratios are below |w| for the argument w,
-// so if summing to HYP2F1_EPS (1 - |w|) stops past that k, the omitted tail is below HYP2F1_EPS.
+// Its upper parameters are then both negative. For 0 < c, and k >= 1, each of its series
+// coefficients is smaller in magnitude than that of the transform in a, as |b + k| < c - b + k
+// and |c - a + k| < a + k. From k = max(-b, a - c) on, its term ratios are below |w| for the
+// argument w, so a term below HYP2F1_EPS (1 - |w|) there leaves an omitted tail below
+// HYP2F1_EPS. For c < 0, the sum only stops there, as a denominator c + k near zero can make the
+// later terms large after a small one.
 fn hyp2f1_pfaff_negative(a: f64, b: f64, c: f64, z: C64) -> Option<Cancelled> {
     let (a, b) = if a < b { (b, a) } else { (a, b) };
-    if !(b < 0.0 && 0.0 < c && c < a) {
+    if !(b < 0.0 && 0.0 < a && c < a) {
         return None;
     }
     let w = z / (z - 1.0);
+    let w_abs = w.norm();
+    if !(w_abs < 1.0) {
+        return None;
+    }
     let series_generator = hypergeometric_series_generator(b, c - a, c, w);
-    let series = series_eval_conditioned(series_generator, HYP2F1_EPS * (1.0 - w.norm()));
+    let tol = HYP2F1_EPS * (1.0 - w_abs);
+    let first = if c < 0.0 { (-b).max(a - c) } else { 0.0 };
+    let series = series_eval_conditioned(series_generator, tol, first);
     // (times the power from z with a separate scale, as rounding 1 - z can lose all digits of the
     // power for a large b, and it can overflow alone)
     series.value.is_finite().then(|| Cancelled {
         value: (power::one_minus_z_pow_sqrt(z, -b) * series.value).to_c64(),
         ..series
     })
+}
+
+/// `hyp2f1_pfaff_negative` if `series` loses more than HYP2F1_EPS to cancellation, and it cancels
+/// less and is accurate
+fn hyp2f1_pfaff_negative_retry(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: C64,
+    series: Cancelled,
+) -> Option<Cancelled> {
+    if !series.is_lossy() {
+        return None;
+    }
+    hyp2f1_pfaff_negative(a, b, c, z)
+        .filter(|p| p.cancellation < series.cancellation && p.is_accurate())
 }
 
 fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
@@ -1370,15 +1396,26 @@ fn hyp2f1_pfaff(a: f64, b: f64, c: f64, z: C64) -> C64 {
     let series_generator = hypergeometric_series_generator(a, c - b, c, z_pfaff);
     let positive_parameters = a > 0.0 && a.is_finite() && b > 0.0 && b < c && c.is_finite();
     if z.is_real() || !positive_parameters {
-        // Unlike in xsf, for b < 0 < c < a, or a and b swapped, use the transform in the negative
-        // upper parameter if it cancels less or this one is not finite, and continue the one used
-        // analytically if it cancels.
-        let series = series_eval_conditioned(series_generator, HYP2F1_EPS);
+        // Unlike in xsf, for b < 0 < a and c < a, or a and b swapped, use the transform in the
+        // negative upper parameter if it cancels less or this one is not finite, and continue the
+        // one used analytically if it cancels.
+        let series = series_eval_conditioned(series_generator, HYP2F1_EPS, 0.0);
         let pfaff = Cancelled {
             value: (1.0 - z).powf(-a) * series.value,
             ..series
         };
-        let Some(negative) = hyp2f1_pfaff_negative(a, b, c, z) else {
+        // (as the other sums at least max(-b, a - c) terms for c < 0, there only if this one would
+        // be continued, is not finite, or c is near a pole)
+        let negative = if 0.0 < c
+            || pfaff.is_continued()
+            || !pfaff.value.is_finite()
+            || pole_rounding(c) > f64::EPSILON.sqrt()
+        {
+            hyp2f1_pfaff_negative(a, b, c, z)
+        } else {
+            None
+        };
+        let Some(negative) = negative else {
             return pfaff.value;
         };
         let best = if negative.cancellation <= pfaff.cancellation || !pfaff.value.is_finite() {
@@ -2169,14 +2206,9 @@ fn hyp2f1_inverse(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
     }
     // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, use the Pfaff
-    // transform in a negative upper parameter for Re z < 0 instead if it cancels less and is
-    // accurate, with its estimated error.
-    let pfaff = if z.re < 0.0 && series.is_lossy() {
-        hyp2f1_pfaff_negative(a, b, c, z)
-            .filter(|p| p.cancellation < series.cancellation && p.is_accurate())
-    } else {
-        None
-    };
+    // transform in a negative upper parameter instead if it cancels less and is accurate, with its
+    // estimated error.
+    let pfaff = hyp2f1_pfaff_negative_retry(a, b, c, z, series);
     let (series, estimate) = pfaff.map_or((series, series.value.into()), |p| (p, p.into()));
     // Unlike in xsf, if the 1/z series lose more than HYP2F1_EPS to cancellation, also sum the
     // Lopez-Temme series for Re z < 1 where its tail is bounded.
@@ -2482,6 +2514,14 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
         }
         // Unlike in xsf, also try the paired 1 - z series if the Maclaurin series cancels.
         let series = hypergeometric_series(a, b, c, z, 0.0);
+        // Unlike in xsf, for c < 0, where this series is not continued analytically, use the
+        // Pfaff transform in a negative upper parameter instead if this one is lossy and the
+        // other cancels less and is accurate.
+        let series = if c < 0.0 {
+            hyp2f1_pfaff_negative_retry(a, b, c, z, series).unwrap_or(series)
+        } else {
+            series
+        };
         return hyp2f1_near_balance_retry(a, b, c, 1.0 - z, series.value, series.cancellation);
     }
     /* Points near exp(iπ/3), exp(-iπ/3) not handled by any of the standard
@@ -2491,6 +2531,14 @@ fn hyp2f1_c64(a: f64, b: f64, c: f64, z: C64) -> C64 {
     if (0.9..1.1).contains(&z_abs) && (1.0 - z).norm() >= 0.9 && z.re >= 0.0 {
         let (p, q, prefactor, euler) = lopez_temme_form(a, b, c, z);
         let series = lopez_temme_series(p, q, c, z, None);
+        // Unlike in xsf, for c < 0, where this series is not continued analytically, use the
+        // Pfaff transform in a negative upper parameter instead if this one is lossy and the
+        // other cancels less and is accurate.
+        if c < 0.0 {
+            if let Some(pfaff) = hyp2f1_pfaff_negative_retry(a, b, c, z, series) {
+                return pfaff.value;
+            }
+        }
         let result = if series.is_lossy() {
             lopez_temme_reordered(p, q, c, z, prefactor, series)
         } else {
