@@ -2498,14 +2498,15 @@ def r_elliprj(x, y, z, p):
 
 
 def _ellipj(u, m):
-    """sn, cn, dn, and the amplitude am(u | m) = n pi + atan2(sn(u'), cn(u')), where
-    u' = u - 2 n K(m) in [-K, K), so that sn(u') = (-1)^n sn(u) and cn(u') = (-1)^n cn(u) >= 0."""
+    """sn, cn, dn, and the amplitude am(u | m): for m < 1, n pi + atan2(sn(u'), cn(u')), where
+    u' = u - 2 n K(m) in [-K, K), so that sn(u') = (-1)^n sn(u) and cn(u') = (-1)^n cn(u) >= 0,
+    and atan2(sn, cn) for m > 1."""
     with wdps(xd(u)):
         # complex with a zero imaginary part for m < 0
         sn, cn, dn = (mp.re(mp.ellipfun(k, u, m=m)) for k in ("sn", "cn", "dn"))
         if m == 1:
             return sn, cn, dn, mp.asin(mp.tanh(u))
-        # for m > 1, cn(u|m) = dn(u sqrt(m)|1/m) > 0 (DLMF 22.17.4), so |am| < pi / 2
+        # for m > 1, cn(u|m) = dn(u sqrt(m)|1/m) > 0 (DLMF 22.17.3), so |am| < pi / 2
         n = 0 if m > 1 else int(mp.floor((u + mp.ellipk(m)) / (2 * mp.ellipk(m))))
         s = (-1) ** n
         return sn, cn, dn, n * mp.pi + mp.atan2(s * sn, s * cn)
@@ -3643,21 +3644,36 @@ def r_kolmogci(p):
     return _invert_pos(lambda x: _kolmogorov(x)[1], p, 1)
 
 
-def _wright_bessel(a, b, x):
-    """sum_k x^k / (k! Gamma(a k + b)) for a >= 0; once a k + b > 0 (or for a = 0), the terms
-    peak and then decrease in magnitude."""
-    s, t, k, peaked, last = mp.mpf(0), mp.mpf(1), 0, False, mp.mpf(0)
+def _wright_series(a, b, x):
+    """sum_k x^k / (k! Gamma(a k + b)) for a > 0, and the sum of the magnitudes of its terms;
+    once a k + b > 0, the terms peak and then decrease in magnitude."""
+    s, size, t, k, peaked, last = mp.mpf(0), mp.mpf(0), mp.mpf(1), 0, False, mp.mpf(0)
     while True:
         term = t * mp.rgamma(a * k + b)
         s += term
-        if a == 0 or a * k + b > 0:
+        size += abs(term)
+        if a * k + b > 0:
             if k > 0 and abs(term) <= last:
                 peaked = True
             if peaked and abs(term) <= mp.eps * abs(s):
-                return s
+                return s, size
             last = abs(term)
         k += 1
         t *= x / k
+
+
+def _wright_bessel(a, b, x):
+    """Phi(a, b; x) for a >= 0: exp(x) / Gamma(b) for a = 0, else the power series, with the
+    digits that cancellation loses (for x < 0) added."""
+    if a == 0:
+        return mp.exp(x) * mp.rgamma(b)
+    extra = 0
+    while True:
+        with wdps(extra):
+            s, size = _wright_series(a, b, x)
+        if size <= 10**extra * abs(s):
+            return s
+        extra = int(mp.log10(size / abs(s))) + 1 if s else extra + mp.mp.dps
 
 
 def r_wright_bessel(a, b, x):

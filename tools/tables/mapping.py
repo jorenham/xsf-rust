@@ -1998,9 +1998,9 @@ def _amos_range_gap(arb: Callable[[flint.arb, flint.acb], flint.acb | None]) -> 
     return Rule(when, AMOS_RANGE.value, why, gap=True)
 
 
-def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
-    """`rule` as a gap, where the real value (`arb` of the inputs) is certainly a finite f64,
-    with `why` added to its reason."""
+def _finite_gap(rule: Rule, arb: Arb, why: str, zero: bool = False) -> Rule:
+    """`rule` as a gap, where the real value (`arb` of the inputs) is certainly a finite f64
+    (or exactly 0, with `zero`), with `why` added to its reason."""
 
     def when(a: tuple[float, ...]) -> bool:
         if not rule.when(a):
@@ -2012,7 +2012,7 @@ def _finite_gap(rule: Rule, arb: Arb, why: str) -> Rule:
                 if y is None:
                     return False
                 y = abs(y)
-                if F64_ZERO_TIE < y < F64_INF_TIE:
+                if F64_ZERO_TIE < y < F64_INF_TIE or zero and y == 0:
                     return True
                 if y <= F64_ZERO_TIE or y >= F64_INF_TIE:
                     return False
@@ -2934,7 +2934,7 @@ def _jacobi_arb(u: flint.arb, m: flint.arb) -> tuple[flint.arb, flint.arb, flint
     """sn, cn, and dn for m < 1, by theta functions with the nome of tau = i K(1 - m) / K(m),
     for m < 0 by sn(u|m) = sd(u k'|-m/k'^2) / k', with k' = sqrt(1 - m), and for m > 1 by
     sn(u|m) = sn(u k|1/m) / k, cn(u|m) = dn(u k|1/m), dn(u|m) = cn(u k|1/m), with k = sqrt(m)
-    (DLMF 22.17.4)."""
+    (DLMF 22.17.2-22.17.4)."""
     if m > 1:
         k = m.sqrt()
         sn, cn, dn = _jacobi_arb(u * k, 1 / m)
@@ -3006,7 +3006,7 @@ def _ellipj_out(i: int) -> Out:
 
     rules = (
         NAN,
-        _finite_gap(ELLIPJ_ABOVE_1, arb, "where the value is finite"),
+        _finite_gap(ELLIPJ_ABOVE_1, arb, "where the value is finite", zero=True),
         ELLIPJ_ABOVE_1,
     )
     overrides = (ELLIPJ_OVERRIDE, AM_OVERRIDE) if i == 3 else (ELLIPJ_OVERRIDE,)
@@ -3806,7 +3806,8 @@ def _wright_bessel_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
         positive = a * k + b > 0
         k += 1
         power *= x / k
-        if positive and k > 1 and abs(term) < abs(s) * 2 ** (1 - prec):
+        # an absolute scale, since the ball of s can contain 0 after cancellation (x < 0)
+        if positive and k > 1 and abs(term) < abs(s).upper() * 2 ** (1 - prec):
             ratio = abs(power * (a * k + b).rgamma() / term)
             if ratio < 0.5:
                 return s + flint.arb(0, abs(term))
@@ -3823,20 +3824,18 @@ def _log_wright_bessel(a: mp.mpf, b: mp.mpf, x: mp.mpf) -> mp.mpf:
     return specs.r_log_wright_bessel(a, b, x)
 
 
-def _wright_bessel(a: mp.mpf, b: mp.mpf, x: mp.mpf) -> mp.mpf:
-    """`specs.r_wright_bessel`, with exp(x) / Gamma(b) for a = 0."""
-    if a == 0 and x > 0:
-        return mp.exp(x) * mp.rgamma(b)
-    return specs.r_wright_bessel(a, b, x)
-
-
 WRIGHT_DOMAIN: Final = Rule(
     lambda a: min(a) < 0, math.nan, "only a, b, x >= 0 are supported, like in xsf"
 )
 WRIGHT_DOMAIN_GAP: Final = _finite_gap(
-    Rule(lambda a: a[0] >= 0 > min(a), WRIGHT_DOMAIN.value, WRIGHT_DOMAIN.why),
+    Rule(
+        lambda a: a[0] >= 0 > min(a) and all(map(math.isfinite, a)),
+        WRIGHT_DOMAIN.value,
+        WRIGHT_DOMAIN.why,
+    ),
     _wright_bessel_arb,
     "but Phi(a, b; x) is finite for a >= 0",
+    zero=True,
 )
 
 
@@ -5940,7 +5939,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         (
             Out(
                 "wright_bessel",
-                (_wright_bessel,),
+                (specs.r_wright_bessel,),
                 (_wright_bessel_arb,),
                 (WRIGHT_DOMAIN_GAP, WRIGHT_DOMAIN),
                 WRIGHT_OVERRIDES,
