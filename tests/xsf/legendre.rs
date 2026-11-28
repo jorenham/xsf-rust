@@ -171,7 +171,7 @@ fn test_assoc_legendre_p_negative_degree() {
 #[test]
 fn test_assoc_legendre_p_zero_and_infinity() {
     // P_n^m(0) = 0 for odd n + m (DLMF 14.5.1), also where the diagonal (-1)^m (2m-1)!! overflows;
-    // P_n(z) ~ z^n as z -> +-inf
+    // and P_n has a positive leading coefficient (DLMF 18.5.16)
     let inf = f64::INFINITY;
     assert_eq!(
         [

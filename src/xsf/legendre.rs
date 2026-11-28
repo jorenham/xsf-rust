@@ -91,20 +91,25 @@ fn int_product(factors: &[i32]) -> f64 {
 fn dot<T: Num, const N: usize>(x: &[T; N], y: &[T; N]) -> T {
     let mut res = T::from(0.0);
     for i in 0..N {
-        res = res + mul_overflowed(x[i], y[i]);
+        res = res + mul_recurrence_term(x[i], y[i]);
     }
 
     res
 }
 
-// Unlike in xsf, an exact zero times an infinite (overflowed) value is 0 instead of NaN, since the
-// Legendre recurrences use zero coefficients for terms that vanish.
-fn mul_overflowed<T: Num>(x: T, y: T) -> T {
-    if x.abs() == 0.0 && y.abs() == f64::INFINITY {
+// Unlike in xsf, an exact zero coefficient times an infinite (overflowed) value is 0 instead of
+// NaN, since the Legendre recurrences use zero coefficients for terms that vanish.
+fn mul_recurrence_term<T: Num>(coef: T, value: T) -> T {
+    if coef.real() == 0.0 && coef.imag() == 0.0 && is_infinite(value) {
         T::from(0.0)
     } else {
-        x * y
+        coef * value
     }
+}
+
+/// Whether a part of `x` is infinite.
+fn is_infinite<T: Num>(x: T) -> bool {
+    x.real().is_infinite() || x.imag().is_infinite()
 }
 
 fn forward_recur_shift_left<T: Copy, const K: usize>(res: &mut [T; K]) {
@@ -207,11 +212,7 @@ fn legendre_p_recurrence_n<T: Num>(z: T, n: i32, res: &mut [T; 2]) {
 // Unlike in xsf, drop the term of degree n - 2 at an infinite z, where it is negligible but would
 // give inf - inf.
 fn degree_n_minus_2_coefficient<T: Num>(fac0: T, z: T) -> T {
-    if z.abs() == f64::INFINITY {
-        T::from(0.0)
-    } else {
-        fac0
-    }
+    if is_infinite(z) { T::from(0.0) } else { fac0 }
 }
 
 /// Compute the Legendre polynomial of degree n.
@@ -363,7 +364,7 @@ fn assoc_legendre_p_initializer_n<const NORM: bool, T: Num>(
     };
 
     res[0] = res_m_abs_m;
-    res[1] = mul_overflowed(fac * z, res_m_abs_m);
+    res[1] = mul_recurrence_term(fac * z, res_m_abs_m);
 }
 
 fn assoc_legendre_p_recurrence_n<const NORM: bool, T: Num>(m: i32, z: T, n: i32, res: &mut [T; 2]) {
