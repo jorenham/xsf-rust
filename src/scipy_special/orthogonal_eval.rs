@@ -128,9 +128,9 @@ mod sealed {
             // Unlike in xsf, odd integer degrees of the Gegenbauer case use the three-term
             // recurrence near the origin (as for complex z), where the series cancels
             // catastrophically to their small values (the even ones don't vanish there).
-            // The degree `-b` is used only if the supplied `n + lam` is exactly `b`, for which
-            // `lam` must be exact as well (see `sym`), and infinite parameters are left to the
-            // series.
+            // The candidate degree `-b` is used only if the supplied `n + lam` is exactly `b`, for
+            // which `lam` must be exact as well (see `sym`), and infinite parameters are left to
+            // the series.
             let nu = super::symmetric_degree(n, b, lam, 0.0);
             super::int_degree(nu, 0.0, 0.0)
                 .filter(|&nu| nu % 2 == 1 && sym && c > 0.0 && lam.is_finite())
@@ -208,10 +208,10 @@ mod sealed {
             // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
             // z = 1, and lose the small values near the origin (as the power series in
             // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
-            // The degree `-b` is used if `n + lam` is within `EPSILON |n|` of `b` (about a
-            // rounding of `n`), not only if exact as for real x, since the series cancels for
-            // large degrees.
-            let nu = super::symmetric_degree(n, b, lam, f64::EPSILON);
+            // The candidate degree `-b` is used if `n + lam` is within `2 EPSILON |n|` of `b`
+            // (the roundings of the sum that gives `b`, relative to `n`), not only if it is exact
+            // as for real x, since the series cancels for large degrees.
+            let nu = super::symmetric_degree(n, b, lam, 2.0 * f64::EPSILON);
             let p = super::int_degree(nu, 0.0, 0.0)
                 .filter(|_| sym && c > 0.0)
                 .map(|n| {
