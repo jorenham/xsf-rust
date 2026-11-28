@@ -3993,6 +3993,26 @@ fn test_hyp2f1_f64_x_gt_1() {
 }
 
 #[test]
+fn test_hyp2f1_f64_c_eq_b_large_exponent() {
+    // for c = b and -1 <= x < 1, (1 - x)^-a (DLMF 15.4.6) without rounding 1 - x first, in
+    // either order of a and b; references: Arb
+    let args = [
+        (-700.0, 0.5, -0.1, 9.437_992_127_672_448e28),
+        (1e10, 0.3, 1e-12, 1.010_050_167_084_173),
+        (-1e10, 0.3, -1e-9, 22_026.465_684_674_4),
+        (-300.0, 0.5, -0.3, 1.524_072_728_821_744_3e34),
+        (500.0, 2.5, 0.3, 2.824_749_841_015_858e77),
+        (-150.5, -3.5, 0.7, 2.026_510_392_709_061_4e-79),
+        // (not inf just below the overflow threshold)
+        (-1024.0, 0.5, -0.999_999_999_999_999_9, 1.797_693_134_862_213_7e308),
+    ];
+    for (a, b, x, expected) in args {
+        let actual = [xsf::hyp2f1(a, b, b, x), xsf::hyp2f1(b, a, b, x)];
+        assert_eq!(actual, [expected; 2]);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_c_eq_b_x_lt_minus_1() {
     // for c = b, (1 - x)^-a (DLMF 15.4.6), in either order of a and b; references: Arb
     let args = [
