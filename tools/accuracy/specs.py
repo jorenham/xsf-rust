@@ -3067,12 +3067,14 @@ def c_sph_legendre_p(n, m, re, im):
 
 
 def _clegenq(n, m, z):
-    """Q_n^m like `lqn` and `lqmn` at z: the Ferrers function for |z| < 1, else type 3, but with
+    """Q_n^m like `lqn` and `lqmn` at z: the Ferrers function for |z| <= 1, else type 3, but with
     the principal sqrt(z^2 - 1) for (z + 1)^(m/2) (z - 1)^(m/2), which flips the sign for odd m
     and Re z < 0. As a function with the type and sign at z, so that its derivative does not
     difference across |z| = 1 or Re z = 0."""
+    if z * z == 1:
+        raise ValueError("singular at z = +-1")
     t, s = 2, 1
-    if abs(z) >= 1:
+    if abs(z) > 1:
         t = 3
         s = mp.sign(mp.re(mp.sqrt(z * z - 1) / (mp.sqrt(z + 1) * mp.sqrt(z - 1))))
     return lambda w: s ** int(m) * _acb(lambda u: u.legendre_q(int(n), int(m), t), w)
