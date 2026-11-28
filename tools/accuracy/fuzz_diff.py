@@ -304,15 +304,19 @@ def _arb_str(x: flint.arb) -> str:
     return "0" if x.contains(0) else x.str(30, radius=False)
 
 
-def _x_log(name: str, args: accuracy.Args) -> float | None:
+def _x_log(name: str, args: accuracy.Args) -> complex | None:
     """The value at x = 0 (the first argument) of a function with a term x log(...), as SciPy:
     that of its other terms (0 log 0 = 0, where mpmath is NaN), for a y that is not NaN of
-    `xlogy` and `xlog1py`, and y >= 0 of `rel_entr` and `kl_div`; else None."""
+    `xlogy` and `xlog1py` (also complex), and y >= 0 of `rel_entr` and `kl_div`; else None."""
     match name, args:
         case "entr", (0,):
             return 0.0
         case "xlogy" | "xlog1py", (0, y) if not math.isnan(y):
             return 0.0
+        case "xlogy#c" | "xlog1py#c", (0, 0, yr, yi) if not cmath.isnan(
+            complex(yr, yi)
+        ):
+            return 0j
         case "rel_entr", (0, y) if y >= 0:
             return 0.0
         case "kl_div", (0, y) if y >= 0:
@@ -431,10 +435,10 @@ def _side(
 
 def _ref(line: Line) -> accuracy.Ref | str:
     name, args = line
+    spec = specs.BY_NAME[name]
     if (v := _x_log(name, args)) is not None:
         # (exact, of an unknown sign)
-        return [repr(v), None]
-    spec = specs.BY_NAME[name]
+        return [[repr(v.real), repr(v.imag)] if spec.complex else repr(v), None]
     zeros = {i for i, x in enumerate(args) if x == 0}
     imag = {i for i in zeros if spec.args[i] in IMAG}
     real = zeros - imag
@@ -462,15 +466,30 @@ def verdict(eb: float, eh: float) -> str:
     return "both wrong" if min(eb, eh) > FLOOR else "both right"
 
 
-def _extremes(z: complex, r: accuracy.Ref) -> bool:
-    """Whether the parts of `z` are infinite where those of the reference (rounded to f64) are,
-    and then equal, and 0 (below `DBL_MIN`, as in an underflow) where those are, and then of the
-    same sign; a reference part that is exactly 0 has an unknown sign."""
+def _error(y: complex, r: accuracy.Ref) -> float:
+    """`accuracy.error`, but per part where the reference (rounded to f64) has an infinite one:
+    infinite where the infinite parts of `y` differ from those (in place or sign), else that of
+    its finite parts."""
+    fs = [float(p) for p in _values(r)]
+    if not any(map(math.isinf, fs)):
+        return accuracy.error(y, r)
+    z = complex(y)
+    parts = list(zip((z.real, z.imag), _values(r), fs))
+    if any(u != f if math.isinf(f) else math.isinf(u) for u, _, f in parts):
+        return math.inf
+    return max(
+        (accuracy.error(u, [p, r[1]]) for u, p, f in parts if not math.isinf(f)),
+        default=0.0,
+    )
+
+
+def _zeros(z: complex, r: accuracy.Ref) -> bool:
+    """Whether the parts of `z` are 0 (below `DBL_MIN`, as in an underflow) where those of the
+    reference (rounded to f64) are, and then of the same sign; a reference part that is exactly
+    0 has an unknown sign."""
     z, fs = complex(z), [float(p) for p in _values(r)]
     return all(
-        u == f
-        if math.isinf(u) or math.isinf(f)
-        else p == 0
+        p == 0
         or (abs(u) >= DBL_MIN and abs(f) >= DBL_MIN)
         or (abs(u) < DBL_MIN and abs(f) < DBL_MIN and math.copysign(1, u) == mp.sign(p))
         for u, f, p in zip((z.real, z.imag), fs, _mpfs(r))
@@ -480,7 +499,7 @@ def _extremes(z: complex, r: accuracy.Ref) -> bool:
 def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float, float]:
     """The kind (see `KINDS`) of the results of the base and the head, with their errors; a
     panic counts as a NaN, which is right only for `REJECTED`. If both are right, but only one
-    has the infinite and zero parts of the reference (see `_extremes`), the other is wrong."""
+    has the zeros of the reference (see `_zeros`), the other is wrong."""
     x, y = (math.nan if v is None else v for v in (x, y))
     nan = [cmath.isnan(v) for v in (x, y)]
     if r == REJECTED:
@@ -488,12 +507,12 @@ def judge(x: Value, y: Value, r: accuracy.Ref | str | None) -> tuple[str, float,
         return verdict(eb, eh), eb, eh
     if not isinstance(r, list):
         return "unchecked" if r is None else "no ref", math.nan, math.nan
-    eb, eh = (accuracy.error(v, r) for v in (x, y))
+    eb, eh = (_error(v, r) for v in (x, y))
     kind = verdict(eb, eh)
     if nan == [True, False] and eh > NAN_ERR and cmath.isfinite(y):
         kind = "regressed"
-    if kind == "both right" and (ex := _extremes(x, r)) != _extremes(y, r):
-        kind = "regressed" if ex else "improved"
+    if kind == "both right" and (zx := _zeros(x, r)) != _zeros(y, r):
+        kind = "regressed" if zx else "improved"
     return kind, eb, eh
 
 

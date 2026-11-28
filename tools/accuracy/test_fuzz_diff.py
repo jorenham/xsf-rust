@@ -77,6 +77,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # 0 log 0 = 0, where mpmath is NaN
     (("entr", (0.0,)), 0.0, NAN, "regressed"),
     (("xlogy", (0.0, 0.0)), 0.0, NAN, "regressed"),
+    (("xlogy#c", (-0.0, 0.0, 1.0, 1.0)), c(0.0, 0.0), c(-0.0, -0.0), "both right"),
     (("xlog1py", (0.0, -1.0)), 0.0, NAN, "regressed"),
     (("rel_entr", (0.0, 0.0)), 0.0, 1.0, "regressed"),
     (("kl_div", (0.0, 0.0)), 0.0, 1.0, "regressed"),
@@ -100,6 +101,9 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     # and per part, with its sign
     (("log1p#c", (-1.0, -0.0)), c(-INF, 0), c(INF, 0), "regressed"),
     (("log1p#c", (-1.0, -0.0)), c(-INF, 0), c(-INF, INF), "regressed"),
+    (("log1p#c", (-1.0, -0.0)), c(INF, 0), c(0, INF), "both wrong"),
+    # and the finite part
+    (("expm1#c", (710.0, 0.1)), c(INF, 2.2302733027705553e307), c(INF, 1), "regressed"),
     # an argument precondition, where the reference fails
     (("roots_gengegenbauer.1", (41.0, 33.0, -1.0, 1.0)), NAN, None, "no ref"),
     (("log1p#c", (-2.0, -0.0)), c(0, -PI), c(0, PI), "regressed"),
@@ -107,7 +111,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("expi#c", (-fd.TINY, -0.0)), EI, conj(EI), "regressed"),
     # a signed zero real part, at the cut along the imaginary axis of the sqrt(z^2 - 1) of `lqmn`
     (("assoc_legendre_q_all.0#c", (1.0, 1.0, -0.0, 2.0)), -Q11, Q11, "regressed"),
-    # the Ferrers function at |z| = 1, as Q_0 of `lqmn`
+    # the Ferrers value of Q_1(i), at |z| = 1
     (("legendre_q_all.0#c", (1.0, 0.0, 1.0)), FQ1, Q1, "regressed"),
     # the value at the point, which the sides approach slowly, as J_v(z) ~ (z / 2)^v
     (("bessel_j#c", (0.01, 0.0, 0.0)), 0j, c(5.84e-4, 9.2e-6), "regressed"),
@@ -115,6 +119,7 @@ CASES: Final[list[tuple[Line, Value, Value, str]]] = [
     (("bessel_i#c", (fd.TINY, 0.0, 0.0)), 0j, c(1, 0), "regressed"),
     # no side of the pole at z = 1
     (("hyp2f1#c", (1.0, 1.0, 1.0, 1.0, 0.0)), c(INF, 0), c(0, INF), "no ref"),
+    (("legendre_q_all.1#c", (1.0, 1.0, 0.0)), c(1e300, 0), 0j, "no ref"),
     (("sinpi", (-0.0,)), -0.0, 0.0, "regressed"),
     (("sinpi", (0.0,)), -0.0, 0.0, "improved"),
     # even in x, so of an unknown sign
