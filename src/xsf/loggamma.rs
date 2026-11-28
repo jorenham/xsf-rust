@@ -239,8 +239,35 @@ pub(crate) fn exp_loggamma(w: C64, z: C64) -> C64 {
     }
 }
 
+/// `1/Gamma(z)` for `Re(z) <= -2^53` and `Im(z) != 0`, where its reflected phase resolves the
+/// signs of the overflowing components
+pub(crate) fn rgamma_large_negative(z: C64) -> Option<C64> {
+    // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
+    // For z = -N + iy with |y| <= sqrt(eps)*N, replacing Im(log Gamma(N + 1 - iy)) with
+    // -y*ln(N) errs by about |y|/(2N) + |y|^3/(6N^2) (DLMF 5.11.1), at most eps*|y|.
+    if !(z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= -z.re * f64::EPSILON.sqrt()) {
+        return None;
+    }
+    let phase = -z.im * (-z.re).ln();
+    let sign = z.im.signum();
+    // The reflected magnitude forces overflow in both components, even for subnormal y.
+    // Near zero the signs follow directly from the quadrant.
+    if phase.abs() <= 0.5 {
+        return Some(c64(f64::INFINITY, f64::INFINITY.copysign(sign)));
+    }
+    let (sin, cos) = phase.sin_cos();
+    // The rounding of ln(N) and of the product, and the omitted terms above, shift the
+    // phase by less than 2*eps*|phase|, so the signs hold beyond that.
+    (sin.abs().min(cos.abs()) > 2.0 * f64::EPSILON * phase.abs())
+        .then(|| c64(f64::INFINITY.copysign(-sign * sin), f64::INFINITY.copysign(sign * cos)))
+}
+
 /// `xsf::rgamma` for complex `z`
 fn crgamma(z: C64) -> C64 {
+    // Unlike in xsf, keep the limit 0 at positive real infinity.
+    if !z.is_finite() && z != c64(f64::INFINITY, 0.0) {
+        return C64::NAN;
+    }
     // Compute 1/Gamma(z) using loggamma.
     if z.is_real() && is_nonpos_int(z.re) {
         // Zeros at 0, -1, -2, ...
@@ -257,23 +284,8 @@ fn crgamma(z: C64) -> C64 {
         }
     }
     // Unlike in xsf, recover the signs from the reflected phase (DLMF 5.5.3).
-    // Here the real part is an even integer, so sin(pi*z) = i*sinh(pi*Im(z)).
-    // For z = -N + iy with |y| <= sqrt(eps)*N, replacing Im(log Gamma(N + 1 - iy)) with
-    // -y*ln(N) errs by about |y|/(2N) + |y|^3/(6N^2) (DLMF 5.11.1), at most eps*|y|.
-    if z.re <= -pow2(53) && z.re.is_finite() && z.im.abs() <= -z.re * f64::EPSILON.sqrt() {
-        let phase = -z.im * (-z.re).ln();
-        let sign = z.im.signum();
-        // The reflected magnitude forces overflow in both components, even for subnormal y.
-        // Near zero the signs follow directly from the quadrant.
-        if phase.abs() <= 0.5 {
-            return c64(f64::INFINITY, f64::INFINITY.copysign(sign));
-        }
-        let (sin, cos) = phase.sin_cos();
-        // The rounding of ln(N) and of the product, and the omitted terms above, shift the
-        // phase by less than 2*eps*|phase|, so the signs hold beyond that.
-        if sin.abs().min(cos.abs()) > 2.0 * f64::EPSILON * phase.abs() {
-            return c64(f64::INFINITY.copysign(-sign * sin), f64::INFINITY.copysign(sign * cos));
-        }
+    if let Some(w) = rgamma_large_negative(z) {
+        return w;
     }
     // Unlike in xsf, reflect at a nonpositive integer before forming the complex phase.
     if (f64::MIN_POSITIVE..=pow2(-27)).contains(&z.im.abs())
@@ -290,7 +302,8 @@ fn crgamma(z: C64) -> C64 {
             return c64(re, im);
         }
     }
-    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite.
+    // Unlike in xsf, keep only the magnitude where the computed Im(log Gamma) is non-finite, and
+    // exp(-log Gamma) where Re(log Gamma) = +inf.
     exp_loggamma(-cloggamma(z), z)
 }
 
